@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
 function npmp_render_email_settings_page() {
     // Check if user has permission to access this page
     if (!current_user_can('manage_options')) {
-        wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
     }
     
     // Handle email settings form submission with nonce verification
@@ -164,10 +164,10 @@ function npmp_render_email_settings_page() {
                         $error_data = $error->get_error_data();
                         if ($error_data) {
                             echo "\n\n" . esc_html__('Additional Error Data:', 'nonprofit-manager') . "\n";
-                            echo esc_html(print_r($error_data, true));
+                            echo esc_html(wp_json_encode($error_data, JSON_PRETTY_PRINT));
                         }
                     } else {
-                        echo esc_html(print_r($error, true));
+                        echo esc_html(wp_json_encode($error, JSON_PRETTY_PRINT));
                     }
                     echo '</pre>';
                     
@@ -227,7 +227,7 @@ if (!function_exists('npmp_render_members_page')) {
     function npmp_render_members_page() {
         // Check if user has permission to access this page
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+            wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
         }
         global $wpdb;
         $table = $wpdb->prefix . 'np_members';
@@ -254,10 +254,10 @@ if (!function_exists('npmp_render_members_page')) {
         }
 
         // Show edit form
-        if (isset($_GET['action'], $_GET['id']) && sanitize_text_field($_GET['action']) === 'edit' && current_user_can('manage_options')) {
+        if (isset($_GET['action'], $_GET['id']) && sanitize_text_field(wp_unslash($_GET['action'])) === 'edit' && current_user_can('manage_options')) {
             $id = intval($_GET['id']);
-            $query = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}np_members WHERE id = %d", $id);
-            $member = $wpdb->get_row($query);
+            $table_name = $wpdb->prefix . 'np_members';
+            $member = $wpdb->get_row($wpdb->prepare("SELECT * FROM %i WHERE id = %d", $table_name, $id));
             if (!$member) {
                 echo '<div class="notice notice-error"><p>' . esc_html__('Member not found.', 'nonprofit-manager') . '</p></div>';
                 return;
@@ -285,7 +285,7 @@ if (!function_exists('npmp_render_members_page')) {
         }
 
         // Handle deletion
-        if (isset($_GET['action'], $_GET['id']) && sanitize_text_field($_GET['action']) === 'delete' && 
+        if (isset($_GET['action'], $_GET['id']) && sanitize_text_field(wp_unslash($_GET['action'])) === 'delete' && 
             check_admin_referer('np_manage_members_delete_' . intval($_GET['id']))) {
             $wpdb->delete($table, ['id' => intval($_GET['id'])]);
             echo '<div class="updated"><p>' . esc_html__('Member deleted.', 'nonprofit-manager') . '</p></div>';
@@ -310,8 +310,8 @@ if (!function_exists('npmp_render_members_page')) {
         if ($form_submitted && $name && $email) {
             $existing = wp_cache_get("np_member_email_$email", 'np_members');
             if ($existing === false) {
-                $query = $wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}np_members WHERE email = %s", $email);
-                $existing = $wpdb->get_var($query);
+                $table_name = $wpdb->prefix . 'np_members';
+                $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE email = %s", $table_name, $email));
                 wp_cache_set("np_member_email_$email", $existing, 'np_members', 300);
             }
 
@@ -341,8 +341,8 @@ if (!function_exists('npmp_render_members_page')) {
 
         $members = wp_cache_get('np_members_all', 'np_members');
         if ($members === false) {
-            $query = $wpdb->prepare("SELECT * FROM {$wpdb->prefix}np_members ORDER BY created_at DESC");
-            $members = $wpdb->get_results($query);
+            $table_name = $wpdb->prefix . 'np_members';
+            $members = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i ORDER BY created_at DESC", $table_name));
             wp_cache_set('np_members_all', $members, 'np_members', 300);
         }
 

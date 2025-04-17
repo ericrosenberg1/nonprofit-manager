@@ -31,7 +31,7 @@ if (get_option('npmp_enable_paypal')) {
         // Verify the paypal_success parameter with a nonce
         $paypal_success = '';
         if (isset($_GET['paypal_success'], $_GET['_wpnonce']) && 
-            wp_verify_nonce(sanitize_text_field($_GET['_wpnonce']), 'npmp_paypal_success')) {
+            wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'npmp_paypal_success')) {
             $paypal_success = sanitize_text_field(wp_unslash($_GET['paypal_success']));
         }
         if ($paypal_success === '1') {

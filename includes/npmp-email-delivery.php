@@ -7,7 +7,7 @@ if (!function_exists('npmp_render_email_delivery_page')) {
     function npmp_render_email_delivery_page() {
         // Check user permission
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+            wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
         }
         
         $message = '';
@@ -17,7 +17,7 @@ if (!function_exists('npmp_render_email_delivery_page')) {
         $method = $settings['method'] ?? 'wp_mail';
 
         // Handle form actions with nonce verification
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && 
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && 
             isset($_POST['_wpnonce']) && 
             wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'npmp_email_delivery_settings')) {
             

@@ -11,7 +11,7 @@ if (get_option('npmp_enable_paypal')) {
 function npmp_render_payment_settings_page() {
     // Check if user has permission to access this page
     if (!current_user_can('manage_options')) {
-        wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
     }
     if (
         isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &&

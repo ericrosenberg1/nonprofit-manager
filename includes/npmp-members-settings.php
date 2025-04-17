@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
 function npmp_render_members_page() {
     // Check if user has permission to access this page
     if (!current_user_can('manage_options')) {
-        wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
     }
     global $wpdb;
     $table = $wpdb->prefix . 'np_members';
@@ -34,7 +34,7 @@ function npmp_render_members_page() {
     // Show edit form
     if (!empty($_GET['action']) && $_GET['action'] === 'edit' && !empty($_GET['id']) && current_user_can('manage_options')) {
         $id = intval($_GET['id']);
-        $member = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id));
+        $member = $wpdb->get_row($wpdb->prepare("SELECT * FROM %i WHERE id = %d", $table, $id));
         if (!$member) {
             echo '<div class="notice notice-error"><p>Member not found.</p></div>';
             return;
@@ -87,7 +87,7 @@ function npmp_render_members_page() {
     if ($form_submitted && $name && $email) {
         $existing = wp_cache_get("np_member_email_$email", 'np_members');
         if ($existing === false) {
-            $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE email = %s", $email));
+            $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE email = %s", $table, $email));
             wp_cache_set("np_member_email_$email", $existing, 'np_members', 300);
         }
 
@@ -117,7 +117,7 @@ function npmp_render_members_page() {
 
     $members = wp_cache_get('np_members_all', 'np_members');
     if ($members === false) {
-        $members = $wpdb->get_results("SELECT * FROM {$table} ORDER BY created_at DESC");
+        $members = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i ORDER BY created_at DESC", $table));
         wp_cache_set('np_members_all', $members, 'np_members', 300);
     }
 

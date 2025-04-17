@@ -29,7 +29,7 @@ function npmp_register_newsletter_cpt() {
 function npmp_render_newsletter_editor() {
     // Check if user has permission to access this page
     if (!current_user_can('edit_posts')) {
-        wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
     }
     echo '<div class="wrap"><h1>' . esc_html__('New Newsletter', 'nonprofit-manager') . '</h1>';
     echo '<p>' . esc_html__('Use the editor below to create a newsletter. You can send a test email or queue it for delivery.', 'nonprofit-manager') . '</p>';
