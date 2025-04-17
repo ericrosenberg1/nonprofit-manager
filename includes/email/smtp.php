@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
  * Apply SMTP settings to PHPMailer if SMTP is selected.
  */
 add_action('phpmailer_init', function ($phpmailer) {
-    $settings = get_option('np_email_delivery_settings');
+    $settings = get_option('npmp_email_delivery_settings');
 
     if (!is_array($settings) || ($settings['method'] ?? '') !== 'smtp') return;
 
@@ -39,23 +39,23 @@ add_action('phpmailer_init', function ($phpmailer) {
     $phpmailer->FromName = $from_name ?: $from_email;
 
     if ($debug) {
-        update_option('np_smtp_debug_log', '');
+        update_option('npmp_smtp_debug_log', '');
         $phpmailer->SMTPDebug = 2;
         $phpmailer->Debugoutput = function ($str, $level) {
             static $log = '';
             $log .= "$level: $str\n";
-            update_option('np_smtp_debug_log', $log);
+            update_option('npmp_smtp_debug_log', $log);
         };
     }
 });
 
 /**
- * Render the SMTP settings form. Called from np-email-delivery.php if SMTP is selected.
+ * Render the SMTP settings form. Called from npmp-email-delivery.php if SMTP is selected.
  */
-function np_render_smtp_settings_form($settings = []) {
+function npmp_render_smtp_settings_form($settings = []) {
     echo '<h2>SMTP Configuration</h2>';
     echo '<form method="post">';
-    wp_nonce_field('np_email_delivery_settings');
+    wp_nonce_field('npmp_email_delivery_settings');
 
     echo '<table class="form-table">';
     echo '<tr><th>SMTP Host</th><td><input type="text" name="host" value="' . esc_attr($settings['host'] ?? '') . '" class="regular-text"></td></tr>';

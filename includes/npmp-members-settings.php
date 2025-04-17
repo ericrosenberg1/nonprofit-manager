@@ -1,5 +1,5 @@
 <?php
-// includes/np-members-settings.php
+// includes/npmp-members-settings.php
 
 if (!defined('ABSPATH')) exit;
 

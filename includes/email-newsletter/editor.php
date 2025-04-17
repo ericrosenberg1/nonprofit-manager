@@ -4,9 +4,9 @@ defined('ABSPATH') || exit;
 /**
  * Register Newsletter CPT
  */
-add_action('init', 'np_register_newsletter_cpt');
-function np_register_newsletter_cpt() {
-    register_post_type('np_newsletter', [
+add_action('init', 'npmp_register_newsletter_cpt');
+function npmp_register_newsletter_cpt() {
+    register_post_type('npmp_newsletter', [
         'labels' => [
             'name' => 'Newsletters',
             'singular_name' => 'Newsletter',
@@ -26,15 +26,19 @@ function np_register_newsletter_cpt() {
 /**
  * Render New Newsletter Page
  */
-function np_render_newsletter_editor() {
+function npmp_render_newsletter_editor() {
+    // Check if user has permission to access this page
+    if (!current_user_can('edit_posts')) {
+        wp_die(__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
+    }
     echo '<div class="wrap"><h1>' . esc_html__('New Newsletter', 'nonprofit-manager') . '</h1>';
     echo '<p>' . esc_html__('Use the editor below to create a newsletter. You can send a test email or queue it for delivery.', 'nonprofit-manager') . '</p>';
-    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=np_newsletter')) . '" class="button button-primary">' . esc_html__('Create New Newsletter', 'nonprofit-manager') . '</a>';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=npmp_newsletter')) . '" class="button button-primary">' . esc_html__('Create New Newsletter', 'nonprofit-manager') . '</a>';
     echo '<hr>';
 
     // List past newsletters
     $newsletters = get_posts([
-        'post_type' => 'np_newsletter',
+        'post_type' => 'npmp_newsletter',
         'posts_per_page' => 10,
         'orderby' => 'date',
         'order' => 'DESC',
@@ -58,58 +62,44 @@ function np_render_newsletter_editor() {
  */
 add_action('add_meta_boxes', function () {
     add_meta_box(
-        'np_newsletter_send_controls',
+        'npmp_newsletter_send_controls',
         esc_html__('Send Newsletter', 'nonprofit-manager'),
-        'np_newsletter_send_controls_html',
-        'np_newsletter',
+        'npmp_newsletter_send_controls_html',
+        'npmp_newsletter',
         'side',
         'high'
     );
 });
 
-function np_newsletter_send_controls_html($post) {
-    $send_nonce = wp_create_nonce('np_send_newsletter_' . $post->ID);
-    $test_nonce = wp_create_nonce('np_send_test_' . $post->ID);
+function npmp_newsletter_send_controls_html($post) {
+    $send_nonce = wp_create_nonce('npmp_send_newsletter_' . $post->ID);
+    $test_nonce = wp_create_nonce('npmp_send_test_' . $post->ID);
 
-    echo '<p><button type="button" class="button" id="np-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '">' . esc_html__('Send Test to Me', 'nonprofit-manager') . '</button></p>';
-    echo '<p><button type="button" class="button button-primary" id="np-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '">' . esc_html__('Send to All Members', 'nonprofit-manager') . '</button></p>';
+    echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '">' . esc_html__('Send Test to Me', 'nonprofit-manager') . '</button></p>';
+    echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '">' . esc_html__('Send to All Members', 'nonprofit-manager') . '</button></p>';
 }
 
 /**
- * Enqueue Admin JS
+ * Enqueue Admin JS - Handled by npmp-scripts.php
  */
-add_action('admin_enqueue_scripts', function ($hook) {
-    if ($hook === 'post.php' || $hook === 'post-new.php') {
-        $screen = get_current_screen();
-        if ($screen && $screen->post_type === 'np_newsletter') {
-            wp_enqueue_script(
-                'np-newsletter-editor',
-                NP_NEWSLETTER_URL . 'assets/newsletter-editor.js',
-                ['jquery'],
-                '1.0.0', // Set version to ensure proper caching
-                true
-            );
-        }
-    }
-});
 
 /**
  * AJAX: Send Test Email
  */
-add_action('wp_ajax_np_send_test_newsletter', function () {
+add_action('wp_ajax_npmp_send_test_newsletter', function () {
     $post_id = isset($_POST['post_id']) ? (int) sanitize_text_field(wp_unslash($_POST['post_id'])) : 0;
     $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
 
     if (
         empty($post_id) ||
         !current_user_can('edit_post', $post_id) ||
-        !wp_verify_nonce($nonce, 'np_send_test_' . $post_id)
+        !wp_verify_nonce($nonce, 'npmp_send_test_' . $post_id)
     ) {
         wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
     }
 
     $user = wp_get_current_user();
-    $sent = NP_Newsletter_Manager::send_test_email($post_id, $user->user_email);
+    $sent = NPMP_Newsletter_Manager::send_test_email($post_id, $user->user_email);
 
     if ($sent) {
         wp_send_json_success(esc_html__('Test email sent to ', 'nonprofit-manager') . esc_html($user->user_email));
@@ -121,18 +111,18 @@ add_action('wp_ajax_np_send_test_newsletter', function () {
 /**
  * AJAX: Queue Newsletter for Delivery
  */
-add_action('wp_ajax_np_send_newsletter_now', function () {
+add_action('wp_ajax_npmp_send_newsletter_now', function () {
     $post_id = isset($_POST['post_id']) ? (int) sanitize_text_field(wp_unslash($_POST['post_id'])) : 0;
     $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
 
     if (
         empty($post_id) ||
         !current_user_can('edit_post', $post_id) ||
-        !wp_verify_nonce($nonce, 'np_send_newsletter_' . $post_id)
+        !wp_verify_nonce($nonce, 'npmp_send_newsletter_' . $post_id)
     ) {
         wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
     }
 
-    NP_Newsletter_Manager::queue_newsletter($post_id);
+    NPMP_Newsletter_Manager::queue_newsletter($post_id);
     wp_send_json_success(esc_html__('Newsletter queued for delivery.', 'nonprofit-manager'));
 });

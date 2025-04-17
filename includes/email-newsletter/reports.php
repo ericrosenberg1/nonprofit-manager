@@ -6,7 +6,7 @@ defined('ABSPATH') || exit;
  * File: includes/email-newsletter/reports.php
  */
 
-function np_render_newsletter_reports() {
+function npmp_render_newsletter_reports() {
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Newsletter Reports', 'nonprofit-manager') . '</h1>';
     echo '<p>' . esc_html__('Track opens, failures, and engagement for each newsletter.', 'nonprofit-manager') . '</p><hr>';
@@ -14,7 +14,7 @@ function np_render_newsletter_reports() {
     global $wpdb;
 
     $newsletters = get_posts([
-        'post_type' => 'np_newsletter',
+        'post_type' => 'npmp_newsletter',
         'posts_per_page' => 10,
         'orderby' => 'date',
         'order' => 'DESC',
@@ -41,14 +41,14 @@ function np_render_newsletter_reports() {
         $newsletter_id = $newsletter->ID;
 
         // Use cache key per query
-        $cache_key_total  = 'np_total_' . $newsletter_id;
-        $cache_key_opens  = 'np_opens_' . $newsletter_id;
-        $cache_key_failed = 'np_failed_' . $newsletter_id;
+        $cache_key_total  = 'npmp_total_' . $newsletter_id;
+        $cache_key_opens  = 'npmp_opens_' . $newsletter_id;
+        $cache_key_failed = 'npmp_failed_' . $newsletter_id;
 
         $total = wp_cache_get($cache_key_total);
         if ($total === false) {
             $total = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}np_newsletter_queue WHERE newsletter_id = %d",
+                "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE newsletter_id = %d",
                 $newsletter_id
             ));
             wp_cache_set($cache_key_total, $total);
@@ -57,7 +57,7 @@ function np_render_newsletter_reports() {
         $opens = wp_cache_get($cache_key_opens);
         if ($opens === false) {
             $opens = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}np_newsletter_opens WHERE newsletter_id = %d",
+                "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_opens WHERE newsletter_id = %d",
                 $newsletter_id
             ));
             wp_cache_set($cache_key_opens, $opens);
@@ -66,13 +66,13 @@ function np_render_newsletter_reports() {
         $failed = wp_cache_get($cache_key_failed);
         if ($failed === false) {
             $failed = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}np_newsletter_queue WHERE newsletter_id = %d AND status = %s",
+                "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE newsletter_id = %d AND status = %s",
                 $newsletter_id, 'failed'
             ));
             wp_cache_set($cache_key_failed, $failed);
         }
 
-        $sent_date = get_post_meta($newsletter_id, '_np_newsletter_queued_at', true);
+        $sent_date = get_post_meta($newsletter_id, '_npmp_newsletter_queued_at', true);
         $edit_link = get_edit_post_link($newsletter_id);
         $title     = get_the_title($newsletter_id);
 

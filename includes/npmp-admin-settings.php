@@ -1,6 +1,6 @@
 <?php
 /**
- * File path: includes/np-admin-settings.php
+ * File path: includes/npmp-admin-settings.php
  */
 
 defined('ABSPATH') || exit;

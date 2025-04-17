@@ -1,6 +1,5 @@
 <?php
-// includes/np-payments-settings.php
-// TODO: Rename file to npmp-payments-settings.php
+// includes/npmp-payments-settings.php
 
 if (!defined('ABSPATH')) exit;
 

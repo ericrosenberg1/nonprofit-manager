@@ -5,7 +5,7 @@ defined('ABSPATH') || exit;
  * Register the Newsletter Template CPT
  */
 add_action('init', function () {
-    register_post_type('np_nl_template', [
+    register_post_type('npmp_nl_template', [
         'labels' => [
             'name' => 'Newsletter Templates',
             'singular_name' => 'Newsletter Template',
@@ -26,15 +26,15 @@ add_action('init', function () {
 /**
  * Render the Template Manager page under submenu
  */
-function np_render_newsletter_templates() {
+function npmp_render_newsletter_templates() {
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Newsletter Templates', 'nonprofit-manager') . '</h1>';
-    echo '<p>' . esc_html__('Create reusable blocks of content for headers, footers, or body sections. Insert them using the shortcode:', 'nonprofit-manager') . ' <code>[np_nl_template id="123"]</code>.</p>';
-    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=np_nl_template')) . '" class="button button-primary">' . esc_html__('Create New Template', 'nonprofit-manager') . '</a>';
+    echo '<p>' . esc_html__('Create reusable blocks of content for headers, footers, or body sections. Insert them using the shortcode:', 'nonprofit-manager') . ' <code>[npmp_nl_template id="123"]</code>.</p>';
+    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=npmp_nl_template')) . '" class="button button-primary">' . esc_html__('Create New Template', 'nonprofit-manager') . '</a>';
     echo '<hr>';
 
     $templates = get_posts([
-        'post_type' => 'np_nl_template',
+        'post_type' => 'npmp_nl_template',
         'posts_per_page' => 10,
         'orderby' => 'date',
         'order' => 'DESC',
@@ -55,13 +55,13 @@ function np_render_newsletter_templates() {
 
 /**
  * Shortcode to insert a newsletter template
- * Usage: [np_nl_template id="123"]
+ * Usage: [npmp_nl_template id="123"]
  */
-add_shortcode('np_nl_template', function ($atts) {
+add_shortcode('npmp_nl_template', function ($atts) {
     $atts = shortcode_atts(['id' => 0], $atts);
 
     $post = get_post($atts['id']);
-    if (!$post || $post->post_type !== 'np_nl_template') return '';
+    if (!$post || $post->post_type !== 'npmp_nl_template') return '';
 
     return apply_filters('the_content', $post->post_content);
 });

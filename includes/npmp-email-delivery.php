@@ -1,6 +1,5 @@
 <?php
-// includes/np-email-delivery.php
-// TODO: Rename file to npmp-email-delivery.php
+// includes/npmp-email-delivery.php
 
 if (!defined('ABSPATH')) exit;
 

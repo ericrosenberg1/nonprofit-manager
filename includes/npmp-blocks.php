@@ -1,6 +1,5 @@
 <?php
-// includes/np-blocks.php
-// TODO: Rename file to npmp-blocks.php
+// includes/npmp-blocks.php
 
 if (!defined('ABSPATH')) exit;
 

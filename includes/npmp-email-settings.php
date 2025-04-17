@@ -1,5 +1,5 @@
 <?php
-// includes/np-email-settings.php
+// includes/npmp-email-settings.php
 
 if (!defined('ABSPATH')) exit;
 
