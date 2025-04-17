@@ -131,7 +131,7 @@ class NPMP_Newsletter_Manager {
 
     public static function send_email($to, $subject, $content) {
         $headers = ['Content-Type: text/html; charset=UTF-8'];
-        $method = get_option('np_email_method', 'wp_mail');
+        $method = get_option('npmp_email_method', 'wp_mail');
 
         switch ($method) {
             case 'smtp':
@@ -149,7 +149,7 @@ class NPMP_Newsletter_Manager {
         $args = [
             'meta_query' => [
                 [
-                    'key'     => 'np_unsubscribed',
+                    'key'     => 'npmp_unsubscribed',
                     'compare' => 'NOT EXISTS',
                 ],
             ],

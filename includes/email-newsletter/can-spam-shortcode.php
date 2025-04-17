@@ -14,6 +14,6 @@ add_shortcode('npmp_can_spam', function () {
 });
 
 // Maintain backward compatibility
-add_shortcode('np_can_spam', function () {
+add_shortcode('npmp_can_spam', function () {
     return do_shortcode('[npmp_can_spam]');
 });

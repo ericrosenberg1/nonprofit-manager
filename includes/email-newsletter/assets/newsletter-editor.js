@@ -6,7 +6,7 @@ jQuery(function ($) {
 
         button.prop('disabled', true).text('Sending...');
         $.post(ajaxurl, {
-            action: 'np_send_test_newsletter',
+            action: 'npmp_send_test_newsletter',
             post_id: postId,
             nonce: nonce
         }, function (res) {
@@ -24,7 +24,7 @@ jQuery(function ($) {
 
         button.prop('disabled', true).text('Queuing...');
         $.post(ajaxurl, {
-            action: 'np_send_newsletter_now',
+            action: 'npmp_send_newsletter_now',
             post_id: postId,
             nonce: nonce
         }, function (res) {
