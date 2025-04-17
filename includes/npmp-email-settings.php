@@ -223,6 +223,184 @@ if (!function_exists('npmp_render_email_delivery_page')) {
     }
 }
 
+// Create a class to handle member management
+class NPMP_Member_Manager {
+    private static $instance = null;
+    
+    // Get the singleton instance
+    public static function get_instance() {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    // Update a member
+    public function update_member($id, $data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_members';
+        
+        $result = $wpdb->update(
+            $table,
+            [
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'membership_level' => $data['membership_level'],
+                'status' => $data['status']
+            ],
+            ['id' => $id]
+        );
+        
+        // Clear cache
+        $this->clear_member_cache($data['email']);
+        wp_cache_delete('npmp_member_' . $id, 'npmp_members');
+        
+        return $result;
+    }
+    
+    // Get a member by ID
+    public function get_member_by_id($id) {
+        global $wpdb;
+        
+        // Try to get from cache
+        $cache_key = 'npmp_member_' . $id;
+        $member = wp_cache_get($cache_key, 'npmp_members');
+        
+        if ($member === false) {
+            $member = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}npmp_members WHERE id = %d",
+                $id
+            ));
+            
+            if ($member) {
+                wp_cache_set($cache_key, $member, 'npmp_members', 300);
+            }
+        }
+        
+        return $member;
+    }
+    
+    // Delete a member
+    public function delete_member($id) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_members';
+        
+        // Get email before deleting to clear cache
+        $member = $this->get_member_by_id($id);
+        if ($member && !empty($member->email)) {
+            $this->clear_member_cache($member->email);
+        }
+        
+        // Clear member ID cache
+        wp_cache_delete('npmp_member_' . $id, 'npmp_members');
+        
+        return $wpdb->delete($table, ['id' => $id]);
+    }
+    
+    // Delete multiple members
+    public function delete_members($ids) {
+        global $wpdb;
+        
+        $result = 0;
+        foreach ($ids as $id) {
+            $result += $this->delete_member($id);
+        }
+        
+        // Clear all members cache
+        $this->clear_all_members_cache();
+        
+        return $result;
+    }
+    
+    // Check if email exists
+    public function email_exists($email) {
+        global $wpdb;
+        
+        // Try to get from cache
+        $cache_key = "npmp_member_email_$email";
+        $existing = wp_cache_get($cache_key, 'npmp_members');
+        
+        if ($existing === false) {
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_members WHERE email = %s",
+                $email
+            ));
+            wp_cache_set($cache_key, $existing, 'npmp_members', 300);
+        }
+        
+        return $existing;
+    }
+    
+    // Add a new member
+    public function add_member($data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_members';
+        
+        $result = $wpdb->insert(
+            $table,
+            [
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'membership_level' => $data['membership_level'] ?? '',
+                'status' => $data['status'] ?? 'subscribed',
+                'created_at' => current_time('mysql')
+            ]
+        );
+        
+        // Clear cache
+        $this->clear_member_cache($data['email']);
+        $this->clear_all_members_cache();
+        
+        return $result;
+    }
+    
+    // Update member status
+    public function update_status($email, $status) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_members';
+        
+        $result = $wpdb->update(
+            $table,
+            ['status' => $status],
+            ['email' => $email]
+        );
+        
+        // Clear cache
+        $this->clear_member_cache($email);
+        $this->clear_all_members_cache();
+        
+        return $result;
+    }
+    
+    // Get all members
+    public function get_all_members() {
+        global $wpdb;
+        
+        // Try to get from cache
+        $cache_key = 'npmp_members_all';
+        $members = wp_cache_get($cache_key, 'npmp_members');
+        
+        if ($members === false) {
+            $members = $wpdb->get_results(
+                "SELECT * FROM {$wpdb->prefix}npmp_members ORDER BY created_at DESC"
+            );
+            wp_cache_set($cache_key, $members, 'npmp_members', 300);
+        }
+        
+        return $members;
+    }
+    
+    // Clear member cache
+    private function clear_member_cache($email) {
+        wp_cache_delete("npmp_member_email_$email", 'npmp_members');
+    }
+    
+    // Clear all members cache
+    private function clear_all_members_cache() {
+        wp_cache_delete('npmp_members_all', 'npmp_members');
+    }
+}
+
 if (!function_exists('npmp_render_members_page')) {
     function npmp_render_members_page() {
         // Check if user has permission to access this page
@@ -242,12 +420,14 @@ if (!function_exists('npmp_render_members_page')) {
             $membership_level = sanitize_text_field(wp_unslash($_POST['membership_level'] ?? ''));
             $status = sanitize_text_field(wp_unslash($_POST['status'] ?? ''));
 
-            $wpdb->update($table, [
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $member_manager->update_member($id, [
                 'name' => $name,
                 'email' => $email,
                 'membership_level' => $membership_level,
                 'status' => $status
-            ], ['id' => $id]);
+            ]);
 
             echo '<div class="updated"><p>' . esc_html__('Member updated.', 'nonprofit-manager') . '</p></div>';
             return;
@@ -256,8 +436,9 @@ if (!function_exists('npmp_render_members_page')) {
         // Show edit form
         if (isset($_GET['action'], $_GET['id']) && sanitize_text_field(wp_unslash($_GET['action'])) === 'edit' && current_user_can('manage_options')) {
             $id = intval($_GET['id']);
-            $table_name = $wpdb->prefix . 'np_members';
-            $member = $wpdb->get_row($wpdb->prepare("SELECT * FROM %i WHERE id = %d", $table_name, $id));
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $member = $member_manager->get_member_by_id($id);
             if (!$member) {
                 echo '<div class="notice notice-error"><p>' . esc_html__('Member not found.', 'nonprofit-manager') . '</p></div>';
                 return;
@@ -287,7 +468,9 @@ if (!function_exists('npmp_render_members_page')) {
         // Handle deletion
         if (isset($_GET['action'], $_GET['id']) && sanitize_text_field(wp_unslash($_GET['action'])) === 'delete' && 
             check_admin_referer('np_manage_members_delete_' . intval($_GET['id']))) {
-            $wpdb->delete($table, ['id' => intval($_GET['id'])]);
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $member_manager->delete_member(intval($_GET['id']));
             echo '<div class="updated"><p>' . esc_html__('Member deleted.', 'nonprofit-manager') . '</p></div>';
         }
 
@@ -295,9 +478,9 @@ if (!function_exists('npmp_render_members_page')) {
         if (!empty($_POST['bulk_delete']) && isset($_POST['np_members_nonce']) && 
             wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['np_members_nonce'])), 'np_manage_members')) {
             $user_ids = array_map('intval', (array) wp_unslash($_POST['user_ids'] ?? []));
-            foreach ($user_ids as $id) {
-                $wpdb->delete($table, ['id' => $id]);
-            }
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $member_manager->delete_members($user_ids);
             echo '<div class="updated"><p>' . esc_html__('Selected members deleted.', 'nonprofit-manager') . '</p></div>';
         }
 
@@ -308,22 +491,18 @@ if (!function_exists('npmp_render_members_page')) {
             wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['np_members_nonce'])), 'np_manage_members');
 
         if ($form_submitted && $name && $email) {
-            $existing = wp_cache_get("np_member_email_$email", 'np_members');
-            if ($existing === false) {
-                $table_name = $wpdb->prefix . 'np_members';
-                $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE email = %s", $table_name, $email));
-                wp_cache_set("np_member_email_$email", $existing, 'np_members', 300);
-            }
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $existing = $member_manager->email_exists($email);
 
             if (!$existing) {
-                $wpdb->insert($table, [
+                // Use member manager instead of direct database call
+                $member_manager->add_member([
                     'name' => $name,
                     'email' => $email,
                     'membership_level' => '',
-                    'status' => 'subscribed',
-                    'created_at' => current_time('mysql')
+                    'status' => 'subscribed'
                 ]);
-                wp_cache_delete("np_member_email_$email", 'np_members');
                 echo '<div class="updated"><p>' . esc_html__('Member added.', 'nonprofit-manager') . '</p></div>';
             } elseif (!empty($_POST['manual_add'])) {
                 echo '<div class="notice notice-warning"><p>' . esc_html__('This email address is already subscribed.', 'nonprofit-manager') . '</p></div>';
@@ -334,17 +513,15 @@ if (!function_exists('npmp_render_members_page')) {
         if (!empty($_POST['np_unsubscribe']) && isset($_POST['np_members_nonce']) && 
             wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['np_members_nonce'])), 'np_manage_members')) {
             $email = sanitize_email(wp_unslash($_POST['np_email'] ?? ''));
-            $wpdb->update($table, ['status' => 'unsubscribed'], ['email' => $email]);
-            wp_cache_delete("np_member_email_$email", 'np_members');
+            // Use member manager instead of direct database call
+            $member_manager = NPMP_Member_Manager::get_instance();
+            $member_manager->update_status($email, 'unsubscribed');
             echo '<div class="updated"><p>' . esc_html__('You have been unsubscribed.', 'nonprofit-manager') . '</p></div>';
         }
 
-        $members = wp_cache_get('np_members_all', 'np_members');
-        if ($members === false) {
-            $table_name = $wpdb->prefix . 'np_members';
-            $members = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i ORDER BY created_at DESC", $table_name));
-            wp_cache_set('np_members_all', $members, 'np_members', 300);
-        }
+        // Use member manager instead of direct database call
+        $member_manager = NPMP_Member_Manager::get_instance();
+        $members = $member_manager->get_all_members();
 
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__('Members & Subscribers', 'nonprofit-manager') . '</h1>';

@@ -3,6 +3,54 @@
 
 if (!defined('ABSPATH')) exit;
 
+// Create a class to handle donation management
+class NPMP_Donation_Manager {
+    private static $instance = null;
+    
+    // Get the singleton instance
+    public static function get_instance() {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    // Log a donation
+    public function log_donation($data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_donations';
+        
+        return $wpdb->insert($table, [
+            'email'      => $data['email'],
+            'name'       => $data['name'] ?? '',
+            'amount'     => $data['amount'],
+            'frequency'  => $data['frequency'] ?? 'one_time',
+            'gateway'    => $data['gateway'] ?? 'paypal',
+            'created_at' => current_time('mysql')
+        ]);
+    }
+    
+    // Get all donations
+    public function get_all_donations() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_donations';
+        
+        return $wpdb->get_results(
+            $wpdb->prepare("SELECT * FROM %i ORDER BY created_at DESC", $table)
+        );
+    }
+    
+    // Get donations by email
+    public function get_donations_by_email($email) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_donations';
+        
+        return $wpdb->get_results(
+            $wpdb->prepare("SELECT * FROM %i WHERE email = %s ORDER BY created_at DESC", $table, $email)
+        );
+    }
+}
+
 if (get_option('npmp_enable_paypal')) {
 
     // PayPal SDK is now enqueued in npmp-scripts.php
@@ -92,13 +140,14 @@ if (get_option('npmp_enable_paypal')) {
         $frequency = sanitize_text_field(wp_unslash($_POST['frequency'] ?? 'one_time'));
 
         if ($email && $amount > 0) {
-            $wpdb->insert($table, [
+            // Use donation manager instead of direct database call
+            $donation_manager = NPMP_Donation_Manager::get_instance();
+            $donation_manager->log_donation([
                 'email'      => $email,
                 'name'       => '',
                 'amount'     => $amount,
                 'frequency'  => $frequency,
-                'gateway'    => 'paypal',
-                'created_at' => current_time('mysql')
+                'gateway'    => 'paypal'
             ]);
         }
 

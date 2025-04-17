@@ -1,8 +1,8 @@
 <?php
 defined('ABSPATH') || exit;
 
-add_shortcode('np_can_spam', function () {
-    $footer = get_option('np_newsletter_can_spam_footer');
+add_shortcode('npmp_can_spam', function () {
+    $footer = get_option('npmp_newsletter_can_spam_footer');
     
     $replacements = [
         '[organization]'    => get_bloginfo('name'),
@@ -11,4 +11,9 @@ add_shortcode('np_can_spam', function () {
     ];
 
     return str_replace(array_keys($replacements), array_values($replacements), wp_kses_post($footer));
+});
+
+// Maintain backward compatibility
+add_shortcode('np_can_spam', function () {
+    return do_shortcode('[npmp_can_spam]');
 });

@@ -8,6 +8,11 @@ function npmp_render_members_page() {
     if (!current_user_can('manage_options')) {
         wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'nonprofit-manager'));
     }
+    
+    // Get member manager from email settings
+    $member_manager = NPMP_Member_Manager::get_instance();
+    
+    // For backward compatibility
     global $wpdb;
     $table = $wpdb->prefix . 'np_members';
 
@@ -20,12 +25,13 @@ function npmp_render_members_page() {
         $membership_level = sanitize_text_field(wp_unslash($_POST['membership_level'] ?? ''));
         $status = sanitize_text_field(wp_unslash($_POST['status'] ?? ''));
 
-        $wpdb->update($table, [
+        // Use Member Manager instead of direct database call
+        $member_manager->update_member($id, [
             'name' => $name,
             'email' => $email,
             'membership_level' => $membership_level,
             'status' => $status
-        ], ['id' => $id]);
+        ]);
 
         echo '<div class="updated"><p>Member updated.</p></div>';
         return;
@@ -34,7 +40,7 @@ function npmp_render_members_page() {
     // Show edit form
     if (!empty($_GET['action']) && $_GET['action'] === 'edit' && !empty($_GET['id']) && current_user_can('manage_options')) {
         $id = intval($_GET['id']);
-        $member = $wpdb->get_row($wpdb->prepare("SELECT * FROM %i WHERE id = %d", $table, $id));
+        $member = $member_manager->get_member_by_id($id);
         if (!$member) {
             echo '<div class="notice notice-error"><p>Member not found.</p></div>';
             return;
@@ -85,21 +91,15 @@ function npmp_render_members_page() {
         wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['np_members_nonce'])), 'np_manage_members');
 
     if ($form_submitted && $name && $email) {
-        $existing = wp_cache_get("np_member_email_$email", 'np_members');
-        if ($existing === false) {
-            $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE email = %s", $table, $email));
-            wp_cache_set("np_member_email_$email", $existing, 'np_members', 300);
-        }
+        $existing = $member_manager->email_exists($email);
 
         if (!$existing) {
-            $wpdb->insert($table, [
+            $member_manager->add_member([
                 'name' => $name,
                 'email' => $email,
                 'membership_level' => '',
-                'status' => 'subscribed',
-                'created_at' => current_time('mysql')
+                'status' => 'subscribed'
             ]);
-            wp_cache_delete("np_member_email_$email", 'np_members');
             echo '<div class="updated"><p>Member added.</p></div>';
         } elseif (!empty($_POST['manual_add'])) {
             echo '<div class="notice notice-warning"><p>This email address is already subscribed.</p></div>';
@@ -110,16 +110,11 @@ function npmp_render_members_page() {
     if (!empty($_POST['np_unsubscribe']) && isset($_POST['np_members_nonce']) && 
         wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['np_members_nonce'])), 'np_manage_members')) {
         $email = sanitize_email(wp_unslash($_POST['np_email'] ?? ''));
-        $wpdb->update($table, ['status' => 'unsubscribed'], ['email' => $email]);
-        wp_cache_delete("np_member_email_$email", 'np_members');
+        $member_manager->update_status($email, 'unsubscribed');
         echo '<div class="updated"><p>You have been unsubscribed.</p></div>';
     }
 
-    $members = wp_cache_get('np_members_all', 'np_members');
-    if ($members === false) {
-        $members = $wpdb->get_results($wpdb->prepare("SELECT * FROM %i ORDER BY created_at DESC", $table));
-        wp_cache_set('np_members_all', $members, 'np_members', 300);
-    }
+    $members = $member_manager->get_all_members();
 
     echo '<div class="wrap">';
     echo '<h1>Members & Subscribers</h1>';
