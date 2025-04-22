@@ -15,6 +15,7 @@ class NPMP_Donation_Manager {
 	/* ---------- Log a donation ---------- */
 	public function log_donation( $data ) {
 		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		return $wpdb->insert(
 			$wpdb->prefix . 'npmp_donations',
 			array(
@@ -32,44 +33,56 @@ class NPMP_Donation_Manager {
 	/* ---------- Full list ---------- */
 	public function get_all_donations() {
 		global $wpdb;
-		return $wpdb->get_results( 'SELECT * FROM ' . $wpdb->prefix . 'npmp_donations ORDER BY created_at DESC' );
+		$table = esc_sql( $wpdb->prefix . 'npmp_donations' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return $wpdb->get_results( "SELECT * FROM {$table} ORDER BY created_at DESC" );
 	}
 
-	/* ---------- For summary table ---------- */
+	/* ---------- Years with donations ---------- */
 	public function years_with_donations() {
 		global $wpdb;
-		$rows = $wpdb->get_col( 'SELECT DISTINCT YEAR(created_at) FROM ' . $wpdb->prefix . 'npmp_donations ORDER BY YEAR(created_at) DESC' );
-		return $rows ?: array( date( 'Y' ) );
+		$table = esc_sql( $wpdb->prefix . 'npmp_donations' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_col( "SELECT DISTINCT YEAR(created_at) FROM {$table} ORDER BY YEAR(created_at) DESC" );
+		return $rows ?: array( gmdate( 'Y' ) );
 	}
 
+	/* ---------- Summary for dashboard ---------- */
 	public function summary( $year, $month = null ) {
 		global $wpdb;
-		$table = $wpdb->prefix . 'npmp_donations';
+		$table = esc_sql( $wpdb->prefix . 'npmp_donations' );
 
 		if ( $month ) {
-			// breakdown by day in selected month
-			$sql = $wpdb->prepare( "
-				SELECT DATE(created_at) AS period, COUNT(*) AS cnt, SUM(amount) AS total
-				FROM $table
-				WHERE YEAR(created_at) = %d AND MONTH(created_at) = %d
-				GROUP BY DATE(created_at)
-				ORDER BY DATE(created_at) DESC", $year, $month );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$sql = $wpdb->prepare(
+				"SELECT DATE(created_at) AS period, COUNT(*) AS cnt, SUM(amount) AS total
+				 FROM {$table}
+				 WHERE YEAR(created_at) = %d AND MONTH(created_at) = %d
+				 GROUP BY DATE(created_at)
+				 ORDER BY DATE(created_at) DESC",
+				$year,
+				$month
+			);
 		} else {
-			// breakdown by month in selected year
-			$sql = $wpdb->prepare( "
-				SELECT DATE_FORMAT(created_at,'%%Y‑%%m') AS period, COUNT(*) AS cnt, SUM(amount) AS total
-				FROM $table
-				WHERE YEAR(created_at) = %d
-				GROUP BY DATE_FORMAT(created_at,'%%Y‑%%m')
-				ORDER BY period DESC", $year );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$sql = $wpdb->prepare(
+				"SELECT DATE_FORMAT(created_at,'%%Y-%%m') AS period, COUNT(*) AS cnt, SUM(amount) AS total
+				 FROM {$table}
+				 WHERE YEAR(created_at) = %d
+				 GROUP BY DATE_FORMAT(created_at,'%%Y-%%m')
+				 ORDER BY period DESC",
+				$year
+			);
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 		$rows = $wpdb->get_results( $sql );
-		$out  = array();
+
+		$out = array();
 		foreach ( $rows as $r ) {
 			$out[] = array(
-				'period' => $month ? date_i18n( 'M j, Y', strtotime( $r->period ) )
-								   : date_i18n( 'F Y',    strtotime( $r->period . '-01' ) ),
+				'period' => $month ? date_i18n( 'M j, Y', strtotime( $r->period ) )
+								   : date_i18n( 'F Y',    strtotime( $r->period . '-01' ) ),
 				'count'  => (int) $r->cnt,
 				'total'  => (float) $r->total,
 			);
@@ -107,8 +120,9 @@ if ( get_option( 'npmp_enable_paypal' ) ) {
 		if ( get_option( 'npmp_enable_annual' ) )   $freqs['annual']   = __( 'Annual',   'nonprofit-manager' );
 
 		/* success banner (from PayPal redirect) */
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( isset( $_GET['paypal_success'], $_GET['_wpnonce'] ) &&
-			 wp_verify_nonce( sanitize_text_field( $_GET['_wpnonce'] ), 'npmp_paypal_success' ) &&
+			 wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'npmp_paypal_success' ) &&
 			 '1' === $_GET['paypal_success']
 		) {
 			echo '<div class="notice notice-success"><p>' . esc_html__( 'Thank you for your donation!', 'nonprofit-manager' ) . '</p></div>';
@@ -151,13 +165,13 @@ if ( get_option( 'npmp_enable_paypal' ) ) {
 	add_action( 'wp_ajax_nopriv_npmp_log_paypal_donation', 'npmp_handle_paypal_donation' );
 
 	function npmp_handle_paypal_donation() {
-		if ( ! wp_verify_nonce( sanitize_text_field( $_POST['npmp_paypal_donation_nonce_field'] ?? '' ), 'npmp_paypal_donation_nonce' ) ) {
+		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_paypal_donation_nonce_field'] ?? '' ) ), 'npmp_paypal_donation_nonce' ) ) {
 			wp_send_json_error( array( 'message' => 'bad_nonce' ) );
 		}
 
-		$email     = sanitize_email( $_POST['email'] ?? '' );
-		$amount    = floatval( $_POST['amount'] ?? 0 );
-		$frequency = sanitize_text_field( $_POST['frequency'] ?? 'one_time' );
+		$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+		$amount    = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
+		$frequency = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
 
 		if ( $email && $amount > 0 ) {
 			NPMP_Donation_Manager::get_instance()->log_donation(
@@ -188,12 +202,12 @@ if ( get_option( 'npmp_enable_paypal' ) ) {
 
 		echo '<tr data-method="email"><th>' . esc_html__( 'PayPal Email', 'nonprofit-manager' ) . '</th><td><input type="email" name="npmp_paypal_email" value="' . esc_attr( get_option( 'npmp_paypal_email' ) ) . '" class="regular-text"></td></tr>';
 
-		echo '<tr data-method="sdk"><th>Client ID</th><td><input type="text" name="npmp_paypal_client_id" value="' . esc_attr( get_option( 'npmp_paypal_client_id' ) ) . '" class="regular-text"></td></tr>';
-		echo '<tr data-method="sdk"><th>Secret</th><td><input type="text" name="npmp_paypal_secret" value="' . esc_attr( get_option( 'npmp_paypal_secret' ) ) . '" class="regular-text"></td></tr>';
+		echo '<tr data-method="sdk"><th>' . esc_html__( 'Client ID', 'nonprofit-manager' ) . '</th><td><input type="text" name="npmp_paypal_client_id" value="' . esc_attr( get_option( 'npmp_paypal_client_id' ) ) . '" class="regular-text"></td></tr>';
+		echo '<tr data-method="sdk"><th>' . esc_html__( 'Secret', 'nonprofit-manager' ) . '</th><td><input type="text" name="npmp_paypal_secret" value="' . esc_attr( get_option( 'npmp_paypal_secret' ) ) . '" class="regular-text"></td></tr>';
 
 		echo '<tr data-method="sdk"><th>' . esc_html__( 'Environment', 'nonprofit-manager' ) . '</th><td>';
-		echo '<label><input type="radio" name="npmp_paypal_mode" value="live" ' . checked( $mode, 'live', false ) . '> Live&nbsp;</label>';
-		echo '<label><input type="radio" name="npmp_paypal_mode" value="sandbox" ' . checked( $mode, 'sandbox', false ) . '> Sandbox</label></td></tr>';
+		echo '<label><input type="radio" name="npmp_paypal_mode" value="live" ' . checked( $mode, 'live', false ) . '> ' . esc_html__( 'Live', 'nonprofit-manager' ) . '&nbsp;</label>';
+		echo '<label><input type="radio" name="npmp_paypal_mode" value="sandbox" ' . checked( $mode, 'sandbox', false ) . '> ' . esc_html__( 'Sandbox', 'nonprofit-manager' ) . '</label></td></tr>';
 
 		echo '<tr><th>' . esc_html__( 'Minimum Amount', 'nonprofit-manager' ) . '</th><td><input type="number" step="0.01" name="npmp_paypal_minimum" value="' . esc_attr( get_option( 'npmp_paypal_minimum', 1 ) ) . '" class="small-text"> USD</td></tr>';
 		echo '</table></div>';

@@ -30,14 +30,14 @@ function npmp_render_membership_forms_page() {
 
 	/* ---------- Save ---------- */
 	if (
-		'POST' === $_SERVER['REQUEST_METHOD'] &&
+		isset( $_SERVER['REQUEST_METHOD'] ) && 'POST' === $_SERVER['REQUEST_METHOD'] &&
 		wp_verify_nonce(
 			sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ?? '' ) ),
 			'npmp_membership_form_save'
 		)
 	) {
 		foreach ( array_keys( $settings ) as $k ) {
-			if ( ! isset( $_POST[ $k ] ) ) {
+			if ( ! array_key_exists( $k, $_POST ) ) {
 				continue;
 			}
 			$settings[ $k ] = in_array( $k, array( 'signup_description', 'unsubscribe_description' ), true )
@@ -58,12 +58,12 @@ function npmp_render_membership_forms_page() {
 	}
 
 	$field = static function ( $id, $label, $type = 'text' ) use ( $settings ) {
-		$value = 'textarea' === $type ? esc_textarea( $settings[ $id ] ) : esc_attr( $settings[ $id ] );
+		$raw_value = $settings[ $id ];
 		echo '<tr><th scope="row"><label for="' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label></th><td>';
 		if ( 'textarea' === $type ) {
-			echo '<textarea class="large-text" rows="3" id="' . esc_attr( $id ) . '" name="' . esc_attr( $id ) . '">' . $value . '</textarea>';
+			echo '<textarea class="large-text" rows="3" id="' . esc_attr( $id ) . '" name="' . esc_attr( $id ) . '">' . esc_textarea( $raw_value ) . '</textarea>';
 		} else {
-			echo '<input class="regular-text" type="' . esc_attr( $type ) . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $id ) . '" value="' . $value . '">';
+			echo '<input class="regular-text" type="' . esc_attr( $type ) . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $id ) . '" value="' . esc_attr( $raw_value ) . '">';
 		}
 		echo '</td></tr>';
 	};
@@ -74,14 +74,14 @@ function npmp_render_membership_forms_page() {
 	/* Signup section */
 	echo '<h2>' . esc_html__( 'Signup Form', 'nonprofit-manager' ) . '</h2><p><code>[np_email_signup]</code> — ' . esc_html__( 'Embed anywhere or pick a page below to inject automatically.', 'nonprofit-manager' ) . '</p>';
 	echo '<table class="form-table">';
-	$field( 'signup_heading', __( 'Heading', 'nonprofit-manager' ) );
-	$field( 'signup_description', __( 'Description', 'nonprofit-manager' ), 'textarea' );
+	$field( 'signup_heading', esc_html__( 'Heading', 'nonprofit-manager' ) );
+	$field( 'signup_description', esc_html__( 'Description', 'nonprofit-manager' ), 'textarea' );
 	echo '<tr><th>' . esc_html__( 'Inject on Page', 'nonprofit-manager' ) . '</th><td>';
 	wp_dropdown_pages(
 		array(
 			'name'             => 'signup_page_id',
 			'selected'         => intval( $settings['signup_page_id'] ),
-			'show_option_none' => '— ' . __( 'None', 'nonprofit-manager' ) . ' —',
+			'show_option_none' => '— ' . esc_html__( 'None', 'nonprofit-manager' ) . ' —',
 			'option_none_value'=> 0,
 		)
 	);
@@ -90,14 +90,14 @@ function npmp_render_membership_forms_page() {
 	/* Unsubscribe section */
 	echo '<h2>' . esc_html__( 'Unsubscribe Form', 'nonprofit-manager' ) . '</h2><p><code>[np_email_unsubscribe]</code> — ' . esc_html__( 'Embed anywhere or pick a page below to inject automatically.', 'nonprofit-manager' ) . '</p>';
 	echo '<table class="form-table">';
-	$field( 'unsubscribe_heading', __( 'Heading', 'nonprofit-manager' ) );
-	$field( 'unsubscribe_description', __( 'Description', 'nonprofit-manager' ), 'textarea' );
+	$field( 'unsubscribe_heading', esc_html__( 'Heading', 'nonprofit-manager' ) );
+	$field( 'unsubscribe_description', esc_html__( 'Description', 'nonprofit-manager' ), 'textarea' );
 	echo '<tr><th>' . esc_html__( 'Inject on Page', 'nonprofit-manager' ) . '</th><td>';
 	wp_dropdown_pages(
 		array(
 			'name'             => 'unsubscribe_page_id',
 			'selected'         => intval( $settings['unsubscribe_page_id'] ),
-			'show_option_none' => '— ' . __( 'None', 'nonprofit-manager' ) . ' —',
+			'show_option_none' => '— ' . esc_html__( 'None', 'nonprofit-manager' ) . ' —',
 			'option_none_value'=> 0,
 		)
 	);
@@ -106,15 +106,15 @@ function npmp_render_membership_forms_page() {
 	/* Shared labels */
 	echo '<h2>' . esc_html__( 'Shared Labels & Messages', 'nonprofit-manager' ) . '</h2>';
 	echo '<table class="form-table">';
-	$field( 'name_label', __( 'Name Field Label', 'nonprofit-manager' ) );
-	$field( 'email_label', __( 'Email Field Label', 'nonprofit-manager' ) );
-	$field( 'signup_button', __( 'Signup Button Text', 'nonprofit-manager' ) );
-	$field( 'unsubscribe_button', __( 'Unsubscribe Button Text', 'nonprofit-manager' ) );
-	$field( 'success_message', __( 'Success Message', 'nonprofit-manager' ) );
-	$field( 'error_message', __( 'Error Message', 'nonprofit-manager' ) );
+	$field( 'name_label',          esc_html__( 'Name Field Label', 'nonprofit-manager' ) );
+	$field( 'email_label',         esc_html__( 'Email Field Label', 'nonprofit-manager' ) );
+	$field( 'signup_button',       esc_html__( 'Signup Button Text', 'nonprofit-manager' ) );
+	$field( 'unsubscribe_button',  esc_html__( 'Unsubscribe Button Text', 'nonprofit-manager' ) );
+	$field( 'success_message',     esc_html__( 'Success Message', 'nonprofit-manager' ) );
+	$field( 'error_message',       esc_html__( 'Error Message', 'nonprofit-manager' ) );
 	echo '</table>';
 
-	submit_button( __( 'Save Changes', 'nonprofit-manager' ) );
+	submit_button( esc_html__( 'Save Changes', 'nonprofit-manager' ) );
 	echo '</form></div>';
 }
 
@@ -122,6 +122,7 @@ function npmp_render_membership_forms_page() {
  * Shortcodes
  * ==================================================================== */
 function npmp_get_banner_html( $type, $settings ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	if ( isset( $_GET[ $type ] ) ) {
 		$key = 'success' === $_GET[ $type ] ? 'success_message' : 'error_message';
 		return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . '"><p>' . esc_html( $settings[ $key ] ) . '</p></div>';
@@ -129,6 +130,7 @@ function npmp_get_banner_html( $type, $settings ) {
 	return '';
 }
 
+/* ------------ Signup shortcode ------------ */
 function npmp_email_signup_shortcode() {
 	$s    = wp_parse_args( get_option( 'npmp_membership_form_settings', array() ), array() );
 	$html = npmp_get_banner_html( 'npmp_signup', $s );
@@ -147,6 +149,7 @@ function npmp_email_signup_shortcode() {
 }
 add_shortcode( 'np_email_signup', 'npmp_email_signup_shortcode' );
 
+/* ------------ Unsubscribe shortcode ------------ */
 function npmp_email_unsubscribe_shortcode() {
 	$s    = wp_parse_args( get_option( 'npmp_membership_form_settings', array() ), array() );
 	$html = npmp_get_banner_html( 'npmp_unsubscribe', $s );
@@ -200,20 +203,17 @@ function npmp_handle_membership_form() {
 	$redirect = wp_get_referer() ?: home_url();
 
 	global $wpdb;
-	$table = $wpdb->prefix . 'npmp_members'; // *** FIXED: matches members page ***
+	$table = $wpdb->prefix . 'npmp_members';
 
-	/* ------------------------------------------------------------------
-	 * Retrieve actual column names
-	 * ------------------------------------------------------------------ */
-	$columns = $wpdb->get_col( "DESC `$table`", 0 ); // Field names
+	/* ---------------- column names ---------------- */
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$columns = $wpdb->get_col( "DESC `$table`", 0 );
 	if ( empty( $columns ) ) {
 		wp_safe_redirect( add_query_arg( 'npmp_form_error', 'dbcols', $redirect ) );
 		exit;
 	}
 
-	/* ------------------------------------------------------------------
-	 * SIGN‑UP
-	 * ------------------------------------------------------------------ */
+	/* ---------------- SIGN‑UP ---------------- */
 	if (
 		'email_signup' === $action &&
 		! empty( $_POST['npmp_email_signup_nonce'] ) &&
@@ -230,7 +230,8 @@ function npmp_handle_membership_form() {
 			exit;
 		}
 
-		/* Already subscribed = success */
+		/* Already subscribed? */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM `$table` WHERE email = %s LIMIT 1", $email ) ) ) {
 			wp_safe_redirect( add_query_arg( 'npmp_signup', 'success', $redirect ) );
 			exit;
@@ -259,6 +260,7 @@ function npmp_handle_membership_form() {
 			$format[]           = '%s';
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$inserted = $wpdb->insert( $table, $data, $format );
 		$result   = ( $inserted && empty( $wpdb->last_error ) ) ? 'success' : 'error';
 
@@ -266,9 +268,7 @@ function npmp_handle_membership_form() {
 		exit;
 	}
 
-	/* ------------------------------------------------------------------
-	 * UNSUBSCRIBE
-	 * ------------------------------------------------------------------ */
+	/* ---------------- UNSUBSCRIBE ---------------- */
 	if (
 		'email_unsubscribe' === $action &&
 		! empty( $_POST['npmp_email_unsubscribe_nonce'] ) &&
@@ -284,6 +284,7 @@ function npmp_handle_membership_form() {
 			exit;
 		}
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$deleted = $wpdb->delete( $table, array( 'email' => $email ), array( '%s' ) );
 		$result  = ( $deleted && empty( $wpdb->last_error ) ) ? 'success' : 'error';
 
@@ -291,9 +292,7 @@ function npmp_handle_membership_form() {
 		exit;
 	}
 
-	/* ------------------------------------------------------------------
-	 * FALLBACK
-	 * ------------------------------------------------------------------ */
+	/* ---------------- FALLBACK ---------------- */
 	wp_safe_redirect( add_query_arg( 'npmp_form_error', '1', $redirect ) );
 	exit;
 }
