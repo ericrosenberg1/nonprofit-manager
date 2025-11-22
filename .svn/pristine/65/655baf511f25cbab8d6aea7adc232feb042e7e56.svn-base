@@ -1,0 +1,110 @@
+<?php
+/**
+ * Unified CAPTCHA helpers.
+ *
+ * @package NonprofitManager
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+require_once __DIR__ . '/npmp-turnstile.php';
+
+/**
+ * Get the active CAPTCHA provider.
+ *
+ * @return string one of none|turnstile|recaptcha.
+ */
+function npmp_captcha_get_provider() {
+	$provider = get_option( 'npmp_captcha_provider', 'none' );
+	$allowed  = array( 'none', 'turnstile', 'recaptcha' );
+
+	if ( ! in_array( $provider, $allowed, true ) ) {
+		$provider = 'none';
+	}
+
+	return $provider;
+}
+
+/**
+ * Determine whether a CAPTCHA provider is fully configured and enabled.
+ *
+ * @return bool
+ */
+function npmp_captcha_is_enabled() {
+	$provider = npmp_captcha_get_provider();
+
+	switch ( $provider ) {
+		case 'turnstile':
+			return npmp_turnstile_enabled();
+
+		case 'recaptcha':
+			/**
+			 * Filter to allow premium add-ons to enable Google reCAPTCHA.
+			 *
+			 * @param bool $enabled Whether reCAPTCHA should be treated as active.
+			 */
+			return (bool) apply_filters( 'npmp_captcha_recaptcha_enabled', false );
+
+		default:
+			return false;
+	}
+}
+
+/**
+ * Render the active CAPTCHA widget markup.
+ *
+ * @param string $context Optional context identifier.
+ * @return string
+ */
+function npmp_captcha_render_widget( $context = 'signup' ) {
+	$provider = npmp_captcha_get_provider();
+	$output   = '';
+
+	if ( 'turnstile' === $provider && npmp_turnstile_enabled() ) {
+		ob_start();
+		npmp_turnstile_render_widget();
+		$output = ob_get_clean();
+	} elseif ( 'recaptcha' === $provider ) {
+		/**
+		 * Filter the Google reCAPTCHA widget markup.
+		 *
+		 * Implementations should return the markup string.
+		 *
+		 * @param string $output  Default markup (empty).
+		 * @param string $context Context identifier.
+		 */
+		$output = (string) apply_filters( 'npmp_captcha_render_recaptcha', $output, $context );
+	}
+
+	return $output;
+}
+
+/**
+ * Execute server-side CAPTCHA verification for the active provider.
+ *
+ * @param string $context Optional context identifier.
+ * @return bool
+ */
+function npmp_captcha_verify( $context = 'signup' ) {
+	$provider = npmp_captcha_get_provider();
+
+	if ( 'turnstile' === $provider ) {
+		return npmp_turnstile_verify();
+	}
+
+	if ( 'recaptcha' === $provider ) {
+		/**
+		 * Filter to perform Google reCAPTCHA verification.
+		 *
+		 * Return true on success, false on failure, or null if unsupported.
+		 *
+		 * @param bool|null $verified Verification result.
+		 * @param string    $context  Context identifier.
+		 */
+		$verified = apply_filters( 'npmp_captcha_verify_recaptcha', null, $context );
+
+		return ( null === $verified ) ? false : (bool) $verified;
+	}
+
+	return true;
+}

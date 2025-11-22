@@ -1,0 +1,132 @@
+=== Nonprofit Manager ===
+Contributors: eric1985
+Tags: nonprofit, donations, membership, email, events
+Requires at least: 6.0
+Tested up to: 6.7
+Stable tag: 1.1
+Requires PHP: 7.4
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Comprehensive nonprofit management solution for memberships, donations, newsletters, and events.
+
+== Description ==
+
+Nonprofit Manager is an all-in-one solution designed to help nonprofit organizations manage their operations directly from WordPress. Whether you're running a small community organization or a larger nonprofit, this plugin provides the essential tools you need to succeed.
+
+**Core Features:**
+
+* **Membership Management** - Track members, manage membership levels, and keep your community organized
+* **Donation Processing** - Accept one-time and recurring donations with popular payment gateways
+* **Email Newsletters** - Create and send beautiful email campaigns with Gutenberg block editor
+* **Event Calendar** - Manage and promote nonprofit events with an integrated calendar
+* **Contact Forms** - Customizable membership signup and donation forms
+* **CAPTCHA Protection** - Support for Cloudflare Turnstile and Google reCAPTCHA
+
+**Email Newsletter Features:**
+
+* Gutenberg-powered email template builder
+* Reusable email headers and footers
+* Newsletter templates with [email_content] placeholder
+* Send test emails before publishing
+* Email tracking (opens and clicks)
+* Rate limiting to prevent server overload
+* CAN-SPAM compliance footer
+
+**Payment Gateways:**
+
+* PayPal (Email Link & Smart Button SDK)
+* Venmo
+* Stripe (Pro)
+* Recurring donations (Pro)
+
+**Pro Features:**
+
+Upgrade to Nonprofit Manager Pro for advanced capabilities:
+
+* Advanced reporting and analytics
+* Recurring donation management
+* Custom member fields
+* Email automation workflows
+* Advanced member segmentation
+* Priority support
+
+== Installation ==
+
+1. Upload the plugin files to `/wp-content/plugins/nonprofit-manager/`
+2. Activate the plugin through the 'Plugins' screen in WordPress
+3. Run the setup wizard to configure your organization details
+4. Enable the features you need (Memberships, Donations, Newsletters, Events)
+5. Configure payment gateways and email settings
+
+== Frequently Asked Questions ==
+
+= Is this plugin free? =
+
+Yes! The core plugin is completely free. We also offer a Pro version with advanced features for organizations that need more capabilities.
+
+= Which payment gateways are supported? =
+
+The free version supports PayPal and Venmo. The Pro version adds Stripe with recurring donation support.
+
+= Can I send email newsletters? =
+
+Yes! The plugin includes a powerful newsletter system with Gutenberg block editor, templates, and tracking capabilities.
+
+= Does it work with my theme? =
+
+Nonprofit Manager is designed to work with any properly coded WordPress theme. Forms and shortcodes adapt to your theme's styling.
+
+= Where can I get support? =
+
+Free support is available through the WordPress.org support forums. Pro customers receive priority support via email.
+
+== Screenshots ==
+
+1. Dashboard overview showing membership and donation statistics
+2. Member management interface with filtering and bulk actions
+3. Email newsletter editor with Gutenberg blocks
+4. Newsletter template builder with header/footer support
+5. Donation form with PayPal and Venmo options
+6. Event calendar management interface
+7. Payment gateway settings
+
+== Changelog ==
+
+= 1.1 =
+* Added: Newsletter template system with Gutenberg editor
+* Added: "Send to All Members" option for newsletters
+* Added: Version mismatch warning for Pro users
+* Added: Admin helper functions for consistent UI
+* Improved: Security - verified all nonce checks and sanitization
+* Improved: Performance - optimized member counting queries
+* Improved: UI consistency across all admin pages
+* Fixed: Newsletter audience selection and tracking
+* Fixed: PayPal button rendering issues
+
+= 1.0.2 =
+* Fixed: AWS SES validation for email delivery
+* Fixed: PayPal/Venmo button display issues
+* Fixed: Dashboard widget member counts
+* Improved: Email delivery error handling
+
+= 1.0.1 =
+* Fixed: Activation hooks for better compatibility
+* Improved: Setup wizard flow
+* Added: Better error messages for payment processing
+
+= 1.0.0 =
+* Initial release
+* Membership management system
+* Donation processing (PayPal, Venmo)
+* Basic email newsletter functionality
+* Event calendar
+* Setup wizard
+
+== Upgrade Notice ==
+
+= 1.1 =
+Major update with newsletter templates, improved security, and better UI consistency. Recommended for all users.
+
+= 1.0.0 =
+Initial release of Nonprofit Manager.

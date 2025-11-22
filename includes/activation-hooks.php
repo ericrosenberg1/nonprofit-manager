@@ -1,0 +1,440 @@
+<?php
+/**
+ * Plugin activation and cron utilities.
+ *
+ * @package NonprofitManager
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+$npmp_main_file = plugin_dir_path( __DIR__ ) . 'nonprofit-manager.php';
+
+register_activation_hook( $npmp_main_file, 'npmp_run_plugin_activation_tasks' );
+register_deactivation_hook( $npmp_main_file, 'npmp_clear_newsletter_cron' );
+
+/**
+ * Perform setup tasks on activation.
+ *
+ * @return void
+ */
+function npmp_run_plugin_activation_tasks() {
+	ob_start();
+
+	npmp_create_members_table();
+	npmp_create_donations_table();
+	npmp_create_contacts_table();
+	npmp_create_newsletter_queue_table();
+	npmp_create_newsletter_opens_table();
+	npmp_create_newsletter_clicks_table();
+	npmp_initialize_default_newsletter_settings();
+	npmp_schedule_newsletter_cron();
+
+	// Set transient to trigger setup wizard redirect
+	set_transient( 'npmp_activation_redirect', true, 30 );
+
+	$features = get_option(
+		'npmp_enabled_features',
+		array(
+			'members'     => true,
+			'newsletters' => false,
+			'donations'   => true,
+			'calendar'    => false,
+		)
+	);
+
+	if ( ! empty( $features['calendar'] ) ) {
+		$calendar_file = plugin_dir_path( __FILE__ ) . 'npmp-calendar.php';
+		if ( file_exists( $calendar_file ) ) {
+			require_once $calendar_file;
+			if ( function_exists( 'npmp_register_event_post_type' ) ) {
+				npmp_register_event_post_type();
+			}
+			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
+				npmp_register_event_taxonomy();
+			}
+		}
+	}
+
+	flush_rewrite_rules();
+
+	ob_end_clean();
+}
+
+/**
+ * Migrate legacy donations stored in the custom table into the CPT.
+ *
+ * @return void
+ */
+function npmp_maybe_migrate_legacy_donations() {
+	if ( get_option( 'npmp_donations_migrated_to_cpt', false ) ) {
+		return;
+	}
+
+	if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
+		return;
+	}
+
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'npmp_donations';
+	$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+	if ( $found !== $table ) {
+		update_option( 'npmp_donations_migrated_to_cpt', 1 );
+		return;
+	}
+
+		$rows = $wpdb->get_results( "SELECT * FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is derived from $wpdb->prefix for this one-time migration.
+	if ( empty( $rows ) ) {
+		update_option( 'npmp_donations_migrated_to_cpt', 1 );
+		return;
+	}
+
+	$manager = NPMP_Donation_Manager::get_instance();
+
+	foreach ( $rows as $row ) {
+		$email  = sanitize_email( $row->email );
+		$amount = (float) $row->amount;
+
+		if ( ! $email || $amount <= 0 ) {
+			continue;
+		}
+
+		$existing = get_posts(
+			array(
+				'post_type'      => NPMP_Donation_Manager::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+					'no_found_rows'  => true,
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Legacy migration must locate donations by stored legacy ID.
+					'meta_query'     => array(
+					array(
+						'key'   => '_npmp_legacy_donation_id',
+						'value' => (int) $row->id,
+					),
+				),
+			)
+		);
+
+		if ( $existing ) {
+			continue;
+		}
+
+		$manager->log_donation(
+			array(
+				'email'      => $email,
+				'name'       => sanitize_text_field( $row->name ),
+				'amount'     => $amount,
+				'frequency'  => sanitize_text_field( $row->frequency ),
+				'gateway'    => sanitize_text_field( $row->gateway ),
+				'created_at' => $row->created_at,
+				'legacy_id'  => (int) $row->id,
+			)
+		);
+	}
+
+	update_option( 'npmp_donations_migrated_to_cpt', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_migrate_legacy_donations', 40 );
+
+/**
+ * Create (or update) the members table.
+ *
+ * @return void
+ */
+function npmp_create_members_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_members';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+		name VARCHAR(255) NOT NULL,
+		email VARCHAR(255) NOT NULL,
+		membership_level VARCHAR(100) DEFAULT '',
+		status VARCHAR(50) DEFAULT 'subscribed',
+		phone VARCHAR(50) DEFAULT '',
+		mobile VARCHAR(50) DEFAULT '',
+		address_line1 VARCHAR(255) DEFAULT '',
+		address_line2 VARCHAR(255) DEFAULT '',
+		city VARCHAR(120) DEFAULT '',
+		state VARCHAR(120) DEFAULT '',
+		postal_code VARCHAR(30) DEFAULT '',
+		country VARCHAR(120) DEFAULT '',
+		tags VARCHAR(255) DEFAULT '',
+		source VARCHAR(120) DEFAULT '',
+		last_contacted DATETIME NULL,
+		last_donation_at DATETIME NULL,
+		donation_count INT UNSIGNED DEFAULT 0,
+		donation_total DECIMAL(12,2) DEFAULT 0,
+		notes TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		UNIQUE KEY email (email),
+		KEY status (status),
+		KEY last_donation (last_donation_at)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Create (or update) the donations table.
+ *
+ * @return void
+ */
+function npmp_create_donations_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_donations';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+		name VARCHAR(255) NOT NULL,
+		email VARCHAR(255) NOT NULL,
+		amount DECIMAL(10,2) NOT NULL,
+		frequency VARCHAR(20) DEFAULT 'one_time',
+		gateway VARCHAR(50) DEFAULT 'paypal',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (id)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Create (or update) the contacts table.
+ *
+ * @return void
+ */
+function npmp_create_contacts_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_contacts';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		email VARCHAR(255) NOT NULL UNIQUE,
+		name VARCHAR(255),
+		status ENUM('subscribed','unsubscribed','pending') DEFAULT 'pending',
+		token VARCHAR(64),
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		PRIMARY KEY (id)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Create (or update) the newsletter queue table.
+ *
+ * @return void
+ */
+function npmp_create_newsletter_queue_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_newsletter_queue';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		newsletter_id BIGINT NOT NULL,
+		user_id BIGINT,
+		email VARCHAR(255),
+		status ENUM('pending','sent','failed') DEFAULT 'pending',
+		queued_at DATETIME,
+		sent_at DATETIME NULL,
+		PRIMARY KEY (id),
+		KEY newsletter_status (newsletter_id,status)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Create (or update) the newsletter opens table.
+ *
+ * @return void
+ */
+function npmp_create_newsletter_opens_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_newsletter_opens';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		user_id BIGINT NOT NULL,
+		newsletter_id BIGINT NOT NULL,
+		opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		ip_address VARCHAR(100) DEFAULT '',
+		user_agent TEXT,
+		PRIMARY KEY (id),
+		UNIQUE KEY user_newsletter (user_id, newsletter_id)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Create (or update) the newsletter clicks table.
+ *
+ * @return void
+ */
+function npmp_create_newsletter_clicks_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_newsletter_clicks';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		newsletter_id BIGINT NOT NULL,
+		user_id BIGINT NOT NULL,
+		url TEXT NOT NULL,
+		clicked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		ip_address VARCHAR(100) DEFAULT '',
+		user_agent TEXT,
+		PRIMARY KEY (id),
+		KEY newsletter_user (newsletter_id,user_id)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Seed default newsletter-related options.
+ *
+ * @return void
+ */
+function npmp_initialize_default_newsletter_settings() {
+	if ( false === get_option( 'npmp_newsletter_can_spam_footer' ) ) {
+		update_option(
+			'npmp_newsletter_can_spam_footer',
+			__(
+				"You're receiving this email from [organization] at [address].\nTo unsubscribe, click here: [unsubscribe_url]",
+				'nonprofit-manager'
+			)
+		);
+	}
+
+	if ( false === get_option( 'npmp_newsletter_rate_limit' ) ) {
+		update_option( 'npmp_newsletter_rate_limit', 10 );
+	}
+}
+
+/**
+ * Determine if newsletter functionality is currently enabled.
+ *
+ * @return bool
+ */
+function npmp_newsletters_enabled() {
+	$features = get_option(
+		'npmp_enabled_features',
+		array(
+			'members'     => true,
+			'newsletters' => false,
+		)
+	);
+
+	return ( ! empty( $features['members'] ) && ! empty( $features['newsletters'] ) );
+}
+
+/**
+ * Schedule the newsletter processing cron (if enabled).
+ *
+ * @return void
+ */
+function npmp_schedule_newsletter_cron() {
+	if ( ! npmp_newsletters_enabled() ) {
+		return;
+	}
+
+	if ( ! wp_next_scheduled( 'npmp_process_queued_newsletters' ) ) {
+		wp_schedule_event( time(), 'every_minute', 'npmp_process_queued_newsletters' );
+	}
+}
+
+/**
+ * Clear the newsletter processing cron hook.
+ *
+ * @return void
+ */
+function npmp_clear_newsletter_cron() {
+	wp_clear_scheduled_hook( 'npmp_process_queued_newsletters' );
+}
+
+/**
+ * Handle feature flag changes to keep cron in sync.
+ *
+ * @param array $old_value Previous option value.
+ * @param array $value     New option value.
+ * @return void
+ */
+function npmp_handle_feature_toggle( $old_value, $value ) {
+	$old_enabled = ! empty( $old_value['members'] ) && ! empty( $old_value['newsletters'] );
+	$new_enabled = ! empty( $value['members'] ) && ! empty( $value['newsletters'] );
+	$old_calendar = ! empty( $old_value['calendar'] );
+	$new_calendar = ! empty( $value['calendar'] );
+
+	if ( $new_enabled && ! $old_enabled ) {
+		npmp_schedule_newsletter_cron();
+	} elseif ( ! $new_enabled && $old_enabled ) {
+		npmp_clear_newsletter_cron();
+	}
+
+	if ( $new_calendar && ! $old_calendar ) {
+		$calendar_file = plugin_dir_path( __FILE__ ) . 'npmp-calendar.php';
+		if ( file_exists( $calendar_file ) ) {
+			require_once $calendar_file;
+			if ( function_exists( 'npmp_register_event_post_type' ) ) {
+				npmp_register_event_post_type();
+			}
+			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
+				npmp_register_event_taxonomy();
+			}
+		}
+		flush_rewrite_rules();
+	} elseif ( ! $new_calendar && $old_calendar ) {
+		flush_rewrite_rules();
+	}
+}
+add_action( 'update_option_npmp_enabled_features', 'npmp_handle_feature_toggle', 10, 2 );
+
+/**
+ * Register the cron callback once all plugin files have loaded.
+ *
+ * @return void
+ */
+function npmp_register_newsletter_cron_handler() {
+	if ( class_exists( 'NPMP_Newsletter_Manager' ) ) {
+		add_action( 'npmp_process_queued_newsletters', array( 'NPMP_Newsletter_Manager', 'process_queue' ) );
+	}
+}
+add_action( 'plugins_loaded', 'npmp_register_newsletter_cron_handler' );
+
+/**
+ * Add a 60-second cron interval for queue processing.
+ *
+ * @param array $schedules Existing schedules.
+ * @return array
+ */
+function npmp_register_minutely_schedule( $schedules ) {
+	$schedules['every_minute'] = array(
+		'interval' => 60,
+		'display'  => __( 'Every Minute', 'nonprofit-manager' ),
+	);
+	return $schedules;
+}
+add_filter( 'cron_schedules', 'npmp_register_minutely_schedule' );
