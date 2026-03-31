@@ -126,4 +126,4 @@ This plugin is licensed under the GPLv2 or later. You are free to use, modify, a
 
 == Author ==
 
-Eric Rosenberg - [https://ericrosenberg.com](https://ericrosenberg.com)
+[Rosenberg Digital LLC](https://ericrosenberg.com)
