@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Background circle -->
+  <circle cx="128" cy="128" r="120" fill="#10B981"/>
+  <!-- Heart shape (nonprofit/giving) -->
+  <path d="M128 200c-4 0-7.5-1.5-10-4L74 152c-16-16-16-42 0-58 8-8 18.5-12 29-12s21 4 29 12l-4 4 4-4c8-8 18.5-12 29-12s21 4 29 12c16 16 16 42 0 58l-44 44c-2.5 2.5-6 4-10 4z" fill="white" opacity="0.95"/>
+  <!-- People silhouette inside heart -->
+  <circle cx="112" cy="138" r="8" fill="#10B981"/>
+  <circle cx="144" cy="138" r="8" fill="#10B981"/>
+  <circle cx="128" cy="132" r="9" fill="#059669"/>
+  <path d="M104 158c0-6 3.5-10 8-10h8c4.5 0 8 4 8 10" stroke="#10B981" stroke-width="3" fill="none"/>
+  <path d="M136 158c0-6 3.5-10 8-10h8c4.5 0 8 4 8 10" stroke="#10B981" stroke-width="3" fill="none"/>
+  <path d="M118 155c0-7 4.5-12 10-12s10 5 10 12" stroke="#059669" stroke-width="3" fill="none"/>
+</svg>
