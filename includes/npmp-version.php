@@ -12,14 +12,7 @@ defined( 'ABSPATH' ) || exit;
  * @return bool True if Pro version is active
  */
 function npmp_is_pro() {
-	if ( ! defined( 'NPMP_PRO_VERSION' ) ) {
-		return false;
-	}
-	// When the license client is loaded, verify the license is valid.
-	if ( class_exists( 'NPMP_License_Client' ) ) {
-		return NPMP_License_Client::get_instance()->is_valid();
-	}
-	return false;
+	return defined( 'NPMP_PRO_VERSION' );
 }
 
 /**

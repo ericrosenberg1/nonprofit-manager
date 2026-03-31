@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0
 Tested up to: 6.8.3
-Stable tag: 2.0.0
+Stable tag: 2.0.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -115,6 +115,10 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2.0.1 =
+* Changed: Pro features now work when Pro plugin is installed (license required for updates only)
+* Fixed: Class declaration conflict when upgrading Pro plugin
 
 = 2.0.0 =
 * Added: Stripe payment gateway for free users (one-time donations)
