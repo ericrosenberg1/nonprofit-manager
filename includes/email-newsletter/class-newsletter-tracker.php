@@ -62,7 +62,7 @@ class NPMP_Newsletter_Tracker {
 				self::TRACK_QUERY_KEY => self::ACTION_OPEN,
 				'nid'                 => absint( $newsletter_id ),
 				'uid'                 => absint( $user_id ),
-				'_npmp'               => wp_create_nonce( 'npmp_track_open_' . $newsletter_id . '_' . $user_id ),
+				'_npmp'               => self::generate_hmac( 'open', $newsletter_id, $user_id ),
 			),
 			home_url( '/' )
 		);
@@ -179,7 +179,7 @@ class NPMP_Newsletter_Tracker {
 				'nid'                             => absint( $newsletter_id ),
 				'uid'                             => absint( $user_id ),
 				'url'                             => rawurlencode( $original_url ),
-				'_npmp'                           => wp_create_nonce( 'npmp_track_click_' . $newsletter_id . '_' . $user_id ),
+				'_npmp'                           => self::generate_hmac( 'click', $newsletter_id, $user_id ),
 			),
 			home_url( '/' )
 		);
@@ -203,7 +203,7 @@ class NPMP_Newsletter_Tracker {
 		$user_id       = isset( $_GET['uid'] ) ? absint( $_GET['uid'] ) : 0;
 		$nonce         = isset( $_GET['_npmp'] ) ? sanitize_text_field( wp_unslash( $_GET['_npmp'] ) ) : '';
 
-		if ( ! $newsletter_id || ! $user_id || ! $nonce || ! wp_verify_nonce( $nonce, 'npmp_track_open_' . $newsletter_id . '_' . $user_id ) ) {
+		if ( ! $newsletter_id || ! $user_id || ! $nonce || ! self::verify_hmac( $nonce, 'open', $newsletter_id, $user_id ) ) {
 			return;
 		}
 
@@ -229,7 +229,7 @@ class NPMP_Newsletter_Tracker {
 			exit;
 		}
 
-		if ( ! wp_verify_nonce( $nonce, 'npmp_track_click_' . $newsletter_id . '_' . $user_id ) ) {
+		if ( ! self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id ) ) {
 			wp_safe_redirect( $destination );
 			exit;
 		}
@@ -245,6 +245,36 @@ class NPMP_Newsletter_Tracker {
 
 		wp_safe_redirect( $destination );
 		exit;
+	}
+
+	/**
+	 * Generate a non-expiring HMAC token for tracking URLs.
+	 *
+	 * Unlike WordPress nonces which expire after 24 hours, these tokens
+	 * remain valid indefinitely so newsletter tracking links keep working.
+	 *
+	 * @param string $action        Track action (open or click).
+	 * @param int    $newsletter_id Newsletter ID.
+	 * @param int    $user_id       User ID.
+	 * @return string 16-char hex HMAC.
+	 */
+	private static function generate_hmac( $action, $newsletter_id, $user_id ) {
+		$data = $action . '|' . absint( $newsletter_id ) . '|' . absint( $user_id );
+		return substr( hash_hmac( 'sha256', $data, wp_salt( 'auth' ) ), 0, 16 );
+	}
+
+	/**
+	 * Verify an HMAC token.
+	 *
+	 * @param string $token         Token to verify.
+	 * @param string $action        Track action.
+	 * @param int    $newsletter_id Newsletter ID.
+	 * @param int    $user_id       User ID.
+	 * @return bool
+	 */
+	private static function verify_hmac( $token, $action, $newsletter_id, $user_id ) {
+		$expected = self::generate_hmac( $action, $newsletter_id, $user_id );
+		return hash_equals( $expected, $token );
 	}
 
 	/**

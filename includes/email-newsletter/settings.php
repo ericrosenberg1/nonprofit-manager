@@ -109,7 +109,7 @@ function npmp_register_newsletter_settings() {
         function () {
             $checked = checked(get_option('npmp_newsletter_track_clicks', false), true, false);
             echo '<input type="checkbox" name="npmp_newsletter_track_clicks" value="1" ' . esc_attr($checked) . ' />';
-            echo '<p class="description">' . esc_html__('Link tracking support coming soon.', 'nonprofit-manager') . '</p>';
+            echo '<p class="description">' . esc_html__('Track which links recipients click in your newsletters.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main'

@@ -73,6 +73,7 @@ add_action(
 					'newsletters' => isset( $_POST['npmp_feature_newsletters'] ),
 					'donations'   => isset( $_POST['npmp_feature_donations'] ),
 					'calendar'    => isset( $_POST['npmp_feature_calendar'] ),
+					'social'      => isset( $_POST['npmp_feature_social'] ),
 				);
 
 				// Ensure newsletter dependency

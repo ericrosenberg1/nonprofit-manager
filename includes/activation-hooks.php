@@ -39,6 +39,7 @@ function npmp_run_plugin_activation_tasks() {
 			'newsletters' => false,
 			'donations'   => true,
 			'calendar'    => false,
+			'social'      => false,
 		)
 	);
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Nonprofit Manager
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 1.1.3
+ * Version: 2.0.0
  * Author: Eric Rosenberg
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -38,6 +38,7 @@ $npmp_features = get_option(
 		'newsletters' => false,
 		'donations'   => true,
 		'calendar'    => false,
+		'social'      => false,
 	)
 );
 
@@ -56,10 +57,16 @@ if ( ! empty( $npmp_features['donations'] ) ) {
 
 if ( ! empty( $npmp_features['newsletters'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-email-newsletter.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-subscription-preferences.php';
 }
 
 if ( ! empty( $npmp_features['calendar'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-convert-to-event.php';
+}
+
+if ( ! empty( $npmp_features['social'] ) ) {
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-social-sharing.php';
 }
 
 /* -------------------------------------------------------------------------

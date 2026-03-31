@@ -214,10 +214,15 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 						}
 
 						// Call Stripe checkout
+						var formData = new FormData();
+						formData.append('action', 'npmp_create_stripe_session');
+						formData.append('nonce', '<?php echo esc_js( wp_create_nonce( 'npmp_stripe_checkout' ) ); ?>');
+						formData.append('amount', amount);
+						formData.append('email', email);
+
 						fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
 							method: 'POST',
-							headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-							body: 'action=npmp_create_stripe_session&amount=' + amount + '&email=' + encodeURIComponent(email)
+							body: formData
 						})
 						.then(function(response) { return response.json(); })
 						.then(function(data) {
@@ -763,14 +768,14 @@ function npmp_ajax_create_stripe_session() {
 		wp_send_json_error( 'Invalid security token. Please refresh and try again.' );
 	}
 
-	if ( ! npmp_is_pro() ) {
-		error_log( 'Stripe session creation failed: Not Pro version' );
-		wp_send_json_error( 'Stripe requires Nonprofit Manager Pro. Please upgrade to use this feature.' );
-	}
-
 	$amount    = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
 	$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 	$frequency = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
+
+	// Recurring donations require Pro.
+	if ( 'one_time' !== $frequency && ! npmp_is_pro() ) {
+		wp_send_json_error( 'Recurring donations require Nonprofit Manager Pro.' );
+	}
 
 	if ( ! $email || ! is_email( $email ) ) {
 		error_log( 'Stripe session creation failed: Invalid email - ' . $email );

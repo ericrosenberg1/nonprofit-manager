@@ -22,6 +22,7 @@ add_action(
 				'newsletters' => isset( $_POST['npmp_feature_newsletters'] ),
 				'donations'   => isset( $_POST['npmp_feature_donations'] ),
 				'calendar'    => isset( $_POST['npmp_feature_calendar'] ),
+				'social'      => isset( $_POST['npmp_feature_social'] ),
 			);
 
 			/* dependency: newsletters require members */
@@ -49,6 +50,7 @@ function npmp_render_main_plugin_page() {
 			'newsletters' => false,
 			'donations'   => true,
 			'calendar'    => false,
+			'social'      => false,
 		)
 	);
 
@@ -245,6 +247,12 @@ function npmp_render_main_plugin_page() {
 							<td><label><input type="checkbox" name="npmp_feature_calendar" <?php checked( $features['calendar'] ); ?>>
 								<?php esc_html_e( 'Enable public event calendar & iCal feed.', 'nonprofit-manager' ); ?></label></td>
 						</tr>
+
+						<tr>
+							<th><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></th>
+							<td><label><input type="checkbox" name="npmp_feature_social" <?php checked( ! empty( $features['social'] ) ); ?>>
+								<?php esc_html_e( 'Auto-share new posts and events to connected social networks.', 'nonprofit-manager' ); ?></label></td>
+						</tr>
 					</table>
 
 					<?php submit_button( __( 'Save Features', 'nonprofit-manager' ) ); ?>
@@ -287,6 +295,11 @@ function npmp_render_main_plugin_page() {
 						<li><a href="edit.php?post_type=npmp_event"><?php esc_html_e( 'All Events', 'nonprofit-manager' ); ?></a></li>
 						<li><a href="post-new.php?post_type=npmp_event"><?php esc_html_e( 'Add New Event', 'nonprofit-manager' ); ?></a></li>
 						<li><a href="admin.php?page=npmp_event_settings"><?php esc_html_e( 'Calendar Settings', 'nonprofit-manager' ); ?></a></li>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $features['social'] ) ) : ?>
+						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></strong></li>
+						<li><a href="admin.php?page=npmp_social_sharing"><?php esc_html_e( 'Social Sharing Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 				</ul>
 			</div>
