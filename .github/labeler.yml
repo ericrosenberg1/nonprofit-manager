@@ -1,0 +1,23 @@
+memberships:
+  - changed-files:
+    - any-glob-to-any-file: ['includes/npmp-membership*', 'includes/npmp-members*']
+
+donations:
+  - changed-files:
+    - any-glob-to-any-file: ['includes/npmp-payments*']
+
+email:
+  - changed-files:
+    - any-glob-to-any-file: ['includes/email/**', 'includes/npmp-email*']
+
+events:
+  - changed-files:
+    - any-glob-to-any-file: ['includes/npmp-calendar*', 'includes/npmp-convert-to-event*']
+
+blocks:
+  - changed-files:
+    - any-glob-to-any-file: ['includes/npmp-blocks*', 'blocks/**']
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/**']

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, trunk]
+  pull_request:
+    branches: [main, trunk]
+
+permissions:
+  contents: read
+
+jobs:
+  php-lint:
+    name: PHP Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+          coverage: none
+      - name: Check PHP syntax (all files)
+        run: find . -name "*.php" -not -path "./vendor/*" | xargs -n1 php -l
+
+  phpcs:
+    name: WordPress Coding Standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer, cs2pr
+          coverage: none
+      - name: Install PHPCS + WordPress standards
+        run: |
+          composer global require \
+            squizlabs/php_codesniffer \
+            wp-coding-standards/wpcs \
+            phpcompatibility/phpcompatibility-wp
+          phpcs --config-set installed_paths \
+            $(composer global config home)/vendor/wp-coding-standards/wpcs,\
+            $(composer global config home)/vendor/phpcompatibility/phpcompatibility-wp
+      - name: Run PHPCS (WordPress standard)
+        run: |
+          phpcs --standard=WordPress \
+            --extensions=php \
+            --ignore=vendor/ \
+            --report=checkstyle \
+            . | cs2pr
