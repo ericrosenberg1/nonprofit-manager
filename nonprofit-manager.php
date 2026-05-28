@@ -28,6 +28,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-types.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/email/helpers.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/email/smtp.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-dashboard-widgets.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-sentry.php';
 
 /* -------------------------------------------------------------------------
  * Feature flags
