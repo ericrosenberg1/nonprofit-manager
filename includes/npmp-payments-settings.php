@@ -215,7 +215,7 @@ function npmp_render_donation_settings_page() {
 	/* Current options */
 	$thank_you_enabled = get_option( 'npmp_enable_thank_you_email', 1 );
 	$thank_you_subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
-	$thank_you_message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support helps us make a difference.\n\nBest regards,\n{site_name}" );
+	$thank_you_message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
 
 	?>
 	<div class="wrap">
@@ -247,7 +247,7 @@ function npmp_render_donation_settings_page() {
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Intro Text', 'nonprofit-manager' ); ?></th>
-					<td><textarea name="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', 'Your contribution helps us make a difference.' ) ); ?></textarea></td>
+					<td><textarea name="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', 'Your gift supports our work.' ) ); ?></textarea></td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Amount Label', 'nonprofit-manager' ); ?></th>
@@ -310,7 +310,7 @@ function npmp_render_donation_settings_page() {
 						<li><?php esc_html_e( 'Automated thank you emails sent immediately after donation', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Customizable email subject and message templates', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Dynamic shortcodes for personalization (donor name, amount, date, etc.)', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Strengthens donor relationships and improves retention', 'nonprofit-manager' ); ?></li>
+						<li><?php esc_html_e( 'Keeps donors coming back', 'nonprofit-manager' ); ?></li>
 					</ul>
 
 					<p style="margin-top: 15px;">

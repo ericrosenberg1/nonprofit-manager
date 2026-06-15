@@ -148,7 +148,7 @@ function npmp_render_newsletter_templates() {
 
     npmp_admin_page_header(
         __('Newsletter Templates', 'nonprofit-manager'),
-        __('Create reusable email templates with headers and footers. Templates use Gutenberg blocks for easy visual editing.', 'nonprofit-manager'),
+        __('Create reusable email templates with headers and footers. Edit them visually with Gutenberg blocks.', 'nonprofit-manager'),
         array(
             __('Create New Template', 'nonprofit-manager') => admin_url('post-new.php?post_type=npmp_nl_template')
         )

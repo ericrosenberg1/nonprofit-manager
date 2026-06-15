@@ -28,7 +28,7 @@ if ( get_option( 'npmp_enable_paypal' ) ) {
 			'email_link'  => sanitize_email( get_option( 'npmp_paypal_email' ) ),
 			'client_id'   => sanitize_text_field( 'sandbox' === get_option( 'npmp_paypal_mode', 'live' ) ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' ) ),
 			'title'       => sanitize_text_field( get_option( 'npmp_donation_form_title', 'Support Our Mission' ) ),
-			'intro'       => wp_kses_post( get_option( 'npmp_donation_form_intro', 'Your contribution helps us make a difference.' ) ),
+			'intro'       => wp_kses_post( get_option( 'npmp_donation_form_intro', 'Your gift supports our work.' ) ),
 			'amount_lbl'  => sanitize_text_field( get_option( 'npmp_donation_amount_label', 'Donation Amount' ) ),
 			'email_lbl'   => sanitize_text_field( get_option( 'npmp_donation_email_label', 'Your Email' ) ),
 			'btn_lbl'     => sanitize_text_field( get_option( 'npmp_donation_button_label', 'Donate Now' ) ),

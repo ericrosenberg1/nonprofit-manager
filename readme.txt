@@ -3,22 +3,22 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0
 Tested up to: 6.8.3
-Stable tag: 2.0.1
+Stable tag: 2.1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Comprehensive nonprofit management solution for memberships, donations, newsletters, and events.
+Manage memberships, donations, newsletters, and events from WordPress.
 
 == Description ==
 
-Nonprofit Manager is an all-in-one solution designed to help nonprofit organizations manage their operations directly from WordPress. Whether you're running a small community organization or a larger nonprofit, this plugin provides the essential tools you need to succeed.
+Nonprofit Manager runs your members, donations, newsletters, and events from WordPress. It fits a small community group or a larger nonprofit, and the core tools are free.
 
 **Core Features:**
 
 * **Membership Management** - Track members, manage membership levels, and keep your community organized
 * **Donation Processing** - Accept one-time donations with PayPal, Venmo, and Stripe
-* **Email Newsletters** - Create and send beautiful email campaigns with Gutenberg block editor
+* **Email Newsletters** - Build and send email campaigns in the Gutenberg block editor
 * **Event Calendar** - Manage and promote nonprofit events with an integrated calendar
 * **Social Sharing** - Auto-share new posts and events to Facebook and X (Twitter)
 * **Subscriber Preferences** - Let subscribers choose instant notifications or weekly digests
@@ -58,7 +58,7 @@ Nonprofit Manager is an all-in-one solution designed to help nonprofit organizat
 
 **Pro Features:**
 
-Upgrade to [Nonprofit Manager Pro](https://nonprofitmanager.ericrosenberg.com/pricing) for advanced capabilities:
+[Nonprofit Manager Pro](https://nonprofitmanager.ericrosenberg.com/pricing) adds:
 
 * 6 email providers (AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost)
 * Recurring donation management with Stripe subscriptions
@@ -97,7 +97,7 @@ Yes. Version 2.0 adds a "Convert to Event" action on any post or page. It create
 
 = How do I import my existing email list? =
 
-With Nonprofit Manager Pro, go to Nonprofit Manager > Import. You can import from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact with smart column auto-detection.
+With Nonprofit Manager Pro, go to Nonprofit Manager > Import. You can import from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact, and it auto-detects your columns.
 
 = Where can I get support? =
 
@@ -115,6 +115,17 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2.1.0 =
+* Added: One-click unsubscribe with RFC 8058 List-Unsubscribe headers on newsletters, post/event notifications, and the weekly digest for better Gmail and Yahoo inbox placement
+* Added: Default front-end stylesheet for the signup, unsubscribe, preferences, and donation forms (turn it off with the npmp_enable_default_form_styles filter)
+* Added: Setup status check on the Membership Settings screen that flags a missing or form-less unsubscribe page
+* Added: Organization mailing address setting so the CAN-SPAM footer shows a real postal address
+* Added: Unsubscribe page is created automatically on activation
+* Fixed: [unsubscribe_url] now resolves to your configured unsubscribe page instead of a hardcoded /unsubscribe link
+* Fixed: CAN-SPAM footer [address] uses your postal mailing address instead of the site admin email
+* Fixed: Sentry events are tagged with the real plugin version instead of "unknown"
+* Changed: Cleaned up admin and marketing copy; corrected the README version and shortcode list
 
 = 2.0.1 =
 * Changed: Pro features now work when Pro plugin is installed (license required for updates only)
@@ -187,6 +198,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2.1.0 =
+Adds one-click unsubscribe and List-Unsubscribe headers for better deliverability, default form styles, a setup health check, and a CAN-SPAM postal address setting. Fixes unsubscribe-link resolution and the Sentry version tag.
 
 = 2.0.0 =
 Major update: Stripe payments for free users, social sharing, subscriber preferences, convert-to-event, and newsletter click tracking. Pro adds license system, recurring donations, custom fields, automation, segmentation, and import tools.

@@ -65,6 +65,16 @@ function npmp_register_newsletter_settings() {
 
     register_setting(
         'npmp_newsletter_settings',
+        'npmp_org_mailing_address',
+        [
+            'type'              => 'string',
+            'default'           => '',
+            'sanitize_callback' => 'sanitize_textarea_field',
+        ]
+    );
+
+    register_setting(
+        'npmp_newsletter_settings',
         'npmp_newsletter_can_spam_footer',
         [
             'type'              => 'string',
@@ -116,12 +126,24 @@ function npmp_register_newsletter_settings() {
     );
 
     add_settings_field(
+        'npmp_org_mailing_address',
+        __('Organization Mailing Address', 'nonprofit-manager'),
+        function () {
+            $value = get_option('npmp_org_mailing_address', '');
+            echo '<textarea name="npmp_org_mailing_address" rows="3" cols="60" placeholder="' . esc_attr__('123 Main St, Suite 100, Ventura, CA 93001', 'nonprofit-manager') . '">' . esc_textarea($value) . '</textarea>';
+            echo '<p class="description">' . esc_html__('A valid physical postal address is required in every newsletter footer under CAN-SPAM. This fills the [address] placeholder. If left blank, the site admin email is used as a fallback, which does not meet the requirement.', 'nonprofit-manager') . '</p>';
+        },
+        'npmp_newsletter_settings',
+        'npmp_newsletter_main'
+    );
+
+    add_settings_field(
         'npmp_newsletter_can_spam_footer',
         __('Default CAN-SPAM Footer', 'nonprofit-manager'),
         function () {
             $value = get_option('npmp_newsletter_can_spam_footer');
             echo '<textarea name="npmp_newsletter_can_spam_footer" rows="4" cols="60">' . esc_textarea($value) . '</textarea>';
-            echo '<p class="description">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>.</p>';
+            echo '<p class="description">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>. ' . esc_html__('The [address] value comes from the Organization Mailing Address field above, and [unsubscribe_url] points to your configured unsubscribe page.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main'

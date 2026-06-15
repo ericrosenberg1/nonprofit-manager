@@ -207,7 +207,7 @@ function npmp_render_setup_wizard() {
 								<input type="checkbox" name="npmp_feature_newsletters" onchange="npmpToggleFeatureCard(this)">
 								<?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?>
 							</h3>
-							<p><?php esc_html_e( 'Send beautiful newsletters to your members. Requires Member Tracking.', 'nonprofit-manager' ); ?></p>
+							<p><?php esc_html_e( 'Send newsletters to your members. Requires Member Tracking.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 

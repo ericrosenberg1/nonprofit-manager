@@ -1,0 +1,132 @@
+/**
+ * Nonprofit Manager — default front-end form styles.
+ *
+ * Intentionally light and easy to override: it uses low-specificity selectors
+ * and standard system spacing so it sits politely inside any theme. Turn it
+ * off entirely with:
+ *
+ *   add_filter( 'npmp_enable_default_form_styles', '__return_false' );
+ */
+
+.npmp-email-signup,
+.npmp-email-unsubscribe,
+.npmp-manage-preferences {
+	max-width: 32rem;
+	margin: 1.5rem 0;
+}
+
+.npmp-email-signup h3,
+.npmp-email-unsubscribe h3,
+.npmp-manage-preferences h3 {
+	margin: 0 0 0.75rem;
+	font-size: 1.25rem;
+	line-height: 1.3;
+}
+
+.npmp-email-signup p,
+.npmp-email-unsubscribe p {
+	margin: 0 0 1rem;
+}
+
+.npmp-email-signup label,
+.npmp-email-unsubscribe label {
+	display: block;
+	font-weight: 600;
+}
+
+.npmp-email-signup input[type="text"],
+.npmp-email-signup input[type="email"],
+.npmp-email-unsubscribe input[type="email"] {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	margin-top: 0.3rem;
+	padding: 0.6rem 0.7rem;
+	font-size: 1rem;
+	line-height: 1.4;
+	border: 1px solid #c3c4c7;
+	border-radius: 6px;
+	background: #fff;
+	color: inherit;
+}
+
+.npmp-email-signup input:focus,
+.npmp-email-unsubscribe input:focus {
+	border-color: #2271b1;
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+.npmp-email-signup button,
+.npmp-email-unsubscribe button,
+.npmp-manage-preferences button {
+	display: inline-block;
+	padding: 0.65rem 1.4rem;
+	font-size: 1rem;
+	font-weight: 600;
+	line-height: 1.2;
+	color: #fff;
+	background: #2271b1;
+	border: 1px solid #2271b1;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.npmp-email-signup button:hover,
+.npmp-email-unsubscribe button:hover,
+.npmp-manage-preferences button:hover {
+	background: #135e96;
+	border-color: #135e96;
+}
+
+.npmp-email-signup button:focus-visible,
+.npmp-email-unsubscribe button:focus-visible,
+.npmp-manage-preferences button:focus-visible {
+	outline: 2px solid #135e96;
+	outline-offset: 2px;
+}
+
+/* Notification-preference checkboxes shown on the signup form. */
+.npmp-notification-prefs {
+	margin: 0.75rem 0;
+	padding: 0.75rem 1rem;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+}
+
+.npmp-notification-prefs legend {
+	font-weight: 600;
+	padding: 0 0.25rem;
+}
+
+/* Status banners after a submit (success / error / captcha). */
+.npmp-form-banner {
+	margin: 0 0 1rem;
+	padding: 0.75rem 1rem;
+	border: 1px solid #dcdcde;
+	border-left-width: 4px;
+	border-radius: 4px;
+	background: #f6f7f7;
+}
+
+.npmp-form-banner p {
+	margin: 0;
+}
+
+.npmp-form-banner.npmp-status-success {
+	border-left-color: #00a32a;
+	background: #edfaef;
+}
+
+.npmp-form-banner.npmp-status-error,
+.npmp-form-banner.npmp-status-captcha {
+	border-left-color: #d63638;
+	background: #fcf0f1;
+}
+
+/* Donation form wrapper — modest spacing only; gateway markup keeps its own layout. */
+.npmp-donation-form {
+	max-width: 32rem;
+	margin: 1.5rem 0;
+}

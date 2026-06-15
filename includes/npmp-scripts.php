@@ -91,6 +91,73 @@ function npmp_register_frontend_scripts() {
 add_action( 'wp_enqueue_scripts', 'npmp_register_frontend_scripts' );
 
 /**
+ * Decide whether the default front-end form styles should load on this request.
+ *
+ * @return bool
+ */
+function npmp_should_enqueue_form_styles() {
+	/**
+	 * Filter whether the bundled default form styles load at all.
+	 *
+	 * @param bool $enabled Default true.
+	 */
+	if ( ! apply_filters( 'npmp_enable_default_form_styles', true ) ) {
+		return false;
+	}
+
+	// Pages explicitly configured to host a form (covers auto-injected forms).
+	$page_ids = array();
+	if ( function_exists( 'npmp_get_membership_form_settings' ) ) {
+		$settings   = npmp_get_membership_form_settings();
+		$page_ids[] = absint( $settings['signup_page_id'] ?? 0 );
+		$page_ids[] = absint( $settings['unsubscribe_page_id'] ?? 0 );
+	}
+	$page_ids[] = absint( get_option( 'npmp_preferences_page_id', 0 ) );
+	$page_ids[] = absint( get_option( 'npmp_donation_page_id', 0 ) );
+	$page_ids   = array_filter( $page_ids );
+
+	if ( $page_ids && is_page( $page_ids ) ) {
+		return true;
+	}
+
+	// Forms placed via shortcode on any singular content.
+	if ( is_singular() ) {
+		$post = get_post();
+		if ( $post instanceof WP_Post ) {
+			$shortcodes = array( 'npmp_email_signup', 'npmp_email_unsubscribe', 'npmp_manage_preferences', 'npmp_donation_form' );
+			foreach ( $shortcodes as $shortcode ) {
+				if ( has_shortcode( $post->post_content, $shortcode ) ) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Register and conditionally enqueue the default front-end form stylesheet.
+ *
+ * @return void
+ */
+function npmp_register_form_styles() {
+	$style_path = 'assets/css/npmp-forms.css';
+
+	wp_register_style(
+		'npmp-forms',
+		plugins_url( $style_path, dirname( __FILE__ ) ),
+		array(),
+		npmp_get_asset_version( $style_path )
+	);
+
+	if ( npmp_should_enqueue_form_styles() ) {
+		wp_enqueue_style( 'npmp-forms' );
+	}
+}
+add_action( 'wp_enqueue_scripts', 'npmp_register_form_styles' );
+
+/**
  * Enqueue admin-specific assets.
  *
  * @param string $hook Current admin hook suffix.

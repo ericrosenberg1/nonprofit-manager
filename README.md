@@ -1,18 +1,18 @@
 === Nonprofit Manager ===
 Contributors: eric1985  
-Tags: nonprofit, donation, members, email, newsletters  
+Tags: nonprofit, donations, membership, email, events  
 Requires at least: 6.0  
-Tested up to: 6.8
+Tested up to: 6.8.3
 Requires PHP: 7.4  
-Stable tag: 1.0.0
+Stable tag: 2.1.0
 License: GPLv2 or later  
 License URI: https://www.gnu.org/licenses/gpl-2.0.html  
 
-A full-featured plugin for nonprofits to manage members, emails, donations, and events.
+A WordPress plugin for nonprofits to manage members, donations, newsletters, and events.
 
 == Description ==
 
-Nonprofit Manager helps your organization grow, engage, and raise funds with tools tailored for nonprofits.
+Manage members, send newsletters, and collect donations — built for how small nonprofits actually work.
 
 == Installation ==
 
@@ -27,10 +27,8 @@ Nonprofit Manager helps your organization grow, engage, and raise funds with too
 - Use shortcodes to embed forms:
   - `[npmp_email_signup]`
   - `[npmp_email_unsubscribe]`
+  - `[npmp_manage_preferences]`
   - `[npmp_donation_form]`
-  - `[npmp_volunteer_form]`
-  - `[npmp_event_rsvp]`
-  - `[npmp_member_directory]`
 
 == Gutenberg Email Composer ==
 
@@ -99,7 +97,7 @@ No data is sent to PayPal until the user actively initiates a donation.
 == Frequently Asked Questions ==
 
 **Can I use my own email service?**  
-Yes! You can choose any SMTP mailer, and more service integreations are planned.
+Yes. Pick any SMTP mailer. Pro adds direct integrations for more providers.
 
 **Can I customize the donation form?**  
 Yes, form text, labels, payment methods, and minimums are all editable.
@@ -112,13 +110,7 @@ Yes, form text, labels, payment methods, and minimums are all editable.
 
 == Changelog ==
 
-= 1.0.0 =
-* Initial release of Nonprofit Manager.
-
-== Upgrade Notice ==
-
-= 1.0.0 =
-First public release. Includes email composer, donation support, member tools, and block-based forms.
+The full, current changelog lives in [readme.txt](readme.txt) (the WordPress.org source of truth). Current stable release: 2.1.0.
 
 == License ==
 

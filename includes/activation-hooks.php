@@ -27,6 +27,7 @@ function npmp_run_plugin_activation_tasks() {
 	npmp_create_newsletter_opens_table();
 	npmp_create_newsletter_clicks_table();
 	npmp_initialize_default_newsletter_settings();
+	npmp_maybe_create_unsubscribe_page();
 	npmp_schedule_newsletter_cron();
 
 	// Set transient to trigger setup wizard redirect
@@ -333,6 +334,62 @@ function npmp_initialize_default_newsletter_settings() {
 	if ( false === get_option( 'npmp_newsletter_rate_limit' ) ) {
 		update_option( 'npmp_newsletter_rate_limit', 10 );
 	}
+}
+
+/**
+ * Ensure a working unsubscribe page exists and is wired to the form settings.
+ *
+ * Creates a published page containing [npmp_email_unsubscribe] on first
+ * activation, then records its ID so CAN-SPAM unsubscribe links resolve out of
+ * the box. Skips when an unsubscribe page is already configured and published,
+ * and reuses an existing page that already hosts the shortcode.
+ *
+ * @return void
+ */
+function npmp_maybe_create_unsubscribe_page() {
+	$option   = 'npmp_membership_form_settings';
+	$settings = get_option( $option, array() );
+	if ( ! is_array( $settings ) ) {
+		$settings = array();
+	}
+
+	$existing = absint( $settings['unsubscribe_page_id'] ?? 0 );
+	if ( $existing && 'publish' === get_post_status( $existing ) ) {
+		return; // Already set up.
+	}
+
+	// Reuse a published page that already hosts the shortcode, if one exists.
+	$found = get_posts(
+		array(
+			'post_type'      => 'page',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			's'              => '[npmp_email_unsubscribe]',
+		)
+	);
+
+	if ( ! empty( $found ) ) {
+		$page_id = (int) $found[0];
+	} else {
+		$page_id = wp_insert_post(
+			array(
+				'post_title'   => __( 'Unsubscribe', 'nonprofit-manager' ),
+				'post_name'    => 'unsubscribe',
+				'post_content' => '[npmp_email_unsubscribe]',
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+			)
+		);
+	}
+
+	if ( ! $page_id || is_wp_error( $page_id ) ) {
+		return;
+	}
+
+	$settings['unsubscribe_page_id'] = (int) $page_id;
+	update_option( $option, $settings );
 }
 
 /**

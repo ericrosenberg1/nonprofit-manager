@@ -73,7 +73,7 @@ function npmp_render_main_plugin_page() {
 		<?php endif; ?>
 
 		<?php if ( $pro_setup_complete ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Pro setup complete! Your premium features are now active.', 'nonprofit-manager' ); ?></p></div>
+			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Pro setup complete. Your Pro features are active.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( $features_updated ) : ?>
@@ -372,8 +372,8 @@ function npmp_render_main_plugin_page() {
 		<?php if ( ! $is_pro ) : ?>
 			<div class="npmp-upgrade-section">
 				<h2><?php esc_html_e( 'Thank You for Using Nonprofit Manager', 'nonprofit-manager' ); ?></h2>
-				<p><?php esc_html_e( 'The free edition is designed to meet the needs of a wide range of nonprofits. If you need more powerful features and customizations, you can upgrade to Nonprofit Manager Pro for $17 per year.', 'nonprofit-manager' ); ?></p>
-				<p><?php esc_html_e( 'We only offer special nonprofit pricing! That\'s less than $2 per month for a CRM, donation manager, newsletter platform, and event calendar/manager all-in-one inside of your existing WordPress site.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'The free edition covers what most nonprofits need. Want more features and customization? Nonprofit Manager Pro is $17 a year.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'That\'s nonprofit pricing — under $2 a month for a CRM, donation manager, newsletter platform, and event calendar, all inside your WordPress site.', 'nonprofit-manager' ); ?></p>
 
 				<div class="npmp-upgrade-box">
 					<h3><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro', 'nonprofit-manager' ); ?></h3>

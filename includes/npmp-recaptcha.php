@@ -184,8 +184,8 @@ function npmp_recaptcha_test_keys() {
 		return new WP_Error( 'npmp-recaptcha-missing', __( 'Enter your reCAPTCHA site and secret keys before testing.', 'nonprofit-manager' ) );
 	}
 
-	// For reCAPTCHA v3, we can't test without a valid token from the frontend
-	// So we just verify the keys are present and properly formatted
+	// For reCAPTCHA v3, we can't test without a valid token from the frontend,
+	// so verify the keys are present and well-formed.
 	$site_key   = get_option( 'npmp_recaptcha_site_key', '' );
 	$secret_key = get_option( 'npmp_recaptcha_secret_key', '' );
 

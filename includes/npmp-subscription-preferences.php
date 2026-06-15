@@ -311,7 +311,12 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 		$body .= '<hr style="margin:20px 0;border:none;border-top:1px solid #eee;">';
 		$body .= '<p style="font-size:12px;color:#999;"><a href="' . esc_url( $prefs_url ) . '">' . esc_html__( 'Manage your email preferences', 'nonprofit-manager' ) . '</a></p>';
 
-		wp_mail( $email, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {
+			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $email ) );
+		}
+
+		wp_mail( $email, $subject, $body, $headers );
 	}
 
 	update_post_meta( $post->ID, '_npmp_notification_sent', '1' );
@@ -418,6 +423,11 @@ function npmp_process_weekly_digest() {
 		$personal_body .= '<hr style="margin:20px 0;border:none;border-top:1px solid #eee;">';
 		$personal_body .= '<p style="font-size:12px;color:#999;"><a href="' . esc_url( $prefs_url ) . '">' . esc_html__( 'Manage your email preferences', 'nonprofit-manager' ) . '</a></p>';
 
-		wp_mail( $email, $subject, $personal_body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {
+			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $email ) );
+		}
+
+		wp_mail( $email, $subject, $personal_body, $headers );
 	}
 }

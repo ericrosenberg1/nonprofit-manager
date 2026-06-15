@@ -64,10 +64,10 @@ function npmp_show_upgrade_notice( $feature_name = '' ) {
 	$message = $feature_name
 		? sprintf(
 			/* translators: %s: feature name */
-			__( '%s is a Pro feature. Upgrade to Nonprofit Manager Pro to unlock this feature.', 'nonprofit-manager' ),
+			__( '%s is a Pro feature. Upgrade to Nonprofit Manager Pro to use it.', 'nonprofit-manager' ),
 			$feature_name
 		)
-		: __( 'This is a Pro feature. Upgrade to Nonprofit Manager Pro to unlock additional features.', 'nonprofit-manager' );
+		: __( 'This is a Pro feature. Upgrade to Nonprofit Manager Pro to get it.', 'nonprofit-manager' );
 
 	?>
 	<div class="notice notice-info">

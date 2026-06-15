@@ -869,7 +869,7 @@ function npmp_ajax_create_stripe_session() {
 function npmp_get_donation_form_options() {
 	return array(
 		'title'      => get_option( 'npmp_donation_form_title', 'Support Our Mission' ),
-		'intro'      => get_option( 'npmp_donation_form_intro', 'Your contribution helps us make a difference.' ),
+		'intro'      => get_option( 'npmp_donation_form_intro', 'Your gift supports our work.' ),
 		'amount_lbl' => get_option( 'npmp_donation_amount_label', 'Donation Amount' ),
 		'email_lbl'  => get_option( 'npmp_donation_email_label', 'Your Email' ),
 		'btn_lbl'    => get_option( 'npmp_donation_button_label', 'Donate Now' ),
@@ -956,7 +956,7 @@ function npmp_send_thank_you_email( $donation_data ) {
 
 	// Get email template
 	$subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
-	$message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support helps us make a difference.\n\nBest regards,\n{site_name}" );
+	$message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
 
 	// Replace shortcodes
 	$frequency_labels = array(

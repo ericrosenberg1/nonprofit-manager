@@ -429,7 +429,7 @@ function npmp_render_email_settings_page() {
 									<?php
 									printf(
 										/* translators: %s: URL to upgrade page */
-										wp_kses_post( __( 'Want to use a custom email service? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a> to unlock all email providers.', 'nonprofit-manager' ) ),
+										wp_kses_post( __( 'Want to use a custom email service? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a> to use any email provider.', 'nonprofit-manager' ) ),
 										esc_url( npmp_get_upgrade_url() )
 									);
 									?>

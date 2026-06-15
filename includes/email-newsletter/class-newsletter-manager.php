@@ -281,6 +281,12 @@ class NPMP_Newsletter_Manager {
 	 * =================================================================== */
 	public static function send_email( $to, $subject, $content ) {
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+
+		// Add one-click List-Unsubscribe headers (Gmail/Yahoo bulk-sender rules).
+		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {
+			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $to ) );
+		}
+
 		return wp_mail( $to, $subject, $content, $headers );
 	}
 

@@ -57,6 +57,117 @@ function npmp_get_membership_form_settings( $refresh = false ) {
 	return $settings;
 }
 
+/**
+ * Build the setup-status checks shown on the Membership Settings screen.
+ *
+ * Surfaces the exact silent failure a non-technical admin can hit: an
+ * unsubscribe page that is unset, unpublished, or has no form, plus the
+ * CAN-SPAM postal-address gap.
+ *
+ * @return array[] Each row: array( 'status' => ok|warning|error, 'label' => string, 'message' => string ).
+ */
+function npmp_get_membership_setup_status() {
+	$settings = npmp_get_membership_form_settings();
+	$rows     = array();
+
+	/* Unsubscribe page — the failure that silently breaks CAN-SPAM links. */
+	$unsub_id = absint( $settings['unsubscribe_page_id'] ?? 0 );
+	if ( ! $unsub_id ) {
+		$rows[] = array(
+			'status'  => 'warning',
+			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
+			'message' => __( 'No unsubscribe page is set, so newsletter unsubscribe links fall back to /unsubscribe — which may not exist. Choose a page in the Unsubscribe Form section below.', 'nonprofit-manager' ),
+		);
+	} elseif ( 'publish' !== get_post_status( $unsub_id ) ) {
+		$rows[] = array(
+			'status'  => 'error',
+			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
+			'message' => __( 'The configured unsubscribe page is missing or not published, so unsubscribe links in your emails will break. Pick a published page below.', 'nonprofit-manager' ),
+		);
+	} else {
+		$has_form = false !== strpos( (string) get_post_field( 'post_content', $unsub_id ), '[npmp_email_unsubscribe]' );
+		if ( $has_form ) {
+			/* translators: %s: page title */
+			$message = sprintf( __( 'Unsubscribe links resolve to “%s”, and the form is on the page.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
+		} else {
+			/* translators: %s: page title */
+			$message = sprintf( __( 'Unsubscribe links resolve to “%s”. The form is added to the page automatically.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
+		}
+		$rows[] = array(
+			'status'  => 'ok',
+			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
+			'message' => $message,
+		);
+	}
+
+	/* CAN-SPAM postal address. */
+	$address = trim( (string) get_option( 'npmp_org_mailing_address', '' ) );
+	if ( '' === $address ) {
+		$rows[] = array(
+			'status'  => 'warning',
+			'label'   => __( 'Mailing address', 'nonprofit-manager' ),
+			'message' => __( 'No organization mailing address is set. CAN-SPAM requires a physical postal address in newsletter footers; an email address is used as a fallback for now. Add one on the Newsletter Settings screen.', 'nonprofit-manager' ),
+		);
+	} else {
+		$rows[] = array(
+			'status'  => 'ok',
+			'label'   => __( 'Mailing address', 'nonprofit-manager' ),
+			'message' => __( 'A postal mailing address is set for the CAN-SPAM footer.', 'nonprofit-manager' ),
+		);
+	}
+
+	/* Signup page (informational). */
+	$signup_id = absint( $settings['signup_page_id'] ?? 0 );
+	if ( $signup_id && 'publish' !== get_post_status( $signup_id ) ) {
+		$rows[] = array(
+			'status'  => 'error',
+			'label'   => __( 'Signup page', 'nonprofit-manager' ),
+			'message' => __( 'The configured signup page is missing or not published.', 'nonprofit-manager' ),
+		);
+	} elseif ( $signup_id ) {
+		/* translators: %s: page title */
+		$rows[] = array(
+			'status'  => 'ok',
+			'label'   => __( 'Signup page', 'nonprofit-manager' ),
+			'message' => sprintf( __( 'Signup form appears on “%s”.', 'nonprofit-manager' ), get_the_title( $signup_id ) ),
+		);
+	}
+
+	return $rows;
+}
+
+/**
+ * Render the setup-status card on the Membership Settings screen.
+ *
+ * @return void
+ */
+function npmp_render_membership_setup_status() {
+	$rows = npmp_get_membership_setup_status();
+	if ( empty( $rows ) ) {
+		return;
+	}
+
+	$icons = array(
+		'ok'      => array( 'dashicons-yes-alt', '#00a32a' ),
+		'warning' => array( 'dashicons-warning', '#dba617' ),
+		'error'   => array( 'dashicons-dismiss', '#d63638' ),
+	);
+
+	echo '<div class="npmp-settings-card">';
+	echo '<h2>' . esc_html__( 'Setup status', 'nonprofit-manager' ) . '</h2>';
+	echo '<table class="npmp-levels-table" style="max-width:760px;">';
+	foreach ( $rows as $row ) {
+		$icon = isset( $icons[ $row['status'] ] ) ? $icons[ $row['status'] ] : $icons['ok'];
+		echo '<tr>';
+		echo '<td style="width:28px;vertical-align:top;"><span class="dashicons ' . esc_attr( $icon[0] ) . '" style="color:' . esc_attr( $icon[1] ) . ';"></span></td>';
+		echo '<td style="width:150px;vertical-align:top;font-weight:600;">' . esc_html( $row['label'] ) . '</td>';
+		echo '<td style="vertical-align:top;">' . esc_html( $row['message'] ) . '</td>';
+		echo '</tr>';
+	}
+	echo '</table>';
+	echo '</div>';
+}
+
 function npmp_render_membership_forms_page() {
 	npmp_verify_admin_access();
 
@@ -145,6 +256,9 @@ function npmp_render_membership_forms_page() {
 	/* ---------- Membership Levels Section ---------- */
 	?>
 	<style>
+		.npmp-settings-card .npmp-levels-table td {
+			border-bottom: 1px solid #f0f0f1;
+		}
 		.npmp-settings-card {
 			background: #fff;
 			border: 1px solid #c3c4c7;
@@ -191,6 +305,8 @@ function npmp_render_membership_forms_page() {
 			max-width: 300px;
 		}
 	</style>
+
+	<?php npmp_render_membership_setup_status(); ?>
 
 	<div class="npmp-settings-card">
 		<h2><?php esc_html_e( 'Membership Levels', 'nonprofit-manager' ); ?></h2>
@@ -377,11 +493,12 @@ function npmp_get_banner_html( $type, $settings ) {
 		}
 
 		if ( 'captcha' === $status ) {
-			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . '"><p>' . esc_html__( 'Please complete the spam protection check before submitting.', 'nonprofit-manager' ) . '</p></div>';
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-captcha"><p>' . esc_html__( 'Please complete the spam protection check before submitting.', 'nonprofit-manager' ) . '</p></div>';
 		}
-		$key = 'success' === $status ? 'success_message' : 'error_message';
-		$message = isset( $settings[ $key ] ) ? $settings[ $key ] : npmp_membership_form_default_settings()[ $key ];
-		return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . '"><p>' . esc_html( $message ) . '</p></div>';
+		$key          = 'success' === $status ? 'success_message' : 'error_message';
+		$status_class = 'success' === $status ? 'npmp-status-success' : 'npmp-status-error';
+		$message      = isset( $settings[ $key ] ) ? $settings[ $key ] : npmp_membership_form_default_settings()[ $key ];
+		return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' ' . esc_attr( $status_class ) . '"><p>' . esc_html( $message ) . '</p></div>';
 	}
 	return '';
 }
@@ -558,4 +675,177 @@ function npmp_handle_membership_form() {
 	/* ---------------- FALLBACK ---------------- */
 	wp_safe_redirect( add_query_arg( 'npmp_form_error', '1', $redirect ) );
 	exit;
+}
+
+/* ====================================================================
+ * One-click unsubscribe (RFC 8058 + visible footer links)
+ * ==================================================================== */
+
+/**
+ * Generate a signed, action-scoped token for one-click unsubscribe links.
+ *
+ * Scoped to the unsubscribe action so a token minted here can't be replayed
+ * against any other token surface (e.g. the manage-preferences page).
+ *
+ * @param string $email Recipient email address.
+ * @return string
+ */
+function npmp_generate_unsubscribe_token( $email ) {
+	return substr( hash_hmac( 'sha256', 'unsubscribe|' . strtolower( (string) $email ), wp_salt( 'auth' ) ), 0, 20 );
+}
+
+/**
+ * Build a one-click unsubscribe URL carrying the recipient email and token.
+ *
+ * @param string $email Recipient email address.
+ * @return string
+ */
+function npmp_get_one_click_unsubscribe_url( $email ) {
+	return add_query_arg(
+		array(
+			'action' => 'npmp_one_click_unsubscribe',
+			'email'  => rawurlencode( $email ),
+			'token'  => npmp_generate_unsubscribe_token( $email ),
+		),
+		admin_url( 'admin-post.php' )
+	);
+}
+
+/**
+ * Build RFC 8058 List-Unsubscribe headers for a single recipient.
+ *
+ * Gmail and Yahoo expect bulk senders to offer one-click List-Unsubscribe,
+ * and including these headers improves inbox placement for smaller senders too.
+ *
+ * @param string $email Recipient email address.
+ * @return array Array of header strings (empty when the email is invalid).
+ */
+function npmp_get_list_unsubscribe_headers( $email ) {
+	$email = sanitize_email( $email );
+	if ( ! $email || ! is_email( $email ) ) {
+		return array();
+	}
+
+	$one_click   = npmp_get_one_click_unsubscribe_url( $email );
+	$admin_email = sanitize_email( (string) get_option( 'admin_email' ) );
+
+	$value = '<' . esc_url_raw( $one_click ) . '>';
+	if ( $admin_email ) {
+		$value .= ', <mailto:' . $admin_email . '?subject=' . rawurlencode( 'unsubscribe ' . $email ) . '>';
+	}
+
+	return array(
+		'List-Unsubscribe: ' . $value,
+		'List-Unsubscribe-Post: List-Unsubscribe=One-Click',
+	);
+}
+
+/**
+ * Opt an email address out of every channel it can receive mail through.
+ *
+ * Flips the member record to "unsubscribed" (stops bulk newsletters) and
+ * clears post/event/digest notification preferences on the same contact.
+ *
+ * @param string $email Email address to unsubscribe.
+ * @return bool True when a matching record was found and updated.
+ */
+function npmp_unsubscribe_email_everywhere( $email ) {
+	$email = sanitize_email( $email );
+	if ( ! $email || ! is_email( $email ) ) {
+		return false;
+	}
+
+	$done = false;
+
+	if ( class_exists( 'NPMP_Member_Manager' ) ) {
+		$manager  = NPMP_Member_Manager::get_instance();
+		$existing = $manager->get_member_by_email( $email );
+
+		if ( $existing ) {
+			$manager->update_member( $existing->id, array( 'status' => 'unsubscribed' ) );
+
+			// The member record and the notification-preference record are the
+			// same npmp_contact post, so clear the notification opt-ins too.
+			if ( function_exists( 'npmp_save_subscriber_preferences' ) ) {
+				npmp_save_subscriber_preferences(
+					$existing->id,
+					array(
+						'notify_posts'  => false,
+						'notify_events' => false,
+						'weekly_digest' => false,
+					)
+				);
+			}
+
+			$done = true;
+		}
+	}
+
+	/**
+	 * Fires after a one-click unsubscribe is processed.
+	 *
+	 * @param string $email Email address that was unsubscribed.
+	 * @param bool   $done  Whether a matching record was found.
+	 */
+	do_action( 'npmp_after_one_click_unsubscribe', $email, $done );
+
+	return $done;
+}
+
+add_action( 'admin_post_nopriv_npmp_one_click_unsubscribe', 'npmp_handle_one_click_unsubscribe' );
+add_action( 'admin_post_npmp_one_click_unsubscribe', 'npmp_handle_one_click_unsubscribe' );
+
+/**
+ * Handle a one-click unsubscribe request.
+ *
+ * Authenticated by the signed token in the link, not a WordPress nonce:
+ * mailbox-provider one-click POSTs (RFC 8058) carry no cookie or nonce.
+ *
+ * @return void
+ */
+function npmp_handle_one_click_unsubscribe() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Token-authenticated email link; no cookie/nonce is available for one-click POSTs.
+	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
+	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	$valid = $email && is_email( $email ) && hash_equals( npmp_generate_unsubscribe_token( $email ), $token );
+
+	if ( $valid ) {
+		npmp_unsubscribe_email_everywhere( $email );
+	}
+
+	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+
+	// RFC 8058 one-click: mailbox provider POSTs and expects a bare 2xx/4xx.
+	if ( 'POST' === $method ) {
+		status_header( $valid ? 200 : 400 );
+		exit;
+	}
+
+	// Human clicked the visible link: send them to a friendly confirmation.
+	$settings = npmp_get_membership_form_settings();
+	$page_id  = absint( $settings['unsubscribe_page_id'] ?? 0 );
+
+	if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+		$target = get_permalink( $page_id );
+		if ( $target ) {
+			wp_safe_redirect( npmp_membership_add_banner_arg( $target, 'npmp_unsubscribe', $valid ? 'success' : 'error' ) );
+			exit;
+		}
+	}
+
+	// No configured page to land on: render a minimal self-contained message.
+	$message = $valid
+		? __( 'You have been unsubscribed. You will no longer receive these emails.', 'nonprofit-manager' )
+		: __( 'This unsubscribe link is invalid or has expired. Please use the unsubscribe form on our website.', 'nonprofit-manager' );
+
+	wp_die(
+		esc_html( $message ),
+		esc_html__( 'Unsubscribe', 'nonprofit-manager' ),
+		array(
+			'response'  => $valid ? 200 : 400,
+			'back_link' => true,
+		)
+	);
 }

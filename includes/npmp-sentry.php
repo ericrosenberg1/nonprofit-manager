@@ -33,7 +33,7 @@ add_action( 'init', static function () {
 		\Sentry\configureScope( static function ( \Sentry\State\Scope $scope ) {
 			$scope->setTag( 'plugin', 'nonprofit-manager' );
 			$scope->setContext( 'nonprofit_manager', array(
-				'version'  => defined( 'NPMP_VERSION' ) ? NPMP_VERSION : 'unknown',
+				'version'  => function_exists( 'npmp_get_version_number' ) ? npmp_get_version_number() : 'unknown',
 				'features' => get_option( 'npmp_enabled_features', array() ),
 			) );
 		} );
