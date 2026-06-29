@@ -119,6 +119,7 @@ Free support is available through the WordPress.org support forums. Pro customer
 = 2026.06.3 =
 * Added: Redesigned events calendar with Month, Week, and List views and a navigation toolbar (Today, previous/next, and year jumps), plus a clean, responsive front-end stylesheet
 * Added: Calendar display options on the Calendar Settings screen (default view, highlight color, event times, list length, show past events); the grid follows your WordPress "Week starts on" setting
+* Added: Events Calendar and Upcoming Events blocks for the WordPress editor, so you can drop a calendar or event list onto any page with Month, Week, List, and category options
 * Fixed: The calendar no longer renders twice on the configured calendar page
 * Added: "Edit Event" button in the WordPress admin toolbar on single event pages, matching the default behavior for posts and pages
 * Changed: Slimmed the plugin by removing dead code, unused helper functions, and a non-functional block registration (the [npmp_donation_form], [npmp_email_signup], and [npmp_email_unsubscribe] shortcodes are unchanged)

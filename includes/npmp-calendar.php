@@ -1139,7 +1139,12 @@ function npmp_calendar_enqueue_styles() {
 	if ( ! $load && is_singular() ) {
 		$post = get_post();
 		if ( $post instanceof WP_Post ) {
-			if ( has_shortcode( $post->post_content, 'npmp_calendar' ) || has_shortcode( $post->post_content, 'npmp_events' ) ) {
+			if (
+				has_shortcode( $post->post_content, 'npmp_calendar' )
+				|| has_shortcode( $post->post_content, 'npmp_events' )
+				|| has_block( 'nonprofit-manager/calendar', $post )
+				|| has_block( 'nonprofit-manager/events', $post )
+			) {
 				$load = true;
 			} elseif ( (int) get_option( 'npmp_calendar_page_id', 0 ) === $post->ID ) {
 				$load = true;

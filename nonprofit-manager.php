@@ -76,6 +76,7 @@ if ( ! empty( $npmp_features['newsletters'] ) ) {
 if ( ! empty( $npmp_features['calendar'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-convert-to-event.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar-blocks.php';
 }
 
 if ( ! empty( $npmp_features['social'] ) ) {
