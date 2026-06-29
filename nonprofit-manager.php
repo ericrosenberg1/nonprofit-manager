@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Nonprofit Manager
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.06.2
+ * Version: 2026.06.3
  * Author: Rosenberg Digital LLC
  * Author URI: https://ericrosenberg.com
  * License: GPL-2.0-or-later

@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0
 Tested up to: 6.8.3
-Stable tag: 2026.06.2
+Stable tag: 2026.06.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -115,6 +115,13 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.06.3 =
+* Added: "Edit Event" button in the WordPress admin toolbar on single event pages, matching the default behavior for posts and pages
+* Changed: Slimmed the plugin by removing dead code, unused helper functions, and a non-functional block registration (the [npmp_donation_form], [npmp_email_signup], and [npmp_email_unsubscribe] shortcodes are unchanged)
+* Performance: PayPal SDK now loads only on pages that show a donation form instead of site-wide
+* Fixed: Events added from the dashboard quick-add now appear on the calendar (correct date format)
+* Fixed: Members added from the dashboard quick-add now use the correct subscriber status
 
 = 2026.06.2 =
 * Added: Member import wizard (CSV, XLSX, Google Sheets, Mailchimp, Constant Contact) and a guided onboarding tour, brought into the main plugin line

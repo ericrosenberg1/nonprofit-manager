@@ -103,6 +103,11 @@ function npmp_register_event_post_type() {
 		'labels'             => $labels,
 		'public'             => true,
 		'show_in_menu'       => false,
+		// Events live under the custom Nonprofit Manager menu, so show_in_menu is
+		// false. WordPress then defaults show_in_admin_bar to false too, which
+		// hides the front-end "Edit Event" toolbar button that posts and pages
+		// get by default. Force it on so admins can jump straight to the editor.
+		'show_in_admin_bar'  => true,
 		'show_in_rest'       => true,
 		'has_archive'        => true,
 		'rewrite'            => array( 'slug' => 'events' ),
