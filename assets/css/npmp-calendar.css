@@ -1,0 +1,321 @@
+/**
+ * Nonprofit Manager — front-end calendar styles.
+ *
+ * Goals: clean, readable, and obvious for non-technical visitors. Big tap
+ * targets, a clear "today", readable event chips, and a layout that collapses
+ * sensibly on phones. Accent color is driven by the --npmp-cal-accent variable,
+ * set inline from the Calendar Settings screen.
+ */
+
+.npmp-calendar-wrapper {
+	--npmp-cal-accent: #2271b1;
+	--npmp-cal-border: #dcdfe3;
+	--npmp-cal-muted: #6a7178;
+	--npmp-cal-today: #fff8e5;
+	--npmp-cal-radius: 8px;
+	max-width: 100%;
+	margin: 0 0 1.5rem;
+	color: #1d2327;
+	font-size: 16px;
+	line-height: 1.4;
+}
+
+.npmp-calendar-wrapper * {
+	box-sizing: border-box;
+}
+
+/* ---- Toolbar ---------------------------------------------------------- */
+.npmp-calendar-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.npmp-calendar-title {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 700;
+	flex: 1 1 auto;
+	min-width: 12ch;
+}
+
+/* View switch tabs */
+.npmp-calendar-views {
+	display: inline-flex;
+	border: 1px solid var(--npmp-cal-border);
+	border-radius: var(--npmp-cal-radius);
+	overflow: hidden;
+}
+
+.npmp-calendar-views a {
+	display: inline-block;
+	padding: 0.55rem 1rem;
+	min-height: 44px;
+	line-height: 1.7;
+	text-decoration: none;
+	color: #1d2327;
+	background: #fff;
+	font-weight: 600;
+	border-left: 1px solid var(--npmp-cal-border);
+}
+
+.npmp-calendar-views a:first-child {
+	border-left: 0;
+}
+
+.npmp-calendar-views a:hover,
+.npmp-calendar-views a:focus {
+	background: #f0f3f6;
+}
+
+.npmp-calendar-views a[aria-current="true"] {
+	background: var(--npmp-cal-accent);
+	color: #fff;
+}
+
+/* Prev / Today / Next / year jumps */
+.npmp-calendar-nav {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.npmp-calendar-nav a,
+.npmp-calendar-nav span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+	min-height: 44px;
+	padding: 0 0.7rem;
+	text-decoration: none;
+	color: #1d2327;
+	background: #fff;
+	border: 1px solid var(--npmp-cal-border);
+	border-radius: var(--npmp-cal-radius);
+	font-weight: 600;
+}
+
+.npmp-calendar-nav a:hover,
+.npmp-calendar-nav a:focus {
+	background: var(--npmp-cal-accent);
+	border-color: var(--npmp-cal-accent);
+	color: #fff;
+}
+
+.npmp-calendar-nav .npmp-cal-today {
+	padding: 0 1rem;
+}
+
+/* ---- Month + week grid ----------------------------------------------- */
+.npmp-calendar-table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+	border: 1px solid var(--npmp-cal-border);
+	border-radius: var(--npmp-cal-radius);
+	overflow: hidden;
+}
+
+.npmp-calendar-table th {
+	background: #f0f3f6;
+	padding: 0.6rem 0.4rem;
+	font-size: 0.85rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: var(--npmp-cal-muted);
+	text-align: center;
+	border-bottom: 1px solid var(--npmp-cal-border);
+}
+
+.npmp-calendar-day {
+	vertical-align: top;
+	width: 14.28%;
+	height: 7.5rem;
+	padding: 0.4rem;
+	border: 1px solid var(--npmp-cal-border);
+	background: #fff;
+}
+
+.npmp-calendar-day--pad {
+	background: #fafbfc;
+}
+
+.npmp-calendar-day--today {
+	background: var(--npmp-cal-today);
+	box-shadow: inset 0 0 0 2px var(--npmp-cal-accent);
+}
+
+.npmp-calendar-day-number {
+	font-weight: 700;
+	font-size: 0.95rem;
+	margin-bottom: 0.25rem;
+}
+
+.npmp-calendar-day--today .npmp-calendar-day-number {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.7rem;
+	height: 1.7rem;
+	border-radius: 50%;
+	background: var(--npmp-cal-accent);
+	color: #fff;
+}
+
+/* Week view: taller cells, weekday + date in the header */
+.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-day {
+	height: 11rem;
+}
+
+.npmp-calendar-weekday-date {
+	display: block;
+	font-size: 1.2rem;
+	font-weight: 700;
+}
+
+.npmp-calendar-weekday-name {
+	display: block;
+	font-size: 0.8rem;
+	color: var(--npmp-cal-muted);
+}
+
+/* ---- Event chips ----------------------------------------------------- */
+.npmp-calendar-events {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.npmp-calendar-events li {
+	margin: 0 0 0.25rem;
+}
+
+.npmp-calendar-events a {
+	display: block;
+	padding: 0.2rem 0.45rem;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--npmp-cal-accent) 12%, #fff);
+	border-left: 3px solid var(--npmp-cal-accent);
+	color: #1d2327;
+	text-decoration: none;
+	font-size: 0.85rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.npmp-calendar-events a:hover,
+.npmp-calendar-events a:focus {
+	background: var(--npmp-cal-accent);
+	color: #fff;
+}
+
+.npmp-calendar-event-time {
+	font-weight: 700;
+}
+
+/* ---- List view ------------------------------------------------------- */
+.npmp-events-list {
+	display: grid;
+	gap: 1rem;
+}
+
+.npmp-event {
+	padding: 1rem 1.15rem;
+	border: 1px solid var(--npmp-cal-border);
+	border-left: 4px solid var(--npmp-cal-accent);
+	border-radius: var(--npmp-cal-radius);
+	background: #fff;
+}
+
+.npmp-event-title {
+	margin: 0 0 0.25rem;
+	font-size: 1.2rem;
+}
+
+.npmp-event-title a {
+	text-decoration: none;
+	color: #1d2327;
+}
+
+.npmp-event-title a:hover {
+	color: var(--npmp-cal-accent);
+}
+
+.npmp-event-date {
+	margin: 0 0 0.35rem;
+	font-weight: 600;
+	color: var(--npmp-cal-accent);
+}
+
+.npmp-event-location {
+	margin: 0 0 0.35rem;
+	color: var(--npmp-cal-muted);
+}
+
+.npmp-event-location::before {
+	content: "\1F4CD";
+	margin-right: 0.3rem;
+}
+
+.npmp-events-empty {
+	padding: 1.5rem;
+	text-align: center;
+	color: var(--npmp-cal-muted);
+	border: 1px dashed var(--npmp-cal-border);
+	border-radius: var(--npmp-cal-radius);
+}
+
+/* ---- Responsive ------------------------------------------------------ */
+@media (max-width: 600px) {
+	.npmp-calendar-toolbar {
+		justify-content: center;
+		text-align: center;
+	}
+
+	.npmp-calendar-title {
+		flex-basis: 100%;
+		text-align: center;
+		font-size: 1.3rem;
+	}
+
+	.npmp-calendar-day {
+		height: auto;
+		min-height: 3.5rem;
+		padding: 0.3rem;
+	}
+
+	.npmp-calendar-table th {
+		font-size: 0.65rem;
+		padding: 0.4rem 0.15rem;
+	}
+
+	.npmp-calendar-events a {
+		font-size: 0.75rem;
+		white-space: normal;
+	}
+
+	/* Week view stacks into a readable day-by-day list on phones. */
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table,
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table tbody,
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table tr {
+		display: block;
+		width: 100%;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table thead {
+		display: none;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-day {
+		display: block;
+		width: 100%;
+		height: auto;
+		min-height: 0;
+	}
+}
