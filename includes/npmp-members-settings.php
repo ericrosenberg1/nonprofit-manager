@@ -2,12 +2,8 @@
 // includes/npmp-members-settings.php
 defined( 'ABSPATH' ) || exit;
 
-if ( ! function_exists( 'npmp_crm_format_currency' ) ) {
-	function npmp_crm_format_currency( $amount ) {
-		$symbol = apply_filters( 'npmp_crm_currency_symbol', '$' );
-		return sprintf( '%s%s', $symbol, number_format_i18n( (float) $amount, 2 ) );
-	}
-}
+// npmp_crm_format_currency() is defined once in npmp-dashboard-widgets.php
+// (a core file loaded before this one).
 
 /**
  * Register the hidden contact post type used for membership records.

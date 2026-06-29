@@ -49,21 +49,6 @@ function npmp_should_enqueue_donation_script() {
  * @return void
  */
 function npmp_register_frontend_scripts() {
-	$paypal_enabled = (int) get_option( 'npmp_enable_paypal', 0 );
-	$paypal_method  = get_option( 'npmp_paypal_method', 'sdk' );
-
-	if ( $paypal_enabled && 'sdk' === $paypal_method ) {
-		$mode      = get_option( 'npmp_paypal_mode', 'live' );
-		$client_id = rawurlencode( (string) ( 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' ) ) );
-		$sdk_url   = 'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=USD';
-
-		if ( 'sandbox' === $mode ) {
-			$sdk_url .= '&debug=true';
-		}
-
-		wp_enqueue_script( 'npmp-paypal-sdk', $sdk_url, array(), '1.0.0', true );
-	}
-
 	$script_handle = 'npmp-donation-form';
 	$script_path   = 'assets/js/donation-form.js';
 
@@ -84,9 +69,27 @@ function npmp_register_frontend_scripts() {
 		)
 	);
 
-	if ( npmp_should_enqueue_donation_script() ) {
-		wp_enqueue_script( $script_handle );
+	// Only load donation assets (including the heavy PayPal SDK) on pages that
+	// actually render a donation form, not site-wide.
+	if ( ! npmp_should_enqueue_donation_script() ) {
+		return;
 	}
+
+	$paypal_enabled = (int) get_option( 'npmp_enable_paypal', 0 );
+	$paypal_method  = get_option( 'npmp_paypal_method', 'sdk' );
+	if ( $paypal_enabled && 'sdk' === $paypal_method ) {
+		$mode      = get_option( 'npmp_paypal_mode', 'live' );
+		$client_id = rawurlencode( (string) ( 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' ) ) );
+		$sdk_url   = 'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=USD';
+
+		if ( 'sandbox' === $mode ) {
+			$sdk_url .= '&debug=true';
+		}
+
+		wp_enqueue_script( 'npmp-paypal-sdk', $sdk_url, array(), '1.0.0', true );
+	}
+
+	wp_enqueue_script( $script_handle );
 }
 add_action( 'wp_enqueue_scripts', 'npmp_register_frontend_scripts' );
 

@@ -169,7 +169,9 @@ function npmp_render_events_dashboard() {
 	$upcoming_query = new WP_Query(
 		array(
 			'post_type'      => 'npmp_event',
-			'posts_per_page' => -1,
+			// Overview widget: cap the upcoming list. Unbounded -1 grew without
+			// limit over time; the full list lives in the Events admin screen.
+			'posts_per_page' => 50,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
 			'order'          => 'ASC',
