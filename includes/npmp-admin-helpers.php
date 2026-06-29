@@ -39,23 +39,6 @@ function npmp_admin_page_footer() {
 }
 
 /**
- * Render a settings section card
- *
- * @param string $title Section title.
- * @param string $content Section content (HTML allowed).
- * @param string $style Optional inline styles.
- */
-function npmp_settings_card( $title, $content, $style = '' ) {
-	$style_attr = $style ? ' style="' . esc_attr( $style ) . '"' : '';
-	echo '<div class="card"' . $style_attr . '>';
-	if ( $title ) {
-		echo '<h2 class="title">' . esc_html( $title ) . '</h2>';
-	}
-	echo wp_kses_post( $content );
-	echo '</div>';
-}
-
-/**
  * Render success notice
  *
  * @param string $message Notice message.
@@ -63,28 +46,6 @@ function npmp_settings_card( $title, $content, $style = '' ) {
  */
 function npmp_admin_notice_success( $message, $dismissible = true ) {
 	$class = 'notice notice-success' . ( $dismissible ? ' is-dismissible' : '' );
-	echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $message ) . '</p></div>';
-}
-
-/**
- * Render error notice
- *
- * @param string $message Notice message.
- * @param bool   $dismissible Whether notice is dismissible.
- */
-function npmp_admin_notice_error( $message, $dismissible = true ) {
-	$class = 'notice notice-error' . ( $dismissible ? ' is-dismissible' : '' );
-	echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $message ) . '</p></div>';
-}
-
-/**
- * Render info notice
- *
- * @param string $message Notice message.
- * @param bool   $dismissible Whether notice is dismissible.
- */
-function npmp_admin_notice_info( $message, $dismissible = true ) {
-	$class = 'notice notice-info' . ( $dismissible ? ' is-dismissible' : '' );
 	echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $message ) . '</p></div>';
 }
 
@@ -104,37 +65,6 @@ function npmp_verify_admin_access( $capability = 'manage_options' ) {
 }
 
 /**
- * Sanitize and validate email address
- *
- * @param string $email Email to sanitize.
- * @return string|false Sanitized email or false if invalid.
- */
-function npmp_sanitize_email( $email ) {
-	$email = sanitize_email( $email );
-	return is_email( $email ) ? $email : false;
-}
-
-/**
- * Sanitize array of text fields
- *
- * @param array $array Array to sanitize.
- * @return array Sanitized array.
- */
-function npmp_sanitize_text_array( $array ) {
-	if ( ! is_array( $array ) ) {
-		return array();
-	}
-	return array_map( 'sanitize_text_field', $array );
-}
-
-/**
- * Render pro feature badge
- */
-function npmp_pro_badge() {
-	return '<span class="npmp-pro-badge" style="display: inline-block; background: #2271b1; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-left: 5px; vertical-align: middle;">Pro</span>';
-}
-
-/**
  * Check if current screen is a plugin admin page
  *
  * @return bool True if on plugin admin page.
@@ -145,25 +75,6 @@ function npmp_is_plugin_admin_page() {
 		return false;
 	}
 	return strpos( $screen->id, 'npmp' ) !== false;
-}
-
-/**
- * Get formatted date for display
- *
- * @param string $date Date string or timestamp.
- * @param string $format Date format (default: WordPress date format).
- * @return string Formatted date.
- */
-function npmp_format_date( $date, $format = '' ) {
-	if ( empty( $format ) ) {
-		$format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
-	}
-
-	if ( is_numeric( $date ) ) {
-		return date_i18n( $format, $date );
-	}
-
-	return date_i18n( $format, strtotime( $date ) );
 }
 
 /**
@@ -187,18 +98,6 @@ function npmp_admin_styles() {
 		.npmp-admin-page .description {
 			color: #646970;
 			font-size: 13px;
-		}
-		.npmp-pro-badge {
-			display: inline-block;
-			background: #2271b1;
-			color: #fff;
-			padding: 2px 6px;
-			border-radius: 3px;
-			font-size: 11px;
-			font-weight: 600;
-			text-transform: uppercase;
-			margin-left: 5px;
-			vertical-align: middle;
 		}
 		.npmp-upsell-card {
 			background-color: #f0f6fc;

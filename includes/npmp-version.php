@@ -25,60 +25,12 @@ function npmp_get_version() {
 }
 
 /**
- * Check if a feature is available in the current version
- *
- * @param string $feature Feature identifier
- * @return bool True if feature is available
- */
-function npmp_feature_available( $feature ) {
-	$pro_features = array(
-		'recurring_donations',
-		'custom_fields',
-		'email_automation',
-		'advanced_segmentation',
-		'priority_support',
-	);
-
-	if ( in_array( $feature, $pro_features, true ) ) {
-		return npmp_is_pro();
-	}
-
-	return true; // All other features available in free version
-}
-
-/**
  * Get upgrade URL
  *
  * @return string URL to upgrade page
  */
 function npmp_get_upgrade_url() {
 	return 'https://nonprofitmanager.ericrosenberg.com/pricing';
-}
-
-/**
- * Display upgrade notice for pro features
- *
- * @param string $feature_name Name of the feature
- */
-function npmp_show_upgrade_notice( $feature_name = '' ) {
-	$message = $feature_name
-		? sprintf(
-			/* translators: %s: feature name */
-			__( '%s is a Pro feature. Upgrade to Nonprofit Manager Pro to use it.', 'nonprofit-manager' ),
-			$feature_name
-		)
-		: __( 'This is a Pro feature. Upgrade to Nonprofit Manager Pro to get it.', 'nonprofit-manager' );
-
-	?>
-	<div class="notice notice-info">
-		<p>
-			<?php echo esc_html( $message ); ?>
-			<a href="<?php echo esc_url( npmp_get_upgrade_url() ); ?>" target="_blank">
-				<?php esc_html_e( 'Learn More', 'nonprofit-manager' ); ?>
-			</a>
-		</p>
-	</div>
-	<?php
 }
 
 /**

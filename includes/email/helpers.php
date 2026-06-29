@@ -159,26 +159,6 @@ function npmp_email_get_provider_choices( $include_pro = false ) {
 }
 
 /**
- * Get provider documentation URLs
- *
- * @param string $provider Provider key.
- * @return string
- */
-function npmp_email_get_provider_docs_url( $provider ) {
-	$urls = array(
-		'smtp'      => 'https://wordpress.org/support/article/settings-email-screen/',
-		'aws_ses'   => 'https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html',
-		'brevo'     => 'https://help.brevo.com/hc/en-us/articles/209467485-Configure-your-SMTP-settings',
-		'sendgrid'  => 'https://docs.sendgrid.com/for-developers/sending-email/integrating-with-the-smtp-api',
-		'mailgun'   => 'https://documentation.mailgun.com/en/latest/user_manual.html#smtp',
-		'postmark'  => 'https://postmarkapp.com/support/article/1008-what-are-the-smtp-settings',
-		'sparkpost' => 'https://developers.sparkpost.com/api/smtp/',
-	);
-
-	return isset( $urls[ $provider ] ) ? $urls[ $provider ] : '';
-}
-
-/**
  * Retrieve available AWS regions.
  *
  * @return array
@@ -230,19 +210,6 @@ function npmp_email_record_result( $status, $details = array() ) {
 	);
 
 	update_option( 'npmp_email_last_result', $log );
-}
-
-/**
- * Retrieve the most recent email result.
- *
- * @return array
- */
-function npmp_email_get_last_result() {
-	$log = get_option( 'npmp_email_last_result', array() );
-	if ( ! isset( $log['status'] ) ) {
-		return array();
-	}
-	return $log;
 }
 
 /**

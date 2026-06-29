@@ -97,15 +97,6 @@ function npmp_import_ajax_preview() {
 
 			$file = $_FILES['import_file']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 
-			// Validate MIME type.
-			$allowed = 'xlsx' === $source
-				? array(
-					'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-					'application/vnd.ms-excel',
-					'application/octet-stream',
-				)
-				: array( 'text/csv', 'text/plain', 'application/csv', 'application/octet-stream' );
-
 			// WordPress handles upload for us.
 			$upload_overrides = array(
 				'test_form' => false,

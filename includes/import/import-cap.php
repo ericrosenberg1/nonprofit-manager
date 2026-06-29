@@ -31,34 +31,3 @@ function npmp_import_max_rows() {
 	}
 	return $max;
 }
-
-/**
- * Is this install operating at the Free cap (i.e., Pro is NOT lifting it)?
- *
- * Used to decide whether to surface an "upgrade to Pro" banner when an import
- * hits the row limit. Compares the live filtered value against the unfiltered
- * default; any custom site-level filter that raises the cap also suppresses
- * the upgrade nag, which is correct.
- *
- * @return bool
- */
-function npmp_import_is_capped() {
-	return npmp_import_max_rows() < 1000;
-}
-
-/**
- * Build the user-facing message shown after a capped import truncates a list.
- *
- * @param int $imported Number of rows actually imported.
- * @param int $total    The full source row count (e.g., Mailchimp audience size).
- * @return string Plain text suitable for echo via esc_html.
- */
-function npmp_import_cap_message( $imported, $total ) {
-	return sprintf(
-		/* translators: 1: rows imported, 2: total in source, 3: cap value */
-		__( 'Imported the first %1$d of %2$d records. The free version imports up to %3$d at a time. Upgrade to Pro to import the rest in one pass.', 'nonprofit-manager' ),
-		(int) $imported,
-		(int) $total,
-		npmp_import_max_rows()
-	);
-}
