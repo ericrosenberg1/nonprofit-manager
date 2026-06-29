@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0
 Tested up to: 6.8.3
-Stable tag: 2.1.0
+Stable tag: 2026.06.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -116,7 +116,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 
 == Changelog ==
 
-= 2.1.0 =
+= 2026.06.1 =
+* Added: Member import wizard (CSV, XLSX, Google Sheets, Mailchimp, Constant Contact) and a guided onboarding tour, brought into the main plugin line
+* Changed: Version numbering realigned with the WordPress.org listing; free and Pro now ship in lockstep
 * Added: One-click unsubscribe with RFC 8058 List-Unsubscribe headers on newsletters, post/event notifications, and the weekly digest for better Gmail and Yahoo inbox placement
 * Added: Default front-end stylesheet for the signup, unsubscribe, preferences, and donation forms (turn it off with the npmp_enable_default_form_styles filter)
 * Added: Setup status check on the Membership Settings screen that flags a missing or form-less unsubscribe page
