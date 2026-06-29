@@ -1,0 +1,318 @@
+/**
+ * File path: assets/css/tour.css
+ *
+ * Styles for the guided product tour. Self-contained — the JS engine
+ * mounts everything inside #npmp-tour-root so we don't fight with WP
+ * admin styles. Color tokens match calendar.css so the tour looks like
+ * the same product.
+ */
+
+.npmp-tour-root {
+	--npmp-t-accent: #2563eb;
+	--npmp-t-accent-dark: #1d4ed8;
+	--npmp-t-accent-contrast: #ffffff;
+	--npmp-t-text: #1f2937;
+	--npmp-t-text-muted: #6b7280;
+	--npmp-t-border: #e5e7eb;
+	--npmp-t-card-bg: #ffffff;
+	--npmp-t-radius: 10px;
+	--npmp-t-shadow: 0 10px 25px rgba(0, 0, 0, 0.18), 0 4px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* The opaque backdrop covers everything except the spotlight cutout. */
+.npmp-tour-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.65);
+	z-index: 99998;
+	opacity: 0;
+	transition: opacity 0.18s ease;
+	pointer-events: auto;
+}
+.npmp-tour-backdrop.is-visible {
+	opacity: 1;
+}
+
+/* The spotlight is a transparent box positioned around the target
+ * element. The dark backdrop above renders behind everything, and the
+ * spotlight uses a giant box-shadow trick to cut a "hole" in the
+ * darkness without needing SVG masking. */
+.npmp-tour-spotlight {
+	position: fixed;
+	z-index: 99999;
+	border-radius: 8px;
+	background: transparent;
+	box-shadow:
+		0 0 0 9999px rgba(15, 23, 42, 0.65),
+		0 0 0 2px var(--npmp-t-accent),
+		0 0 0 6px rgba(37, 99, 235, 0.25);
+	transition: top 0.22s ease, left 0.22s ease, width 0.22s ease, height 0.22s ease;
+	pointer-events: none;
+}
+
+/* When no target is set, the backdrop alone covers everything and the
+ * tooltip renders centered on its own. */
+.npmp-tour-backdrop.is-fullscreen {
+	background: rgba(15, 23, 42, 0.72);
+}
+
+/* Tooltip card. Positioned by JS based on the spotlight rect. */
+.npmp-tour-tooltip {
+	position: fixed;
+	z-index: 100000;
+	max-width: 360px;
+	min-width: 280px;
+	background: var(--npmp-t-card-bg);
+	color: var(--npmp-t-text);
+	border-radius: var(--npmp-t-radius);
+	box-shadow: var(--npmp-t-shadow);
+	padding: 18px 20px 16px;
+	font-size: 14px;
+	line-height: 1.5;
+	opacity: 0;
+	transition: opacity 0.18s ease, transform 0.18s ease;
+	transform: translateY(4px);
+}
+.npmp-tour-tooltip.is-visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.npmp-tour-tooltip__step {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--npmp-t-text-muted);
+	margin-bottom: 6px;
+}
+
+.npmp-tour-tooltip__title {
+	margin: 0 0 8px;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--npmp-t-text);
+}
+
+.npmp-tour-tooltip__body {
+	margin: 0 0 16px;
+	color: var(--npmp-t-text);
+}
+
+.npmp-tour-tooltip__body p {
+	margin: 0 0 8px;
+}
+
+.npmp-tour-tooltip__body p:last-child {
+	margin-bottom: 0;
+}
+
+.npmp-tour-tooltip__actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.npmp-tour-tooltip__actions .npmp-tour-btn-end {
+	margin-left: auto;
+}
+
+.npmp-tour-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.45rem 0.9rem;
+	min-height: 32px;
+	border: 1px solid var(--npmp-t-border);
+	border-radius: 6px;
+	background: var(--npmp-t-card-bg);
+	color: var(--npmp-t-text);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+	font-family: inherit;
+}
+
+.npmp-tour-btn:hover,
+.npmp-tour-btn:focus-visible {
+	background: #f9fafb;
+	border-color: #d1d5db;
+	color: var(--npmp-t-text);
+}
+
+.npmp-tour-btn:focus-visible {
+	outline: 2px solid var(--npmp-t-accent);
+	outline-offset: 2px;
+}
+
+.npmp-tour-btn--primary {
+	background: var(--npmp-t-accent);
+	border-color: var(--npmp-t-accent);
+	color: var(--npmp-t-accent-contrast);
+}
+
+.npmp-tour-btn--primary:hover,
+.npmp-tour-btn--primary:focus-visible {
+	background: var(--npmp-t-accent-dark);
+	border-color: var(--npmp-t-accent-dark);
+	color: var(--npmp-t-accent-contrast);
+}
+
+.npmp-tour-btn-end {
+	background: transparent;
+	border-color: transparent;
+	color: var(--npmp-t-text-muted);
+	padding-left: 4px;
+	padding-right: 4px;
+}
+
+.npmp-tour-btn-end:hover {
+	color: var(--npmp-t-text);
+	background: transparent;
+	border-color: transparent;
+	text-decoration: underline;
+}
+
+/* Tooltip arrow — placed by JS based on tooltip position relative to spotlight */
+.npmp-tour-tooltip__arrow {
+	position: absolute;
+	width: 12px;
+	height: 12px;
+	background: var(--npmp-t-card-bg);
+	transform: rotate(45deg);
+	box-shadow: -1px -1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.npmp-tour-tooltip[data-placement="top"] .npmp-tour-tooltip__arrow {
+	bottom: -6px;
+	left: 50%;
+	margin-left: -6px;
+	box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.04);
+}
+.npmp-tour-tooltip[data-placement="bottom"] .npmp-tour-tooltip__arrow {
+	top: -6px;
+	left: 50%;
+	margin-left: -6px;
+}
+.npmp-tour-tooltip[data-placement="left"] .npmp-tour-tooltip__arrow {
+	right: -6px;
+	top: 50%;
+	margin-top: -6px;
+	box-shadow: 2px -2px 2px rgba(0, 0, 0, 0.04);
+}
+.npmp-tour-tooltip[data-placement="right"] .npmp-tour-tooltip__arrow {
+	left: -6px;
+	top: 50%;
+	margin-top: -6px;
+}
+.npmp-tour-tooltip[data-placement="center"] .npmp-tour-tooltip__arrow {
+	display: none;
+}
+
+/* Center-placement tooltip is bigger and floats in the middle of the screen. */
+.npmp-tour-tooltip[data-placement="center"] {
+	max-width: 460px;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	padding: 28px 32px 22px;
+	text-align: center;
+}
+.npmp-tour-tooltip[data-placement="center"].is-visible {
+	transform: translate(-50%, -50%);
+}
+.npmp-tour-tooltip[data-placement="center"] .npmp-tour-tooltip__title {
+	font-size: 22px;
+	margin-bottom: 12px;
+}
+.npmp-tour-tooltip[data-placement="center"] .npmp-tour-tooltip__body {
+	font-size: 15px;
+	margin-bottom: 20px;
+}
+.npmp-tour-tooltip[data-placement="center"] .npmp-tour-tooltip__actions {
+	justify-content: center;
+}
+.npmp-tour-tooltip[data-placement="center"] .npmp-tour-btn-end {
+	margin-left: 0;
+}
+
+/* The first-visit modal. Same shape as a center tooltip but on top of
+ * an unblocking overlay (no spotlight). */
+.npmp-tour-modal-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.65);
+	z-index: 99997;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+.npmp-tour-modal-overlay.is-visible {
+	opacity: 1;
+}
+.npmp-tour-modal {
+	position: relative;
+	max-width: 480px;
+	width: 90%;
+	background: var(--npmp-t-card-bg);
+	color: var(--npmp-t-text);
+	border-radius: var(--npmp-t-radius);
+	box-shadow: var(--npmp-t-shadow);
+	padding: 32px 36px 28px;
+	text-align: center;
+}
+.npmp-tour-modal__icon {
+	font-size: 36px;
+	line-height: 1;
+	margin-bottom: 12px;
+}
+.npmp-tour-modal__title {
+	margin: 0 0 12px;
+	font-size: 22px;
+	font-weight: 600;
+}
+.npmp-tour-modal__body {
+	margin: 0 0 24px;
+	color: var(--npmp-t-text);
+	font-size: 15px;
+	line-height: 1.55;
+}
+.npmp-tour-modal__actions {
+	display: flex;
+	gap: 12px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	.npmp-tour-backdrop,
+	.npmp-tour-spotlight,
+	.npmp-tour-tooltip,
+	.npmp-tour-modal-overlay {
+		transition: none;
+	}
+}
+
+/* Responsive — narrow tooltip on phone-size admin (rare but handle) */
+@media (max-width: 600px) {
+	.npmp-tour-tooltip {
+		max-width: calc(100vw - 32px);
+		min-width: 0;
+	}
+	.npmp-tour-tooltip[data-placement="center"] {
+		width: calc(100vw - 32px);
+		padding: 22px 20px 18px;
+	}
+	.npmp-tour-modal {
+		padding: 24px 22px 20px;
+	}
+}
