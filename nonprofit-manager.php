@@ -18,6 +18,10 @@ defined( 'ABSPATH' ) || exit;
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-version.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-setup-wizard.php';
+// Guided product tour + the org-identity data model it walks through. Loaded
+// before the admin/general settings pages so they can render the org section.
+require_once plugin_dir_path( __FILE__ ) . 'includes/onboarding/class-org-settings.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/onboarding/class-tour.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-general-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scripts.php';
@@ -51,6 +55,14 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-members-settings.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-email-settings.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-membership-forms.php';
+
+	// Member import wizard (CSV / XLSX / Google Sheets / Mailchimp / Constant
+	// Contact). Row-capped in Free via npmp_import_max_rows(); Pro lifts the cap.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-cap.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/class-import-manager.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/admin-import.php';
 }
 
 if ( ! empty( $npmp_features['donations'] ) ) {

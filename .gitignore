@@ -8,3 +8,7 @@ node_modules/
 .env.*
 *.pem
 *.key
+/dist
+
+# Nested site repo — separate project, never part of the plugin
+/nonprofit-manager-site

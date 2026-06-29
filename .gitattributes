@@ -1,0 +1,7 @@
+/.github         export-ignore
+/.gitattributes  export-ignore
+/.gitignore      export-ignore
+/SENTRY.md       export-ignore
+/build.sh        export-ignore
+/dist            export-ignore
+/nonprofit-manager-site export-ignore

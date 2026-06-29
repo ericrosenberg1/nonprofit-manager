@@ -163,6 +163,18 @@ function npmp_render_general_settings_page() {
 			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
+		<?php
+		// Org identity section (onboarding module). The guided tour highlights
+		// #npmp_org_name here as the user's first stop. Guarded so the page
+		// still works if the onboarding module is ever absent.
+		if ( class_exists( 'NPMP_Org_Settings' ) ) :
+		?>
+		<form method="post" id="npmp-org-settings-form">
+			<?php NPMP_Org_Settings::render_form_section(); ?>
+			<?php submit_button( __( 'Save organization details', 'nonprofit-manager' ), 'primary', 'npmp_save_org_only', false ); ?>
+		</form>
+		<?php endif; ?>
+
 		<?php if ( 'success' === $turnstile_test ) : ?>
 			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Turnstile configuration test passed! Your keys are valid.', 'nonprofit-manager' ); ?></p></div>
 		<?php elseif ( 'error' === $turnstile_test ) : ?>
