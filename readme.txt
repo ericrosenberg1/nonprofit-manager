@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0
 Tested up to: 6.8.3
-Stable tag: 2026.06.3
+Stable tag: 2026.06.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -115,6 +115,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.06.4 =
+* Maintenance release. The version is kept in lockstep with Nonprofit Manager Pro, which adds a local and development license bypass so developers can run Pro on localhost without remote activation. No changes to the free plugin.
 
 = 2026.06.3 =
 * Added: Redesigned events calendar with Month, Week, and List views and a navigation toolbar (Today, previous/next, and year jumps), plus a clean, responsive front-end stylesheet

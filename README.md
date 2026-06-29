@@ -4,7 +4,7 @@ Tags: nonprofit, donations, membership, email, events
 Requires at least: 6.0  
 Tested up to: 6.8.3
 Requires PHP: 7.4  
-Stable tag: 2026.06.3
+Stable tag: 2026.06.4
 License: GPLv2 or later  
 License URI: https://www.gnu.org/licenses/gpl-2.0.html  
 
@@ -110,7 +110,7 @@ Yes, form text, labels, payment methods, and minimums are all editable.
 
 == Changelog ==
 
-The full, current changelog lives in [readme.txt](readme.txt) (the WordPress.org source of truth). Current stable release: 2026.06.3.
+The full, current changelog lives in [readme.txt](readme.txt) (the WordPress.org source of truth). Current stable release: 2026.06.4.
 
 == License ==
 
