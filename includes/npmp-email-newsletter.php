@@ -92,7 +92,6 @@ function npmp_enqueue_newsletter_assets() {
         in_array($screen->post_type, ['npmp_newsletter', 'npmp_nl_template'], true)
     ) {
         $editor_version = function_exists('npmp_get_asset_version') ? npmp_get_asset_version('includes/email-newsletter/assets/newsletter-editor.js') : null;
-        $style_version  = function_exists('npmp_get_asset_version') ? npmp_get_asset_version('includes/email-newsletter/assets/newsletter-admin.css') : null;
 
         wp_enqueue_script(
             'npmp-newsletter-admin',
@@ -100,13 +99,6 @@ function npmp_enqueue_newsletter_assets() {
             ['jquery'],
             $editor_version,
             true
-        );
-
-        wp_enqueue_style(
-            'npmp-newsletter-admin-css',
-            NPMP_NEWSLETTER_URL . 'assets/newsletter-admin.css',
-            [],
-            $style_version
         );
     }
 }

@@ -187,7 +187,7 @@ function npmp_render_quick_add_member_widget() {
 						'email'            => $email,
 						'name'             => $name,
 						'membership_level' => $level,
-						'status'           => 'active',
+						'status'           => 'subscribed',
 					)
 				);
 
@@ -281,7 +281,7 @@ function npmp_render_quick_add_event_widget() {
 				if ( $datetime ) {
 					$timestamp = strtotime( $datetime );
 					if ( $timestamp ) {
-						update_post_meta( $post_id, '_npmp_event_start', $timestamp );
+						update_post_meta( $post_id, '_npmp_event_start', gmdate( 'Y-m-d H:i:s', $timestamp ) );
 					}
 				}
 
