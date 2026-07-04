@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Nonprofit Manager
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.06.4
+ * Version: 2026.07.1
  * Author: Rosenberg Digital LLC
  * Author URI: https://ericrosenberg.com
  * License: GPL-2.0-or-later
@@ -17,6 +17,8 @@ defined( 'ABSPATH' ) || exit;
  * ---------------------------------------------------------------------- */
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-version.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-powered-by.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-review-nudge.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-setup-wizard.php';
 // Guided product tour + the org-identity data model it walks through. Loaded
 // before the admin/general settings pages so they can render the org section.

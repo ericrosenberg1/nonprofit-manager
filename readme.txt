@@ -1,18 +1,20 @@
-=== Nonprofit Manager ===
+=== Nonprofit Manager – Donations, Membership, Newsletters & Events ===
 Contributors: eric1985
-Tags: nonprofit, donations, membership, email, events
+Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
-Tested up to: 6.8.3
-Stable tag: 2026.06.4
+Tested up to: 6.8.5
+Stable tag: 2026.07.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Manage memberships, donations, newsletters, and events from WordPress.
+The all-in-one WordPress plugin for small nonprofits and clubs. Manage members, donations, newsletters, and events in one place. Free.
 
 == Description ==
 
-Nonprofit Manager runs your members, donations, newsletters, and events from WordPress. It fits a small community group or a larger nonprofit, and the core tools are free.
+Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. It brings membership management, donations, email newsletters, and an event calendar together in one place, so you don't have to bolt four separate plugins together to run your organization.
+
+Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and your donors in one system, along with the newsletters and events you send them. The core is free.
 
 **Core Features:**
 
@@ -116,6 +118,12 @@ Free support is available through the WordPress.org support forums. Pro customer
 
 == Changelog ==
 
+= 2026.07.1 =
+* Fixed: Resolved a PHP 8.1+ "strip_tags(): Passing null" warning on the hidden Setup screen by setting the admin page title before the header renders.
+* Added: Optional "Powered by Nonprofit Manager" link for donation forms and newsletter emails. Off by default. Turn it on under Nonprofit Manager > General Settings to help other nonprofits find the plugin.
+* Added: An occasional, dismissible review reminder in the admin after your first recorded donation or sent newsletter, with a direct option to send private feedback instead.
+* Housekeeping: Refreshed the plugin listing details and version alignment.
+
 = 2026.06.4 =
 * Maintenance release. The version is kept in lockstep with Nonprofit Manager Pro, which adds a local and development license bypass so developers can run Pro on localhost without remote activation. No changes to the free plugin.
 
@@ -214,6 +222,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.07.1 =
+Maintenance update: a PHP 8.1 fix, an optional attribution link (off by default), and a dismissible review reminder.
 
 = 2.1.0 =
 Adds one-click unsubscribe and List-Unsubscribe headers for better deliverability, default form styles, a setup health check, and a CAN-SPAM postal address setting. Fixes unsubscribe-link resolution and the Sentry version tag.

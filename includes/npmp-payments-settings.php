@@ -734,15 +734,25 @@ function npmp_render_donation_form() {
 
 	// If only one gateway is enabled, render it directly
 	if ( count( $enabled_gateways ) === 1 && function_exists( 'npmp_render_gateway_donation_form' ) ) {
-		return npmp_render_gateway_donation_form( $enabled_gateways[0] );
+		return npmp_render_gateway_donation_form( $enabled_gateways[0] ) . npmp_donation_form_attribution();
 	}
 
 	// If multiple gateways are enabled, render a tabbed interface
 	if ( function_exists( 'npmp_render_multi_gateway_donation_form' ) ) {
-		return npmp_render_multi_gateway_donation_form( $enabled_gateways );
+		return npmp_render_multi_gateway_donation_form( $enabled_gateways ) . npmp_donation_form_attribution();
 	}
 
 	return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Donation form is loading. Please refresh the page.', 'nonprofit-manager' ) . '</p></div>';
+}
+
+/**
+ * "Powered by Nonprofit Manager" attribution appended below the donation form.
+ * Free always shows it. Pro can remove it via the npmp_show_powered_by filter.
+ *
+ * @return string
+ */
+function npmp_donation_form_attribution() {
+	return function_exists( 'npmp_powered_by_html' ) ? npmp_powered_by_html( 'form' ) : '';
 }
 
 /* ==============================================================

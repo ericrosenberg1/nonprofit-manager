@@ -16,11 +16,19 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 			'[unsubscribe_url]' => esc_url( npmp_can_spam_get_unsubscribe_url() ),
 		);
 
-		return str_replace(
+		$footer_html = str_replace(
 			array_keys( $replacements ),
 			array_values( $replacements ),
 			wp_kses_post( $footer )
 		);
+
+		// Attribution billboard. Rides the newsletter footer so every send
+		// seeds discovery. Free always shows it. Pro can remove it.
+		if ( function_exists( 'npmp_powered_by_html' ) ) {
+			$footer_html .= npmp_powered_by_html( 'email' );
+		}
+
+		return $footer_html;
 	}
 }
 

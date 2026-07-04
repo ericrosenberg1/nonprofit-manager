@@ -105,6 +105,12 @@ class NPMP_Donation_Manager {
 			);
 		}
 
+		// First recorded donation is a real usage milestone. Enables the
+		// one-time review nudge on the next admin visit.
+		if ( function_exists( 'npmp_mark_milestone' ) ) {
+			npmp_mark_milestone( 'donation' );
+		}
+
 		return $post_id;
 	}
 

@@ -200,6 +200,11 @@ class NPMP_Newsletter_Manager {
 
 				if ( 0 === $pending->post_count ) {
 					update_post_meta( $newsletter_id, '_npmp_newsletter_status', 'sent' );
+
+					// A fully sent newsletter is a real usage milestone.
+					if ( function_exists( 'npmp_mark_milestone' ) ) {
+						npmp_mark_milestone( 'newsletter' );
+					}
 				}
 			}
 		}

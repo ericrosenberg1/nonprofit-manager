@@ -94,6 +94,16 @@ add_action(
 			exit;
 		}
 
+		// Handle the "Powered by" attribution opt-in toggle
+		if (
+			isset( $_POST['npmp_powered_by_nonce'] ) &&
+			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_powered_by_nonce'] ) ), 'npmp_save_powered_by' )
+		) {
+			update_option( 'npmp_powered_by_optin', isset( $_POST['npmp_powered_by_optin'] ) ? 1 : 0 );
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
+			exit;
+		}
+
 		// Handle Turnstile test
 		if (
 			isset( $_POST['npmp_test_turnstile_nonce'] ) &&
@@ -452,6 +462,28 @@ function npmp_render_general_settings_page() {
 				</table>
 
 				<?php submit_button( __( 'Save Security Settings', 'nonprofit-manager' ), 'primary' ); ?>
+			</form>
+		</div>
+
+		<!-- Support / Attribution Section -->
+		<div class="npmp-settings-card">
+			<h2><?php esc_html_e( 'Support Nonprofit Manager', 'nonprofit-manager' ); ?></h2>
+			<p><?php esc_html_e( 'Nonprofit Manager is free. If you would like to help other nonprofits find it, you can show a small "Powered by Nonprofit Manager" link on your public donation forms and newsletter emails. This is off by default and completely optional.', 'nonprofit-manager' ); ?></p>
+			<form method="post">
+				<?php wp_nonce_field( 'npmp_save_powered_by', 'npmp_powered_by_nonce' ); ?>
+				<table class="form-table">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Attribution link', 'nonprofit-manager' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="npmp_powered_by_optin" value="1" <?php checked( (bool) get_option( 'npmp_powered_by_optin', false ) ); ?>>
+								<?php esc_html_e( 'Show a "Powered by Nonprofit Manager" link on donation forms and newsletter emails', 'nonprofit-manager' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Thank you. This helps a small plugin grow, and you can turn it off any time.', 'nonprofit-manager' ); ?></p>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Save', 'nonprofit-manager' ), 'primary' ); ?>
 			</form>
 		</div>
 

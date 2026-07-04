@@ -43,7 +43,7 @@ add_action(
 add_action(
 	'admin_menu',
 	static function () {
-		add_submenu_page(
+		$hook = add_submenu_page(
 			null, // Hidden from menu
 			__( 'Nonprofit Manager Setup', 'nonprofit-manager' ),
 			__( 'Setup', 'nonprofit-manager' ),
@@ -51,6 +51,19 @@ add_action(
 			'npmp_setup_wizard',
 			'npmp_render_setup_wizard'
 		);
+
+		// A null-parent page never lands in the $submenu array, so core's
+		// get_admin_page_title() leaves the global $title null and PHP 8.1+
+		// warns on strip_tags( null ) in admin-header.php. Set it ourselves
+		// before the header renders.
+		if ( $hook ) {
+			add_action(
+				'load-' . $hook,
+				static function () {
+					$GLOBALS['title'] = __( 'Nonprofit Manager Setup', 'nonprofit-manager' );
+				}
+			);
+		}
 	}
 );
 
