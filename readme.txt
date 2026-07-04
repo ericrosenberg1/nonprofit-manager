@@ -113,7 +113,7 @@ Free support is available through the WordPress.org support forums. Pro customer
 4. Newsletter template builder with header/footer support
 5. Donation form with PayPal, Venmo, and Stripe options
 6. Event calendar management interface
-7. Social sharing settings with connected accounts
+7. Payment gateway settings for accepting donations
 8. Subscriber notification preference management
 
 == Changelog ==
