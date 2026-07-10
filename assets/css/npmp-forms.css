@@ -130,3 +130,67 @@
 	max-width: 32rem;
 	margin: 1.5rem 0;
 }
+
+/* Social-share bar (content blocks) */
+.npmp-social-share {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5em;
+	margin: 1em 0;
+}
+.npmp-social-share-label {
+	font-weight: 600;
+}
+.npmp-social-share-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.npmp-social-share-buttons li {
+	margin: 0;
+}
+.npmp-share-btn {
+	display: inline-block;
+	padding: 0.45em 0.85em;
+	border: 1px solid rgba( 0, 0, 0, 0.15 );
+	border-radius: 4px;
+	background: #f4f5f6;
+	color: inherit;
+	font-size: 0.875rem;
+	line-height: 1.3;
+	text-decoration: none;
+	cursor: pointer;
+}
+.npmp-share-btn:hover,
+.npmp-share-btn:focus {
+	background: #e8eaed;
+	text-decoration: none;
+}
+
+/* Contact form (content blocks) */
+.npmp-contact-form-wrap {
+	max-width: 36rem;
+	margin: 1.5rem 0;
+}
+.npmp-contact-form label {
+	display: block;
+	font-weight: 500;
+}
+.npmp-contact-form input[type="text"],
+.npmp-contact-form input[type="email"],
+.npmp-contact-form textarea {
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+.npmp-contact-form .npmp-hp {
+	position: absolute !important;
+	left: -9999px !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}

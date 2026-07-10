@@ -2,8 +2,8 @@
 Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
-Tested up to: 6.8.5
-Stable tag: 2026.07.1
+Tested up to: 7.0
+Stable tag: 2026.07.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -118,6 +118,11 @@ Free support is available through the WordPress.org support forums. Pro customer
 
 == Changelog ==
 
+= 2026.07.2 =
+* Added: Five editor blocks for member and donor content: Email Signup, Email Unsubscribe, Donation Form, Social Share, and Contact Form. Each is also a shortcode, so you can drop them in with the block inserter or with a shortcode like [npmp_social_share] or [npmp_contact_form].
+* Added: Visitor social sharing. The Social Share block and [npmp_social_share] shortcode add Facebook, X, LinkedIn, Reddit, email, and copy-link buttons that share the current page, and you choose which networks to show.
+* Added: A general contact form. The Contact Form block and [npmp_contact_form] shortcode collect a name, email, optional subject, and message, protected by a honeypot and your configured CAPTCHA, and deliver to your site admin email (filterable with npmp_contact_form_recipient).
+
 = 2026.07.1 =
 * Fixed: Resolved a PHP 8.1+ "strip_tags(): Passing null" warning on the hidden Setup screen by setting the admin page title before the header renders.
 * Added: Optional "Powered by Nonprofit Manager" link for donation forms and newsletter emails. Off by default. Turn it on under Nonprofit Manager > General Settings to help other nonprofits find the plugin.
@@ -222,6 +227,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.07.2 =
+Adds five editor blocks: email signup, unsubscribe, donation form, social share, and contact form. Each is also a shortcode. Includes new visitor social-share buttons and a contact form.
 
 = 2026.07.1 =
 Maintenance update: a PHP 8.1 fix, an optional attribution link (off by default), and a dismissible review reminder.

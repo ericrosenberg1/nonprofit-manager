@@ -5,3 +5,4 @@
 /build.sh        export-ignore
 /dist            export-ignore
 /nonprofit-manager-site export-ignore
+/README.md       export-ignore

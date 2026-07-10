@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Nonprofit Manager
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.07.1
+ * Version: 2026.07.2
  * Author: Rosenberg Digital LLC
  * Author URI: https://ericrosenberg.com
  * License: GPL-2.0-or-later
@@ -84,6 +84,11 @@ if ( ! empty( $npmp_features['calendar'] ) ) {
 if ( ! empty( $npmp_features['social'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-social-sharing.php';
 }
+
+// Content blocks + shortcodes (email signup, unsubscribe, donation form, social
+// share, contact form). Always loaded so the two new shortcodes are available;
+// each wrapper block registers only when its feature module was loaded above.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
 
 /* -------------------------------------------------------------------------
  * Plugin action links
