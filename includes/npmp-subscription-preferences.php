@@ -261,6 +261,32 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 		return;
 	}
 
+	// Mark as sent BEFORE dispatching. The flag used to be written after the
+	// send loop, so a mid-loop failure re-blasted every subscriber on retry.
+	update_post_meta( $post->ID, '_npmp_notification_sent', '1' );
+
+	// Hand the actual sending to cron. Sending synchronously here meant the
+	// editor's Publish click waited on one SMTP round trip per subscriber,
+	// which hangs or times out with a few hundred opted-in contacts.
+	wp_schedule_single_event( time() + 10, 'npmp_async_post_notification', array( $post->ID, $meta_key ) );
+}
+
+add_action( 'npmp_async_post_notification', 'npmp_process_post_notification', 10, 2 );
+
+/**
+ * Send the new post/event notification blast (cron context).
+ *
+ * @param int    $post_id  Published post ID.
+ * @param string $meta_key Subscriber opt-in meta key.
+ */
+function npmp_process_post_notification( $post_id, $meta_key ) {
+	$post = get_post( $post_id );
+	if ( ! $post || 'publish' !== $post->post_status ) {
+		return;
+	}
+
+	$meta_key = in_array( $meta_key, array( '_npmp_notify_posts', '_npmp_notify_events' ), true ) ? $meta_key : '_npmp_notify_posts';
+
 	// Find all subscribers who opted in (and don't prefer digest).
 	$subscribers = get_posts( array(
 		'post_type'      => 'npmp_contact',
@@ -283,6 +309,9 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 	if ( empty( $subscribers ) ) {
 		return;
 	}
+
+	// One meta-cache prime instead of a query per subscriber in the loop.
+	update_meta_cache( 'post', $subscribers );
 
 	$type    = 'npmp_event' === $post->post_type ? 'event' : 'post';
 	$subject = sprintf(
@@ -318,8 +347,6 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 
 		wp_mail( $email, $subject, $body, $headers );
 	}
-
-	update_post_meta( $post->ID, '_npmp_notification_sent', '1' );
 }
 
 /* =====================================================================
@@ -328,6 +355,11 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 
 add_action( 'init', function () {
 	if ( ! get_option( 'npmp_enable_weekly_digest', false ) ) {
+		// Unschedule when the feature is switched off. The event used to
+		// stay scheduled forever, firing a no-op handler weekly.
+		if ( wp_next_scheduled( 'npmp_send_weekly_digest' ) ) {
+			wp_clear_scheduled_hook( 'npmp_send_weekly_digest' );
+		}
 		return;
 	}
 	if ( ! wp_next_scheduled( 'npmp_send_weekly_digest' ) ) {

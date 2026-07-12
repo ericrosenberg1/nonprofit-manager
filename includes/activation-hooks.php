@@ -431,6 +431,12 @@ function npmp_schedule_newsletter_cron() {
  */
 function npmp_clear_newsletter_cron() {
 	wp_clear_scheduled_hook( 'npmp_process_queued_newsletters' );
+	wp_clear_scheduled_hook( 'npmp_send_weekly_digest' );
+	// Pending async notification blasts carry per-post args, so clear every
+	// instance regardless of args.
+	if ( function_exists( 'wp_unschedule_hook' ) ) {
+		wp_unschedule_hook( 'npmp_async_post_notification' );
+	}
 }
 
 /**

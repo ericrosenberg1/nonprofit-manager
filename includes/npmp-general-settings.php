@@ -86,9 +86,15 @@ add_action(
 			update_option( 'npmp_captcha_provider', $captcha_provider );
 			update_option( 'npmp_turnstile_enabled', $turnstile_enabled );
 			update_option( 'npmp_turnstile_site_key', $turnstile_site );
-			update_option( 'npmp_turnstile_secret_key', $turnstile_secret );
+			// Secret fields render blank with a masked placeholder, so an
+			// empty submission means "keep the saved secret".
+			if ( '' !== $turnstile_secret ) {
+				update_option( 'npmp_turnstile_secret_key', $turnstile_secret );
+			}
 			update_option( 'npmp_recaptcha_site_key', $recaptcha_site );
-			update_option( 'npmp_recaptcha_secret_key', $recaptcha_secret );
+			if ( '' !== $recaptcha_secret ) {
+				update_option( 'npmp_recaptcha_secret_key', $recaptcha_secret );
+			}
 
 			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
 			exit;
@@ -395,7 +401,7 @@ function npmp_render_general_settings_page() {
 							<input type="text" class="regular-text" name="npmp_turnstile_site_key" value="<?php echo esc_attr( $current_turnstile_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your Turnstile site key', 'nonprofit-manager' ); ?>">
 
 							<p style="margin-top: 10px;"><strong><?php esc_html_e( 'Secret Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="text" class="regular-text" name="npmp_turnstile_secret_key" value="<?php echo esc_attr( $current_turnstile_secret ); ?>" placeholder="<?php esc_attr_e( 'Enter your Turnstile secret key', 'nonprofit-manager' ); ?>">
+							<input type="password" class="regular-text" name="npmp_turnstile_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_turnstile_secret ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : esc_attr__( 'Enter your Turnstile secret key', 'nonprofit-manager' ); ?>">
 
 							<p class="description" style="margin-top: 10px;">
 								<?php
@@ -431,7 +437,7 @@ function npmp_render_general_settings_page() {
 							<input type="text" class="regular-text" name="npmp_recaptcha_site_key" value="<?php echo esc_attr( $current_recaptcha_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your reCAPTCHA v3 site key', 'nonprofit-manager' ); ?>">
 
 							<p style="margin-top: 10px;"><strong><?php esc_html_e( 'Secret Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="text" class="regular-text" name="npmp_recaptcha_secret_key" value="<?php echo esc_attr( $current_recaptcha_secret ); ?>" placeholder="<?php esc_attr_e( 'Enter your reCAPTCHA v3 secret key', 'nonprofit-manager' ); ?>">
+							<input type="password" class="regular-text" name="npmp_recaptcha_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_recaptcha_secret ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : esc_attr__( 'Enter your reCAPTCHA v3 secret key', 'nonprofit-manager' ); ?>">
 
 							<p class="description" style="margin-top: 10px;">
 								<?php

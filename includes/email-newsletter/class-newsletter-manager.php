@@ -3,7 +3,10 @@ defined( 'ABSPATH' ) || exit;
 
 class NPMP_Newsletter_Manager {
 
-	const MAX_EMAILS_PER_SECOND = 10;
+	// Emails sent per cron run. The queue processor runs on an every-minute
+	// schedule, so default throughput is 10/minute (600/hour), not 10/second
+	// as the old constant name claimed.
+	const EMAILS_PER_RUN = 10;
 	const QUEUE_POST_TYPE       = 'npmp_nl_queue';
 	const EVENT_POST_TYPE       = 'npmp_nl_event';
 	const QUEUE_STATUS_META     = '_npmp_queue_status';
@@ -133,9 +136,9 @@ class NPMP_Newsletter_Manager {
 	}
 
 	public static function process_queue() {
-		$limit = intval( get_option( 'npmp_newsletter_rate_limit', self::MAX_EMAILS_PER_SECOND ) );
+		$limit = intval( get_option( 'npmp_newsletter_rate_limit', self::EMAILS_PER_RUN ) );
 		if ( $limit <= 0 ) {
-			$limit = self::MAX_EMAILS_PER_SECOND;
+			$limit = self::EMAILS_PER_RUN;
 		}
 
 		$query = new WP_Query(

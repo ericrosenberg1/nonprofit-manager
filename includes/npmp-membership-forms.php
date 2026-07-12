@@ -495,6 +495,9 @@ function npmp_get_banner_html( $type, $settings ) {
 		if ( 'captcha' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-captcha"><p>' . esc_html__( 'Please complete the spam protection check before submitting.', 'nonprofit-manager' ) . '</p></div>';
 		}
+		if ( 'confirm' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'If that address is on our list, a confirmation email is on its way. Click the link in it to finish unsubscribing.', 'nonprofit-manager' ) . '</p></div>';
+		}
 		$key          = 'success' === $status ? 'success_message' : 'error_message';
 		$status_class = 'success' === $status ? 'npmp-status-success' : 'npmp-status-error';
 		$message      = isset( $settings[ $key ] ) ? $settings[ $key ] : npmp_membership_form_default_settings()[ $key ];
@@ -507,12 +510,28 @@ function npmp_get_banner_html( $type, $settings ) {
 function npmp_email_signup_shortcode() {
 	$s    = npmp_get_membership_form_settings();
 	$html = npmp_get_banner_html( 'npmp_signup', $s );
+
+	$fields = '
+		<p><label>' . esc_html( $s['name_label'] ) . '<br><input type="text" name="npmp_name" required></label></p>
+		<p><label>' . esc_html( $s['email_label'] ) . '<br><input type="email" name="npmp_email" required></label></p>';
+
+	/**
+	 * Filter the signup form fields to append extra inputs.
+	 *
+	 * The subscriber notification preferences feature (post/event/digest
+	 * checkboxes) renders through this filter. The admin screen promised
+	 * those checkboxes "appear on the signup form" but nothing applied the
+	 * filter, so they never did.
+	 *
+	 * @param string $fields Form field HTML so far.
+	 */
+	$fields = apply_filters( 'npmp_signup_form_after_fields', $fields );
+
 	$html .= '
 	<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" class="npmp-email-signup">
 		<h3>' . esc_html( $s['signup_heading'] ) . '</h3>' .
-		( $s['signup_description'] ? '<p>' . esc_html( $s['signup_description'] ) . '</p>' : '' ) . '
-		<p><label>' . esc_html( $s['name_label'] ) . '<br><input type="text" name="npmp_name" required></label></p>
-		<p><label>' . esc_html( $s['email_label'] ) . '<br><input type="email" name="npmp_email" required></label></p>
+		( $s['signup_description'] ? '<p>' . esc_html( $s['signup_description'] ) . '</p>' : '' ) .
+		$fields . '
 		' . npmp_captcha_render_widget( 'email_signup' ) . '
 		' . wp_nonce_field( 'npmp_email_signup', 'npmp_email_signup_nonce', true, false ) . '
 		<input type="hidden" name="npmp_action" value="email_signup">
@@ -607,7 +626,8 @@ function npmp_handle_membership_form() {
 			exit;
 		}
 
-		$existing = $member_manager->get_member_by_email( $email );
+		$existing   = $member_manager->get_member_by_email( $email );
+		$contact_id = 0;
 		if ( $existing ) {
 			$update = $member_manager->update_member(
 				$existing->id,
@@ -617,7 +637,8 @@ function npmp_handle_membership_form() {
 					'membership_level' => $existing->membership_level ?: 'member',
 				)
 			);
-			$result = is_wp_error( $update ) ? 'error' : 'success';
+			$result     = is_wp_error( $update ) ? 'error' : 'success';
+			$contact_id = (int) $existing->id;
 		} else {
 			$added = $member_manager->add_member(
 				array(
@@ -628,7 +649,22 @@ function npmp_handle_membership_form() {
 					'source'           => 'form_signup',
 				)
 			);
-			$result = is_wp_error( $added ) ? 'error' : 'success';
+			$result     = is_wp_error( $added ) ? 'error' : 'success';
+			$contact_id = is_wp_error( $added ) ? 0 : (int) $added;
+		}
+
+		if ( 'success' === $result && $contact_id ) {
+			/**
+			 * Fires after a public signup succeeds.
+			 *
+			 * The notification-preferences feature saves the subscriber's
+			 * chosen checkboxes here. It was hooked but never fired, so
+			 * signup preferences were silently discarded.
+			 *
+			 * @param int   $contact_id Contact post ID.
+			 * @param array $post_data  Submitted form data.
+			 */
+			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read; the array shape matches the documented hook contract.
 		}
 
 		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $result ) );
@@ -655,20 +691,26 @@ function npmp_handle_membership_form() {
 			exit;
 		}
 
+		// The form used to unsubscribe any typed-in address on the spot,
+		// which let anyone holding the public page nonce silently
+		// unsubscribe other people. A confirmation email with the signed
+		// one-click link now proves address ownership. The response is
+		// identical whether or not the address is on the list, so this form
+		// can't be used to check who's subscribed.
 		$existing = $member_manager->get_member_by_email( $email );
-		if ( $existing ) {
-			$updated = $member_manager->update_member(
-				$existing->id,
-				array(
-					'status' => 'unsubscribed',
-				)
+		if ( $existing && function_exists( 'npmp_get_one_click_unsubscribe_url' ) ) {
+			$confirm_url = npmp_get_one_click_unsubscribe_url( $email );
+			$subject     = __( 'Confirm your unsubscribe request', 'nonprofit-manager' );
+			$body        = sprintf(
+				/* translators: 1: site name, 2: confirmation URL. */
+				__( "We received a request to unsubscribe this address from %1\$s.\n\nTo confirm, click this link:\n%2\$s\n\nIf you didn't request this, you can ignore this email and nothing will change.", 'nonprofit-manager' ),
+				get_bloginfo( 'name' ),
+				$confirm_url
 			);
-			$result = is_wp_error( $updated ) ? 'error' : 'success';
-		} else {
-			$result = 'success';
+			wp_mail( $email, $subject, $body );
 		}
 
-		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_unsubscribe', $result ) );
+		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_unsubscribe', 'confirm' ) );
 		exit;
 	}
 

@@ -17,6 +17,7 @@ class NPMP_Donation_Manager {
 	const META_AMOUNT    = '_npmp_donation_amount';
 	const META_FREQUENCY = '_npmp_donation_frequency';
 	const META_GATEWAY   = '_npmp_donation_gateway';
+	const META_TXN_ID    = '_npmp_donation_txn_id';
 
 	private static $instance = null;
 
@@ -50,12 +51,23 @@ class NPMP_Donation_Manager {
 		$amount    = floatval( $data['amount'] ?? 0 );
 		$frequency = sanitize_text_field( $data['frequency'] ?? 'one_time' );
 		$gateway   = sanitize_text_field( $data['gateway'] ?? 'paypal' );
+		$txn_id    = sanitize_text_field( $data['transaction_id'] ?? '' );
 
 		$legacy_id  = isset( $data['legacy_id'] ) ? absint( $data['legacy_id'] ) : 0;
 		$created_at = isset( $data['created_at'] ) ? strtotime( $data['created_at'] ) : false;
 
 		if ( ! $email || $amount <= 0 ) {
 			return false;
+		}
+
+		// A gateway transaction id makes the write idempotent: a replayed
+		// AJAX call or a refreshed success page can't record the same
+		// payment twice.
+		if ( $txn_id ) {
+			$existing = $this->find_by_transaction_id( $txn_id );
+			if ( $existing ) {
+				return $existing;
+			}
 		}
 
 		if ( false === $created_at ) {
@@ -70,6 +82,9 @@ class NPMP_Donation_Manager {
 			self::META_FREQUENCY => $frequency,
 			self::META_GATEWAY   => $gateway,
 		);
+		if ( $txn_id ) {
+			$meta_input[ self::META_TXN_ID ] = $txn_id;
+		}
 		if ( $legacy_id ) {
 			$meta_input['_npmp_legacy_donation_id'] = $legacy_id;
 		}
@@ -111,7 +126,62 @@ class NPMP_Donation_Manager {
 			npmp_mark_milestone( 'donation' );
 		}
 
+		/**
+		 * Fires after a donation is recorded.
+		 *
+		 * Pro's automation engine listens here to run donation_received
+		 * automations (welcome sequences, receipts). The listener existed
+		 * for a while with nothing firing the hook, so donation automations
+		 * silently never ran.
+		 *
+		 * @param int   $post_id Donation post ID.
+		 * @param array $data    Donation fields (email, name, amount, frequency, gateway).
+		 */
+		do_action(
+			'npmp_donation_recorded',
+			$post_id,
+			array(
+				'email'     => $email,
+				'name'      => $name,
+				'amount'    => $amount,
+				'frequency' => $frequency,
+				'gateway'   => $gateway,
+			)
+		);
+
 		return $post_id;
+	}
+
+	/**
+	 * Find a donation by its gateway transaction id.
+	 *
+	 * @param string $txn_id Gateway transaction/session/order id.
+	 * @return int Donation post ID, or 0 when none exists.
+	 */
+	public function find_by_transaction_id( $txn_id ) {
+		$txn_id = sanitize_text_field( $txn_id );
+		if ( ! $txn_id ) {
+			return 0;
+		}
+
+		$found = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exact-match lookup on a dedupe key.
+				'meta_query'     => array(
+					array(
+						'key'   => self::META_TXN_ID,
+						'value' => $txn_id,
+					),
+				),
+			)
+		);
+
+		return $found ? (int) $found[0] : 0;
 	}
 
 	/**
@@ -194,6 +264,12 @@ class NPMP_Donation_Manager {
 
 		$ids     = get_posts( $args );
 		$summary = array();
+
+		// One round trip for all posts + meta instead of two queries per
+		// donation inside the loop.
+		if ( $ids ) {
+			_prime_post_caches( $ids, false, true );
+		}
 
 		foreach ( $ids as $post_id ) {
 			$post = get_post( $post_id );
@@ -288,6 +364,10 @@ class NPMP_Donation_Manager {
 
 		$total_amount = 0.0;
 		$last_at      = '';
+
+		if ( $query->posts ) {
+			_prime_post_caches( $query->posts, false, true );
+		}
 
 		foreach ( $query->posts as $post_id ) {
 			$total_amount += (float) get_post_meta( $post_id, self::META_AMOUNT, true );

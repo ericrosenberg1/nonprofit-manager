@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 2026.07.2
+Stable tag: 2026.07.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -118,6 +118,21 @@ Free support is available through the WordPress.org support forums. Pro customer
 
 == Changelog ==
 
+= 2026.07.3 =
+* Fixed: Choosing a recurring frequency (weekly, monthly, quarterly, annual) on the Stripe donation form now actually creates a recurring Stripe subscription. It previously charged a single one-time payment no matter which frequency was selected.
+* Fixed: Donors who paid by Stripe now return to the page they gave from and see a real thank-you or cancellation message, and receive a confirmation email. Both previously landed on the homepage with no acknowledgment.
+* Fixed: A donation is now recorded only after Stripe confirms payment. Previously, starting checkout was enough to log a completed donation, so abandoned or cancelled checkouts inflated donation totals and reports.
+* Fixed: The PayPal Smart Buttons donation form loads correctly. It previously tried to render before the PayPal script had loaded and could fail silently.
+* Fixed: The email unsubscribe form now sends a confirmation link instead of unsubscribing an email address immediately, so a submitted address can't be used to unsubscribe someone else.
+* Fixed: Stored API keys and CAPTCHA secret keys are no longer displayed back in the settings screens. Leave a key field blank when saving to keep the existing value.
+* Fixed: Newsletter click-tracking links can no longer be altered to point somewhere other than the original link.
+* Fixed: Custom member fields, the newsletter segment picker, and signup notification preferences (all Pro features) now actually appear where they're supposed to. A wiring gap kept them from rendering even when configured.
+* Fixed: New-post and new-event email notifications to subscribers no longer run while you're publishing, which could slow down or time out the Publish button on a large list.
+* Improved: Removed a legacy, unused donation-form script that could interfere with the PayPal button.
+* Improved: Faster admin dashboard and member list pages, especially on larger contact lists.
+* Improved: The public event calendar feed (iCal) loads faster on repeat requests.
+* Removed: The "Event Registration" upgrade notice and Registrations column, which referenced a feature that isn't available.
+
 = 2026.07.2 =
 * Added: Five editor blocks for member and donor content: Email Signup, Email Unsubscribe, Donation Form, Social Share, and Contact Form. Each is also a shortcode, so you can drop them in with the block inserter or with a shortcode like [npmp_social_share] or [npmp_contact_form].
 * Added: Visitor social sharing. The Social Share block and [npmp_social_share] shortcode add Facebook, X, LinkedIn, Reddit, email, and copy-link buttons that share the current page, and you choose which networks to show.
@@ -227,6 +242,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.07.3 =
+Recommended update. Fixes recurring Stripe donations (previously charged once instead of on a schedule), adds donor confirmation messages and emails, stops abandoned checkouts from being logged as donations, and closes a few security and performance gaps.
 
 = 2026.07.2 =
 Adds five editor blocks: email signup, unsubscribe, donation form, social share, and contact form. Each is also a shortcode. Includes new visitor social-share buttons and a contact form.

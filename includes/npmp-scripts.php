@@ -49,28 +49,14 @@ function npmp_should_enqueue_donation_script() {
  * @return void
  */
 function npmp_register_frontend_scripts() {
-	$script_handle = 'npmp-donation-form';
-	$script_path   = 'assets/js/donation-form.js';
-
-	wp_register_script(
-		$script_handle,
-		plugins_url( $script_path, dirname( __FILE__ ) ),
-		array( 'jquery' ),
-		npmp_get_asset_version( $script_path ),
-		true
-	);
-
-	wp_localize_script(
-		$script_handle,
-		'npmpDonationData',
-		array(
-			'ajax_url'   => admin_url( 'admin-ajax.php' ),
-			'min_amount' => (float) get_option( 'npmp_paypal_minimum', 1 ),
-		)
-	);
-
-	// Only load donation assets (including the heavy PayPal SDK) on pages that
-	// actually render a donation form, not site-wide.
+	// The legacy assets/js/donation-form.js bundle is gone. It targeted
+	// element ids no current form renders, read a JS global that was never
+	// localized under that name, posted to an AJAX action with no handler,
+	// and redirected to a success URL before any payment happened. On the
+	// PayPal form it also bound a second, always-failing set of buttons into
+	// the same container the working inline script uses. Each donation form
+	// carries its own inline script now, so only the PayPal SDK still needs
+	// conditional enqueueing here.
 	if ( ! npmp_should_enqueue_donation_script() ) {
 		return;
 	}
@@ -88,8 +74,6 @@ function npmp_register_frontend_scripts() {
 
 		wp_enqueue_script( 'npmp-paypal-sdk', $sdk_url, array(), '1.0.0', true );
 	}
-
-	wp_enqueue_script( $script_handle );
 }
 add_action( 'wp_enqueue_scripts', 'npmp_register_frontend_scripts' );
 

@@ -243,14 +243,9 @@ function npmp_render_events_dashboard() {
 	if ( $upcoming_query->have_posts() ) {
 		echo '<table class="widefat striped">';
 		echo '<thead><tr>';
-		echo '<th>' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
-		if ( $is_pro ) {
-			echo '<th>' . esc_html__( 'Registrations', 'nonprofit-manager' ) . '</th>';
-		} else {
-			echo '<th style="color: #999;">' . esc_html__( 'Registrations', 'nonprofit-manager' ) . ' <span style="font-weight:normal; font-size:11px;">(Pro)</span></th>';
-		}
+		echo '<th scope="col">' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
 		echo '</tr></thead><tbody>';
 
 		while ( $upcoming_query->have_posts() ) {
@@ -263,17 +258,6 @@ function npmp_render_events_dashboard() {
 			echo '<td>' . wp_kses_post( npmp_format_event_datetime( $details ) ) . '</td>';
 			echo '<td>' . esc_html( $location ? $location : '—' ) . '</td>';
 
-			if ( $is_pro && function_exists( 'npmp_get_event_registration_count' ) ) {
-				$reg_count = npmp_get_event_registration_count( get_the_ID() );
-				$reg_link  = admin_url( 'admin.php?page=npmp-event-registrations&event_id=' . get_the_ID() );
-				if ( $reg_count > 0 ) {
-					echo '<td><a href="' . esc_url( $reg_link ) . '">' . esc_html( $reg_count ) . '</a></td>';
-				} else {
-					echo '<td>0</td>';
-				}
-			} else {
-				echo '<td style="color: #999;">—</td>';
-			}
 
 			echo '</tr>';
 		}
@@ -291,14 +275,9 @@ function npmp_render_events_dashboard() {
 	if ( $past_query->have_posts() ) {
 		echo '<table class="widefat striped">';
 		echo '<thead><tr>';
-		echo '<th>' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
-		echo '<th>' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
-		if ( $is_pro ) {
-			echo '<th>' . esc_html__( 'Registrations', 'nonprofit-manager' ) . '</th>';
-		} else {
-			echo '<th style="color: #999;">' . esc_html__( 'Registrations', 'nonprofit-manager' ) . ' <span style="font-weight:normal; font-size:11px;">(Pro)</span></th>';
-		}
+		echo '<th scope="col">' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
 		echo '</tr></thead><tbody>';
 
 		while ( $past_query->have_posts() ) {
@@ -311,17 +290,6 @@ function npmp_render_events_dashboard() {
 			echo '<td>' . wp_kses_post( npmp_format_event_datetime( $details ) ) . '</td>';
 			echo '<td>' . esc_html( $location ? $location : '—' ) . '</td>';
 
-			if ( $is_pro && function_exists( 'npmp_get_event_registration_count' ) ) {
-				$reg_count = npmp_get_event_registration_count( get_the_ID() );
-				$reg_link  = admin_url( 'admin.php?page=npmp-event-registrations&event_id=' . get_the_ID() );
-				if ( $reg_count > 0 ) {
-					echo '<td><a href="' . esc_url( $reg_link ) . '">' . esc_html( $reg_count ) . '</a></td>';
-				} else {
-					echo '<td>0</td>';
-				}
-			} else {
-				echo '<td style="color: #999;">—</td>';
-			}
 
 			echo '</tr>';
 		}
@@ -333,19 +301,10 @@ function npmp_render_events_dashboard() {
 	wp_reset_postdata();
 	echo '</div>';
 
-	if ( ! $is_pro ) {
-		echo '<div class="card" style="max-width:900px; background-color: #f0f6fc; border-left: 4px solid #0073aa;">';
-		echo '<h2 class="title">' . esc_html__( 'Event Registration', 'nonprofit-manager' ) . '</h2>';
-		echo '<p>' . esc_html__( 'Upgrade to the Pro version to enable event registrations. Visitors can sign up for events, and you can track attendees right from your dashboard.', 'nonprofit-manager' ) . '</p>';
-		echo '<p><strong>' . esc_html__( 'Pro Features:', 'nonprofit-manager' ) . '</strong></p>';
-		echo '<ul style="list-style: disc; margin-left: 20px;">';
-		echo '<li>' . esc_html__( 'Enable registration for any event', 'nonprofit-manager' ) . '</li>';
-		echo '<li>' . esc_html__( 'Track attendees and registration counts', 'nonprofit-manager' ) . '</li>';
-		echo '<li>' . esc_html__( 'Automatic subscriber list integration', 'nonprofit-manager' ) . '</li>';
-		echo '<li>' . esc_html__( 'Export attendee lists', 'nonprofit-manager' ) . '</li>';
-		echo '</ul>';
-		echo '</div>';
-	}
+	// The event-registration upsell card and Registrations column were
+	// removed: no registration feature exists in either plugin, so the card
+	// advertised (and Pro customers saw a permanently empty column for) a
+	// capability nobody could get.
 
 	echo '</div>';
 }
@@ -1226,6 +1185,17 @@ function npmp_maybe_render_ical_feed() {
 		'order'          => 'ASC',
 	);
 
+	// This endpoint is public and rebuilt the full feed from an unbounded
+	// query on every hit. Calendar apps poll iCal URLs on a schedule, so
+	// serve a short-lived cached copy instead.
+	$cached = get_transient( 'npmp_ical_feed' );
+	if ( false !== $cached ) {
+		header( 'Content-Type: text/calendar; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=events.ics' );
+		echo $cached; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Pre-built iCal payload assembled from escaped fields below.
+		exit;
+	}
+
 	$events = get_posts( $args );
 
 	header( 'Content-Type: text/calendar; charset=utf-8' );
@@ -1261,7 +1231,9 @@ function npmp_maybe_render_ical_feed() {
 
 	$output .= "END:VCALENDAR\r\n";
 
-	echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	// Cache for 15 minutes; saving any event clears it immediately.
+	set_transient( 'npmp_ical_feed', $output, 15 * MINUTE_IN_SECONDS );
+echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	exit;
 }
 add_action( 'init', 'npmp_maybe_render_ical_feed' );
@@ -1611,3 +1583,19 @@ function npmp_ics_escape_text( $text ) {
 		)
 	);
 }
+
+/**
+ * Drop the cached iCal feed whenever an event changes so subscribers never
+ * see stale data for longer than a page refresh.
+ *
+ * @param int $post_id Post ID.
+ * @return void
+ */
+function npmp_calendar_flush_ical_cache( $post_id ) {
+	if ( 'npmp_event' === get_post_type( $post_id ) ) {
+		delete_transient( 'npmp_ical_feed' );
+	}
+}
+add_action( 'save_post_npmp_event', 'npmp_calendar_flush_ical_cache' );
+add_action( 'deleted_post', 'npmp_calendar_flush_ical_cache' );
+add_action( 'trashed_post', 'npmp_calendar_flush_ical_cache' );

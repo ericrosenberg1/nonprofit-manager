@@ -179,7 +179,7 @@ class NPMP_Newsletter_Tracker {
 				'nid'                             => absint( $newsletter_id ),
 				'uid'                             => absint( $user_id ),
 				'url'                             => rawurlencode( $original_url ),
-				'_npmp'                           => self::generate_hmac( 'click', $newsletter_id, $user_id ),
+				'_npmp'                           => self::generate_hmac( 'click', $newsletter_id, $user_id, $original_url ),
 			),
 			home_url( '/' )
 		);
@@ -221,7 +221,8 @@ class NPMP_Newsletter_Tracker {
 		$newsletter_id = isset( $_GET['nid'] ) ? absint( $_GET['nid'] ) : 0;
 		$user_id       = isset( $_GET['uid'] ) ? absint( $_GET['uid'] ) : 0;
 		$raw_url       = isset( $_GET['url'] ) ? wp_unslash( $_GET['url'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- URL is decoded then validated with esc_url_raw.
-		$url           = $raw_url ? esc_url_raw( rawurldecode( $raw_url ) ) : '';
+		$decoded_url   = $raw_url ? rawurldecode( $raw_url ) : '';
+		$url           = $decoded_url ? esc_url_raw( $decoded_url ) : '';
 		$nonce         = isset( $_GET['_npmp'] ) ? sanitize_text_field( wp_unslash( $_GET['_npmp'] ) ) : '';
 
 		if ( ! $newsletter_id || ! $user_id || ! $url || ! $nonce ) {
@@ -229,7 +230,14 @@ class NPMP_Newsletter_Tracker {
 			exit;
 		}
 
-		if ( ! self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id ) ) {
+		// The destination URL is part of the signed payload, so a valid click
+		// token can't be reused with a swapped url= parameter. Links from
+		// newsletters sent before the URL was signed still verify through the
+		// legacy check, which excludes the URL.
+		$valid = self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $decoded_url )
+			|| self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id );
+
+		if ( ! $valid ) {
 			wp_safe_redirect( $destination );
 			exit;
 		}
@@ -258,8 +266,13 @@ class NPMP_Newsletter_Tracker {
 	 * @param int    $user_id       User ID.
 	 * @return string 16-char hex HMAC.
 	 */
-	private static function generate_hmac( $action, $newsletter_id, $user_id ) {
+	private static function generate_hmac( $action, $newsletter_id, $user_id, $url = '' ) {
 		$data = $action . '|' . absint( $newsletter_id ) . '|' . absint( $user_id );
+		if ( '' !== $url ) {
+			// Click tokens sign the destination too, otherwise one valid link
+			// authorizes any url= value.
+			$data .= '|' . $url;
+		}
 		return substr( hash_hmac( 'sha256', $data, wp_salt( 'auth' ) ), 0, 16 );
 	}
 
@@ -270,10 +283,11 @@ class NPMP_Newsletter_Tracker {
 	 * @param string $action        Track action.
 	 * @param int    $newsletter_id Newsletter ID.
 	 * @param int    $user_id       User ID.
+	 * @param string $url           Destination URL for click tokens ('' for the legacy/open format).
 	 * @return bool
 	 */
-	private static function verify_hmac( $token, $action, $newsletter_id, $user_id ) {
-		$expected = self::generate_hmac( $action, $newsletter_id, $user_id );
+	private static function verify_hmac( $token, $action, $newsletter_id, $user_id, $url = '' ) {
+		$expected = self::generate_hmac( $action, $newsletter_id, $user_id, $url );
 		return hash_equals( $expected, $token );
 	}
 

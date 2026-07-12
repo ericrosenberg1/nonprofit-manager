@@ -1529,6 +1529,13 @@ class NPMP_Member_Manager {
 
 		$stats = array();
 
+		// fields => 'ids' skips meta-cache priming, so without this each
+		// get_post_meta() below is its own query: thousands per dashboard
+		// view on a large contact list.
+		if ( $query->posts ) {
+			update_meta_cache( 'post', $query->posts );
+		}
+
 		foreach ( $query->posts as $post_id ) {
 			$status = get_post_meta( $post_id, 'npmp_status', true );
 			if ( ! $status ) {
@@ -1853,3 +1860,28 @@ class NPMP_Member_Manager {
 		return $donations;
 	}
 }
+
+/**
+ * Invalidate NPMP_Member_Manager's object cache when a contact changes
+ * outside the manager (direct wp_update_post, another plugin's
+ * update_post_meta, WP-CLI). The manager clears its own cache on its own
+ * writes, but external writes previously served up to five minutes of
+ * stale member data.
+ *
+ * @param int $post_id Contact post ID.
+ * @return void
+ */
+function npmp_member_cache_invalidate( $post_id ) {
+	$post_id = absint( $post_id );
+	if ( ! $post_id || 'npmp_contact' !== get_post_type( $post_id ) ) {
+		return;
+	}
+	wp_cache_delete( 'npmp_member_' . $post_id, 'npmp_members' );
+	$email = get_post_meta( $post_id, 'npmp_email', true );
+	if ( $email ) {
+		wp_cache_delete( 'npmp_member_email_' . strtolower( $email ), 'npmp_members' );
+	}
+}
+add_action( 'save_post_npmp_contact', 'npmp_member_cache_invalidate' );
+add_action( 'deleted_post', 'npmp_member_cache_invalidate' );
+add_action( 'trashed_post', 'npmp_member_cache_invalidate' );

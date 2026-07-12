@@ -381,11 +381,14 @@ function npmp_render_payment_settings_page() {
 				update_option( 'npmp_paypal_mode', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_mode'] ) ) );
 			}
 
-			// Save PayPal Live keys
+			// Save PayPal Live keys.
+			// Secret fields render blank with a masked placeholder (the stored
+			// value never goes back into the page HTML), so an empty submission
+			// means "keep the existing secret", not "erase it".
 			if ( isset( $_POST['npmp_paypal_live_client_id'] ) ) {
 				update_option( 'npmp_paypal_live_client_id', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_live_client_id'] ) ) );
 			}
-			if ( isset( $_POST['npmp_paypal_live_secret'] ) ) {
+			if ( ! empty( $_POST['npmp_paypal_live_secret'] ) ) {
 				update_option( 'npmp_paypal_live_secret', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_live_secret'] ) ) );
 			}
 
@@ -393,7 +396,7 @@ function npmp_render_payment_settings_page() {
 			if ( isset( $_POST['npmp_paypal_sandbox_client_id'] ) ) {
 				update_option( 'npmp_paypal_sandbox_client_id', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_sandbox_client_id'] ) ) );
 			}
-			if ( isset( $_POST['npmp_paypal_sandbox_secret'] ) ) {
+			if ( ! empty( $_POST['npmp_paypal_sandbox_secret'] ) ) {
 				update_option( 'npmp_paypal_sandbox_secret', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_sandbox_secret'] ) ) );
 			}
 
@@ -407,7 +410,7 @@ function npmp_render_payment_settings_page() {
 			if ( isset( $_POST['npmp_stripe_live_publishable_key'] ) ) {
 				update_option( 'npmp_stripe_live_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_publishable_key'] ) ) );
 			}
-			if ( isset( $_POST['npmp_stripe_live_secret_key'] ) ) {
+			if ( ! empty( $_POST['npmp_stripe_live_secret_key'] ) ) {
 				update_option( 'npmp_stripe_live_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_secret_key'] ) ) );
 			}
 
@@ -415,8 +418,16 @@ function npmp_render_payment_settings_page() {
 			if ( isset( $_POST['npmp_stripe_test_publishable_key'] ) ) {
 				update_option( 'npmp_stripe_test_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_publishable_key'] ) ) );
 			}
-			if ( isset( $_POST['npmp_stripe_test_secret_key'] ) ) {
+			if ( ! empty( $_POST['npmp_stripe_test_secret_key'] ) ) {
 				update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
+			}
+
+			// Stripe webhook signing secret (whsec_...). Used by the Pro
+			// recurring/dues webhook to verify Stripe signatures. This option
+			// was consumed by the webhook handler but had no admin field
+			// anywhere, so it could only be set with update_option() by hand.
+			if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
+				update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
 			}
 		}
 
@@ -584,8 +595,8 @@ function npmp_render_payment_settings_page() {
 						<tr>
 							<th><label for="npmp_paypal_live_secret"><?php esc_html_e( 'Live Secret Key', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<input type="password" id="npmp_paypal_live_secret" name="npmp_paypal_live_secret" value="<?php echo esc_attr( get_option( 'npmp_paypal_live_secret', '' ) ); ?>" class="regular-text" autocomplete="new-password">
-								<p class="description"><?php esc_html_e( 'Your PayPal Live REST API Secret Key.', 'nonprofit-manager' ); ?></p>
+								<input type="password" id="npmp_paypal_live_secret" name="npmp_paypal_live_secret" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_paypal_live_secret', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : ''; ?>">
+								<p class="description"><?php esc_html_e( 'Your PayPal Live REST API Secret Key. Leave blank to keep the saved key.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -602,8 +613,8 @@ function npmp_render_payment_settings_page() {
 						<tr>
 							<th><label for="npmp_paypal_sandbox_secret"><?php esc_html_e( 'Sandbox Secret Key', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<input type="password" id="npmp_paypal_sandbox_secret" name="npmp_paypal_sandbox_secret" value="<?php echo esc_attr( get_option( 'npmp_paypal_sandbox_secret', '' ) ); ?>" class="regular-text" autocomplete="new-password">
-								<p class="description"><?php esc_html_e( 'Your PayPal Sandbox REST API Secret Key.', 'nonprofit-manager' ); ?></p>
+								<input type="password" id="npmp_paypal_sandbox_secret" name="npmp_paypal_sandbox_secret" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_paypal_sandbox_secret', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : ''; ?>">
+								<p class="description"><?php esc_html_e( 'Your PayPal Sandbox REST API Secret Key. Leave blank to keep the saved key.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -655,8 +666,8 @@ function npmp_render_payment_settings_page() {
 						<tr>
 							<th><label for="npmp_stripe_live_secret_key"><?php esc_html_e( 'Live Secret Key', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<input type="password" id="npmp_stripe_live_secret_key" name="npmp_stripe_live_secret_key" value="<?php echo esc_attr( get_option( 'npmp_stripe_live_secret_key', '' ) ); ?>" class="regular-text" autocomplete="new-password" placeholder="sk_live_...">
-								<p class="description"><?php esc_html_e( 'Your Stripe Live Secret Key (starts with sk_live_).', 'nonprofit-manager' ); ?></p>
+								<input type="password" id="npmp_stripe_live_secret_key" name="npmp_stripe_live_secret_key" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_stripe_live_secret_key', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : 'sk_live_...'; ?>">
+								<p class="description"><?php esc_html_e( 'Your Stripe Live Secret Key (starts with sk_live_). Leave blank to keep the saved key.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -673,8 +684,22 @@ function npmp_render_payment_settings_page() {
 						<tr>
 							<th><label for="npmp_stripe_test_secret_key"><?php esc_html_e( 'Test Secret Key', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<input type="password" id="npmp_stripe_test_secret_key" name="npmp_stripe_test_secret_key" value="<?php echo esc_attr( get_option( 'npmp_stripe_test_secret_key', '' ) ); ?>" class="regular-text" autocomplete="new-password" placeholder="sk_test_...">
-								<p class="description"><?php esc_html_e( 'Your Stripe Test Secret Key (starts with sk_test_).', 'nonprofit-manager' ); ?></p>
+								<input type="password" id="npmp_stripe_test_secret_key" name="npmp_stripe_test_secret_key" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_stripe_test_secret_key', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : 'sk_test_...'; ?>">
+								<p class="description"><?php esc_html_e( 'Your Stripe Test Secret Key (starts with sk_test_). Leave blank to keep the saved key.', 'nonprofit-manager' ); ?></p>
+							</td>
+						</tr>
+					</table>
+
+					<h4><?php esc_html_e( 'Webhook Signing Secret', 'nonprofit-manager' ); ?></h4>
+					<table class="form-table">
+						<tr>
+							<th><label for="npmp_stripe_webhook_secret"><?php esc_html_e( 'Signing Secret', 'nonprofit-manager' ); ?></label></th>
+							<td>
+								<input type="password" id="npmp_stripe_webhook_secret" name="npmp_stripe_webhook_secret" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_stripe_webhook_secret', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : 'whsec_...'; ?>">
+								<p class="description">
+									<?php esc_html_e( 'Required for recurring donations and membership dues. In the Stripe Dashboard, add a webhook endpoint pointing to the URL below, then paste its signing secret here. Leave blank to keep the saved secret.', 'nonprofit-manager' ); ?><br>
+									<code><?php echo esc_html( admin_url( 'admin-ajax.php?action=npmp_stripe_recurring_webhook' ) ); ?></code>
+								</p>
 							</td>
 						</tr>
 					</table>
@@ -716,6 +741,22 @@ function npmp_render_payment_settings_page() {
 add_shortcode( 'npmp_donation_form', 'npmp_render_donation_form' );
 
 function npmp_render_donation_form() {
+	// A donor coming back from Stripe lands on this same page with a status
+	// flag. Without this banner, people who just paid real money got no
+	// acknowledgment of any kind.
+	$status_banner = '';
+	if ( isset( $_GET['npmp_donation'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display flag, fixed strings only.
+		$donation_status = sanitize_key( wp_unslash( $_GET['npmp_donation'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( 'success' === $donation_status ) {
+			$status_banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html__( 'Thank you! Your donation was received.', 'nonprofit-manager' ) . '</p></div>';
+		} elseif ( 'cancelled' === $donation_status ) {
+			$status_banner = '<div class="npmp-form-banner npmp-status-error" role="status"><p>' . esc_html__( 'Your donation was cancelled and you have not been charged.', 'nonprofit-manager' ) . '</p></div>';
+		}
+		if ( $status_banner && wp_style_is( 'npmp-forms', 'registered' ) ) {
+			wp_enqueue_style( 'npmp-forms' );
+		}
+	}
+
 	// Get enabled gateways (new checkbox-based system)
 	$enabled_gateways = get_option( 'npmp_enabled_payment_gateways', array() );
 
@@ -729,20 +770,20 @@ function npmp_render_donation_form() {
 
 	// If no gateways are enabled, show message
 	if ( empty( $enabled_gateways ) ) {
-		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Online donations are not configured yet. Please contact the site administrator.', 'nonprofit-manager' ) . '</p></div>';
+		return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Online donations are not configured yet. Please contact the site administrator.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
 	// If only one gateway is enabled, render it directly
 	if ( count( $enabled_gateways ) === 1 && function_exists( 'npmp_render_gateway_donation_form' ) ) {
-		return npmp_render_gateway_donation_form( $enabled_gateways[0] ) . npmp_donation_form_attribution();
+		return $status_banner . npmp_render_gateway_donation_form( $enabled_gateways[0] ) . npmp_donation_form_attribution();
 	}
 
 	// If multiple gateways are enabled, render a tabbed interface
 	if ( function_exists( 'npmp_render_multi_gateway_donation_form' ) ) {
-		return npmp_render_multi_gateway_donation_form( $enabled_gateways ) . npmp_donation_form_attribution();
+		return $status_banner . npmp_render_multi_gateway_donation_form( $enabled_gateways ) . npmp_donation_form_attribution();
 	}
 
-	return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Donation form is loading. Please refresh the page.', 'nonprofit-manager' ) . '</p></div>';
+	return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Donation form is loading. Please refresh the page.', 'nonprofit-manager' ) . '</p></div>';
 }
 
 /**

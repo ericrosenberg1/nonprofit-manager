@@ -209,7 +209,11 @@ function npmp_email_record_result( $status, $details = array() ) {
 		'timestamp' => time(),
 	);
 
-	update_option( 'npmp_email_last_result', $log );
+	// autoload=false: this option is rewritten on every email the site sends
+	// (newsletter cron ticks included). Autoloading it meant every send
+	// invalidated the alloptions cache sitewide for a value only the email
+	// status screen reads.
+	update_option( 'npmp_email_last_result', $log, false );
 }
 
 /**

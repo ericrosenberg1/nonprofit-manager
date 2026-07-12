@@ -113,16 +113,32 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					<?php } ?>
 				<?php endforeach; ?>
 			</div>
+			<div id="npmp-multi-error" role="alert" style="color: #d63638; margin-top: 10px; display: none;"></div>
 		</form>
 
 		<script>
 		(function() {
 			var amountInput = document.getElementById('npmp-donation-amount');
 			var emailInput = document.getElementById('npmp-donation-email');
+			var multiError = document.getElementById('npmp-multi-error');
 
 			if (!amountInput || !emailInput) {
 				console.error('NPMP: Donation form inputs not found');
 				return;
+			}
+
+			function npmpShowMultiError(message) {
+				if (!multiError) {
+					return;
+				}
+				multiError.textContent = '<?php echo esc_js( __( 'Error:', 'nonprofit-manager' ) ); ?> ' + message;
+				multiError.style.display = 'block';
+			}
+
+			function npmpClearMultiError() {
+				if (multiError) {
+					multiError.style.display = 'none';
+				}
 			}
 
 			// PayPal Link handler
@@ -134,19 +150,19 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var email = emailInput.value;
 
 					if (!amount || amount < 1) {
-						alert('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 
 					if (!email) {
-						alert('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 
 					// Open PayPal with donation amount
 					var paypalEmail = '<?php echo esc_js( get_option( 'npmp_paypal_email', '' ) ); ?>';
 					if (!paypalEmail) {
-						alert('<?php echo esc_js( __( 'PayPal email is not configured. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'PayPal email is not configured. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 					var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(paypalEmail) + '&amount=' + amount + '&currency_code=USD&item_name=' + encodeURIComponent('Donation');
@@ -163,18 +179,18 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var email = emailInput.value;
 
 					if (!amount || amount < 1) {
-						alert('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 
 					if (!email) {
-						alert('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 
 					var venmoHandle = '<?php echo esc_js( get_option( 'npmp_venmo_handle', '' ) ); ?>';
 					if (!venmoHandle) {
-						alert('<?php echo esc_js( __( 'Venmo handle is not configured. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
+						npmpShowMultiError('<?php echo esc_js( __( 'Venmo handle is not configured. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
 					var note = 'Donation';
@@ -203,15 +219,20 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 						var amount = parseFloat(amountInput.value);
 						var email = emailInput.value;
 
+						npmpClearMultiError();
+
 						if (!amount || amount < 1) {
-							alert('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+							npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 							return;
 						}
 
 						if (!email) {
-							alert('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
+							npmpShowMultiError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 							return;
 						}
+
+						// Prevent a double click from creating two checkout sessions.
+						stripeButton.disabled = true;
 
 						// Call Stripe checkout
 						var formData = new FormData();
@@ -219,6 +240,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 						formData.append('nonce', '<?php echo esc_js( wp_create_nonce( 'npmp_stripe_checkout' ) ); ?>');
 						formData.append('amount', amount);
 						formData.append('email', email);
+						formData.append('page_url', window.location.href);
 
 						fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
 							method: 'POST',
@@ -229,11 +251,13 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 							if (data.success && data.data.url) {
 								window.location.href = data.data.url;
 							} else {
-								alert(data.data || '<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>');
+								stripeButton.disabled = false;
+								npmpShowMultiError(typeof data.data === 'string' ? data.data : '<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>');
 							}
 						})
 						.catch(function(error) {
-							alert('<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>');
+							stripeButton.disabled = false;
+							npmpShowMultiError('<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>');
 						});
 					});
 				}
@@ -252,19 +276,23 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					wp_enqueue_script( 'npmp-paypal-sdk-multi', $sdk_url, array(), '1.0.0', true );
 					?>
 
-					if (typeof paypal !== 'undefined') {
+					var npmpInitMultiPayPal = function() {
+						if (typeof paypal === 'undefined') {
+							npmpShowMultiError('<?php echo esc_js( __( 'PayPal could not be loaded. Please refresh the page.', 'nonprofit-manager' ) ); ?>');
+							return;
+						}
 						paypal.Buttons({
 							createOrder: function(data, actions) {
 								var amount = parseFloat(amountInput.value);
 								var email = emailInput.value;
 
 								if (!amount || amount < 1) {
-									alert('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+									npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 									return false;
 								}
 
 								if (!email) {
-									alert('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
+									npmpShowMultiError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 									return false;
 								}
 
@@ -281,6 +309,14 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 								});
 							}
 						}).render('#paypal-button-container-multi');
+					};
+					if ('loading' === document.readyState) {
+						// The PayPal SDK loads in the footer, after this inline
+						// script runs. Waiting for DOMContentLoaded guarantees the
+						// SDK global exists before buttons initialize.
+						document.addEventListener('DOMContentLoaded', npmpInitMultiPayPal);
+					} else {
+						npmpInitMultiPayPal();
 					}
 				<?php endif; ?>
 			<?php endif; ?>
@@ -494,24 +530,39 @@ function npmp_render_paypal_api_form() {
 	</div>
 
 	<script>
+	// The PayPal SDK is enqueued in the footer, so it does not exist yet when
+	// this inline script is parsed. Initializing at DOMContentLoaded (after
+	// footer scripts execute) is what makes the buttons actually render, the
+	// previous parse-time paypal.Buttons() call threw and rendered nothing.
+	function npmpInitPayPalApiForm() {
+		var errorEl = document.getElementById('npmp-paypal-error');
+
+		function showPayPalError(message) {
+			errorEl.textContent = '<?php echo esc_js( __( 'Error:', 'nonprofit-manager' ) ); ?> ' + message;
+			errorEl.style.display = 'block';
+		}
+
+		if (typeof paypal === 'undefined') {
+			showPayPalError('<?php echo esc_js( __( 'PayPal could not be loaded. Please refresh the page.', 'nonprofit-manager' ) ); ?>');
+			return;
+		}
+
 	paypal.Buttons({
 		createOrder: function(data, actions) {
 			var amount = document.getElementById('npmp-paypal-api-amount').value;
 			var email = document.getElementById('npmp-paypal-api-email').value;
 
 			if (!amount || amount < 1) {
-				document.getElementById('npmp-paypal-error').textContent = '<?php esc_html_e( 'Please enter a valid donation amount.', 'nonprofit-manager' ); ?>';
-				document.getElementById('npmp-paypal-error').style.display = 'block';
+				showPayPalError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 				return false;
 			}
 
 			if (!email) {
-				document.getElementById('npmp-paypal-error').textContent = '<?php esc_html_e( 'Please enter your email address.', 'nonprofit-manager' ); ?>';
-				document.getElementById('npmp-paypal-error').style.display = 'block';
+				showPayPalError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 				return false;
 			}
 
-			document.getElementById('npmp-paypal-error').style.display = 'none';
+			errorEl.style.display = 'none';
 
 			return actions.order.create({
 				intent: 'CAPTURE',
@@ -540,21 +591,26 @@ function npmp_render_paypal_api_form() {
 					method: 'POST',
 					body: formData
 				}).then(function() {
-					alert('<?php esc_html_e( 'Thank you for your donation!', 'nonprofit-manager' ); ?>');
+					alert('<?php echo esc_js( __( 'Thank you for your donation!', 'nonprofit-manager' ) ); ?>');
 					window.location.reload();
 				});
 			});
 		},
 		onError: function(err) {
 			console.error('PayPal Error:', err);
-			var errorMessage = '<?php esc_html_e( 'An error occurred. Please try again.', 'nonprofit-manager' ); ?>';
+			var errorMessage = '<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>';
 			if (err && err.message) {
 				errorMessage += ' (' + err.message + ')';
 			}
-			document.getElementById('npmp-paypal-error').textContent = errorMessage;
-			document.getElementById('npmp-paypal-error').style.display = 'block';
+			showPayPalError(errorMessage);
 		}
 	}).render('#paypal-button-container');
+	}
+	if ('loading' === document.readyState) {
+		document.addEventListener('DOMContentLoaded', npmpInitPayPalApiForm);
+	} else {
+		npmpInitPayPalApiForm();
+	}
 	</script>
 	<?php
 	return ob_get_clean();
@@ -579,8 +635,9 @@ function npmp_render_stripe_form() {
 
 	$opts = npmp_get_donation_form_options();
 
-	// Enqueue Stripe.js
-	wp_enqueue_script( 'stripe-js', 'https://js.stripe.com/v3/', array(), null, true );
+	// No Stripe.js needed: the server creates the Checkout Session and the
+	// browser follows the session's own URL. redirectToCheckout() is
+	// deprecated and required loading Stripe's SDK on the page for nothing.
 
 	ob_start();
 	?>
@@ -613,33 +670,44 @@ function npmp_render_stripe_form() {
 				</button>
 			</p>
 
-			<div id="npmp-stripe-error" style="color: red; margin-top: 10px; display: none;"></div>
+			<div id="npmp-stripe-error" role="alert" style="color: #d63638; margin-top: 10px; display: none;"></div>
 		</form>
 	</div>
 
 	<script>
-	var stripe = Stripe('<?php echo esc_js( $publishable_key ); ?>');
-
 	document.getElementById('npmp-stripe-form').addEventListener('submit', function(e) {
 		e.preventDefault();
 
+		var form = e.target;
+		var submitButton = form.querySelector('button[type="submit"]');
+		var errorEl = document.getElementById('npmp-stripe-error');
 		var amount = document.getElementById('npmp-stripe-amount').value;
 		var email = document.getElementById('npmp-stripe-email').value;
 		var frequency = document.getElementById('npmp-stripe-frequency') ? document.getElementById('npmp-stripe-frequency').value : 'one_time';
 
+		function showError(message) {
+			errorEl.textContent = '<?php echo esc_js( __( 'Error:', 'nonprofit-manager' ) ); ?> ' + message;
+			errorEl.style.display = 'block';
+			if (submitButton) {
+				submitButton.disabled = false;
+			}
+		}
+
 		if (!amount || amount < 1) {
-			document.getElementById('npmp-stripe-error').textContent = '<?php esc_html_e( 'Please enter a valid donation amount.', 'nonprofit-manager' ); ?>';
-			document.getElementById('npmp-stripe-error').style.display = 'block';
+			showError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 			return;
 		}
 
 		if (!email) {
-			document.getElementById('npmp-stripe-error').textContent = '<?php esc_html_e( 'Please enter your email address.', 'nonprofit-manager' ); ?>';
-			document.getElementById('npmp-stripe-error').style.display = 'block';
+			showError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
 			return;
 		}
 
-		document.getElementById('npmp-stripe-error').style.display = 'none';
+		errorEl.style.display = 'none';
+		if (submitButton) {
+			// Prevent a double click from creating two checkout sessions.
+			submitButton.disabled = true;
+		}
 
 		// Create checkout session via AJAX
 		var formData = new FormData();
@@ -648,6 +716,7 @@ function npmp_render_stripe_form() {
 		formData.append('amount', amount);
 		formData.append('email', email);
 		formData.append('frequency', frequency);
+		formData.append('page_url', window.location.href);
 
 		fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
 			method: 'POST',
@@ -655,26 +724,14 @@ function npmp_render_stripe_form() {
 		})
 		.then(function(response) { return response.json(); })
 		.then(function(session) {
-			if (session.success) {
-				return stripe.redirectToCheckout({ sessionId: session.data.id });
+			if (session.success && session.data.url) {
+				window.location.href = session.data.url;
 			} else {
-				throw new Error(session.data || 'Failed to create checkout session');
-			}
-		})
-		.then(function(result) {
-			if (result.error) {
-				document.getElementById('npmp-stripe-error').textContent = result.error.message;
-				document.getElementById('npmp-stripe-error').style.display = 'block';
+				throw new Error(typeof session.data === 'string' ? session.data : '<?php echo esc_js( __( 'Failed to create checkout session.', 'nonprofit-manager' ) ); ?>');
 			}
 		})
 		.catch(function(error) {
-			console.error('Stripe Error:', error);
-			var errorMessage = '<?php esc_html_e( 'An error occurred. Please try again.', 'nonprofit-manager' ); ?>';
-			if (error && error.message) {
-				errorMessage += ' (' + error.message + ')';
-			}
-			document.getElementById('npmp-stripe-error').textContent = errorMessage;
-			document.getElementById('npmp-stripe-error').style.display = 'block';
+			showError(error && error.message ? error.message : '<?php echo esc_js( __( 'An error occurred. Please try again.', 'nonprofit-manager' ) ); ?>');
 		});
 	});
 	</script>
@@ -694,41 +751,54 @@ add_action( 'wp_ajax_nopriv_npmp_log_donation', 'npmp_ajax_log_donation' );
 
 function npmp_ajax_log_donation() {
 	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ?? '' ) ), 'npmp_donation' ) ) {
-		error_log( 'Donation logging failed: Invalid nonce' );
-		wp_send_json_error( array( 'message' => 'Invalid security token. Please refresh and try again.' ) );
+		npmp_payment_debug_log( 'donation log rejected: invalid nonce' );
+		wp_send_json_error( array( 'message' => __( 'Invalid security token. Please refresh and try again.', 'nonprofit-manager' ) ) );
 	}
 
-	$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
-	$name      = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
-	$amount    = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
-	$frequency = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
-	$gateway   = sanitize_text_field( wp_unslash( $_POST['gateway'] ?? 'paypal_api' ) );
+	$email          = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+	$name           = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+	$amount         = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
+	$frequency      = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
+	$gateway        = sanitize_text_field( wp_unslash( $_POST['gateway'] ?? 'paypal_api' ) );
+	$transaction_id = sanitize_text_field( wp_unslash( $_POST['transaction_id'] ?? '' ) );
 
 	if ( ! $email || ! is_email( $email ) ) {
-		error_log( 'Donation logging failed: Invalid email - ' . $email );
-		wp_send_json_error( array( 'message' => 'Please provide a valid email address.' ) );
+		npmp_payment_debug_log( 'donation log rejected: invalid email' );
+		wp_send_json_error( array( 'message' => __( 'Please provide a valid email address.', 'nonprofit-manager' ) ) );
 	}
 
 	if ( $amount <= 0 ) {
-		error_log( 'Donation logging failed: Invalid amount - ' . $amount );
-		wp_send_json_error( array( 'message' => 'Please provide a valid donation amount.' ) );
+		npmp_payment_debug_log( 'donation log rejected: invalid amount' );
+		wp_send_json_error( array( 'message' => __( 'Please provide a valid donation amount.', 'nonprofit-manager' ) ) );
+	}
+
+	// This endpoint is reachable by logged-out visitors holding only the
+	// public page nonce, so a client-reported PayPal capture is verified
+	// against PayPal's own API before anything is recorded or emailed.
+	if ( 'paypal_api' === $gateway ) {
+		$verified = npmp_paypal_verify_order( $transaction_id, $amount );
+		if ( is_wp_error( $verified ) ) {
+			npmp_payment_debug_log( 'donation log rejected: ' . $verified->get_error_code() );
+			wp_send_json_error( array( 'message' => __( 'We could not verify this payment with PayPal. If you completed the donation, please contact us.', 'nonprofit-manager' ) ) );
+		}
 	}
 
 	try {
 		// Log donation
 		$donation_id = NPMP_Donation_Manager::get_instance()->log_donation(
 			array(
-				'email'     => $email,
-				'name'      => $name,
-				'amount'    => $amount,
-				'frequency' => $frequency,
-				'gateway'   => $gateway,
+				'email'          => $email,
+				'name'           => $name,
+				'amount'         => $amount,
+				'frequency'      => $frequency,
+				'gateway'        => $gateway,
+				'transaction_id' => $transaction_id,
 			)
 		);
 
-		if ( is_wp_error( $donation_id ) ) {
-			error_log( 'Donation logging error: ' . $donation_id->get_error_message() );
-			wp_send_json_error( array( 'message' => 'Failed to record donation. Please contact support.' ) );
+		if ( is_wp_error( $donation_id ) || false === $donation_id ) {
+			npmp_payment_debug_log( 'donation insert failed' );
+			wp_send_json_error( array( 'message' => __( 'Failed to record donation. Please contact support.', 'nonprofit-manager' ) ) );
 		}
 
 		// Send thank you email (Pro only)
@@ -743,7 +813,7 @@ function npmp_ajax_log_donation() {
 		);
 
 		if ( ! $email_sent && get_option( 'npmp_enable_thank_you_email', 1 ) ) {
-			error_log( 'Thank you email failed to send for donation ID: ' . $donation_id );
+			npmp_payment_debug_log( 'thank-you email failed for donation ' . (int) $donation_id );
 		}
 
 		// Add donor to membership if not already a member
@@ -751,8 +821,8 @@ function npmp_ajax_log_donation() {
 
 		wp_send_json_success( array( 'donation_id' => $donation_id ) );
 	} catch ( Exception $e ) {
-		error_log( 'Donation processing exception: ' . $e->getMessage() );
-		wp_send_json_error( array( 'message' => 'An unexpected error occurred. Please try again.' ) );
+		npmp_payment_debug_log( 'donation processing exception: ' . $e->getMessage() );
+		wp_send_json_error( array( 'message' => __( 'An unexpected error occurred. Please try again.', 'nonprofit-manager' ) ) );
 	}
 }
 
@@ -764,54 +834,81 @@ add_action( 'wp_ajax_nopriv_npmp_create_stripe_session', 'npmp_ajax_create_strip
 
 function npmp_ajax_create_stripe_session() {
 	if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ?? '' ) ), 'npmp_stripe_checkout' ) ) {
-		error_log( 'Stripe session creation failed: Invalid nonce' );
-		wp_send_json_error( 'Invalid security token. Please refresh and try again.' );
+		npmp_payment_debug_log( 'stripe session rejected: invalid nonce' );
+		wp_send_json_error( __( 'Invalid security token. Please refresh and try again.', 'nonprofit-manager' ) );
 	}
 
 	$amount    = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
 	$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 	$frequency = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
+	$page_url  = isset( $_POST['page_url'] ) ? wp_unslash( $_POST['page_url'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized in npmp_payment_return_base().
 
 	// Recurring donations require Pro.
 	if ( 'one_time' !== $frequency && ! npmp_is_pro() ) {
-		wp_send_json_error( 'Recurring donations require Nonprofit Manager Pro.' );
+		wp_send_json_error( __( 'Recurring donations require Nonprofit Manager Pro.', 'nonprofit-manager' ) );
 	}
 
 	if ( ! $email || ! is_email( $email ) ) {
-		error_log( 'Stripe session creation failed: Invalid email - ' . $email );
-		wp_send_json_error( 'Please provide a valid email address.' );
+		npmp_payment_debug_log( 'stripe session rejected: invalid email' );
+		wp_send_json_error( __( 'Please provide a valid email address.', 'nonprofit-manager' ) );
 	}
 
 	if ( $amount < 1 ) {
-		error_log( 'Stripe session creation failed: Invalid amount - ' . $amount );
-		wp_send_json_error( 'Please provide a valid donation amount (minimum $1).' );
+		npmp_payment_debug_log( 'stripe session rejected: invalid amount' );
+		wp_send_json_error( __( 'Please provide a valid donation amount (minimum $1).', 'nonprofit-manager' ) );
 	}
 
-	$mode       = get_option( 'npmp_stripe_mode', 'live' );
-	$secret_key = 'test' === $mode ? get_option( 'npmp_stripe_test_secret_key', '' ) : get_option( 'npmp_stripe_live_secret_key', '' );
+	$secret_key = npmp_stripe_secret_key();
 
 	if ( empty( $secret_key ) ) {
-		error_log( 'Stripe session creation failed: No API key configured' );
-		wp_send_json_error( 'Stripe is not configured. Please contact the site administrator.' );
+		npmp_payment_debug_log( 'stripe session rejected: no API key configured' );
+		wp_send_json_error( __( 'Stripe is not configured. Please contact the site administrator.', 'nonprofit-manager' ) );
 	}
 
-	// Create Stripe checkout session
-	$endpoint = 'https://api.stripe.com/v1/checkout/sessions';
+	// Send the donor back to the page they donated from, with a status flag
+	// the form renderer turns into a visible confirmation banner. The
+	// {CHECKOUT_SESSION_ID} placeholder must reach Stripe unencoded, so the
+	// success URL is assembled by hand instead of add_query_arg().
+	$return_base = npmp_payment_return_base( $page_url );
+	$joiner      = ( false === strpos( $return_base, '?' ) ) ? '?' : '&';
+	$success_url = $return_base . $joiner . 'npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}';
+	$cancel_url  = add_query_arg( 'npmp_donation', 'cancelled', $return_base );
+
+	$endpoint     = 'https://api.stripe.com/v1/checkout/sessions';
 	$amount_cents = intval( $amount * 100 ); // Convert to cents
 
 	$body = array(
 		'payment_method_types[]' => 'card',
-		'mode'                   => 'payment',
 		'customer_email'         => $email,
 		'line_items[0][price_data][currency]' => 'usd',
-		'line_items[0][price_data][product_data][name]' => 'Donation',
 		'line_items[0][price_data][unit_amount]' => $amount_cents,
 		'line_items[0][quantity]' => 1,
-		'success_url'            => add_query_arg( 'donation_success', '1', home_url( '/' ) ),
-		'cancel_url'             => add_query_arg( 'donation_cancelled', '1', home_url( '/' ) ),
+		'success_url'            => $success_url,
+		'cancel_url'             => $cancel_url,
 		'metadata[frequency]'    => $frequency,
 		'metadata[gateway]'      => 'stripe',
 	);
+
+	// A donor who picks a recurring frequency gets a real Stripe subscription.
+	// Before this, the session was always a one-time payment and the chosen
+	// frequency only ever reached Stripe as metadata, so "monthly" donors were
+	// silently charged once.
+	$intervals = array(
+		'weekly'    => array( 'week', 1 ),
+		'monthly'   => array( 'month', 1 ),
+		'quarterly' => array( 'month', 3 ),
+		'annual'    => array( 'year', 1 ),
+	);
+
+	if ( isset( $intervals[ $frequency ] ) ) {
+		$body['mode'] = 'subscription';
+		$body['line_items[0][price_data][recurring][interval]']       = $intervals[ $frequency ][0];
+		$body['line_items[0][price_data][recurring][interval_count]'] = $intervals[ $frequency ][1];
+		$body['line_items[0][price_data][product_data][name]']        = __( 'Recurring donation', 'nonprofit-manager' );
+	} else {
+		$body['mode'] = 'payment';
+		$body['line_items[0][price_data][product_data][name]'] = __( 'Donation', 'nonprofit-manager' );
+	}
 
 	$response = wp_remote_post(
 		$endpoint,
@@ -826,40 +923,275 @@ function npmp_ajax_create_stripe_session() {
 	);
 
 	if ( is_wp_error( $response ) ) {
-		error_log( 'Stripe Checkout Session Error: ' . $response->get_error_message() );
-		wp_send_json_error( 'Connection error: ' . $response->get_error_message() );
+		npmp_payment_debug_log( 'stripe session connection error: ' . $response->get_error_code() );
+		wp_send_json_error( __( 'Could not reach the payment provider. Please try again.', 'nonprofit-manager' ) );
 	}
 
 	$response_code = wp_remote_retrieve_response_code( $response );
 	$body          = json_decode( wp_remote_retrieve_body( $response ), true );
 
 	if ( 200 !== $response_code && 201 !== $response_code ) {
-		$error_message = $body['error']['message'] ?? 'Unknown error';
-		error_log( 'Stripe API Error (HTTP ' . $response_code . '): ' . $error_message );
-		wp_send_json_error( 'Stripe error: ' . $error_message );
+		$error_message = $body['error']['message'] ?? __( 'Unknown error', 'nonprofit-manager' );
+		npmp_payment_debug_log( 'stripe API error HTTP ' . (int) $response_code );
+		/* translators: %s: error message from Stripe. */
+		wp_send_json_error( sprintf( __( 'Stripe error: %s', 'nonprofit-manager' ), $error_message ) );
 	}
 
 	if ( isset( $body['id'] ) ) {
-		// Log pending donation
-		NPMP_Donation_Manager::get_instance()->log_donation(
-			array(
-				'email'     => $email,
-				'amount'    => $amount,
-				'frequency' => $frequency,
-				'gateway'   => 'stripe',
-			)
-		);
-
+		// Nothing is recorded yet. The donation is logged only after Stripe
+		// confirms payment, when the donor returns to the success URL (see
+		// npmp_maybe_finalize_stripe_donation). Logging here booked every
+		// abandoned checkout as a completed gift.
 		wp_send_json_success( $body );
 	} else {
-		error_log( 'Stripe session creation failed: ' . wp_json_encode( $body ) );
-		wp_send_json_error( $body['error']['message'] ?? 'Failed to create checkout session' );
+		npmp_payment_debug_log( 'stripe session creation failed: malformed response' );
+		wp_send_json_error( $body['error']['message'] ?? __( 'Failed to create checkout session.', 'nonprofit-manager' ) );
 	}
 }
+
+/**
+ * Finalize a Stripe donation when the donor lands back on the site.
+ *
+ * The success URL carries the Checkout Session id. We fetch that session
+ * from Stripe's API and only record the donation when Stripe itself says it
+ * was paid, which keeps abandoned and cancelled checkouts out of the
+ * donation reports. Subscription-mode sessions are not logged here: the Pro
+ * webhook records each invoice payment, and double-logging the first cycle
+ * would inflate totals.
+ *
+ * @return void
+ */
+function npmp_maybe_finalize_stripe_donation() {
+	if ( is_admin() || empty( $_GET['npmp_donation'] ) || 'success' !== $_GET['npmp_donation'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag; the session id is verified against Stripe's API below.
+		return;
+	}
+
+	$session_id = isset( $_GET['npmp_session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['npmp_session_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! preg_match( '/^cs_[A-Za-z0-9_]+$/', $session_id ) ) {
+		return;
+	}
+
+	// Cheap re-entry guard for refreshes. The durable dedupe is the
+	// transaction-id check inside log_donation().
+	$lock_key = 'npmp_stripe_fin_' . md5( $session_id );
+	if ( get_transient( $lock_key ) ) {
+		return;
+	}
+	set_transient( $lock_key, 1, 15 * MINUTE_IN_SECONDS );
+
+	$secret_key = npmp_stripe_secret_key();
+	if ( empty( $secret_key ) ) {
+		return;
+	}
+
+	$response = wp_remote_get(
+		'https://api.stripe.com/v1/checkout/sessions/' . rawurlencode( $session_id ),
+		array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $secret_key,
+				'Accept'        => 'application/json',
+			),
+			'timeout' => 15,
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		delete_transient( $lock_key ); // Let a refresh retry after a transient network failure.
+		return;
+	}
+
+	$session = json_decode( wp_remote_retrieve_body( $response ), true );
+	if ( ! is_array( $session ) || empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
+		return;
+	}
+
+	$email = '';
+	if ( ! empty( $session['customer_details']['email'] ) ) {
+		$email = sanitize_email( $session['customer_details']['email'] );
+	} elseif ( ! empty( $session['customer_email'] ) ) {
+		$email = sanitize_email( $session['customer_email'] );
+	}
+
+	if ( ! $email || ! is_email( $email ) ) {
+		return;
+	}
+
+	$amount    = isset( $session['amount_total'] ) && is_numeric( $session['amount_total'] ) ? floatval( $session['amount_total'] ) / 100 : 0;
+	$frequency = isset( $session['metadata']['frequency'] ) ? sanitize_text_field( $session['metadata']['frequency'] ) : 'one_time';
+	$name      = isset( $session['customer_details']['name'] ) ? sanitize_text_field( $session['customer_details']['name'] ) : '';
+
+	if ( 'subscription' !== ( $session['mode'] ?? '' ) && $amount > 0 && class_exists( 'NPMP_Donation_Manager' ) ) {
+		NPMP_Donation_Manager::get_instance()->log_donation(
+			array(
+				'email'          => $email,
+				'name'           => $name,
+				'amount'         => $amount,
+				'frequency'      => $frequency,
+				'gateway'        => 'stripe',
+				'transaction_id' => $session_id,
+			)
+		);
+	}
+
+	npmp_send_thank_you_email(
+		array(
+			'email'     => $email,
+			'name'      => $name,
+			'amount'    => $amount,
+			'frequency' => $frequency,
+			'date'      => date_i18n( get_option( 'date_format' ) ),
+		)
+	);
+
+	npmp_add_donor_to_membership( $email, $name );
+}
+add_action( 'template_redirect', 'npmp_maybe_finalize_stripe_donation' );
 
 /* ==============================================================
  * Helper Functions
  * ============================================================= */
+
+/**
+ * Resolve the configured Stripe secret key for the current mode.
+ *
+ * Single source of truth for the free plugin (the AJAX session creator and
+ * the success-return verifier both use it) instead of each call site reading
+ * the two options itself.
+ *
+ * @return string Empty string when unconfigured.
+ */
+function npmp_stripe_secret_key() {
+	$mode = get_option( 'npmp_stripe_mode', 'live' );
+	return 'test' === $mode
+		? get_option( 'npmp_stripe_test_secret_key', '' )
+		: get_option( 'npmp_stripe_live_secret_key', '' );
+}
+
+/**
+ * Debug-gated logger for the payment paths.
+ *
+ * These handlers are reachable by logged-out visitors, so unconditional
+ * error_log() calls let anyone grow the server log and seed it with chosen
+ * strings, and donor emails were being written to plaintext logs. Diagnostics
+ * now only run when WP_DEBUG is on, and callers no longer pass PII.
+ *
+ * @param string $message Log message (no emails, names, or amounts).
+ * @return void
+ */
+function npmp_payment_debug_log( $message ) {
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		error_log( 'NPMP payments: ' . $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+	}
+}
+
+/**
+ * Verify a PayPal order server-side before trusting a client-reported capture.
+ *
+ * The PayPal Smart Buttons flow captures in the browser and then reports the
+ * result to our AJAX logger. Without this check, anyone holding the public
+ * page nonce could report fake captures, creating donation records and
+ * triggering thank-you emails with no payment. When API credentials are
+ * configured we confirm the order is COMPLETED and covers the claimed amount.
+ *
+ * @param string $order_id PayPal order id from the client.
+ * @param float  $amount   Claimed donation amount.
+ * @return true|WP_Error True when verified. WP_Error when PayPal refuses or the order doesn't match.
+ */
+function npmp_paypal_verify_order( $order_id, $amount ) {
+	$mode      = get_option( 'npmp_paypal_mode', 'live' );
+	$client_id = 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' );
+	$secret    = 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_secret', '' ) : get_option( 'npmp_paypal_live_secret', '' );
+
+	if ( ! $client_id || ! $secret ) {
+		// No API secret on file: verification is impossible, keep legacy
+		// behavior rather than breaking existing installs. The settings page
+		// encourages adding the secret.
+		return true;
+	}
+
+	$order_id = preg_replace( '/[^A-Za-z0-9\-_]/', '', (string) $order_id );
+	if ( '' === $order_id ) {
+		return new WP_Error( 'npmp_paypal_no_order', __( 'Missing PayPal order reference.', 'nonprofit-manager' ) );
+	}
+
+	$base = 'sandbox' === $mode ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+
+	$token_response = wp_remote_post(
+		$base . '/v1/oauth2/token',
+		array(
+			'headers' => array(
+				'Authorization' => 'Basic ' . base64_encode( $client_id . ':' . $secret ),
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+			),
+			'body'    => 'grant_type=client_credentials',
+			'timeout' => 15,
+		)
+	);
+
+	if ( is_wp_error( $token_response ) ) {
+		return $token_response;
+	}
+
+	$token_body = json_decode( wp_remote_retrieve_body( $token_response ), true );
+	if ( empty( $token_body['access_token'] ) ) {
+		return new WP_Error( 'npmp_paypal_auth', __( 'Could not authenticate with PayPal to verify the donation.', 'nonprofit-manager' ) );
+	}
+
+	$order_response = wp_remote_get(
+		$base . '/v2/checkout/orders/' . rawurlencode( $order_id ),
+		array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $token_body['access_token'],
+				'Accept'        => 'application/json',
+			),
+			'timeout' => 15,
+		)
+	);
+
+	if ( is_wp_error( $order_response ) ) {
+		return $order_response;
+	}
+
+	$order = json_decode( wp_remote_retrieve_body( $order_response ), true );
+
+	if ( empty( $order['status'] ) || 'COMPLETED' !== $order['status'] ) {
+		return new WP_Error( 'npmp_paypal_not_completed', __( 'PayPal reports this donation as not completed.', 'nonprofit-manager' ) );
+	}
+
+	$paid = isset( $order['purchase_units'][0]['amount']['value'] ) ? (float) $order['purchase_units'][0]['amount']['value'] : 0;
+	if ( $paid + 0.001 < (float) $amount ) {
+		return new WP_Error( 'npmp_paypal_amount_mismatch', __( 'The PayPal payment does not match the reported amount.', 'nonprofit-manager' ) );
+	}
+
+	return true;
+}
+
+/**
+ * Resolve the page a donation form was submitted from, so Stripe can send
+ * the donor back there instead of the homepage. Only same-host URLs are
+ * accepted. Never trusts an off-site value.
+ *
+ * @param string $raw_url Client-supplied page URL.
+ * @return string Safe base URL for success/cancel redirects.
+ */
+function npmp_payment_return_base( $raw_url ) {
+	$fallback = home_url( '/' );
+	$raw_url  = esc_url_raw( (string) $raw_url );
+
+	if ( ! $raw_url ) {
+		return $fallback;
+	}
+
+	$home_host = wp_parse_url( home_url(), PHP_URL_HOST );
+	$url_host  = wp_parse_url( $raw_url, PHP_URL_HOST );
+
+	if ( ! $url_host || strtolower( (string) $url_host ) !== strtolower( (string) $home_host ) ) {
+		return $fallback;
+	}
+
+	// Strip any stale status args from a previous round trip.
+	return remove_query_arg( array( 'npmp_donation', 'npmp_session_id' ), $raw_url );
+}
 
 /**
  * Get donation form options

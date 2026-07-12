@@ -151,10 +151,20 @@ function npmp_contact_form_shortcode( $atts ) {
 	$banner = '';
 	if ( isset( $_GET['npmp_contact'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only status flag from our own PRG redirect.
 		$status = sanitize_key( wp_unslash( $_GET['npmp_contact'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$reason = isset( $_GET['npmp_contact_reason'] ) ? sanitize_key( wp_unslash( $_GET['npmp_contact_reason'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( 'success' === $status ) {
-			$banner = '<div class="npmp-form-banner npmp-status-success"><p>' . esc_html__( 'Thanks. Your message has been sent.', 'nonprofit-manager' ) . '</p></div>';
+			$banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html__( 'Thanks. Your message has been sent.', 'nonprofit-manager' ) . '</p></div>';
 		} elseif ( 'error' === $status ) {
-			$banner = '<div class="npmp-form-banner npmp-status-error"><p>' . esc_html__( 'Sorry, your message could not be sent. Please check the fields and try again.', 'nonprofit-manager' ) . '</p></div>';
+			// Tell the sender what actually went wrong instead of one
+			// generic failure line for every cause.
+			$messages = array(
+				'captcha' => __( 'Please complete the spam protection check and send your message again.', 'nonprofit-manager' ),
+				'email'   => __( 'Please enter a valid email address and try again.', 'nonprofit-manager' ),
+				'fields'  => __( 'Please fill in your name, email, and message, then try again.', 'nonprofit-manager' ),
+				'send'    => __( 'Your message could not be delivered. Please try again in a few minutes or email us directly.', 'nonprofit-manager' ),
+			);
+			$text   = isset( $messages[ $reason ] ) ? $messages[ $reason ] : __( 'Sorry, your message could not be sent. Please check the fields and try again.', 'nonprofit-manager' );
+			$banner = '<div class="npmp-form-banner npmp-status-error" role="alert"><p>' . esc_html( $text ) . '</p></div>';
 		}
 	}
 
@@ -170,7 +180,7 @@ function npmp_contact_form_shortcode( $atts ) {
 		$html .= '<p><label>' . esc_html__( 'Subject', 'nonprofit-manager' ) . '<br><input type="text" name="npmp_contact_subject"></label></p>';
 	}
 	$html .= '<p><label>' . esc_html__( 'Message', 'nonprofit-manager' ) . '<br><textarea name="npmp_contact_message" rows="5" required></textarea></label></p>';
-	$html .= '<p class="npmp-hp" aria-hidden="true"><label>' . esc_html__( 'Leave this field empty', 'nonprofit-manager' )
+	$html .= '<p class="npmp-hp" aria-hidden="true" style="position:absolute;left:-9999px;"><label>' . esc_html__( 'Leave this field empty', 'nonprofit-manager' )
 		. '<input type="text" name="npmp_contact_website" tabindex="-1" autocomplete="off"></label></p>';
 	if ( function_exists( 'npmp_captcha_render_widget' ) ) {
 		$html .= npmp_captcha_render_widget( 'contact_form' );
@@ -179,6 +189,8 @@ function npmp_contact_form_shortcode( $atts ) {
 	$html .= '<input type="hidden" name="action" value="npmp_contact_form">';
 	$html .= '<input type="hidden" name="npmp_contact_redirect" value="' . esc_url( $redirect_to ) . '">';
 	$html .= '<p><button type="submit">' . esc_html( $atts['button'] ) . '</button></p>';
+	// Disable the button after submit so a double click can't send two emails.
+	$html .= '<script>document.currentScript.closest("form").addEventListener("submit",function(){var b=this.querySelector("button[type=submit]");if(b){b.disabled=true;}});</script>';
 	$html .= '</form></div>';
 
 	return $html;
@@ -208,7 +220,7 @@ function npmp_contact_form_handle() {
 	}
 
 	if ( function_exists( 'npmp_captcha_verify' ) && ! npmp_captcha_verify( 'contact_form' ) ) {
-		wp_safe_redirect( add_query_arg( 'npmp_contact', 'error', $redirect ) );
+		wp_safe_redirect( add_query_arg( array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'captcha' ), $redirect ) );
 		exit;
 	}
 
@@ -217,8 +229,13 @@ function npmp_contact_form_handle() {
 	$subject = isset( $_POST['npmp_contact_subject'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_contact_subject'] ) ) : '';
 	$message = isset( $_POST['npmp_contact_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['npmp_contact_message'] ) ) : '';
 
+	if ( '' !== $name && '' !== $message && ! is_email( $email ) ) {
+		wp_safe_redirect( add_query_arg( array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'email' ), $redirect ) );
+		exit;
+	}
+
 	if ( '' === $name || ! is_email( $email ) || '' === $message ) {
-		wp_safe_redirect( add_query_arg( 'npmp_contact', 'error', $redirect ) );
+		wp_safe_redirect( add_query_arg( array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'fields' ), $redirect ) );
 		exit;
 	}
 
@@ -241,7 +258,10 @@ function npmp_contact_form_handle() {
 
 	$sent = wp_mail( $recipient, '[' . $site . '] ' . $headline, $body, $headers );
 
-	wp_safe_redirect( add_query_arg( 'npmp_contact', $sent ? 'success' : 'error', $redirect ) );
+	$result_args = $sent
+		? array( 'npmp_contact' => 'success' )
+		: array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'send' );
+	wp_safe_redirect( add_query_arg( $result_args, $redirect ) );
 	exit;
 }
 add_action( 'admin_post_npmp_contact_form', 'npmp_contact_form_handle' );

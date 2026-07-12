@@ -321,6 +321,17 @@ function npmp_newsletter_send_controls_html($post) {
 
     echo '</fieldset>';
 
+    /**
+     * Fires after the audience level checkboxes in the newsletter editor.
+     *
+     * Pro's segmentation feature renders its "Send to Segment" dropdown
+     * through this hook. The Pro listener existed but nothing fired the
+     * hook, so the segment picker never appeared in the editor.
+     *
+     * @param int $newsletter_id Newsletter post ID.
+     */
+    do_action('npmp_newsletter_recipient_options', $post->ID);
+
     echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr__('All subscribed members', 'nonprofit-manager') . '">' . esc_html($audience_label) . '</span></p>';
 
     $preview_link = get_preview_post_link($post);

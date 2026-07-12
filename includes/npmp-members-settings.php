@@ -393,6 +393,15 @@ function npmp_render_members_page() {
 				exit;
 			}
 
+			/**
+			 * Fires after a contact is saved from the admin edit screen.
+			 * Pro persists custom-field inputs here.
+			 *
+			 * @param string $entity_type Always 'member' on this screen.
+			 * @param int    $entity_id   Contact post ID.
+			 */
+			do_action( 'npmp_member_saved', 'member', (int) $result );
+
 			wp_safe_redirect(
 				add_query_arg(
 					array(
@@ -410,6 +419,11 @@ function npmp_render_members_page() {
 		if ( 'update' === $posted_action ) {
 			$member_id = isset( $_POST['member_id'] ) ? absint( wp_unslash( $_POST['member_id'] ) ) : 0;
 			$result    = $member_manager->update_member( $member_id, $data );
+
+			if ( ! is_wp_error( $result ) ) {
+				/** This action is documented above for the create branch. */
+				do_action( 'npmp_member_saved', 'member', $member_id );
+			}
 
 			if ( is_wp_error( $result ) ) {
 				wp_safe_redirect(
@@ -944,6 +958,18 @@ function npmp_render_member_detail_view( $context ) {
 	echo '</tr>';
 
 	echo '</table>';
+
+	/**
+	 * Fires inside the contact edit form, before the submit button.
+	 *
+	 * Pro's custom-fields feature renders its per-member inputs here. The
+	 * Pro side registered a listener long ago but nothing fired the hook,
+	 * so custom fields defined for members never appeared on this screen.
+	 *
+	 * @param string $entity_type Always 'member' on this screen.
+	 * @param int    $entity_id   Contact post ID (0 for a new contact).
+	 */
+	do_action( 'npmp_member_edit_fields', 'member', $is_new ? 0 : (int) $member->id );
 
 	submit_button( $is_new ? __( 'Create Contact', 'nonprofit-manager' ) : __( 'Save Contact', 'nonprofit-manager' ) );
 	echo '</form>';

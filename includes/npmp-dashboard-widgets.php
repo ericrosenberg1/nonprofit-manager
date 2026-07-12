@@ -167,9 +167,9 @@ function npmp_render_quick_add_member_widget() {
 	if ( isset( $_POST['npmp_quick_add_member_nonce'] ) &&
 	     wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_quick_add_member_nonce'] ) ), 'npmp_quick_add_member' ) ) {
 
-		$email = sanitize_email( $_POST['npmp_member_email'] ?? '' );
-		$name  = sanitize_text_field( $_POST['npmp_member_name'] ?? '' );
-		$level = sanitize_text_field( $_POST['npmp_member_level'] ?? '' );
+		$email = sanitize_email( wp_unslash( $_POST['npmp_member_email'] ?? '' ) );
+		$name  = sanitize_text_field( wp_unslash( $_POST['npmp_member_name'] ?? '' ) );
+		$level = sanitize_text_field( wp_unslash( $_POST['npmp_member_level'] ?? '' ) );
 
 		if ( ! $email ) {
 			echo '<div class="notice notice-error"><p>' . esc_html__( 'Email is required.', 'nonprofit-manager' ) . '</p></div>';
@@ -257,9 +257,9 @@ function npmp_render_quick_add_event_widget() {
 	if ( isset( $_POST['npmp_quick_add_event_nonce'] ) &&
 	     wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_quick_add_event_nonce'] ) ), 'npmp_quick_add_event' ) ) {
 
-		$title    = sanitize_text_field( $_POST['npmp_event_title'] ?? '' );
-		$datetime = sanitize_text_field( $_POST['npmp_event_datetime'] ?? '' );
-		$location = sanitize_text_field( $_POST['npmp_event_location'] ?? '' );
+		$title    = sanitize_text_field( wp_unslash( $_POST['npmp_event_title'] ?? '' ) );
+		$datetime = sanitize_text_field( wp_unslash( $_POST['npmp_event_datetime'] ?? '' ) );
+		$location = sanitize_text_field( wp_unslash( $_POST['npmp_event_location'] ?? '' ) );
 
 		if ( ! $title ) {
 			echo '<div class="notice notice-error"><p>' . esc_html__( 'Event title is required.', 'nonprofit-manager' ) . '</p></div>';
@@ -416,6 +416,12 @@ function npmp_get_ytd_donation_total() {
 	$query = new WP_Query( $args );
 	$total = 0.0;
 
+	// One meta-cache prime instead of one query per donation. This runs on
+	// every wp-admin Dashboard load.
+	if ( $query->posts ) {
+		update_meta_cache( 'post', $query->posts );
+	}
+
 	foreach ( $query->posts as $post_id ) {
 		$amount = (float) get_post_meta( $post_id, NPMP_Donation_Manager::META_AMOUNT, true );
 		$total += $amount;
@@ -452,6 +458,10 @@ function npmp_get_annual_recurring_total() {
 
 	$query = new WP_Query( $args );
 	$total = 0.0;
+
+	if ( $query->posts ) {
+		update_meta_cache( 'post', $query->posts );
+	}
 
 	foreach ( $query->posts as $post_id ) {
 		$amount    = (float) get_post_meta( $post_id, NPMP_Donation_Manager::META_AMOUNT, true );
