@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 2026.07.3
+Stable tag: 2026.07.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -117,6 +117,13 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.07.4 =
+* Fixed: Turning on "Force From Address" no longer rewrites the From address on mail sent by other plugins or by WordPress itself (password resets, new-user notifications, and so on). It now only affects mail this plugin sends.
+* Improved: PayPal donations now keep a full server-side verification record for every capture, including ones where the payment couldn't be verified, so you have something to check a donor's payment against if a record ever looks off.
+* Improved: The weekly subscriber digest now sends in small batches in the background instead of mailing your whole list in one run, so a large subscriber list can't cause it to stall out partway through.
+* Improved: Large CSV and XLSX member imports use far less memory during upload preview and processing. A 100,000-row file that previously needed around 40MB of memory just to preview now needs about 2MB.
+* Improved: Newsletter open and click tracking now writes to dedicated database tables instead of creating a post for every open and click, so tracking a growing list no longer bloats your site's database over time.
 
 = 2026.07.3 =
 * Fixed: Choosing a recurring frequency (weekly, monthly, quarterly, annual) on the Stripe donation form now actually creates a recurring Stripe subscription. It previously charged a single one-time payment no matter which frequency was selected.
@@ -242,6 +249,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.07.4 =
+Recommended update. Fixes "Force From Address" incorrectly rewriting mail from other plugins, batches the weekly digest so large lists can't stall it, cuts memory use on large CSV/XLSX imports, and moves newsletter tracking off wp_posts onto dedicated tables.
 
 = 2026.07.3 =
 Recommended update. Fixes recurring Stripe donations (previously charged once instead of on a schedule), adds donor confirmation messages and emails, stops abandoned checkouts from being logged as donations, and closes a few security and performance gaps.

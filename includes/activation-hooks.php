@@ -26,6 +26,8 @@ function npmp_run_plugin_activation_tasks() {
 	npmp_create_newsletter_queue_table();
 	npmp_create_newsletter_opens_table();
 	npmp_create_newsletter_clicks_table();
+	npmp_create_payment_log_table();
+	npmp_create_digest_queue_table();
 	npmp_initialize_default_newsletter_settings();
 	npmp_maybe_create_unsubscribe_page();
 	npmp_schedule_newsletter_cron();
@@ -138,6 +140,152 @@ function npmp_maybe_migrate_legacy_donations() {
 	update_option( 'npmp_donations_migrated_to_cpt', 1 );
 }
 add_action( 'plugins_loaded', 'npmp_maybe_migrate_legacy_donations', 40 );
+
+/**
+ * Migrate newsletter open/click tracking events off wp_posts and into the
+ * dedicated wp_npmp_newsletter_opens / wp_npmp_newsletter_clicks tables (see
+ * NPMP_Newsletter_Tracker, which now writes new events straight to those
+ * tables instead of creating a post per open/click).
+ *
+ * Processes a bounded batch per plugins_loaded call rather than loading
+ * every historical event at once. A site that's been sending newsletters
+ * for a while can have tens of thousands of these posts, and migrating them
+ * in a single unbounded query would risk exactly the kind of timeout/memory
+ * problem this whole tracking-storage fix is about. Tracks a cursor (last
+ * migrated post ID) in an option and re-runs on the next admin page load
+ * until a pass finds nothing left, then marks itself done.
+ *
+ * @return void
+ */
+function npmp_maybe_migrate_newsletter_events() {
+	if ( get_option( 'npmp_newsletter_events_migrated', false ) ) {
+		return;
+	}
+
+	if ( ! class_exists( 'NPMP_Newsletter_Manager' ) ) {
+		return;
+	}
+
+	// Guarantee the destination tables exist before migrating into them,
+	// regardless of plugins_loaded hook registration order (dbDelta is
+	// idempotent, so this is cheap on every call after the first).
+	npmp_create_newsletter_opens_table();
+	npmp_create_newsletter_clicks_table();
+
+	global $wpdb;
+
+	$batch_size = 500;
+	$cursor     = (int) get_option( 'npmp_newsletter_events_migration_cursor', 0 );
+
+	// Pivot postmeta into one row per event in a single query, far cheaper
+	// than a WP_Query + get_post_meta() per post for a bulk one-time job.
+	$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration, not a per-request query.
+		$wpdb->prepare(
+			"SELECT p.ID,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS newsletter_id,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS user_id,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS event_type,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS event_url,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS event_time
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+			 WHERE p.post_type = %s AND p.ID > %d
+			 GROUP BY p.ID
+			 ORDER BY p.ID ASC
+			 LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts/$wpdb->postmeta are the table-name properties, not user input.
+			NPMP_Newsletter_Manager::EVENT_NEWSLETTER_META,
+			NPMP_Newsletter_Manager::EVENT_USER_META,
+			NPMP_Newsletter_Manager::EVENT_TYPE_META,
+			NPMP_Newsletter_Manager::EVENT_URL_META,
+			NPMP_Newsletter_Manager::EVENT_TIME_META,
+			NPMP_Newsletter_Manager::EVENT_POST_TYPE,
+			$cursor,
+			$batch_size
+		)
+	);
+
+	if ( empty( $rows ) ) {
+		delete_option( 'npmp_newsletter_events_migration_cursor' );
+		update_option( 'npmp_newsletter_events_migrated', 1 );
+		return;
+	}
+
+	$opens_table  = $wpdb->prefix . 'npmp_newsletter_opens';
+	$clicks_table = $wpdb->prefix . 'npmp_newsletter_clicks';
+	$migrated_ids = array();
+
+	foreach ( $rows as $row ) {
+		$newsletter_id = absint( $row->newsletter_id );
+		$user_id       = absint( $row->user_id );
+		$event_time    = $row->event_time ? $row->event_time : current_time( 'mysql' );
+
+		if ( ! $newsletter_id || ! $user_id ) {
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			continue;
+		}
+
+		if ( NPMP_Newsletter_Manager::ACTION_OPEN === $row->event_type ) {
+			$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration; IGNORE relies on the destination table's unique key for dedup.
+				$wpdb->prepare(
+					"INSERT IGNORE INTO {$opens_table} (user_id, newsletter_id, opened_at) VALUES (%d, %d, %s)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+					$user_id,
+					$newsletter_id,
+					$event_time
+				)
+			);
+			// false means a real DB error (e.g. table genuinely still
+			// missing): leave the post in place so the next batch retries
+			// it, instead of deleting source data an insert never captured.
+			// 0 (IGNORE'd as an existing duplicate) still counts as success.
+			if ( false !== $result ) {
+				$migrated_ids[] = (int) $row->ID;
+			}
+		} elseif ( NPMP_Newsletter_Manager::ACTION_CLICK === $row->event_type ) {
+			$result = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration.
+				$clicks_table,
+				array(
+					'newsletter_id' => $newsletter_id,
+					'user_id'       => $user_id,
+					'url'           => esc_url_raw( (string) $row->event_url ),
+					'clicked_at'    => $event_time,
+				),
+				array( '%d', '%d', '%s', '%s' )
+			);
+			if ( false !== $result ) {
+				$migrated_ids[] = (int) $row->ID;
+			}
+		} else {
+			// Unrecognized event_type: leave the post alone rather than
+			// silently drop data an unexpected future event type might have
+			// carried.
+			continue;
+		}
+	}
+
+	if ( ! empty( $migrated_ids ) ) {
+		$id_list = implode( ',', array_map( 'absint', $migrated_ids ) );
+		$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
+		$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
+
+		// Raw SQL deletes above don't go through wp_delete_post(), so they
+		// never clear WordPress's post object cache. Harmless on a default
+		// (non-persistent, per-request) cache, but a site running Redis or
+		// Memcached would keep serving a deleted post's cached copy from
+		// get_post() until that cache entry's own TTL expired.
+		foreach ( $migrated_ids as $migrated_id ) {
+			clean_post_cache( $migrated_id );
+		}
+	}
+
+	$last_id = (int) $rows[ count( $rows ) - 1 ]->ID;
+	update_option( 'npmp_newsletter_events_migration_cursor', $last_id );
+
+	if ( count( $rows ) < $batch_size ) {
+		delete_option( 'npmp_newsletter_events_migration_cursor' );
+		update_option( 'npmp_newsletter_events_migrated', 1 );
+	}
+}
+add_action( 'plugins_loaded', 'npmp_maybe_migrate_newsletter_events', 40 );
 
 /**
  * Create (or update) the members table.
@@ -316,6 +464,127 @@ function npmp_create_newsletter_clicks_table() {
 }
 
 /**
+ * Ensure the newsletter opens/clicks tracking tables exist on sites that
+ * activated the plugin before these tables were introduced. Belt-and-braces
+ * alongside the activation-time creation above, same reasoning as the other
+ * npmp_maybe_create_*_table() functions in this file.
+ *
+ * @return void
+ */
+function npmp_maybe_create_newsletter_tracking_tables() {
+	if ( get_option( 'npmp_newsletter_tracking_tables_created', false ) ) {
+		return;
+	}
+
+	npmp_create_newsletter_opens_table();
+	npmp_create_newsletter_clicks_table();
+	update_option( 'npmp_newsletter_tracking_tables_created', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_create_newsletter_tracking_tables', 40 );
+
+/**
+ * Create (or update) the gateway payment-verification audit log table.
+ *
+ * Stores the server-side verification result for each gateway capture
+ * (PayPal today): capture id, verified status, and the raw API response,
+ * so a successful donation leaves an audit trail instead of the
+ * verification response being checked once and discarded. See
+ * NPMP_Donation_Manager::log_payment_verification().
+ *
+ * @return void
+ */
+function npmp_create_payment_log_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_payment_log';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		donation_id BIGINT UNSIGNED NOT NULL,
+		gateway VARCHAR(50) NOT NULL,
+		gateway_order_id VARCHAR(100) DEFAULT '',
+		gateway_capture_id VARCHAR(100) DEFAULT '',
+		status VARCHAR(50) DEFAULT '',
+		verified TINYINT(1) NOT NULL DEFAULT 0,
+		raw_response LONGTEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		KEY donation_id (donation_id),
+		KEY gateway_order (gateway, gateway_order_id)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Ensure the payment log table exists on sites that activated the plugin
+ * before this table was introduced (activation hooks only run on a fresh
+ * activation, not on every version's already-active install).
+ *
+ * @return void
+ */
+function npmp_maybe_create_payment_log_table() {
+	if ( get_option( 'npmp_payment_log_table_created', false ) ) {
+		return;
+	}
+
+	npmp_create_payment_log_table();
+	update_option( 'npmp_payment_log_table_created', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_create_payment_log_table', 40 );
+
+/**
+ * Create (or update) the weekly digest send queue table.
+ *
+ * The digest used to build its recipient list and mail everyone inline
+ * inside a single wp-cron run, so a large subscriber list risked hitting
+ * max_execution_time partway through with no way to resume. This table
+ * lets npmp_process_weekly_digest() (includes/npmp-subscription-preferences.php)
+ * enqueue recipients instead of mailing them directly, and a throttled
+ * per-minute cron (npmp_process_digest_queue) drains it in small batches,
+ * the same pattern the newsletter queue already uses.
+ *
+ * @return void
+ */
+function npmp_create_digest_queue_table() {
+	global $wpdb;
+
+	$table   = $wpdb->prefix . 'npmp_digest_queue';
+	$charset = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE {$table} (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		email VARCHAR(255) NOT NULL,
+		status ENUM('pending','sent','failed') DEFAULT 'pending',
+		queued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		sent_at DATETIME NULL,
+		PRIMARY KEY (id),
+		KEY status_queued (status, queued_at)
+	) {$charset};";
+
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta( $sql );
+}
+
+/**
+ * Ensure the digest queue table exists on sites that activated the plugin
+ * before this table was introduced.
+ *
+ * @return void
+ */
+function npmp_maybe_create_digest_queue_table() {
+	if ( get_option( 'npmp_digest_queue_table_created', false ) ) {
+		return;
+	}
+
+	npmp_create_digest_queue_table();
+	update_option( 'npmp_digest_queue_table_created', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_create_digest_queue_table', 40 );
+
+/**
  * Seed default newsletter-related options.
  *
  * @return void
@@ -432,6 +701,7 @@ function npmp_schedule_newsletter_cron() {
 function npmp_clear_newsletter_cron() {
 	wp_clear_scheduled_hook( 'npmp_process_queued_newsletters' );
 	wp_clear_scheduled_hook( 'npmp_send_weekly_digest' );
+	wp_clear_scheduled_hook( 'npmp_process_digest_queue' );
 	// Pending async notification blasts carry per-post args, so clear every
 	// instance regardless of args.
 	if ( function_exists( 'wp_unschedule_hook' ) ) {

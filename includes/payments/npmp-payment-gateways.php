@@ -775,8 +775,9 @@ function npmp_ajax_log_donation() {
 	// This endpoint is reachable by logged-out visitors holding only the
 	// public page nonce, so a client-reported PayPal capture is verified
 	// against PayPal's own API before anything is recorded or emailed.
+	$paypal_order_data = null;
 	if ( 'paypal_api' === $gateway ) {
-		$verified = npmp_paypal_verify_order( $transaction_id, $amount );
+		$verified = npmp_paypal_verify_order( $transaction_id, $amount, $paypal_order_data );
 		if ( is_wp_error( $verified ) ) {
 			npmp_payment_debug_log( 'donation log rejected: ' . $verified->get_error_code() );
 			wp_send_json_error( array( 'message' => __( 'We could not verify this payment with PayPal. If you completed the donation, please contact us.', 'nonprofit-manager' ) ) );
@@ -785,7 +786,8 @@ function npmp_ajax_log_donation() {
 
 	try {
 		// Log donation
-		$donation_id = NPMP_Donation_Manager::get_instance()->log_donation(
+		$donation_manager = NPMP_Donation_Manager::get_instance();
+		$donation_id       = $donation_manager->log_donation(
 			array(
 				'email'          => $email,
 				'name'           => $name,
@@ -799,6 +801,34 @@ function npmp_ajax_log_donation() {
 		if ( is_wp_error( $donation_id ) || false === $donation_id ) {
 			npmp_payment_debug_log( 'donation insert failed' );
 			wp_send_json_error( array( 'message' => __( 'Failed to record donation. Please contact support.', 'nonprofit-manager' ) ) );
+		}
+
+		// Persist the gateway verification result: an audit trail for
+		// reconciliation and disputes/chargebacks, previously discarded
+		// entirely once the server-side check passed. See
+		// NPMP_Donation_Manager::log_payment_verification().
+		if ( 'paypal_api' === $gateway ) {
+			$capture_id = $paypal_order_data['purchase_units'][0]['payments']['captures'][0]['id'] ?? '';
+
+			$donation_manager->log_payment_verification(
+				array(
+					'donation_id'        => $donation_id,
+					'gateway'            => $gateway,
+					'gateway_order_id'   => $transaction_id,
+					'gateway_capture_id' => $capture_id,
+					'status'             => $paypal_order_data['status'] ?? 'unverified',
+					'verified'           => null !== $paypal_order_data,
+					'raw_response'       => $paypal_order_data,
+				)
+			);
+
+			npmp_payment_debug_log(
+				sprintf(
+					'donation %d captured via paypal_api, verified=%s',
+					(int) $donation_id,
+					null !== $paypal_order_data ? 'yes' : 'no (no API credentials configured)'
+				)
+			);
 		}
 
 		// Send thank you email (Pro only)
@@ -1093,11 +1123,16 @@ function npmp_payment_debug_log( $message ) {
  * triggering thank-you emails with no payment. When API credentials are
  * configured we confirm the order is COMPLETED and covers the claimed amount.
  *
- * @param string $order_id PayPal order id from the client.
- * @param float  $amount   Claimed donation amount.
+ * @param string     $order_id   PayPal order id from the client.
+ * @param float      $amount     Claimed donation amount.
+ * @param array|null $order_data Output. Set to PayPal's decoded order response when a
+ *                                real API check ran and passed; left null when verification
+ *                                was skipped (no API credentials) or failed.
  * @return true|WP_Error True when verified. WP_Error when PayPal refuses or the order doesn't match.
  */
-function npmp_paypal_verify_order( $order_id, $amount ) {
+function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
+	$order_data = null;
+
 	$mode      = get_option( 'npmp_paypal_mode', 'live' );
 	$client_id = 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' );
 	$secret    = 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_secret', '' ) : get_option( 'npmp_paypal_live_secret', '' );
@@ -1105,7 +1140,8 @@ function npmp_paypal_verify_order( $order_id, $amount ) {
 	if ( ! $client_id || ! $secret ) {
 		// No API secret on file: verification is impossible, keep legacy
 		// behavior rather than breaking existing installs. The settings page
-		// encourages adding the secret.
+		// encourages adding the secret. $order_data stays null so the caller
+		// can tell this donation was never actually checked against PayPal.
 		return true;
 	}
 
@@ -1162,6 +1198,8 @@ function npmp_paypal_verify_order( $order_id, $amount ) {
 	if ( $paid + 0.001 < (float) $amount ) {
 		return new WP_Error( 'npmp_paypal_amount_mismatch', __( 'The PayPal payment does not match the reported amount.', 'nonprofit-manager' ) );
 	}
+
+	$order_data = $order;
 
 	return true;
 }
@@ -1313,7 +1351,7 @@ function npmp_send_thank_you_email( $donation_data ) {
 
 	// Send email
 	$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
-	return wp_mail( $donor_email, $subject, $message, $headers );
+	return npmp_send_mail( $donor_email, $subject, $message, $headers );
 }
 
 /**

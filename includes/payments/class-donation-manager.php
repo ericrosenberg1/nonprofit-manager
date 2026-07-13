@@ -382,4 +382,53 @@ class NPMP_Donation_Manager {
 			'last'  => $last_at,
 		);
 	}
+
+	/**
+	 * Persist a gateway payment-verification record for a donation.
+	 *
+	 * Server-side verification (see npmp_paypal_verify_order()) fetches the
+	 * gateway's own record of the transaction before a donation is trusted,
+	 * but until now that response was discarded once the check passed. This
+	 * keeps it (capture id, verified status, and the raw gateway response)
+	 * for later reconciliation ("the donor says they paid but there's no
+	 * record") and dispute/chargeback handling.
+	 *
+	 * @param array $data {
+	 *     @type int    $donation_id        Donation post ID this verification belongs to.
+	 *     @type string $gateway            Gateway slug, e.g. 'paypal_api'.
+	 *     @type string $gateway_order_id   Gateway order/session id as reported by the client.
+	 *     @type string $gateway_capture_id Gateway capture id, when the API response includes one.
+	 *     @type string $status             Gateway-reported status (e.g. 'COMPLETED'), or 'unverified'.
+	 *     @type bool   $verified           Whether server-side verification actually ran and passed.
+	 *     @type array|null $raw_response   Full decoded gateway API response, when verification ran.
+	 * }
+	 * @return int|false Insert ID on success, false on failure.
+	 */
+	public function log_payment_verification( $data ) {
+		global $wpdb;
+
+		$donation_id = absint( $data['donation_id'] ?? 0 );
+		if ( ! $donation_id ) {
+			return false;
+		}
+
+		$raw_response = $data['raw_response'] ?? null;
+
+		$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated audit table, no caching layer needed for a write.
+			$wpdb->prefix . 'npmp_payment_log',
+			array(
+				'donation_id'        => $donation_id,
+				'gateway'            => sanitize_text_field( $data['gateway'] ?? '' ),
+				'gateway_order_id'   => sanitize_text_field( $data['gateway_order_id'] ?? '' ),
+				'gateway_capture_id' => sanitize_text_field( $data['gateway_capture_id'] ?? '' ),
+				'status'             => sanitize_text_field( $data['status'] ?? '' ),
+				'verified'           => empty( $data['verified'] ) ? 0 : 1,
+				'raw_response'       => is_array( $raw_response ) ? wp_json_encode( $raw_response ) : null,
+				'created_at'         => current_time( 'mysql' ),
+			),
+			array( '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s' )
+		);
+
+		return $inserted ? (int) $wpdb->insert_id : false;
+	}
 }

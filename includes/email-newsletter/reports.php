@@ -67,27 +67,29 @@ class NPMP_Newsletter_Stats {
         );
     }
     
-    // Get opens count for a newsletter
+    // Get opens count for a newsletter. Backed by the dedicated
+    // wp_npmp_newsletter_opens table (see NPMP_Newsletter_Tracker::track_open())
+    // instead of a WP_Query/meta_query scan over wp_posts.
     public function get_opens_count($newsletter_id) {
         $cache_key = 'npmp_opens_' . $newsletter_id;
-        return $this->get_cached_count(
-            $cache_key,
-            array(
-                'post_type'   => NPMP_Newsletter_Manager::EVENT_POST_TYPE,
-                'post_status' => 'publish',
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Reporting filters newsletter events via metadata.
-				'meta_query'  => array(
-                    array(
-                        'key'   => NPMP_Newsletter_Manager::EVENT_NEWSLETTER_META,
-                        'value' => absint( $newsletter_id ),
-                    ),
-                    array(
-                        'key'   => NPMP_Newsletter_Manager::EVENT_TYPE_META,
-                        'value' => NPMP_Newsletter_Manager::ACTION_OPEN,
-                    ),
-                ),
+        $cached    = wp_cache_get( $cache_key, 'npmp_newsletters' );
+
+        if ( false !== $cached ) {
+            return (int) $cached;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_newsletter_opens';
+        $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated tracking table.
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+                absint( $newsletter_id )
             )
         );
+
+        wp_cache_set( $cache_key, $count, 'npmp_newsletters', HOUR_IN_SECONDS );
+
+        return $count;
     }
     
     // Get failure count for a newsletter

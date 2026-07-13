@@ -83,12 +83,19 @@ function npmp_email_apply_transport( $phpmailer ) {
 add_action( 'phpmailer_init', 'npmp_email_apply_transport' );
 
 /**
- * Enforce From email address if configured.
+ * Enforce From email address if configured. Only rewrites mail this plugin
+ * sends via npmp_send_mail() (see includes/email/helpers.php). A plain
+ * wp_mail() call from core WordPress or another plugin is left alone, even
+ * when force_from is on.
  *
  * @param string $value Original email.
  * @return string
  */
 function npmp_email_filter_from_address( $value ) {
+	if ( ! npmp_is_internal_mail_send() ) {
+		return $value;
+	}
+
 	$settings = npmp_email_get_settings();
 
 	if ( empty( $settings['force_from'] ) ) {
@@ -101,12 +108,17 @@ function npmp_email_filter_from_address( $value ) {
 add_filter( 'wp_mail_from', 'npmp_email_filter_from_address' );
 
 /**
- * Enforce From name if configured.
+ * Enforce From name if configured. Same internal-send scoping as
+ * npmp_email_filter_from_address() above.
  *
  * @param string $value Original name.
  * @return string
  */
 function npmp_email_filter_from_name( $value ) {
+	if ( ! npmp_is_internal_mail_send() ) {
+		return $value;
+	}
+
 	$settings = npmp_email_get_settings();
 
 	if ( empty( $settings['force_from'] ) ) {

@@ -287,7 +287,7 @@ function npmp_render_email_settings_page() {
 			);
 
 			$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-			$success = wp_mail( $to, $subject, nl2br( $message ), $headers );
+			$success = npmp_send_mail( $to, $subject, nl2br( $message ), $headers );
 
 			if ( $success ) {
 				$test_result = '<div class="notice notice-success"><p>' . esc_html__( 'Test email sent successfully!', 'nonprofit-manager' ) . '</p></div>';

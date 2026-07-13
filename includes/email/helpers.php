@@ -98,6 +98,54 @@ function npmp_email_update_settings( $settings ) {
 }
 
 /**
+ * Tracks whether execution is currently inside a Nonprofit Manager-originated
+ * wp_mail() call. Backed by a counter rather than a bool so a reentrant
+ * wp_mail() call (e.g. a hook fired during a send that itself sends mail)
+ * doesn't clear the flag early while the outer send is still in progress.
+ *
+ * @param int $delta Amount to adjust the depth by (0 to just read it).
+ * @return int Current depth.
+ */
+function npmp_mail_send_depth( $delta = 0 ) {
+	static $depth = 0;
+	$depth += $delta;
+	return $depth;
+}
+
+/**
+ * Whether the current call stack is inside an npmp_send_mail() call.
+ * npmp_email_filter_from_address()/_name() in smtp.php use this so the
+ * force_from setting only rewrites mail this plugin sends, not every
+ * wp_mail() call on the site (core notifications, other plugins, etc).
+ *
+ * @return bool
+ */
+function npmp_is_internal_mail_send() {
+	return npmp_mail_send_depth( 0 ) > 0;
+}
+
+/**
+ * Send mail as Nonprofit Manager. Use this instead of calling wp_mail()
+ * directly anywhere in the plugin, so the force_from setting (see
+ * includes/email/smtp.php) only ever rewrites the plugin's own mail.
+ *
+ * @param string|array $to          Recipient(s).
+ * @param string       $subject     Subject line.
+ * @param string       $message     Message body.
+ * @param string|array $headers     Optional headers.
+ * @param string|array $attachments Optional attachments.
+ * @return bool Whether the email was sent successfully.
+ */
+function npmp_send_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
+	npmp_mail_send_depth( 1 );
+	try {
+		return wp_mail( $to, $subject, $message, $headers, $attachments );
+	} finally {
+		npmp_mail_send_depth( -1 );
+	}
+}
+
+/**
  * Attempt to migrate legacy option values.
  *
  * @param array &$settings Current settings array (passed by reference).

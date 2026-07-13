@@ -114,15 +114,34 @@ class NPMP_Import_Manager {
 	 * @return array Stats array.
 	 */
 	public function import_csv( $file_path, $mapping, $options = array() ) {
-		$rows = $this->parse_csv( $file_path );
-		if ( is_wp_error( $rows ) ) {
-			return $rows;
+		$parsed = $this->parse_csv( $file_path, $this->import_parse_keep_limit() );
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
 		}
+		$rows = $parsed['rows'];
 
 		// First row is headers — skip it.
 		array_shift( $rows );
 
 		return $this->process_rows( $rows, $mapping, $options );
+	}
+
+	/**
+	 * How many rows parse_csv()/parse_xlsx() should keep in memory for a real
+	 * import, given the current row cap.
+	 *
+	 * Header + cap + 1 extra data row: enough for process_rows() to both
+	 * perform the import and still correctly detect "there were more rows
+	 * than the cap" for the capped-import message, without ever holding a
+	 * possibly enormous uploaded file's full row set in memory just to
+	 * discard everything past the cap. Null (no limit) when the cap itself
+	 * is unbounded, since every row will be imported anyway.
+	 *
+	 * @return int|null
+	 */
+	private function import_parse_keep_limit() {
+		$max_rows = function_exists( 'npmp_import_max_rows' ) ? npmp_import_max_rows() : PHP_INT_MAX;
+		return ( PHP_INT_MAX === $max_rows ) ? null : ( $max_rows + 2 );
 	}
 
 	/**
@@ -134,10 +153,11 @@ class NPMP_Import_Manager {
 	 * @return array|WP_Error Stats array.
 	 */
 	public function import_xlsx( $file_path, $mapping, $options = array() ) {
-		$rows = $this->parse_xlsx( $file_path );
-		if ( is_wp_error( $rows ) ) {
-			return $rows;
+		$parsed = $this->parse_xlsx( $file_path, $this->import_parse_keep_limit() );
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
 		}
+		$rows = $parsed['rows'];
 
 		// First row is headers — skip it.
 		array_shift( $rows );
@@ -185,12 +205,13 @@ class NPMP_Import_Manager {
 		$tmp = wp_tempnam( 'npmp_gsheet' );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		file_put_contents( $tmp, $body );
-		$rows = $this->parse_csv( $tmp );
+		$parsed = $this->parse_csv( $tmp, $this->import_parse_keep_limit() );
 		wp_delete_file( $tmp );
 
-		if ( is_wp_error( $rows ) ) {
-			return $rows;
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
 		}
+		$rows = $parsed['rows'];
 
 		array_shift( $rows );
 
@@ -450,10 +471,19 @@ class NPMP_Import_Manager {
 	 * @return array|WP_Error { headers: [], rows: [] }
 	 */
 	public function get_file_preview( $file_path, $type = 'csv', $limit = 5 ) {
-		$rows = 'xlsx' === $type ? $this->parse_xlsx( $file_path ) : $this->parse_csv( $file_path );
-		if ( is_wp_error( $rows ) ) {
-			return $rows;
+		// A preview only ever needs the header plus $limit rows to display.
+		// No reason to parse (and hold in memory) a possibly huge uploaded
+		// file's entire row set just to show 5 of them. parse_csv()/parse_xlsx()
+		// still report the true total row count even though only a handful
+		// are kept, so the "N rows total" badge stays accurate.
+		$keep_limit = $limit + 1;
+		$parsed     = 'xlsx' === $type ? $this->parse_xlsx( $file_path, $keep_limit ) : $this->parse_csv( $file_path, $keep_limit );
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
 		}
+
+		$rows  = $parsed['rows'];
+		$total = $parsed['total'];
 
 		$headers      = ! empty( $rows ) ? array_shift( $rows ) : array();
 		$preview_rows = array_slice( $rows, 0, $limit );
@@ -461,7 +491,7 @@ class NPMP_Import_Manager {
 		return array(
 			'headers'     => $headers,
 			'rows'        => $preview_rows,
-			'total_rows'  => count( $rows ),
+			'total_rows'  => max( 0, $total - 1 ), // Exclude the header row, matching the previous count( $rows )-after-shift behavior.
 			'auto_map'    => $this->detect_columns( $headers ),
 		);
 	}
@@ -667,17 +697,23 @@ class NPMP_Import_Manager {
 	// ------------------------------------------------------------------
 
 	/**
-	 * Parse a CSV file into an array of rows.
+	 * Parse a CSV file into rows, streaming line by line.
 	 *
-	 * @param string $file_path Absolute path.
-	 * @return array|WP_Error
+	 * @param string   $file_path  Absolute path.
+	 * @param int|null $keep_limit Max rows to hold in memory (including the
+	 *                             header row). Rows beyond this are still
+	 *                             counted (so the caller gets an accurate
+	 *                             total) but their data is discarded instead
+	 *                             of accumulated. Null keeps every row.
+	 * @return array|WP_Error { rows: array, total: int } on success.
 	 */
-	private function parse_csv( $file_path ) {
+	private function parse_csv( $file_path, $keep_limit = null ) {
 		if ( ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
 			return new WP_Error( 'npmp_csv_read', __( 'Cannot read the uploaded CSV file.', 'nonprofit-manager' ) );
 		}
 
-		$rows   = array();
+		$rows  = array();
+		$total = 0;
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$handle = fopen( $file_path, 'r' );
 		if ( ! $handle ) {
@@ -686,16 +722,22 @@ class NPMP_Import_Manager {
 
 		// phpcs:ignore WordPress.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
-			$rows[] = array_map( 'trim', $row );
+			$total++;
+			if ( null === $keep_limit || count( $rows ) < $keep_limit ) {
+				$rows[] = array_map( 'trim', $row );
+			}
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $handle );
 
-		if ( empty( $rows ) ) {
+		if ( 0 === $total ) {
 			return new WP_Error( 'npmp_csv_empty', __( 'The CSV file is empty.', 'nonprofit-manager' ) );
 		}
 
-		return $rows;
+		return array(
+			'rows'  => $rows,
+			'total' => $total,
+		);
 	}
 
 	/**
@@ -705,10 +747,22 @@ class NPMP_Import_Manager {
 	 *   xl/sharedStrings.xml — string table
 	 *   xl/worksheets/sheet1.xml — first sheet data
 	 *
-	 * @param string $file_path Absolute path.
-	 * @return array|WP_Error Array of rows.
+	 * Note on memory: $keep_limit bounds the PHP row array built below and
+	 * the cell-processing work, but sharedStrings.xml and sheet1.xml are
+	 * still loaded into a SimpleXMLElement tree in full regardless of
+	 * $keep_limit: any kept row's cells can reference any shared string, so
+	 * that table can't be safely truncated, and simplexml has no partial-read
+	 * mode. A true fix for very large XLSX files would need to replace
+	 * simplexml with XMLReader-based streaming; this keeps the existing
+	 * (working, well-tested) parsing logic and only bounds the second copy
+	 * of the data.
+	 *
+	 * @param string   $file_path  Absolute path.
+	 * @param int|null $keep_limit Max rows to build (including the header
+	 *                             row). Null keeps every row.
+	 * @return array|WP_Error { rows: array, total: int } on success.
 	 */
-	private function parse_xlsx( $file_path ) {
+	private function parse_xlsx( $file_path, $keep_limit = null ) {
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			return new WP_Error( 'npmp_xlsx_zip', __( 'ZipArchive PHP extension is required for XLSX imports.', 'nonprofit-manager' ) );
 		}
@@ -754,12 +808,21 @@ class NPMP_Import_Manager {
 			return new WP_Error( 'npmp_xlsx_parse', __( 'Failed to parse XLSX worksheet XML.', 'nonprofit-manager' ) );
 		}
 
-		$rows = array();
 		if ( ! isset( $sheet->sheetData->row ) ) {
 			return new WP_Error( 'npmp_xlsx_empty', __( 'The XLSX file contains no data.', 'nonprofit-manager' ) );
 		}
 
+		// count() on the already-loaded SimpleXMLElement is effectively free,
+		// so the true total is available even when $keep_limit stops row
+		// building early below.
+		$total = count( $sheet->sheetData->row );
+
+		$rows = array();
 		foreach ( $sheet->sheetData->row as $xml_row ) {
+			if ( null !== $keep_limit && count( $rows ) >= $keep_limit ) {
+				break;
+			}
+
 			$row_data  = array();
 			$max_col   = 0;
 
@@ -793,11 +856,14 @@ class NPMP_Import_Manager {
 			$rows[] = $filled_row;
 		}
 
-		if ( empty( $rows ) ) {
+		if ( 0 === $total ) {
 			return new WP_Error( 'npmp_xlsx_empty', __( 'The XLSX file is empty.', 'nonprofit-manager' ) );
 		}
 
-		return $rows;
+		return array(
+			'rows'  => $rows,
+			'total' => $total,
+		);
 	}
 
 	/**

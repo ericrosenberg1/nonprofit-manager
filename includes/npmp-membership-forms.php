@@ -707,7 +707,7 @@ function npmp_handle_membership_form() {
 				get_bloginfo( 'name' ),
 				$confirm_url
 			);
-			wp_mail( $email, $subject, $body );
+			npmp_send_mail( $email, $subject, $body );
 		}
 
 		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_unsubscribe', 'confirm' ) );

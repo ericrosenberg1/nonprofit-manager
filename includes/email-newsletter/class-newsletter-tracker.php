@@ -71,6 +71,13 @@ class NPMP_Newsletter_Tracker {
 	/**
 	 * Record an open event.
 	 *
+	 * Stored in the dedicated wp_npmp_newsletter_opens table rather than as a
+	 * wp_posts row (the table already existed, created on activation, but
+	 * was never actually written to: every open was logging a full post +
+	 * postmeta rows instead). The table's UNIQUE KEY on (user_id,
+	 * newsletter_id) does the dedup that the old code did with a get_posts()
+	 * existence check beforehand.
+	 *
 	 * @param int $newsletter_id Newsletter ID.
 	 * @param int $user_id       User ID.
 	 * @return bool
@@ -81,62 +88,27 @@ class NPMP_Newsletter_Tracker {
 			return true;
 		}
 
-		$existing = get_posts(
-			array(
-				'post_type'      => NPMP_Newsletter_Manager::EVENT_POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => 1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Tracking events requires matching metadata.
-				'meta_query'     => array(
-					array(
-						'key'   => NPMP_Newsletter_Manager::EVENT_NEWSLETTER_META,
-						'value' => absint( $newsletter_id ),
-					),
-					array(
-						'key'   => NPMP_Newsletter_Manager::EVENT_USER_META,
-						'value' => absint( $user_id ),
-					),
-					array(
-						'key'   => NPMP_Newsletter_Manager::EVENT_TYPE_META,
-						'value' => NPMP_Newsletter_Manager::ACTION_OPEN,
-					),
-				),
+		global $wpdb;
+		$table = $wpdb->prefix . 'npmp_newsletter_opens';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table; the wp_cache_set() below covers repeat requests.
+		$wpdb->query(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, values are all placeholders.
+				"INSERT IGNORE INTO {$table} (user_id, newsletter_id, opened_at) VALUES (%d, %d, %s)",
+				absint( $user_id ),
+				absint( $newsletter_id ),
+				current_time( 'mysql' )
 			)
 		);
-
-		if ( $existing ) {
-			wp_cache_set( $cache_key, true, 'npmp_newsletters', HOUR_IN_SECONDS );
-			return true;
-		}
-
-		$event_id = wp_insert_post(
-			array(
-				'post_type'   => NPMP_Newsletter_Manager::EVENT_POST_TYPE,
-				'post_status' => 'publish',
-				/* translators: %d: Newsletter ID. */
-				'post_title'  => sprintf( __( 'Open: newsletter %d', 'nonprofit-manager' ), $newsletter_id ),
-				'meta_input'  => array(
-					NPMP_Newsletter_Manager::EVENT_NEWSLETTER_META => absint( $newsletter_id ),
-					NPMP_Newsletter_Manager::EVENT_USER_META       => absint( $user_id ),
-					NPMP_Newsletter_Manager::EVENT_TYPE_META       => NPMP_Newsletter_Manager::ACTION_OPEN,
-					NPMP_Newsletter_Manager::EVENT_TIME_META       => current_time( 'mysql' ),
-				),
-			),
-			true
-		);
-
-		if ( is_wp_error( $event_id ) ) {
-			return false;
-		}
 
 		wp_cache_set( $cache_key, true, 'npmp_newsletters', HOUR_IN_SECONDS );
 		return true;
 	}
 
 	/**
-	 * Record a link click event.
+	 * Record a link click event. Stored in wp_npmp_newsletter_clicks, see
+	 * the note on track_open() above for why this moved off wp_posts.
 	 *
 	 * @param int    $newsletter_id Newsletter ID.
 	 * @param int    $user_id       User ID.
@@ -144,24 +116,21 @@ class NPMP_Newsletter_Tracker {
 	 * @return bool
 	 */
 	public function track_click( $newsletter_id, $user_id, $url ) {
-		$event_id = wp_insert_post(
+		global $wpdb;
+		$table = $wpdb->prefix . 'npmp_newsletter_clicks';
+
+		$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table, no caching layer needed for a write.
+			$table,
 			array(
-				'post_type'   => NPMP_Newsletter_Manager::EVENT_POST_TYPE,
-				'post_status' => 'publish',
-				/* translators: %d: Newsletter ID. */
-				'post_title'  => sprintf( __( 'Click: newsletter %d', 'nonprofit-manager' ), $newsletter_id ),
-				'meta_input'  => array(
-					NPMP_Newsletter_Manager::EVENT_NEWSLETTER_META => absint( $newsletter_id ),
-					NPMP_Newsletter_Manager::EVENT_USER_META       => absint( $user_id ),
-					NPMP_Newsletter_Manager::EVENT_TYPE_META       => NPMP_Newsletter_Manager::ACTION_CLICK,
-					NPMP_Newsletter_Manager::EVENT_URL_META        => esc_url_raw( $url ),
-					NPMP_Newsletter_Manager::EVENT_TIME_META       => current_time( 'mysql' ),
-				),
+				'newsletter_id' => absint( $newsletter_id ),
+				'user_id'       => absint( $user_id ),
+				'url'           => esc_url_raw( $url ),
+				'clicked_at'    => current_time( 'mysql' ),
 			),
-			true
+			array( '%d', '%d', '%s', '%s' )
 		);
 
-		return ! is_wp_error( $event_id );
+		return false !== $inserted;
 	}
 
 	/**

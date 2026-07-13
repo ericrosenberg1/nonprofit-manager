@@ -345,7 +345,7 @@ function npmp_process_post_notification( $post_id, $meta_key ) {
 			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $email ) );
 		}
 
-		wp_mail( $email, $subject, $body, $headers );
+		npmp_send_mail( $email, $subject, $body, $headers );
 	}
 }
 
@@ -444,11 +444,102 @@ function npmp_process_weekly_digest() {
 		$content .= '</ul>';
 	}
 
+	$emails = array();
 	foreach ( $subscribers as $contact_id ) {
 		$email = get_post_meta( $contact_id, 'npmp_email', true );
-		if ( ! $email || ! is_email( $email ) ) {
-			continue;
+		if ( $email && is_email( $email ) ) {
+			$emails[] = sanitize_email( $email );
 		}
+	}
+
+	if ( empty( $emails ) ) {
+		return;
+	}
+
+	// Enqueue instead of mailing inline. The subject/content are the same for
+	// every recipient (only the preferences-link footer is personalized, at
+	// send time in npmp_process_digest_queue()), so they're stored once here
+	// rather than duplicated per queue row.
+	update_option(
+		'npmp_digest_pending_content',
+		array(
+			'subject' => $subject,
+			'content' => $content,
+		),
+		false
+	);
+
+	global $wpdb;
+	$table = $wpdb->prefix . 'npmp_digest_queue';
+
+	// Clear any stale rows from a prior run that never finished draining, so
+	// this week's send doesn't mix with leftover queue entries.
+	$wpdb->query( "TRUNCATE TABLE {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Fixed table name, no user input.
+
+	$now = current_time( 'mysql' );
+	foreach ( $emails as $email ) {
+		$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			$table,
+			array(
+				'email'     => $email,
+				'status'    => 'pending',
+				'queued_at' => $now,
+			),
+			array( '%s', '%s', '%s' )
+		);
+	}
+
+	if ( ! wp_next_scheduled( 'npmp_process_digest_queue' ) ) {
+		wp_schedule_event( time(), 'every_minute', 'npmp_process_digest_queue' );
+	}
+}
+add_action( 'npmp_process_digest_queue', 'npmp_process_digest_queue' );
+
+/**
+ * Drain a throttled batch of the weekly digest queue. Runs on a per-minute
+ * cron tick (scheduled by npmp_process_weekly_digest() above) instead of
+ * mailing every subscriber inline inside one wp-cron run, so a large list
+ * can't time out partway through and silently skip the rest. Unschedules
+ * itself once the queue is empty, so the per-minute tick doesn't keep firing
+ * between weekly runs.
+ *
+ * @return void
+ */
+function npmp_process_digest_queue() {
+	global $wpdb;
+	$table = $wpdb->prefix . 'npmp_digest_queue';
+
+	$limit = intval( get_option( 'npmp_digest_rate_limit', 10 ) );
+	if ( $limit <= 0 ) {
+		$limit = 10;
+	}
+
+	$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $limit is cast to int above; fixed table name.
+		$wpdb->prepare(
+			"SELECT id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
+			$limit
+		)
+	);
+
+	if ( empty( $batch ) ) {
+		wp_clear_scheduled_hook( 'npmp_process_digest_queue' );
+		return;
+	}
+
+	$pending_content = get_option( 'npmp_digest_pending_content' );
+	if ( empty( $pending_content['subject'] ) || ! isset( $pending_content['content'] ) ) {
+		// Nothing to send (option missing/cleared): drop the queue rather
+		// than loop forever failing every minute.
+		$wpdb->query( "TRUNCATE TABLE {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Fixed table name, no user input.
+		wp_clear_scheduled_hook( 'npmp_process_digest_queue' );
+		return;
+	}
+
+	$subject = $pending_content['subject'];
+	$content = $pending_content['content'];
+
+	foreach ( $batch as $row ) {
+		$email = sanitize_email( $row->email );
 
 		$prefs_url     = npmp_get_preferences_url( $email );
 		$personal_body = $content;
@@ -460,6 +551,25 @@ function npmp_process_weekly_digest() {
 			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $email ) );
 		}
 
-		wp_mail( $email, $subject, $personal_body, $headers );
+		$sent = npmp_send_mail( $email, $subject, $personal_body, $headers );
+
+		$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			$table,
+			array(
+				'status'  => $sent ? 'sent' : 'failed',
+				'sent_at' => current_time( 'mysql' ),
+			),
+			array( 'id' => $row->id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+	}
+
+	// If that was the last batch, clean up so the option doesn't linger
+	// until next week and the cron stops polling an empty queue.
+	$remaining = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE status = 'pending'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Fixed table name, no user input.
+	if ( 0 === $remaining ) {
+		delete_option( 'npmp_digest_pending_content' );
+		wp_clear_scheduled_hook( 'npmp_process_digest_queue' );
 	}
 }

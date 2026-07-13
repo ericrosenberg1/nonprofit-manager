@@ -256,7 +256,7 @@ function npmp_contact_form_handle() {
 	);
 	$headers = array( 'Reply-To: ' . $name . ' <' . $email . '>' );
 
-	$sent = wp_mail( $recipient, '[' . $site . '] ' . $headline, $body, $headers );
+	$sent = npmp_send_mail( $recipient, '[' . $site . '] ' . $headline, $body, $headers );
 
 	$result_args = $sent
 		? array( 'npmp_contact' => 'success' )

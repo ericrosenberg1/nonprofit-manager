@@ -295,7 +295,7 @@ class NPMP_Newsletter_Manager {
 			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $to ) );
 		}
 
-		return wp_mail( $to, $subject, $content, $headers );
+		return npmp_send_mail( $to, $subject, $content, $headers );
 	}
 
 	/* ===================================================================
