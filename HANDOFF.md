@@ -87,11 +87,37 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026.07.4, shipped 2026-07-13)
+## Current state (Free 2026.07.5 shipped 2026-07-24; Pro still 2026.07.4)
 
-Both plugins are at **2026.07.4**, confirmed live everywhere: wp.org API, license server
+Free is at **2026.07.5** (SVN trunk r3621632 + tag r3621635, GitHub tag v2026.07.5).
+Pro is unchanged at 2026.07.4 (the 2026.07.5 fixes were all in Free's shared code, so no
+Pro release was needed). 2026.07.5 cleared the top three known gaps below:
+
+1. **Newsletter SEND queue** migrated off the `npmp_nl_queue` wp_posts CPT onto the
+   dedicated `wp_npmp_newsletter_queue` table (gap #1, same pattern as the 2026.07.4
+   open/click fix). Added a `maybe_create` guard (the table was missing on installs that
+   activated before it existed, e.g. the cloudpanel test site) + a bounded-batch cursor
+   migration of any existing queue posts. Also fixed a latent bug where a newsletter
+   whose final recipient failed stayed stuck in "queued". Verified: real cloudpanel MySQL
+   + 39 logic assertions against the real code.
+2. **Pro large-import timeout** (gap #3): CSV/XLSX/Google Sheet/Constant Contact imports
+   now drain through the chunked `npmp_import_step` runner instead of one single-shot
+   write loop, so a Pro import (row cap lifted to PHP_INT_MAX) can't hit
+   `max_execution_time` or a proxy timeout mid-write. `parse_csv`/`parse_xlsx` gained an
+   offset window; new `import_file_page()` / `import_constant_contact_page()` page
+   methods. Verified: 36 logic assertions (full coverage, no dupes/skips across CSV+XLSX).
+3. **Social Sharing 403** (gap #2): root cause was a menu load-order bug — `admin-social.php`
+   registered its `npmp_main` submenu at the default `admin_menu` priority 10, same as the
+   main scaffold, but loads first, so `add_submenu_page` ran before the parent existed and
+   the page hookname mismatched between registration and access. Fixed by registering at
+   priority 11 (the pattern the import module already uses). Proven against real WP 7.0.2
+   core `get_plugin_page_hookname` (4/4 assertions).
+
+## Prior state (2026.07.4, shipped 2026-07-13)
+
+Both plugins were at **2026.07.4**, confirmed live everywhere: wp.org API, license server
 `/api/license/version`, and a byte-identical Pro download. All 6 items from the original
-security/perf/UX review that prompted this round are now fixed (5 in Free, 1 in Pro):
+security/perf/UX review that prompted that round are fixed (5 in Free, 1 in Pro):
 
 1. Newsletter open/click tracking now writes to dedicated tables instead of a `wp_posts` row
    per event (Free).
@@ -111,36 +137,39 @@ That backlog is clear. Nothing is currently known-broken.
 
 ## Known gaps / next priorities
 
-Ranked by how directly they affect a real user, not by effort.
+Gaps 1-3 below were the newsletter SEND queue, the Social Sharing 403, and the Pro
+import write-side timeout. **All three shipped in 2026.07.5 (2026-07-24)** — see the
+Current state section above. What remains:
 
-1. **Newsletter SEND queue is still `wp_posts`-based**, distinct from open/click tracking, which
-   was just fixed. `class-newsletter-manager.php`'s `queue_newsletter()`/`process_queue()` use
-   a `wp_insert_post` custom post type (`npmp_nl_queue`, one post per queued recipient) instead
-   of the `wp_npmp_newsletter_queue` custom table that already exists in the schema
-   (`activation-hooks.php` creates it) and sits completely unused. Same situation opens/clicks
-   were in before the 2026.07.4 fix. This is the natural next migration: same pattern, same
-   target table already built, just needs the queue/process/reports code rewired from
-   `WP_Query` plus postmeta to `$wpdb` calls against the real table.
-2. **Social Sharing admin page 403**, reported once (2026-07-04, on a Local dev site with Pro
-   temporarily disabled). `admin.php?page=npmp_social_sharing` returned "Sorry, you are not
-   allowed to access this page" for a logged-in admin, despite `admin-social.php` registering
-   the submenu with a plain `manage_options` capability check that looks correct on read.
-   **Not reproduced this session.** Worth a quick live check before assuming it's still broken,
-   could have been fixed incidentally or been environment-specific.
-3. **Pro's import row-cap removal is unverified for the write-side fix.** Free's 2026.07.4 fix
-   bounded memory during CSV/XLSX *parsing*, and the DB-write side was already capped at 50 rows
-   in Free. Pro removes that cap via the `npmp_import_max_rows` filter for real imports. If
-   Pro's write loop isn't separately chunked, a large paying customer's import could still hit
-   `max_execution_time` on the write side even with parsing fixed. Pro's import code wasn't
-   audited this round.
 4. **Major planned direction, not started: unified "Supporter" data model.** Collapse member
    and donor into one record, the stated differentiator vs. other WP nonprofit plugins. Ships in
    Free (it's foundational), Pro layers Stripe/recurring/segmentation/automation/QB-export/PDF
    summaries on top. Design doc:
    `/Users/eric/.gstack/projects/ericrosenberg1-nonprofit-manager-site/eric-main-design-20260502-075243.md`
-   (status: approved). Large, multi-phase effort, not a quick fix. RCCTA (a second dogfood
-   nonprofit, dues-based) is the intended validation target for the dues half of the model
-   before it ships.
+   (status: approved, rev 3). This is a **v3.0.0 MAJOR**, not a quick fix — treat it as its own
+   focused effort with checkpoints, not a one-shot autonomous build. Scope from the doc:
+   - **Phase 1 (safe, additive, no behavior change):** create the 5 new tables (`supporters`,
+     `supporter_giving`, `supporter_membership`, `supporter_attendance`, `payments_webhooks`)
+     with `maybe_create` guards; backup hook (dump member+donation tables to
+     `npmp_v2_backup_{ts}`, 90-day keep); "v3 Migration Preview" dry-run admin screen (dedup
+     report, no writes); commit migration (email-normalized auto-merge, name+ZIP → manual
+     review, anonymous → preserve) guarded by `npmp_schema_version`; 90-day rollback action.
+     Additive: populates new tables from `wp_npmp_contacts`/`wp_npmp_donations` without removing
+     the old ones, so existing code keeps working and nothing user-facing flips yet.
+   - **Phase 2 (the big 33-file refactor):** point every admin view, dashboard widget, signup/
+     donation form, email segment, CSV export, REST endpoint (`/supporters`, `/giving`,
+     `/memberships` with 410 shims for old), and shortcode internals at the Supporter tables.
+     Backwards-compat hooks (`npmp_supporter_*` alongside `npmp_member_*`/`npmp_donor_*`) and
+     tokens (`[supporter_name]`) for one minor version. Raises PHP floor to 8.1.
+   - **Phase 3 (Pro v3.0.0):** recurring Stripe donations, lapsed/renewal automation, advanced
+     segmentation, QB-formatted CSV, donation-summary PDFs (Dompdf), daily subscription-state
+     reconciliation cron. IRS-compliant receipts explicitly deferred to v3.1 (legal review).
+   - **Phase 4 (validation + ship):** migrate CACC (live, voluntary-donate) to v3 dev and verify
+     no data loss by pre/post row counts; onboard RCCTA with a dues config to validate the dues
+     half; wp.org beta channel (`nonprofit-manager-beta` slug or self-hosted update server, no
+     native beta channel), fallback: ship anyway with rollback featured if <2 beta testers in 2
+     weeks. **Phases 4's CACC/RCCTA steps need Eric** (live-data dogfood), so this arc can't be
+     fully autonomous. PHPCS-WPCS gate treated as a build failure per the doc.
 5. **Growth, not engineering, is the real bottleneck right now.** wp.org listing had under 10
    active installs and 0 ratings as of the last check, months after launch. The product is
    feature-rich and actively maintained. The gap is discovery and social proof. A 7-play growth
