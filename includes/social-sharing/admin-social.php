@@ -12,6 +12,17 @@ defined( 'ABSPATH' ) || exit;
 /* ------------------------------------------------------------------
  * 1. Register the admin menu item
  * ----------------------------------------------------------------*/
+// Priority 11 so this runs AFTER the main-menu scaffold registers the
+// npmp_main parent (priority 10 in nonprofit-manager.php). This file is
+// require'd before that scaffold's hook is added, so at the default priority
+// 10 the two hooks fire in registration order and add_submenu_page() would run
+// before add_menu_page('npmp_main') exists. When that happens WordPress
+// computes this page's hookname as "admin_page_npmp_social_sharing" at
+// registration but "nonprofit-manager_page_npmp_social_sharing" at access
+// time (once the parent exists), so the $_registered_pages lookup in
+// user_can_access_admin_page() misses and the page 403s even though the
+// submenu still shows. The import module (admin-import.php) uses priority 11
+// for the same reason.
 add_action(
 	'admin_menu',
 	static function () {
@@ -23,7 +34,8 @@ add_action(
 			'npmp_social_sharing',
 			'npmp_render_social_sharing_page'
 		);
-	}
+	},
+	11
 );
 
 /* ------------------------------------------------------------------

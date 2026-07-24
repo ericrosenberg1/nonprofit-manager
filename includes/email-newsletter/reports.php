@@ -8,38 +8,48 @@ class NPMP_Newsletter_Stats {
     private static $instance = null;
 
     /**
-     * Run a lightweight count query with caching.
+     * Count queue rows for a newsletter, optionally filtered by status, with
+     * an hour of caching. Backed by the dedicated wp_npmp_newsletter_queue
+     * table (see NPMP_Newsletter_Manager::process_queue()) rather than a
+     * WP_Query/meta_query scan over wp_posts.
      *
-     * @param string $cache_key  Cache key suffix.
-     * @param array  $query_args Args passed to WP_Query.
+     * @param string $cache_key     Cache key suffix.
+     * @param int    $newsletter_id Newsletter ID.
+     * @param string $status        Optional status filter ('' for any).
      * @return int
      */
-    private function get_cached_count( $cache_key, $query_args ) {
+    private function get_cached_queue_count( $cache_key, $newsletter_id, $status = '' ) {
         $cached = wp_cache_get( $cache_key, 'npmp_newsletters' );
 
         if ( false !== $cached ) {
             return (int) $cached;
         }
 
-        $query = new WP_Query(
-            wp_parse_args(
-                $query_args,
-                array(
-                    'fields'                 => 'ids',
-                    'posts_per_page'         => 1,
-                    'no_found_rows'          => false,
-                    'update_post_meta_cache' => false,
-                    'update_post_term_cache' => false,
-                )
-            )
-        );
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_newsletter_queue';
 
-        $count = (int) $query->found_posts;
+        if ( '' !== $status ) {
+            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated queue table.
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+                    absint( $newsletter_id ),
+                    $status
+                )
+            );
+        } else {
+            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated queue table.
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+                    absint( $newsletter_id )
+                )
+            );
+        }
+
         wp_cache_set( $cache_key, $count, 'npmp_newsletters', HOUR_IN_SECONDS );
 
         return $count;
     }
-    
+
     // Get the singleton instance
     public static function get_instance() {
         if (null === self::$instance) {
@@ -51,20 +61,7 @@ class NPMP_Newsletter_Stats {
     // Get total recipients for a newsletter
     public function get_total_recipients($newsletter_id) {
         $cache_key = 'npmp_total_' . $newsletter_id;
-        return $this->get_cached_count(
-            $cache_key,
-            array(
-                'post_type'   => NPMP_Newsletter_Manager::QUEUE_POST_TYPE,
-                'post_status' => 'publish',
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Reporting filters newsletter events via metadata.
-				'meta_query'  => array(
-                    array(
-                        'key'   => NPMP_Newsletter_Manager::QUEUE_NEWSLETTER_META,
-                        'value' => absint( $newsletter_id ),
-                    ),
-                ),
-            )
-        );
+        return $this->get_cached_queue_count( $cache_key, $newsletter_id );
     }
     
     // Get opens count for a newsletter. Backed by the dedicated
@@ -95,24 +92,7 @@ class NPMP_Newsletter_Stats {
     // Get failure count for a newsletter
     public function get_failed_count($newsletter_id) {
         $cache_key = 'npmp_failed_' . $newsletter_id;
-        return $this->get_cached_count(
-            $cache_key,
-            array(
-                'post_type'   => NPMP_Newsletter_Manager::QUEUE_POST_TYPE,
-                'post_status' => 'publish',
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Reporting filters newsletter events via metadata.
-				'meta_query'  => array(
-                    array(
-                        'key'   => NPMP_Newsletter_Manager::QUEUE_NEWSLETTER_META,
-                        'value' => absint( $newsletter_id ),
-                    ),
-                    array(
-                        'key'   => NPMP_Newsletter_Manager::QUEUE_STATUS_META,
-                        'value' => 'failed',
-                    ),
-                ),
-            )
-        );
+        return $this->get_cached_queue_count( $cache_key, $newsletter_id, 'failed' );
     }
 }
 

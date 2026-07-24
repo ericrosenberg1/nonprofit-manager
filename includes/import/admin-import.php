@@ -442,17 +442,18 @@ function npmp_import_ajax_execute() {
  * Each subsequent call:
  *
  *   1. Loads the state transient.
- *   2. Calls the per-page importer for the source (Mailchimp today).
+ *   2. Calls the per-page importer for the source (Mailchimp/Constant Contact
+ *      by API page, CSV/XLSX/Google Sheet by file offset window).
  *   3. Merges page stats into running totals.
- *   4. Writes state back. If done, deletes both the state and the credentials
- *      transient and returns the final stats.
+ *   4. Writes state back. If done, deletes both the state and the source's
+ *      credentials/file transient and returns the final stats.
  *
  * Response:
  *   { done: bool, progress: int, total: int, partial_stats: {...}, stats?: {...} }
  *
- * Only Mailchimp uses this path today; CSV / XLSX / Google Sheets continue to
- * use the single-shot npmp_import_execute (those imports tend to be small).
- * Constant Contact would naturally fit here when next iterated on.
+ * Every import source uses this chunked path now, so a large import can't hit
+ * PHP's max_execution_time or a front-end proxy timeout partway through. The
+ * single-shot npmp_import_execute remains only as a back-compat fallback.
  */
 function npmp_import_ajax_step() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
@@ -491,9 +492,10 @@ function npmp_import_ajax_step() {
 
 	// First call from this job initializes the state from POST.
 	if ( ! is_array( $state ) ) {
-		$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
-		if ( 'mailchimp' !== $source ) {
-			wp_send_json_error( __( 'Chunked import is currently only available for Mailchimp.', 'nonprofit-manager' ) );
+		$source  = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
+		$allowed = array( 'mailchimp', 'csv', 'xlsx', 'google_sheet', 'constant_contact' );
+		if ( ! in_array( $source, $allowed, true ) ) {
+			wp_send_json_error( __( 'This import source does not support chunked import.', 'nonprofit-manager' ) );
 		}
 
 		$mapping = isset( $_POST['mapping'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['mapping'] ) ) : array();
@@ -626,6 +628,179 @@ function npmp_import_ajax_step() {
 				'done'          => false,
 				'progress'      => (int) $page['next_cursor'],
 				'total'         => (int) $page['total'],
+				'partial_stats' => $state['totals'],
+			)
+		);
+	}
+
+	// ------------------------------------------------------------------
+	// CSV / XLSX / Google Sheet: process one bounded window of the uploaded
+	// file per request. All three resolve to a local file stored at
+	// npmp_import_file_<job_token> in the preview step (Google Sheet is
+	// pre-fetched to a temp CSV there), so they share one offset-cursor path.
+	// ------------------------------------------------------------------
+	if ( in_array( $state['source'], array( 'csv', 'xlsx', 'google_sheet' ), true ) ) {
+		$file_path = get_transient( 'npmp_import_file_' . $job_token );
+		if ( empty( $file_path ) || ! file_exists( $file_path ) ) {
+			delete_transient( $state_key );
+			wp_send_json_error( __( 'Import file has expired. Please upload again.', 'nonprofit-manager' ) );
+		}
+
+		$type      = ( 'xlsx' === $state['source'] ) ? 'xlsx' : 'csv';
+		$cursor    = (int) $state['cursor'];
+		$page_size = max( 1, (int) apply_filters( 'npmp_import_file_chunk_size', 200 ) );
+
+		// Free-plugin row cap. Trim the page so we never process past the cap,
+		// then report cap_reached, mirroring the Mailchimp path above.
+		$max_rows = npmp_import_max_rows();
+		if ( $max_rows < PHP_INT_MAX ) {
+			$remaining = $max_rows - $cursor;
+			if ( $remaining <= 0 ) {
+				delete_transient( $state_key );
+				delete_transient( 'npmp_import_file_' . $job_token );
+				delete_transient( 'npmp_import_url_' . $job_token );
+				wp_delete_file( $file_path );
+				wp_send_json_success(
+					array(
+						'done'         => true,
+						'progress'     => $cursor,
+						'total'        => $cursor,
+						'stats'        => $state['totals'],
+						'cap_reached'  => true,
+						'cap_max_rows' => $max_rows,
+					)
+				);
+			}
+			$page_size = min( $page_size, $remaining );
+		}
+
+		$page = $import->import_file_page( $type, $file_path, $state['mapping'], $state['options'], $cursor, $page_size );
+
+		if ( is_wp_error( $page ) ) {
+			delete_transient( $state_key );
+			delete_transient( 'npmp_import_file_' . $job_token );
+			delete_transient( 'npmp_import_url_' . $job_token );
+			wp_delete_file( $file_path );
+			wp_send_json_error( $page->get_error_message() );
+		}
+
+		$stats                        = isset( $page['page_stats'] ) ? $page['page_stats'] : array();
+		$state['totals']['imported'] += isset( $stats['imported'] ) ? (int) $stats['imported'] : 0;
+		$state['totals']['updated']  += isset( $stats['updated'] ) ? (int) $stats['updated'] : 0;
+		$state['totals']['skipped']  += isset( $stats['skipped'] ) ? (int) $stats['skipped'] : 0;
+		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
+		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
+			$state['totals']['error_messages'] = array_slice(
+				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				0,
+				200
+			);
+		}
+		$state['cursor'] = (int) $page['next_cursor'];
+
+		$total_in_source = (int) $page['total'];
+		$cap_reached     = ( $max_rows < PHP_INT_MAX ) && ( $state['cursor'] >= $max_rows ) && ( $total_in_source > $max_rows );
+
+		if ( ! empty( $page['done'] ) || $cap_reached ) {
+			delete_transient( $state_key );
+			delete_transient( 'npmp_import_file_' . $job_token );
+			delete_transient( 'npmp_import_url_' . $job_token );
+			wp_delete_file( $file_path );
+			wp_send_json_success(
+				array(
+					'done'         => true,
+					'progress'     => $state['cursor'],
+					'total'        => $total_in_source,
+					'stats'        => $state['totals'],
+					'cap_reached'  => $cap_reached,
+					'cap_max_rows' => $max_rows,
+				)
+			);
+		}
+
+		set_transient( $state_key, $state, HOUR_IN_SECONDS );
+		wp_send_json_success(
+			array(
+				'done'          => false,
+				'progress'      => $state['cursor'],
+				'total'         => $total_in_source,
+				'partial_stats' => $state['totals'],
+			)
+		);
+	}
+
+	// ------------------------------------------------------------------
+	// Constant Contact: advance the opaque CC pagination cursor one page per
+	// request, committing each page immediately.
+	// ------------------------------------------------------------------
+	if ( 'constant_contact' === $state['source'] ) {
+		$creds = get_transient( 'npmp_import_cc_' . $job_token );
+		if ( empty( $creds ) ) {
+			delete_transient( $state_key );
+			wp_send_json_error( __( 'Constant Contact session expired. Please start over.', 'nonprofit-manager' ) );
+		}
+
+		// Convert the UI's index-based mapping into CC named keys (fixed order,
+		// same as the legacy execute path).
+		$api_keys  = array( 'email_address', 'first_name', 'last_name', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'country', 'tags' );
+		$named_map = array();
+		foreach ( $state['mapping'] as $idx => $field ) {
+			$idx = (int) $idx;
+			if ( '' !== $field && isset( $api_keys[ $idx ] ) ) {
+				$named_map[ $api_keys[ $idx ] ] = $field;
+			}
+		}
+
+		$cc_cursor = isset( $state['cc_cursor'] ) ? $state['cc_cursor'] : null;
+
+		$page = $import->import_constant_contact_page( $creds['access_token'], $creds['list_id'], $named_map, $state['options'], $cc_cursor );
+
+		if ( is_wp_error( $page ) ) {
+			delete_transient( $state_key );
+			delete_transient( 'npmp_import_cc_' . $job_token );
+			wp_send_json_error( $page->get_error_message() );
+		}
+
+		$stats                        = isset( $page['page_stats'] ) ? $page['page_stats'] : array();
+		$state['totals']['imported'] += isset( $stats['imported'] ) ? (int) $stats['imported'] : 0;
+		$state['totals']['updated']  += isset( $stats['updated'] ) ? (int) $stats['updated'] : 0;
+		$state['totals']['skipped']  += isset( $stats['skipped'] ) ? (int) $stats['skipped'] : 0;
+		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
+		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
+			$state['totals']['error_messages'] = array_slice(
+				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				0,
+				200
+			);
+		}
+		$state['cursor']   += (int) $page['count'];
+		$state['cc_cursor'] = $page['next_cursor'];
+
+		// Free-plugin row cap: stop once we've processed max_rows contacts.
+		$max_rows    = npmp_import_max_rows();
+		$cap_reached = ( $max_rows < PHP_INT_MAX ) && ( $state['cursor'] >= $max_rows );
+
+		if ( ! empty( $page['done'] ) || $cap_reached ) {
+			delete_transient( $state_key );
+			delete_transient( 'npmp_import_cc_' . $job_token );
+			wp_send_json_success(
+				array(
+					'done'         => true,
+					'progress'     => $state['cursor'],
+					'total'        => $state['cursor'],
+					'stats'        => $state['totals'],
+					'cap_reached'  => $cap_reached,
+					'cap_max_rows' => $max_rows,
+				)
+			);
+		}
+
+		set_transient( $state_key, $state, HOUR_IN_SECONDS );
+		wp_send_json_success(
+			array(
+				'done'          => false,
+				'progress'      => $state['cursor'],
+				'total'         => 0, // Unknown until the last page; JS shows an indeterminate bar.
 				'partial_stats' => $state['totals'],
 			)
 		);
@@ -1355,37 +1530,16 @@ function npmp_import_render_scripts( $field_labels ) {
 				import_source_tag:  $('#npmp-opt-source').val()
 			};
 
-			if (previewData.source === 'mailchimp') {
-				// Chunked path: each request fetches one Mailchimp page so big
-				// audiences don't blow PHP's max_execution_time. Server keeps
-				// state in a transient keyed on file_token; we just loop until
-				// the response says done.
-				runChunkedImport(previewData.file_token, commonPayload);
-			} else {
-				// Single-shot path for CSV / XLSX / Google Sheets / Constant Contact.
-				$.post(ajaxUrl, $.extend({
-					action:     'npmp_import_execute',
-					file_token: previewData.file_token
-				}, commonPayload), function(resp) {
-					$('#npmp-step2-spinner').removeClass('is-active');
-					$('.npmp-import-progress-fill').css('width', '100%');
-					$('.npmp-import-progress-bar').attr('aria-valuenow', 100);
-					$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Complete!', 'nonprofit-manager' ) ); ?>');
-
-					if (!resp.success) {
-						$('#npmp-import-progress-text').text('Import failed: ' + resp.data);
-						return;
-					}
-					renderImportResults(resp.data);
-				}).fail(function() {
-					$('#npmp-step2-spinner').removeClass('is-active');
-					$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Import request failed. Please try again.', 'nonprofit-manager' ) ); ?>');
-				});
-			}
+			// Every source uses the chunked step path so a large import never
+			// hits PHP's max_execution_time or a front-end proxy timeout. Each
+			// request commits one bounded batch; the server keeps state in a
+			// transient keyed on file_token and runChunkedImport loops until the
+			// response says done.
+			runChunkedImport(previewData.file_token, commonPayload);
 		});
 
 		// -------------------------------------------------------
-		// Chunked import driver (Mailchimp)
+		// Chunked import driver (all sources)
 		// -------------------------------------------------------
 		function runChunkedImport(jobToken, basePayload) {
 			var stopped = false;

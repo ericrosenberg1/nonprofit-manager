@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 2026.07.4
+Stable tag: 2026.07.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -117,6 +117,11 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.07.5 =
+* Fixed: The Social Sharing settings page no longer shows a "Sorry, you are not allowed to access this page" error for administrators. It was a menu load-order problem, not a permissions one, so the page now opens normally.
+* Improved: Large member imports (CSV, Excel, Google Sheets, and Constant Contact) now process in small batches in the background instead of all in one request, so a big import can't time out partway through and leave the job half finished.
+* Improved: Sending a newsletter now records its send queue in a dedicated database table instead of creating a hidden post for every recipient, so sending to a large list no longer bloats your site's database. This matches the open and click tracking change from the previous release.
 
 = 2026.07.4 =
 * Fixed: Turning on "Force From Address" no longer rewrites the From address on mail sent by other plugins or by WordPress itself (password resets, new-user notifications, and so on). It now only affects mail this plugin sends.

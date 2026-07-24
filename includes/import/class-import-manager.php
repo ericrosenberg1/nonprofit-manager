@@ -219,6 +219,61 @@ class NPMP_Import_Manager {
 	}
 
 	/**
+	 * Import one bounded window of rows from an uploaded CSV / XLSX / Google
+	 * Sheet file. Used by the chunked AJAX import path (npmp_import_ajax_step)
+	 * so a large file commits in small batches instead of looping every row in
+	 * a single request that would blow PHP's max_execution_time (or a front-end
+	 * proxy timeout) partway through, leaving a half-finished import with no way
+	 * to resume. Free imports stay small so they finish in one page; this
+	 * matters most for Pro, which lifts the row cap.
+	 *
+	 * Mirrors import_mailchimp_page()'s contract. The caller advances its cursor
+	 * by next_cursor each step and loops until done.
+	 *
+	 * @param string $type      'xlsx' for an Excel file; anything else = CSV.
+	 * @param string $file_path Absolute path to the uploaded file.
+	 * @param array  $mapping   Column index => field name.
+	 * @param array  $options   Import options.
+	 * @param int    $cursor    Data rows already processed (0 for the first page).
+	 * @param int    $page_size Data rows to process this page.
+	 * @return array|WP_Error {
+	 *   page_stats: same shape as process_rows return,
+	 *   next_cursor: int,
+	 *   total: int (data rows, excluding the header),
+	 *   done: bool
+	 * }
+	 */
+	public function import_file_page( $type, $file_path, $mapping, $options = array(), $cursor = 0, $page_size = 200 ) {
+		$cursor    = max( 0, (int) $cursor );
+		$page_size = max( 1, (int) $page_size );
+
+		// Skip the header row plus every data row already processed, then keep
+		// only this page. Peak memory is the page, not the whole file.
+		$skip   = 1 + $cursor;
+		$parsed = ( 'xlsx' === $type )
+			? $this->parse_xlsx( $file_path, $page_size, $skip )
+			: $this->parse_csv( $file_path, $page_size, $skip );
+
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
+		}
+
+		$window     = $parsed['rows'];
+		$total_data = max( 0, (int) $parsed['total'] - 1 ); // Minus the header row.
+		$page_stats = $this->process_rows( $window, $mapping, $options, $cursor );
+
+		$next_cursor = $cursor + count( $window );
+		$done        = empty( $window ) || ( $next_cursor >= $total_data );
+
+		return array(
+			'page_stats'  => $page_stats,
+			'next_cursor' => $next_cursor,
+			'total'       => $total_data,
+			'done'        => $done,
+		);
+	}
+
+	/**
 	 * Import members from Mailchimp via API.
 	 *
 	 * @param string $api_key Mailchimp API key.
@@ -415,40 +470,7 @@ class NPMP_Import_Manager {
 			}
 
 			foreach ( $result['contacts'] as $cc_contact ) {
-				$email = '';
-				if ( ! empty( $cc_contact['email_addresses'] ) ) {
-					$email = $cc_contact['email_addresses'][0]['address'];
-				}
-
-				$row = array(
-					'email_address' => $email,
-					'first_name'    => isset( $cc_contact['first_name'] ) ? $cc_contact['first_name'] : '',
-					'last_name'     => isset( $cc_contact['last_name'] ) ? $cc_contact['last_name'] : '',
-					'phone'         => '',
-					'tags'          => '',
-				);
-
-				// Phone numbers.
-				if ( ! empty( $cc_contact['phone_numbers'] ) ) {
-					$row['phone'] = $cc_contact['phone_numbers'][0]['phone_number'];
-				}
-
-				// Street address.
-				if ( ! empty( $cc_contact['street_addresses'] ) ) {
-					$addr = $cc_contact['street_addresses'][0];
-					$row['address_line1'] = isset( $addr['street'] ) ? $addr['street'] : '';
-					$row['city']          = isset( $addr['city'] ) ? $addr['city'] : '';
-					$row['state']         = isset( $addr['state'] ) ? $addr['state'] : '';
-					$row['postal_code']   = isset( $addr['postal_code'] ) ? $addr['postal_code'] : '';
-					$row['country']       = isset( $addr['country'] ) ? $addr['country'] : '';
-				}
-
-				// Tags / lists.
-				if ( ! empty( $cc_contact['taggings'] ) ) {
-					$row['tags'] = implode( ',', $cc_contact['taggings'] );
-				}
-
-				$all_rows[] = $row;
+				$all_rows[] = $this->map_cc_contact_row( $cc_contact );
 			}
 
 			$cursor = isset( $result['cursor'] ) ? $result['cursor'] : null;
@@ -456,6 +478,95 @@ class NPMP_Import_Manager {
 		} while ( ! empty( $cursor ) );
 
 		return $this->process_named_rows( $all_rows, $mapping, $options );
+	}
+
+	/**
+	 * Import one page of Constant Contact contacts. Chunked-import counterpart
+	 * to import_constant_contact(): the step runner (npmp_import_ajax_step)
+	 * advances the opaque CC pagination cursor one page per request and commits
+	 * that page immediately, so a large audience can't pull every page into
+	 * memory and write them all inside one timing-out request.
+	 *
+	 * @param string      $access_token CC OAuth token.
+	 * @param string      $list_id      CC list id.
+	 * @param array       $mapping      Named mapping (cc_field => npm_field).
+	 * @param array       $options      Import options.
+	 * @param string|null $cursor       Opaque CC cursor (null = first page).
+	 * @return array|WP_Error {
+	 *   page_stats: process_named_rows return,
+	 *   next_cursor: string|null (null when no more pages),
+	 *   count: int (contacts on this page),
+	 *   done: bool
+	 * }
+	 */
+	public function import_constant_contact_page( $access_token, $list_id, $mapping, $options = array(), $cursor = null ) {
+		if ( ! function_exists( 'npmp_cc_get_contacts' ) ) {
+			return new WP_Error( 'npmp_cc_missing', __( 'Constant Contact API module is not loaded.', 'nonprofit-manager' ) );
+		}
+
+		$result = npmp_cc_get_contacts( $access_token, $list_id, $cursor );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$rows = array();
+		foreach ( $result['contacts'] as $cc_contact ) {
+			$rows[] = $this->map_cc_contact_row( $cc_contact );
+		}
+
+		$page_stats  = $this->process_named_rows( $rows, $mapping, $options );
+		$next_cursor = ! empty( $result['cursor'] ) ? $result['cursor'] : null;
+
+		return array(
+			'page_stats'  => $page_stats,
+			'next_cursor' => $next_cursor,
+			'count'       => count( $rows ),
+			'done'        => empty( $next_cursor ),
+		);
+	}
+
+	/**
+	 * Flatten one Constant Contact contact record into the named-row shape
+	 * process_named_rows() expects. Shared by the one-shot and chunked CC paths.
+	 *
+	 * @param array $cc_contact One contact from the CC API.
+	 * @return array Named row.
+	 */
+	private function map_cc_contact_row( $cc_contact ) {
+		$email = '';
+		if ( ! empty( $cc_contact['email_addresses'] ) ) {
+			$email = $cc_contact['email_addresses'][0]['address'];
+		}
+
+		$row = array(
+			'email_address' => $email,
+			'first_name'    => isset( $cc_contact['first_name'] ) ? $cc_contact['first_name'] : '',
+			'last_name'     => isset( $cc_contact['last_name'] ) ? $cc_contact['last_name'] : '',
+			'phone'         => '',
+			'tags'          => '',
+		);
+
+		// Phone numbers.
+		if ( ! empty( $cc_contact['phone_numbers'] ) ) {
+			$row['phone'] = $cc_contact['phone_numbers'][0]['phone_number'];
+		}
+
+		// Street address.
+		if ( ! empty( $cc_contact['street_addresses'] ) ) {
+			$addr                 = $cc_contact['street_addresses'][0];
+			$row['address_line1'] = isset( $addr['street'] ) ? $addr['street'] : '';
+			$row['city']          = isset( $addr['city'] ) ? $addr['city'] : '';
+			$row['state']         = isset( $addr['state'] ) ? $addr['state'] : '';
+			$row['postal_code']   = isset( $addr['postal_code'] ) ? $addr['postal_code'] : '';
+			$row['country']       = isset( $addr['country'] ) ? $addr['country'] : '';
+		}
+
+		// Tags / lists.
+		if ( ! empty( $cc_contact['taggings'] ) ) {
+			$row['tags'] = implode( ',', $cc_contact['taggings'] );
+		}
+
+		return $row;
 	}
 
 	// ------------------------------------------------------------------
@@ -547,22 +658,26 @@ class NPMP_Import_Manager {
 	/**
 	 * Process index-based rows (CSV / XLSX).
 	 *
-	 * @param array $rows    Rows (arrays of cell values).
-	 * @param array $mapping Column index => field name.
-	 * @param array $options Import options.
+	 * @param array $rows     Rows (arrays of cell values).
+	 * @param array $mapping  Column index => field name.
+	 * @param array $options  Import options.
+	 * @param int   $row_base Number of data rows already processed before this
+	 *                        batch, so chunked imports report absolute
+	 *                        spreadsheet row numbers in error messages. Default 0.
 	 * @return array Stats.
 	 */
-	public function process_rows( $rows, $mapping, $options = array() ) {
+	public function process_rows( $rows, $mapping, $options = array(), $row_base = 0 ) {
 		$options    = $this->normalize_options( $options );
 		$stats      = $this->empty_stats();
 		$source_n   = count( $rows );
+		$row_base   = max( 0, (int) $row_base );
 		$max        = function_exists( 'npmp_import_max_rows' ) ? npmp_import_max_rows() : PHP_INT_MAX;
 		$capped     = ( $max < PHP_INT_MAX ) && ( $source_n > $max );
 		$rows_to_do = $capped ? array_slice( $rows, 0, $max, true ) : $rows;
 
 		foreach ( $rows_to_do as $row_number => $row ) {
 			$record = $this->map_indexed_row( $row, $mapping );
-			$result = $this->import_single_record( $record, $options, $row_number + 2 ); // +2 for 1-indexed + header offset.
+			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 2 ); // +2 for 1-indexed + header offset.
 
 			$this->tally_result( $stats, $result );
 		}
@@ -579,26 +694,29 @@ class NPMP_Import_Manager {
 	/**
 	 * Process named-key rows (API sources).
 	 *
-	 * @param array $rows    Rows (associative arrays).
-	 * @param array $mapping Source key => destination field.
-	 * @param array $options Import options.
+	 * @param array $rows     Rows (associative arrays).
+	 * @param array $mapping  Source key => destination field.
+	 * @param array $options  Import options.
+	 * @param int   $row_base Rows already processed before this batch, for
+	 *                        absolute row numbers in chunked-import errors.
 	 * @return array Stats.
 	 */
-	public function process_named_rows( $rows, $mapping, $options = array() ) {
+	public function process_named_rows( $rows, $mapping, $options = array(), $row_base = 0 ) {
 		$options    = $this->normalize_options( $options );
 		$stats      = $this->empty_stats();
 		$source_n   = count( $rows );
+		$row_base   = max( 0, (int) $row_base );
 		$max        = function_exists( 'npmp_import_max_rows' ) ? npmp_import_max_rows() : PHP_INT_MAX;
-		// For named rows from a paginating API (Mailchimp) the per-page cap is
-		// enforced at the page-fetch level in npmp_import_ajax_step. This guard
-		// catches one-shot named-row callers (e.g., Constant Contact, future
-		// providers that pull-all-then-process) so they also honor the cap.
+		// For named rows from a paginating API (Mailchimp, Constant Contact) the
+		// per-page cap is enforced at the page-fetch level in
+		// npmp_import_ajax_step. This guard catches any one-shot named-row
+		// caller so it also honors the cap.
 		$capped     = ( $max < PHP_INT_MAX ) && ( $source_n > $max );
 		$rows_to_do = $capped ? array_slice( $rows, 0, $max ) : $rows;
 
 		foreach ( $rows_to_do as $row_number => $row ) {
 			$record = $this->map_named_row( $row, $mapping );
-			$result = $this->import_single_record( $record, $options, $row_number + 1 );
+			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 1 );
 
 			$this->tally_result( $stats, $result );
 		}
@@ -705,15 +823,21 @@ class NPMP_Import_Manager {
 	 *                             counted (so the caller gets an accurate
 	 *                             total) but their data is discarded instead
 	 *                             of accumulated. Null keeps every row.
+	 * @param int      $skip       Number of leading physical rows to skip
+	 *                             entirely before keeping any (still counted in
+	 *                             total). Used by the chunked importer to read a
+	 *                             window [skip, skip+keep_limit) without holding
+	 *                             the whole file. Default 0 = keep from the top.
 	 * @return array|WP_Error { rows: array, total: int } on success.
 	 */
-	private function parse_csv( $file_path, $keep_limit = null ) {
+	private function parse_csv( $file_path, $keep_limit = null, $skip = 0 ) {
 		if ( ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
 			return new WP_Error( 'npmp_csv_read', __( 'Cannot read the uploaded CSV file.', 'nonprofit-manager' ) );
 		}
 
 		$rows  = array();
 		$total = 0;
+		$skip  = max( 0, (int) $skip );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$handle = fopen( $file_path, 'r' );
 		if ( ! $handle ) {
@@ -722,10 +846,11 @@ class NPMP_Import_Manager {
 
 		// phpcs:ignore WordPress.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
-			$total++;
-			if ( null === $keep_limit || count( $rows ) < $keep_limit ) {
+			// $total doubles as the 0-based physical row index during the loop.
+			if ( $total >= $skip && ( null === $keep_limit || count( $rows ) < $keep_limit ) ) {
 				$rows[] = array_map( 'trim', $row );
 			}
+			$total++;
 		}
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $handle );
@@ -760,9 +885,12 @@ class NPMP_Import_Manager {
 	 * @param string   $file_path  Absolute path.
 	 * @param int|null $keep_limit Max rows to build (including the header
 	 *                             row). Null keeps every row.
+	 * @param int      $skip       Number of leading physical rows to skip
+	 *                             before building any (still counted in total),
+	 *                             so the chunked importer can read a window.
 	 * @return array|WP_Error { rows: array, total: int } on success.
 	 */
-	private function parse_xlsx( $file_path, $keep_limit = null ) {
+	private function parse_xlsx( $file_path, $keep_limit = null, $skip = 0 ) {
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			return new WP_Error( 'npmp_xlsx_zip', __( 'ZipArchive PHP extension is required for XLSX imports.', 'nonprofit-manager' ) );
 		}
@@ -818,10 +946,18 @@ class NPMP_Import_Manager {
 		$total = count( $sheet->sheetData->row );
 
 		$rows = array();
+		$skip = max( 0, (int) $skip );
+		$seen = 0;
 		foreach ( $sheet->sheetData->row as $xml_row ) {
+			// Skip leading rows (already-processed window) without building them.
+			if ( $seen < $skip ) {
+				$seen++;
+				continue;
+			}
 			if ( null !== $keep_limit && count( $rows ) >= $keep_limit ) {
 				break;
 			}
+			$seen++;
 
 			$row_data  = array();
 			$max_col   = 0;

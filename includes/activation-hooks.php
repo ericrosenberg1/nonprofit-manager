@@ -288,6 +288,133 @@ function npmp_maybe_migrate_newsletter_events() {
 add_action( 'plugins_loaded', 'npmp_maybe_migrate_newsletter_events', 40 );
 
 /**
+ * Migrate newsletter send-queue entries off wp_posts and into the dedicated
+ * wp_npmp_newsletter_queue table (see NPMP_Newsletter_Manager, which now
+ * queues and drains straight through that table instead of creating an
+ * npmp_nl_queue post + a batch of postmeta rows per recipient).
+ *
+ * Carries over both in-flight pending entries (so a send interrupted by the
+ * upgrade still finishes on the next cron tick) and recently sent/failed
+ * entries (so Newsletter Reports keep their recipient and failure counts).
+ * Bounded per-call batch with a cursor, the same reasoning and shape as
+ * npmp_maybe_migrate_newsletter_events() above: a busy site can hold a row
+ * per recipient per newsletter, too many to move in one unbounded query.
+ *
+ * @return void
+ */
+function npmp_maybe_migrate_newsletter_queue() {
+	if ( get_option( 'npmp_newsletter_queue_migrated', false ) ) {
+		return;
+	}
+
+	if ( ! class_exists( 'NPMP_Newsletter_Manager' ) ) {
+		return;
+	}
+
+	// Guarantee the destination table exists before migrating into it,
+	// regardless of plugins_loaded hook registration order (dbDelta is
+	// idempotent, so this is cheap on every call after the first).
+	npmp_create_newsletter_queue_table();
+
+	global $wpdb;
+
+	$batch_size = 500;
+	$cursor     = (int) get_option( 'npmp_newsletter_queue_migration_cursor', 0 );
+
+	// Pivot postmeta into one row per queue entry in a single query, far
+	// cheaper than a WP_Query + get_post_meta() per post for a bulk job.
+	$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration, not a per-request query.
+		$wpdb->prepare(
+			"SELECT p.ID,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS newsletter_id,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS user_id,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS email,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS status,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS queued_at,
+					MAX(CASE WHEN pm.meta_key = %s THEN pm.meta_value END) AS sent_at
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+			 WHERE p.post_type = %s AND p.ID > %d
+			 GROUP BY p.ID
+			 ORDER BY p.ID ASC
+			 LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->posts/$wpdb->postmeta are the table-name properties, not user input.
+			NPMP_Newsletter_Manager::QUEUE_NEWSLETTER_META,
+			NPMP_Newsletter_Manager::QUEUE_USER_META,
+			NPMP_Newsletter_Manager::QUEUE_EMAIL_META,
+			NPMP_Newsletter_Manager::QUEUE_STATUS_META,
+			NPMP_Newsletter_Manager::QUEUE_QUEUED_META,
+			NPMP_Newsletter_Manager::QUEUE_SENT_META,
+			NPMP_Newsletter_Manager::QUEUE_POST_TYPE,
+			$cursor,
+			$batch_size
+		)
+	);
+
+	if ( empty( $rows ) ) {
+		delete_option( 'npmp_newsletter_queue_migration_cursor' );
+		update_option( 'npmp_newsletter_queue_migrated', 1 );
+		return;
+	}
+
+	$table        = $wpdb->prefix . 'npmp_newsletter_queue';
+	$migrated_ids = array();
+
+	foreach ( $rows as $row ) {
+		$newsletter_id = absint( $row->newsletter_id );
+		$email         = sanitize_email( (string) $row->email );
+
+		if ( ! $newsletter_id || ! $email ) {
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			continue;
+		}
+
+		$status = in_array( $row->status, array( 'pending', 'sent', 'failed' ), true ) ? $row->status : 'pending';
+
+		$result = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration.
+			$table,
+			array(
+				'newsletter_id' => $newsletter_id,
+				'user_id'       => absint( $row->user_id ),
+				'email'         => $email,
+				'status'        => $status,
+				'queued_at'     => $row->queued_at ? $row->queued_at : current_time( 'mysql' ),
+				'sent_at'       => $row->sent_at ? $row->sent_at : null,
+			),
+			array( '%d', '%d', '%s', '%s', '%s', '%s' )
+		);
+
+		// false means a real DB error: leave the post in place so the next
+		// batch retries it, instead of deleting source data an insert never
+		// captured.
+		if ( false !== $result ) {
+			$migrated_ids[] = (int) $row->ID;
+		}
+	}
+
+	if ( ! empty( $migrated_ids ) ) {
+		$id_list = implode( ',', array_map( 'absint', $migrated_ids ) );
+		$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
+		$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
+
+		// Raw SQL deletes don't clear WordPress's post object cache; harmless
+		// on the default per-request cache, but a persistent object cache
+		// (Redis/Memcached) would keep serving the deleted post otherwise.
+		foreach ( $migrated_ids as $migrated_id ) {
+			clean_post_cache( $migrated_id );
+		}
+	}
+
+	$last_id = (int) $rows[ count( $rows ) - 1 ]->ID;
+	update_option( 'npmp_newsletter_queue_migration_cursor', $last_id );
+
+	if ( count( $rows ) < $batch_size ) {
+		delete_option( 'npmp_newsletter_queue_migration_cursor' );
+		update_option( 'npmp_newsletter_queue_migrated', 1 );
+	}
+}
+add_action( 'plugins_loaded', 'npmp_maybe_migrate_newsletter_queue', 40 );
+
+/**
  * Create (or update) the members table.
  *
  * @return void
@@ -409,6 +536,26 @@ function npmp_create_newsletter_queue_table() {
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
 }
+
+/**
+ * Ensure the newsletter queue table exists on sites that activated the plugin
+ * before the send queue moved off the npmp_nl_queue post type and into this
+ * dedicated table (activation hooks only run on a fresh activation, not on
+ * every already-active install). Belt-and-braces alongside the activation-time
+ * creation above, same reasoning as the other npmp_maybe_create_*_table()
+ * functions in this file.
+ *
+ * @return void
+ */
+function npmp_maybe_create_newsletter_queue_table() {
+	if ( get_option( 'npmp_newsletter_queue_table_created', false ) ) {
+		return;
+	}
+
+	npmp_create_newsletter_queue_table();
+	update_option( 'npmp_newsletter_queue_table_created', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_create_newsletter_queue_table', 40 );
 
 /**
  * Create (or update) the newsletter opens table.

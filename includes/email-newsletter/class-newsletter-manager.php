@@ -69,33 +69,18 @@ class NPMP_Newsletter_Manager {
 	 * Queue helpers
 	 * =================================================================== */
 	public static function queue_newsletter( $newsletter_id ) {
-		$recipients = self::get_recipient_list( $newsletter_id );
-		$levels     = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
-		if ( ! is_array( $levels ) ) {
-			$levels = array();
-		}
-		$queued     = 0;
+		global $wpdb;
 
-		$existing = get_posts(
-			array(
-				'post_type'      => self::QUEUE_POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Queue cleanup requires locating entries by stored metadata.
-				'meta_query'     => array(
-					array(
-						'key'   => self::QUEUE_NEWSLETTER_META,
-						'value' => absint( $newsletter_id ),
-					),
-				),
-			)
-		);
+		$newsletter_id = absint( $newsletter_id );
+		$recipients    = self::get_recipient_list( $newsletter_id );
+		$table         = $wpdb->prefix . 'npmp_newsletter_queue';
+		$queued        = 0;
 
-		foreach ( $existing as $queue_id ) {
-			wp_delete_post( $queue_id, true );
-		}
+		// Clear any prior queue rows for this newsletter so a re-send starts
+		// clean instead of stacking on a previous run's entries.
+		$wpdb->delete( $table, array( 'newsletter_id' => $newsletter_id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+
+		$now = current_time( 'mysql' );
 
 		foreach ( $recipients as $recipient ) {
 			$email = sanitize_email( $recipient->user_email ?? '' );
@@ -103,30 +88,25 @@ class NPMP_Newsletter_Manager {
 				continue;
 			}
 
-			$queue_id = wp_insert_post(
+			$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+				$table,
 				array(
-					'post_type'   => self::QUEUE_POST_TYPE,
-					'post_status' => 'publish',
-					/* translators: %s: Recipient email address. */
-					'post_title'  => sprintf( __( 'Queue for %s', 'nonprofit-manager' ), $email ),
-					'meta_input'  => array(
-						self::QUEUE_NEWSLETTER_META => $newsletter_id,
-						self::QUEUE_USER_META       => isset( $recipient->ID ) ? (int) $recipient->ID : 0,
-						self::QUEUE_EMAIL_META      => $email,
-						self::QUEUE_STATUS_META     => 'pending',
-						self::QUEUE_QUEUED_META     => current_time( 'mysql' ),
-					),
+					'newsletter_id' => $newsletter_id,
+					'user_id'       => isset( $recipient->ID ) ? (int) $recipient->ID : 0,
+					'email'         => $email,
+					'status'        => 'pending',
+					'queued_at'     => $now,
 				),
-				true
+				array( '%d', '%d', '%s', '%s', '%s' )
 			);
 
-			if ( ! is_wp_error( $queue_id ) ) {
+			if ( false !== $inserted ) {
 				$queued ++;
 			}
 		}
 
 		update_post_meta( $newsletter_id, '_npmp_newsletter_status', $queued ? 'queued' : 'no_recipients' );
-		update_post_meta( $newsletter_id, '_npmp_newsletter_queued_at', current_time( 'mysql' ) );
+		update_post_meta( $newsletter_id, '_npmp_newsletter_queued_at', $now );
 		update_post_meta( $newsletter_id, '_npmp_newsletter_recipient_total', $queued );
 
 		$levels = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
@@ -136,39 +116,52 @@ class NPMP_Newsletter_Manager {
 	}
 
 	public static function process_queue() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'npmp_newsletter_queue';
+
 		$limit = intval( get_option( 'npmp_newsletter_rate_limit', self::EMAILS_PER_RUN ) );
 		if ( $limit <= 0 ) {
 			$limit = self::EMAILS_PER_RUN;
 		}
 
-		$query = new WP_Query(
-			array(
-				'post_type'      => self::QUEUE_POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => $limit,
-				'orderby'        => 'meta_value',
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Queue processing is ordered by meta timestamps.
-				'meta_key'       => self::QUEUE_QUEUED_META,
-				'order'          => 'ASC',
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Selecting pending queue items is metadata-driven.
-				'meta_query'     => array(
-					array(
-						'key'   => self::QUEUE_STATUS_META,
-						'value' => 'pending',
-					),
-				),
+		// id is a deterministic tiebreaker: a whole newsletter's rows share the
+		// same queued_at (one queue_newsletter() call), so ordering by
+		// queued_at alone would drain them in an undefined order across ticks.
+		$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, drained on a per-minute cron.
+			$wpdb->prepare(
+				"SELECT id, newsletter_id, user_id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
+				$limit
 			)
 		);
 
-		foreach ( $query->posts as $queue_id ) {
-			$newsletter_id = (int) get_post_meta( $queue_id, self::QUEUE_NEWSLETTER_META, true );
-			$user_id       = (int) get_post_meta( $queue_id, self::QUEUE_USER_META, true );
-			$email         = sanitize_email( get_post_meta( $queue_id, self::QUEUE_EMAIL_META, true ) );
+		if ( empty( $batch ) ) {
+			return;
+		}
+
+		// newsletter_id => whether any of its rows sent successfully this run,
+		// used below to decide the completion milestone.
+		$touched = array();
+
+		foreach ( $batch as $row ) {
+			$queue_id      = (int) $row->id;
+			$newsletter_id = (int) $row->newsletter_id;
+			$user_id       = (int) $row->user_id;
+			$email         = sanitize_email( $row->email );
 
 			if ( ! $newsletter_id || ! $email ) {
-				update_post_meta( $queue_id, self::QUEUE_STATUS_META, 'failed' );
+				$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+					$table,
+					array(
+						'status'  => 'failed',
+						'sent_at' => current_time( 'mysql' ),
+					),
+					array( 'id' => $queue_id ),
+					array( '%s', '%s' ),
+					array( '%d' )
+				);
+				if ( $newsletter_id && ! isset( $touched[ $newsletter_id ] ) ) {
+					$touched[ $newsletter_id ] = false;
+				}
 				continue;
 			}
 
@@ -176,38 +169,44 @@ class NPMP_Newsletter_Manager {
 			$subject = get_the_title( $newsletter_id );
 			$sent    = self::send_email( $email, $subject, $content );
 
-			update_post_meta( $queue_id, self::QUEUE_STATUS_META, $sent ? 'sent' : 'failed' );
-			update_post_meta( $queue_id, self::QUEUE_SENT_META, current_time( 'mysql' ) );
+			$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+				$table,
+				array(
+					'status'  => $sent ? 'sent' : 'failed',
+					'sent_at' => current_time( 'mysql' ),
+				),
+				array( 'id' => $queue_id ),
+				array( '%s', '%s' ),
+				array( '%d' )
+			);
 
+			if ( ! isset( $touched[ $newsletter_id ] ) ) {
+				$touched[ $newsletter_id ] = false;
+			}
 			if ( $sent ) {
-				$pending = new WP_Query(
-					array(
-						'post_type'      => self::QUEUE_POST_TYPE,
-						'post_status'    => 'publish',
-						'posts_per_page' => 1,
-						'fields'         => 'ids',
-						'no_found_rows'  => true,
-						// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Counts remaining queue entries via metadata.
-						'meta_query'     => array(
-							array(
-								'key'   => self::QUEUE_NEWSLETTER_META,
-								'value' => $newsletter_id,
-							),
-							array(
-								'key'   => self::QUEUE_STATUS_META,
-								'value' => 'pending',
-							),
-						),
-					)
-				);
+				$touched[ $newsletter_id ] = true;
+			}
+		}
 
-				if ( 0 === $pending->post_count ) {
-					update_post_meta( $newsletter_id, '_npmp_newsletter_status', 'sent' );
+		// Mark each newsletter drained this run as fully sent once nothing is
+		// left pending for it. Checked once per newsletter after the batch, not
+		// once per email as the old code did. Marking on drain (rather than
+		// only inside a successful send, as before) also stops a newsletter
+		// whose final recipient fails from being stuck in the "queued" state.
+		foreach ( $touched as $newsletter_id => $any_sent ) {
+			$pending = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = 'pending'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+					$newsletter_id
+				)
+			);
 
-					// A fully sent newsletter is a real usage milestone.
-					if ( function_exists( 'npmp_mark_milestone' ) ) {
-						npmp_mark_milestone( 'newsletter' );
-					}
+			if ( 0 === $pending ) {
+				update_post_meta( $newsletter_id, '_npmp_newsletter_status', 'sent' );
+
+				// A fully sent newsletter is a real usage milestone.
+				if ( $any_sent && function_exists( 'npmp_mark_milestone' ) ) {
+					npmp_mark_milestone( 'newsletter' );
 				}
 			}
 		}
