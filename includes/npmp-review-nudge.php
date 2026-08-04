@@ -51,7 +51,7 @@ if ( ! function_exists( 'npmp_review_nudge_feedback_url' ) ) {
 	function npmp_review_nudge_feedback_url() {
 		return apply_filters(
 			'npmp_review_nudge_feedback_url',
-			'mailto:support@ericrosenberg.com?subject=' . rawurlencode( 'Nonprofit Manager feedback' )
+			'mailto:support@nonprofitmanager.app?subject=' . rawurlencode( 'Nonprofit Manager feedback' )
 		);
 	}
 }

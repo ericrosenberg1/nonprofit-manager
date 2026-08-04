@@ -30,7 +30,7 @@ function npmp_get_version() {
  * @return string URL to upgrade page
  */
 function npmp_get_upgrade_url() {
-	return 'https://nonprofitmanager.ericrosenberg.com/pricing';
+	return 'https://nonprofitmanager.app/pricing';
 }
 
 /**

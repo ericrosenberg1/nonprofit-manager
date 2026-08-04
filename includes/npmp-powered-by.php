@@ -56,7 +56,7 @@ if ( ! function_exists( 'npmp_powered_by_url' ) ) {
 				'utm_medium'   => $medium,
 				'utm_campaign' => 'free_plugin',
 			),
-			'https://nonprofitmanager.ericrosenberg.com/'
+			'https://nonprofitmanager.app/'
 		);
 
 		/**

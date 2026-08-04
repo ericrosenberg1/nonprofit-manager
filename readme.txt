@@ -60,7 +60,7 @@ Most tools do one job. Donation plugins only take donations. Membership plugins 
 
 **Pro Features:**
 
-[Nonprofit Manager Pro](https://nonprofitmanager.ericrosenberg.com/pricing) adds:
+[Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) adds:
 
 * 6 email providers (AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost)
 * Recurring donation management with Stripe subscriptions
@@ -103,7 +103,7 @@ With Nonprofit Manager Pro, go to Nonprofit Manager > Import. You can import fro
 
 = Where can I get support? =
 
-Free support is available through the WordPress.org support forums. Pro customers receive priority support via email at support@ericrosenberg.com.
+Free support is available through the WordPress.org support forums. Pro customers receive priority support via email at support@nonprofitmanager.app.
 
 == Screenshots ==
 

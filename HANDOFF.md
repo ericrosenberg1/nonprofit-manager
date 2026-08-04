@@ -18,7 +18,7 @@ imports).
   proprietary license, distributed only via the license server's download endpoint.
 - **License server:** `~/Code/nonprofit-manager/nonprofit-manager-site`, its own separate git
   repo (GitHub `ericrosenberg1/nonprofit-manager-site`), Astro app on Cloudflare Workers plus
-  D1, R2, and KV, live at `https://nonprofitmanager.ericrosenberg.com`. Handles license
+  D1, R2, and KV, live at `https://nonprofitmanager.app` (old subdomain nonprofitmanager.ericrosenberg.com 301s, /api/* answers on both hosts for installed Pro clients). Handles license
   activation/deactivation, Stripe checkout/webhooks, the Pro update-check endpoint
   (`/api/license/version`), and Pro zip downloads (`/api/download/[key]`).
 - **wp.org SVN working copy:** `/Users/eric/wp-svn/nonprofit-manager-svn`, has cached wp.org
