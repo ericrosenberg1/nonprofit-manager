@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 2026.08.1
+Stable tag: 2026.08.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.08.2 =
+* Housekeeping: Version bump to stay in lockstep with Nonprofit Manager Pro 2026.08.2, which adds a clear warning banner when Pro isn't activated with a valid license key or the two plugins' versions don't match. No changes to the free plugin itself.
 
 = 2026.08.1 =
 * Changed: Nonprofit Manager has a new home at [nonprofitmanager.app](https://nonprofitmanager.app/). Upgrade, account, and support links throughout the plugin now point there. Old links redirect, so nothing breaks on existing installs.
@@ -249,6 +252,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.08.2 =
+Maintenance release keeping the free plugin in lockstep with Pro 2026.08.2. No functional changes to the free plugin.
 
 = 2026.08.1 =
 Maintenance update. The plugin's home moved to nonprofitmanager.app and all links now point there. Old links redirect, so existing installs keep working.
