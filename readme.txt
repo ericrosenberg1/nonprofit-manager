@@ -24,29 +24,28 @@ Features marked with an asterisk (*) require [Nonprofit Manager Pro](https://non
 
 * Member management with membership levels, filtering, and bulk actions
 * Members and donors in one contact list, with lifetime donation totals
-* Membership signup and unsubscribe forms as blocks or shortcodes
-* Import members from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact (up to 50 rows free, unlimited*)
+* Membership signup and unsubscribe forms as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
+* Import members from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
 * Custom member fields with 8 field types and drag-and-drop ordering*
 * Member segmentation with an AND/OR condition builder*
 
 **Donations**
 
-* One-time donations with PayPal (email link or Smart Buttons), Venmo, and Stripe
+* One-time donations with PayPal, Venmo, and Stripe
 * Donation form as a block or shortcode, with thank-you messages and donor confirmation emails
 * Server-side payment verification records for every PayPal capture
-* Recurring donations with Stripe subscriptions*
+* Recurring donations*
 * Membership dues auto-billing*
 
 **Newsletters and email**
 
 * Compose newsletters in the Gutenberg editor with reusable templates, headers, and footers
 * Open and click tracking in dedicated database tables that won't bloat your site
-* Test sends, rate limiting, and a CAN-SPAM footer with your postal address
+* Test sends, rate limiting, CAN-SPAM compliant
 * One-click unsubscribe with RFC 8058 List-Unsubscribe headers for Gmail and Yahoo deliverability
 * New post and event notifications, instant or as an automatic weekly digest, with subscriber self-service preferences
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
-* Six transactional email providers: AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost*
-* Guided email provider setup wizard with connection testing*
+* Email providers: AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost*
 
 **Events**
 
@@ -58,12 +57,6 @@ Features marked with an asterisk (*) require [Nonprofit Manager Pro](https://non
 * Auto-share new posts and events to Facebook and X, with {title}, {url}, {excerpt} placeholders
 * Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
 * Visitor share buttons and a general contact form, each as a block or shortcode
-
-**Housekeeping**
-
-* Setup wizard that enables only the features you need
-* CAPTCHA protection with Cloudflare Turnstile or Google reCAPTCHA
-* Works with any properly coded theme, and Pro customers get priority support*
 
 == Installation ==
 
