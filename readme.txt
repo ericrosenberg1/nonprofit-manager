@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 2026.07.5
+Stable tag: 2026.08.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -14,63 +14,56 @@ The all-in-one WordPress plugin for small nonprofits and clubs. Manage members, 
 
 Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. It brings membership management, donations, email newsletters, and an event calendar together in one place, so you don't have to bolt four separate plugins together to run your organization.
 
-Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and your donors in one system, along with the newsletters and events you send them. The core is free.
+Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and your donors in one system, along with the newsletters and events you send them. The core is free. Learn more at [nonprofitmanager.app](https://nonprofitmanager.app/).
 
-**Core Features:**
+= Features =
 
-* **Membership Management** - Track members, manage membership levels, and keep your community organized
-* **Donation Processing** - Accept one-time donations with PayPal, Venmo, and Stripe
-* **Email Newsletters** - Build and send email campaigns in the Gutenberg block editor
-* **Event Calendar** - Manage and promote nonprofit events with an integrated calendar
-* **Social Sharing** - Auto-share new posts and events to Facebook and X (Twitter)
-* **Subscriber Preferences** - Let subscribers choose instant notifications or weekly digests
-* **Contact Forms** - Customizable membership signup and donation forms
-* **CAPTCHA Protection** - Support for Cloudflare Turnstile and Google reCAPTCHA
+Features marked with an asterisk (*) require [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing). Everything else is free.
 
-**Email Newsletter Features:**
+**Members and donors**
 
-* Gutenberg-powered email template builder
-* Reusable email headers and footers
-* Newsletter templates with [email_content] placeholder
-* Send test emails before publishing
-* Email tracking (opens and clicks)
-* Rate limiting to prevent server overload
-* CAN-SPAM compliance footer
+* Member management with membership levels, filtering, and bulk actions
+* Members and donors in one contact list, with lifetime donation totals
+* Membership signup and unsubscribe forms as blocks or shortcodes
+* Import members from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact (up to 50 rows free, unlimited*)
+* Custom member fields with 8 field types and drag-and-drop ordering*
+* Member segmentation with an AND/OR condition builder*
 
-**Payment Gateways:**
+**Donations**
 
-* PayPal (Email Link & Smart Button SDK)
-* Venmo
-* Stripe (one-time donations)
-* Recurring donations (Pro)
+* One-time donations with PayPal (email link or Smart Buttons), Venmo, and Stripe
+* Donation form as a block or shortcode, with thank-you messages and donor confirmation emails
+* Server-side payment verification records for every PayPal capture
+* Recurring donations with Stripe subscriptions*
+* Membership dues auto-billing*
 
-**Social Sharing (New in 2.0):**
+**Newsletters and email**
 
-* Auto-share new posts and events to connected social networks
-* Free: Facebook Pages and X (Twitter)
-* Pro: adds Reddit, Bluesky, Mastodon, Threads, and Nextdoor
-* Customizable share format with {title}, {url}, {excerpt} placeholders
+* Compose newsletters in the Gutenberg editor with reusable templates, headers, and footers
+* Open and click tracking in dedicated database tables that won't bloat your site
+* Test sends, rate limiting, and a CAN-SPAM footer with your postal address
+* One-click unsubscribe with RFC 8058 List-Unsubscribe headers for Gmail and Yahoo deliverability
+* New post and event notifications, instant or as an automatic weekly digest, with subscriber self-service preferences
+* Email automation workflows: welcome emails, donation receipts, and expiry reminders*
+* Six transactional email providers: AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost*
+* Guided email provider setup wizard with connection testing*
 
-**Subscriber Notification Preferences (New in 2.0):**
+**Events**
 
-* New post email notifications (instant or weekly digest)
-* New event email notifications (instant or weekly digest)
-* Subscriber self-service preference management page
-* Automatic weekly digest emails with recent posts and events
+* Event calendar with Month, Week, and List views, plus Calendar and Upcoming Events blocks
+* iCal feed, quick-add from the dashboard, and one-click convert of any post or page to an event
 
-**Pro Features:**
+**Sharing and outreach**
 
-[Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) adds:
+* Auto-share new posts and events to Facebook and X, with {title}, {url}, {excerpt} placeholders
+* Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
+* Visitor share buttons and a general contact form, each as a block or shortcode
 
-* 6 email providers (AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost)
-* Recurring donation management with Stripe subscriptions
-* Custom member fields (text, dropdown, checkbox, date, etc.)
-* Email automation workflows (welcome emails, donation receipts, expiry reminders)
-* Advanced member segmentation with AND/OR condition builder
-* Import members from Mailchimp, Constant Contact, CSV, XLSX, or Google Sheets
-* Social sharing to Reddit, Bluesky, Mastodon, Threads, and Nextdoor
-* Guided email provider setup wizard
-* Priority support
+**Housekeeping**
+
+* Setup wizard that enables only the features you need
+* CAPTCHA protection with Cloudflare Turnstile or Google reCAPTCHA
+* Works with any properly coded theme, and Pro customers get priority support*
 
 == Installation ==
 
@@ -95,11 +88,11 @@ Nonprofit Manager is designed to work with any properly coded WordPress theme. F
 
 = Can I convert existing posts into events? =
 
-Yes. Version 2.0 adds a "Convert to Event" action on any post or page. It creates an event with the same content and lets you set the date, time, and location.
+Yes. Use the "Convert to Event" action on any post or page. It creates an event with the same content and lets you set the date, time, and location.
 
 = How do I import my existing email list? =
 
-With Nonprofit Manager Pro, go to Nonprofit Manager > Import. You can import from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact, and it auto-detects your columns.
+Go to Nonprofit Manager > Import. You can import from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact, and it auto-detects your columns. The free plugin imports up to 50 supporters per job. Nonprofit Manager Pro removes the cap.
 
 = Where can I get support? =
 
@@ -117,6 +110,11 @@ Free support is available through the WordPress.org support forums. Pro customer
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.08.1 =
+* Changed: Nonprofit Manager has a new home at [nonprofitmanager.app](https://nonprofitmanager.app/). Upgrade, account, and support links throughout the plugin now point there. Old links redirect, so nothing breaks on existing installs.
+* Improved: Refreshed the plugin listing with a single comprehensive feature list covering both free and Pro.
+* Housekeeping: Kept in lockstep with Nonprofit Manager Pro 2026.08.1, which moves license activation and updates to the new domain.
 
 = 2026.07.5 =
 * Fixed: The Social Sharing settings page no longer shows a "Sorry, you are not allowed to access this page" error for administrators. It was a menu load-order problem, not a permissions one, so the page now opens normally.
@@ -254,6 +252,9 @@ Free support is available through the WordPress.org support forums. Pro customer
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.08.1 =
+Maintenance update. The plugin's home moved to nonprofitmanager.app and all links now point there. Old links redirect, so existing installs keep working.
 
 = 2026.07.4 =
 Recommended update. Fixes "Force From Address" incorrectly rewriting mail from other plugins, batches the weekly digest so large lists can't stall it, cuts memory use on large CSV/XLSX imports, and moves newsletter tracking off wp_posts onto dedicated tables.

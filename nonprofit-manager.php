@@ -1,8 +1,9 @@
 <?php
 /**
  * Plugin Name: Nonprofit Manager
+ * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.07.5
+ * Version: 2026.08.1
  * Author: Rosenberg Digital LLC
  * Author URI: https://ericrosenberg.com
  * License: GPL-2.0-or-later
@@ -101,12 +102,12 @@ add_filter(
 		// Overview link
 		$custom_links[] = '<a href="' . esc_url( admin_url( 'admin.php?page=npmp_main' ) ) . '">' . esc_html__( 'Overview', 'nonprofit-manager' ) . '</a>';
 
-		// Developer homepage link
-		$custom_links[] = '<a href="https://ericrosenberg.com" target="_blank">' . esc_html__( 'Developer', 'nonprofit-manager' ) . '</a>';
+		// Plugin website link
+		$custom_links[] = '<a href="https://nonprofitmanager.app/" target="_blank">' . esc_html__( 'Website', 'nonprofit-manager' ) . '</a>';
 
-		// Upgrade to Pro link (greyed out if not pro)
+		// Upgrade to Pro link
 		if ( ! npmp_is_pro() ) {
-			$custom_links[] = '<span style="color: #666;">' . esc_html__( 'Upgrade to Pro', 'nonprofit-manager' ) . ' <em>(' . esc_html__( 'Coming Soon', 'nonprofit-manager' ) . ')</em></span>';
+			$custom_links[] = '<a href="' . esc_url( npmp_get_upgrade_url() ) . '" target="_blank">' . esc_html__( 'Upgrade to Pro', 'nonprofit-manager' ) . '</a>';
 		}
 
 		// Support link
