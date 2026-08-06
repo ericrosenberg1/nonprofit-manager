@@ -12,84 +12,88 @@ The all-in-one WordPress plugin for small nonprofits and clubs. Manage members, 
 
 == Description ==
 
-Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. It brings membership management, donations, email newsletters, and an event calendar together in one place, so you don't have to bolt four separate plugins together to run your organization.
+Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. It brings membership management, online donations, email newsletters, and an event calendar together in one place, so you don't have to bolt four separate plugins together to run your organization.
 
-Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and your donors in one system, along with the newsletters and events you send them. The core is free. Learn more at [nonprofitmanager.app](https://nonprofitmanager.app/).
+Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and donors in one system, right next to the newsletters you send them and the events you invite them to. You spend less time wrangling software and more time on your mission. Learn more at [nonprofitmanager.app](https://nonprofitmanager.app/).
 
 = Features =
 
-Features marked with an asterisk (*) require [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing). Everything else is free.
+Everything without an asterisk is free. Features marked with an asterisk (*) come with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) when you're ready for them.
 
 **Members and donors**
 
-* Member management with membership levels, filtering, and bulk actions
-* Members and donors in one contact list, with lifetime donation totals
-* Membership signup and unsubscribe forms as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
-* Import members from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
+* Track members with membership levels, filtering, and bulk actions
+* Members and donors share one contact list, so you can see anyone's lifetime giving at a glance
+* Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
+* Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
 * Custom member fields with 8 field types and drag-and-drop ordering*
-* Member segmentation with an AND/OR condition builder*
+* Segment members with an AND/OR condition builder*
 
 **Donations**
 
-* One-time donations with PayPal, Venmo, and Stripe
-* Donation form as a block or shortcode, with thank-you messages and donor confirmation emails
-* Server-side payment verification records for every PayPal capture
+* Accept one-time donations through PayPal, Venmo, and Stripe
+* Drop a donation form on any page as a block or shortcode, complete with thank-you messages and donor confirmation emails
+* Every PayPal capture keeps a server-side verification record, so your books always have something to check against
 * Recurring donations*
 * Membership dues auto-billing*
 
 **Newsletters and email**
 
-* Compose newsletters in the Gutenberg editor with reusable templates, headers, and footers
-* Open and click tracking in dedicated database tables that won't bloat your site
-* Test sends, rate limiting, CAN-SPAM compliant
-* One-click unsubscribe with RFC 8058 List-Unsubscribe headers for Gmail and Yahoo deliverability
-* New post and event notifications, instant or as an automatic weekly digest, with subscriber self-service preferences
+* Write newsletters in the editor you already know (Gutenberg), with reusable templates, headers, and footers
+* See who opens and clicks, tracked in dedicated tables that won't bloat your database
+* Send yourself a test first, let rate limiting pace large sends, and stay CAN-SPAM compliant
+* One-click unsubscribe with RFC 8058 List-Unsubscribe headers, which Gmail and Yahoo now expect
+* Tell subscribers about new posts and events instantly or in an automatic weekly digest, and let them pick their own preferences
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
-* Email providers: AWS SES, Brevo, SendGrid, Mailgun, Postmark, SparkPost*
+* Send through AWS SES, Brevo, SendGrid, Mailgun, Postmark, or SparkPost*
 
 **Events**
 
-* Event calendar with Month, Week, and List views, plus Calendar and Upcoming Events blocks
-* iCal feed, quick-add from the dashboard, and one-click convert of any post or page to an event
+* Event calendar with Month, Week, and List views, plus Calendar and Upcoming Events blocks for any page
+* iCal feed, quick-add from the dashboard, and one-click convert of any post or page into an event
 
 **Sharing and outreach**
 
 * Auto-share new posts and events to Facebook and X, with {title}, {url}, {excerpt} placeholders
 * Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
-* Visitor share buttons and a general contact form, each as a block or shortcode
+* Give visitors share buttons and a contact form, each as a block or shortcode
 
 == Installation ==
 
-1. Upload the `nonprofit-manager` folder to `/wp-content/plugins/` or install via the WordPress Plugin Directory.
-2. Activate the plugin through the 'Plugins' menu in WordPress.
-3. Follow the setup wizard to choose which features to enable.
-4. Configure your payment gateways, email settings, and membership levels.
+1. Install from the WordPress Plugin Directory (search for "Nonprofit Manager"), or upload the `nonprofit-manager` folder to `/wp-content/plugins/`.
+2. Activate the plugin from the Plugins menu.
+3. Walk through the setup wizard and turn on only the features you need.
+4. Add your payment details, email settings, and membership levels, and you're ready to welcome supporters.
 
 == Frequently Asked Questions ==
 
+= Is Nonprofit Manager free? =
+
+Yes. Membership management, donations, newsletters, and events are all included in the free plugin, with no trial period or locked screens. [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) adds features like recurring donations, email automation, and unlimited imports when you need them.
+
 = What payment gateways are supported? =
 
-The free version supports PayPal, Venmo, and Stripe for one-time donations. Recurring donations via Stripe are available with Nonprofit Manager Pro.
+PayPal, Venmo, and Stripe for one-time donations, all in the free plugin. Recurring donations and membership dues auto-billing come with Nonprofit Manager Pro.
 
 = Can I send email newsletters? =
 
-Yes. The built-in newsletter system uses the Gutenberg editor for composing emails, supports reusable templates, and includes open and click tracking.
+Yes. You write newsletters in the Gutenberg editor, reuse templates, headers, and footers, and see who opened and clicked. One-click unsubscribe and a CAN-SPAM footer are built in.
 
 = Does it work with my theme? =
 
-Nonprofit Manager is designed to work with any properly coded WordPress theme. Forms and shortcodes adapt to your theme's styling.
+Yes. Nonprofit Manager works with any properly coded WordPress theme, and its forms and shortcodes pick up your theme's styling automatically.
 
 = Can I convert existing posts into events? =
 
-Yes. Use the "Convert to Event" action on any post or page. It creates an event with the same content and lets you set the date, time, and location.
+Yes. Use the "Convert to Event" action on any post or page. It carries your content over and lets you set the date, time, and location.
 
 = How do I import my existing email list? =
 
-Go to Nonprofit Manager > Import. You can import from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact, and it auto-detects your columns. The free plugin imports up to 50 supporters per job. Nonprofit Manager Pro removes the cap.
+Go to Nonprofit Manager > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. The free plugin imports up to 50 supporters per job, and Pro removes the cap.
 
 = Where can I get support? =
 
-Free support is available through the WordPress.org support forums. Pro customers receive priority support via email at support@nonprofitmanager.app.
+Ask in the WordPress.org support forums and we'll help. Pro customers also get priority email support at support@nonprofitmanager.app.
 
 == Screenshots ==
 
