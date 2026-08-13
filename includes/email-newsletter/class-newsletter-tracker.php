@@ -203,11 +203,22 @@ class NPMP_Newsletter_Tracker {
 			exit;
 		}
 
-		// The destination URL is part of the signed payload, so a valid click
-		// token can't be reused with a swapped url= parameter. Links from
-		// newsletters sent before the URL was signed still verify through the
-		// legacy check, which excludes the URL.
-		$valid = self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $decoded_url )
+		// Two token generations are in play, and they do NOT carry the same
+		// authority:
+		//
+		//   - Current tokens sign the destination URL itself, so the token
+		//     authorizes exactly one destination and cannot be replayed with a
+		//     swapped url= parameter.
+		//   - Legacy tokens (newsletters sent before the URL was added to the
+		//     payload) sign only action|newsletter_id|user_id. Such a token
+		//     authorizes NO particular destination, so it must never be trusted
+		//     to send a visitor off-site -- these links are still in recipients'
+		//     inboxes and never expire, so treating them as URL-bound would be a
+		//     durable open redirect on an unauthenticated endpoint.
+		//
+		// Track which one verified, because the redirect below depends on it.
+		$url_is_signed = self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $decoded_url );
+		$valid         = $url_is_signed
 			|| self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id );
 
 		if ( ! $valid ) {
@@ -220,17 +231,25 @@ class NPMP_Newsletter_Tracker {
 		}
 
 		if ( $url ) {
-			// wp_safe_redirect() rejects any host that is not this site's own
-			// (wp_validate_redirect() falls back silently unless the host is
-			// pre-registered via the allowed_redirect_hosts filter, which this
-			// plugin does not add). Newsletter links are routinely off-site
-			// (donation processors, social profiles, partner sites), so that
-			// would have quietly sent every external click back to the home
-			// page instead of the link's real destination. $url has already
-			// been through esc_url_raw() and its HMAC (which signs the exact
-			// destination, see the comment above) has just been verified, so
-			// it is safe to redirect to directly.
-			wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is HMAC-signed and esc_url_raw()'d above; see comment.
+			if ( $url_is_signed ) {
+				// wp_safe_redirect() rejects any host that is not this site's own
+				// (wp_validate_redirect() falls back silently unless the host is
+				// pre-registered via the allowed_redirect_hosts filter, which this
+				// plugin does not add). Newsletter links are routinely off-site
+				// (donation processors, social profiles, partner sites), so that
+				// would have quietly sent every external click back to the home
+				// page instead of the link's real destination. This token signs
+				// this exact destination and has just been verified against it,
+				// and $url has been through esc_url_raw(), so leaving the site is
+				// safe here.
+				wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is bound into the verified HMAC and esc_url_raw()'d above; see comment.
+			} else {
+				// Legacy token: verified, but it authorizes no specific
+				// destination, so an attacker could pair it with any url=.
+				// wp_safe_redirect() keeps those on this site, which is exactly
+				// how these links behaved before 2026.08.3.
+				wp_safe_redirect( $url );
+			}
 			exit;
 		}
 

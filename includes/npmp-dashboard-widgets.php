@@ -482,7 +482,15 @@ function npmp_get_annual_recurring_total() {
 			case 'quarterly':
 				$annual = $amount * 4;
 				break;
+			// Two vocabularies reach this meta field and both mean once a year.
+			// The free donation form writes 'annual'; Pro's Stripe subscription
+			// sync maps Stripe's year interval to 'yearly' and passes that
+			// straight through to log_donation() on every renewal. Matching only
+			// one of them silently totals the other as $0, which is how this
+			// figure was wrong before: it tested 'yearly' alone, so every
+			// donation from the free form counted as nothing.
 			case 'annual':
+			case 'yearly':
 				$annual = $amount;
 				break;
 			default:
