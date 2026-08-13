@@ -363,8 +363,15 @@ add_action( 'init', function () {
 		return;
 	}
 	if ( ! wp_next_scheduled( 'npmp_send_weekly_digest' ) ) {
-		// Schedule for Monday mornings at 9 AM site time.
-		$next_monday = strtotime( 'next Monday 9:00', current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- Need timestamp for wp_schedule_event.
+		// Schedule for Monday mornings at 9 AM site time. wp_schedule_event()
+		// needs a true Unix (UTC) timestamp, but current_time( 'timestamp' )
+		// returns time() shifted by the site's UTC offset (WordPress's
+		// "local" pseudo-timestamp convention) — feeding that shifted value
+		// straight in made the digest fire at 9:00 UTC-offset-from-9AM
+		// instead of 9 AM local. Building the target moment directly in the
+		// site's real timezone gives wp_schedule_event() a correct UTC
+		// timestamp regardless of the site's configured offset.
+		$next_monday = ( new DateTimeImmutable( 'now', wp_timezone() ) )->modify( 'next Monday 9:00' )->getTimestamp();
 		wp_schedule_event( $next_monday, 'weekly', 'npmp_send_weekly_digest' );
 	}
 } );
@@ -376,8 +383,13 @@ function npmp_process_weekly_digest() {
 		return;
 	}
 
-	// Get posts and events from the last 7 days.
-	$week_ago = gmdate( 'Y-m-d H:i:s', strtotime( '-7 days' ) );
+	// Get posts and events from the last 7 days. date_query's 'after' value
+	// is compared against the post_date column, which WordPress stores as
+	// site-local time — gmdate( 'Y-m-d H:i:s', strtotime( '-7 days' ) )
+	// produced a UTC-labeled string instead, shifting the 7-day cutoff by
+	// the site's UTC offset. Building it directly in the site's timezone
+	// keeps the window aligned to local time.
+	$week_ago = ( new DateTimeImmutable( 'now', wp_timezone() ) )->modify( '-7 days' )->format( 'Y-m-d H:i:s' );
 
 	$recent_posts = get_posts( array(
 		'post_type'      => 'post',
@@ -412,6 +424,11 @@ function npmp_process_weekly_digest() {
 		return;
 	}
 
+	// One meta-cache prime instead of one query per subscriber in the
+	// get_post_meta() loop below (same fix already applied to the sibling
+	// per-post notification path and the dashboard donation totals).
+	update_meta_cache( 'post', $subscribers );
+
 	$site_name = get_bloginfo( 'name' );
 	$subject   = sprintf(
 		/* translators: %s: site name */
@@ -437,7 +454,21 @@ function npmp_process_weekly_digest() {
 			$start = get_post_meta( $e->ID, '_npmp_event_start', true );
 			$content .= '<li><a href="' . esc_url( get_permalink( $e ) ) . '">' . esc_html( $e->post_title ) . '</a>';
 			if ( $start ) {
-				$content .= ' &mdash; ' . esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( $start ) ) );
+				// _npmp_event_start is a naive "Y-m-d H:i:s" string entered
+				// as site-local wall-clock time. WordPress forces PHP's
+				// default timezone to UTC, so a bare strtotime() here parsed
+				// it as UTC instead of the site's real timezone, shifting
+				// the displayed time by the site's UTC offset. Parsing
+				// explicitly against wp_timezone() keeps it correct.
+				$start_ts = false;
+				try {
+					$start_ts = ( new DateTimeImmutable( $start, wp_timezone() ) )->getTimestamp();
+				} catch ( Exception $ex ) {
+					$start_ts = false;
+				}
+				if ( $start_ts ) {
+					$content .= ' &mdash; ' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $start_ts ) );
+				}
 			}
 			$content .= '</li>';
 		}

@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.08.2
+ * Version: 2026.08.3
  * Author: Rosenberg Digital LLC
  * Author URI: https://ericrosenberg.com
  * License: GPL-2.0-or-later
@@ -180,24 +180,14 @@ add_action(
 );
 
 /* -------------------------------------------------------------------------
- * Dynamic email-delivery provider
+ * Email delivery
  * ---------------------------------------------------------------------- */
-if ( ! empty( $npmp_features['members'] ) ) {
-
-		$npmp_email_delivery_settings = get_option( 'npmp_email_delivery_settings', array() );
-		$npmp_email_delivery_method   = $npmp_email_delivery_settings['method'] ?? 'wordpress';
-
-		$npmp_email_delivery_drivers = array(
-			'smtp'     => 'includes/email/smtp.php',
-			'ses'      => 'includes/email/ses.php',
-			'sendgrid' => 'includes/email/sendgrid.php',
-			'mailgun'  => 'includes/email/mailgun.php',
-		);
-
-		if ( isset( $npmp_email_delivery_drivers[ $npmp_email_delivery_method ] ) ) {
-			$path = plugin_dir_path( __FILE__ ) . $npmp_email_delivery_drivers[ $npmp_email_delivery_method ];
-			if ( file_exists( $path ) ) {
-				require_once $path;
-			}
-	}
-}
+// Transport selection is handled dynamically at send time by
+// includes/email/smtp.php (loaded unconditionally above), which reads
+// npmp_email_get_settings() and hooks phpmailer_init to configure SMTP for
+// whichever provider (Custom SMTP, Amazon SES, Brevo, SendGrid, Mailgun,
+// Postmark, SparkPost) is selected. There used to be a second,
+// provider-per-file loader here keyed on a `npmp_email_delivery_settings`
+// option that nothing ever wrote, pointing at includes/email/ses.php,
+// sendgrid.php, and mailgun.php, none of which exist. It was always a
+// no-op (guarded by file_exists()) and has been removed.

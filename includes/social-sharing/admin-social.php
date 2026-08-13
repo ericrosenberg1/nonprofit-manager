@@ -44,6 +44,13 @@ add_action(
 add_action(
 	'admin_init',
 	static function () {
+		// Every branch below persists settings or stores network credentials;
+		// a valid nonce alone doesn't check the requesting user's role, so
+		// gate on the same capability the admin menu item itself requires.
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
 		$manager = NPMP_Social_Share_Manager::get_instance();
 
 		// Save settings.

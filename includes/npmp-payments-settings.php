@@ -114,8 +114,9 @@ function npmp_render_donations_dashboard() {
 			$donor_name = $donation->post_title;
 
 			// Extract name from title if it contains email in parentheses
-			if ( strpos( $donor_name, '(' ) !== false ) {
-				$donor_name = trim( substr( $donor_name, 0, strpos( $donor_name, '(' ) ) );
+			$paren_pos = strpos( $donor_name, '(' );
+			if ( false !== $paren_pos ) {
+				$donor_name = trim( substr( $donor_name, 0, $paren_pos ) );
 			}
 
 			echo '<tr>';
@@ -152,8 +153,9 @@ function npmp_render_donations_dashboard() {
 			$donor_name = $donation->post_title;
 
 			// Extract name from title if it contains email in parentheses
-			if ( strpos( $donor_name, '(' ) !== false ) {
-				$donor_name = trim( substr( $donor_name, 0, strpos( $donor_name, '(' ) ) );
+			$paren_pos = strpos( $donor_name, '(' );
+			if ( false !== $paren_pos ) {
+				$donor_name = trim( substr( $donor_name, 0, $paren_pos ) );
 			}
 
 			echo '<tr>';

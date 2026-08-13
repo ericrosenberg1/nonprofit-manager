@@ -12,6 +12,13 @@ defined( 'ABSPATH' ) || exit;
 add_action(
 	'admin_init',
 	static function () {
+		// Nonce verification alone isn't a capability check: gate every
+		// action below on manage_options too, defense-in-depth alongside
+		// the nonce, matching the render function of this same page.
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
 		// Handle adding a membership level
 		if (
 			isset( $_POST['npmp_add_level_nonce'] ) &&

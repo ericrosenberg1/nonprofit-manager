@@ -82,26 +82,48 @@ class NPMP_Newsletter_Manager {
 
 		$now = current_time( 'mysql' );
 
+		// Gather valid recipient rows first, then insert in batches instead of
+		// one $wpdb->insert() per recipient. A nonprofit with a few thousand
+		// subscribed members previously meant a few thousand round-trips here;
+		// batching in groups of 500 cuts that to a handful of multi-row INSERTs
+		// while inserting the exact same rows. The queue table has no unique
+		// constraint beyond its auto-increment id (see activation-hooks.php),
+		// so grouping rows into one statement can't turn an individual
+		// duplicate-row skip into a whole-batch failure the way it might on a
+		// uniquely-keyed table.
+		$rows = array();
 		foreach ( $recipients as $recipient ) {
 			$email = sanitize_email( $recipient->user_email ?? '' );
 			if ( ! $email ) {
 				continue;
 			}
 
-			$inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
-				$table,
-				array(
-					'newsletter_id' => $newsletter_id,
-					'user_id'       => isset( $recipient->ID ) ? (int) $recipient->ID : 0,
-					'email'         => $email,
-					'status'        => 'pending',
-					'queued_at'     => $now,
-				),
-				array( '%d', '%d', '%s', '%s', '%s' )
+			$rows[] = array(
+				$newsletter_id,
+				isset( $recipient->ID ) ? (int) $recipient->ID : 0,
+				$email,
+				'pending',
+				$now,
+			);
+		}
+
+		foreach ( array_chunk( $rows, 500 ) as $chunk ) {
+			$placeholders = implode( ', ', array_fill( 0, count( $chunk ), '(%d, %d, %s, %s, %s)' ) );
+			$values       = array();
+			foreach ( $chunk as $row ) {
+				array_push( $values, ...$row );
+			}
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			$result = $wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO {$table} (newsletter_id, user_id, email, status, queued_at) VALUES {$placeholders}", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name and a generated run of (%d,%d,%s,%s,%s) placeholders, one per row.
+					$values
+				)
 			);
 
-			if ( false !== $inserted ) {
-				$queued ++;
+			if ( false !== $result ) {
+				$queued += count( $chunk );
 			}
 		}
 
@@ -260,8 +282,16 @@ class NPMP_Newsletter_Manager {
 				$tracker = NPMP_Newsletter_Tracker::get_instance();
 				$dom     = new DOMDocument();
 
-				$libxml_previous_state = libxml_use_internal_errors( true );
-				$dom->loadHTML( mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ) );
+				// DOMDocument::loadHTML() assumes ISO-8859-1 without an explicit
+				// charset, which mangles multi-byte UTF-8 characters. The old fix
+				// was mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), but
+				// PHP 8.2 deprecated passing 'HTML-ENTITIES' to mb_convert_encoding().
+				// mb_encode_numericentity() with this convmap (every code point from
+				// U+0080 up) produces the same effect — every non-ASCII character
+				// becomes a numeric HTML entity — without the deprecation.
+				$convmap                = array( 0x80, 0x10FFFF, 0, 0x1FFFFF );
+				$libxml_previous_state  = libxml_use_internal_errors( true );
+				$dom->loadHTML( mb_encode_numericentity( $content, $convmap, 'UTF-8' ) );
 				libxml_clear_errors();
 				libxml_use_internal_errors( $libxml_previous_state );
 

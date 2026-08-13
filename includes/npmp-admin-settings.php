@@ -13,6 +13,12 @@ add_action(
 	'admin_init',
 	static function () {
 
+		// Nonce verification alone isn't a capability check: gate on
+		// manage_options too, defense-in-depth alongside the nonce.
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
 		if (
 			isset( $_POST['npmp_features_nonce'] ) &&
 			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_features_nonce'] ) ), 'npmp_save_features' )

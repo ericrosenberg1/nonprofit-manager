@@ -250,8 +250,10 @@ function npmp_render_events_dashboard() {
 
 		while ( $upcoming_query->have_posts() ) {
 			$upcoming_query->the_post();
-			$details = npmp_get_event_details( get_the_ID() );
-			$location = get_post_meta( get_the_ID(), '_npmp_event_location', true );
+			// npmp_get_event_details() already fetches location meta into
+			// $details['location']; re-fetching it separately was redundant.
+			$details  = npmp_get_event_details( get_the_ID() );
+			$location = $details['location'];
 
 			echo '<tr>';
 			echo '<td><a href="' . esc_url( get_edit_post_link() ) . '">' . esc_html( get_the_title() ) . '</a></td>';
@@ -282,8 +284,10 @@ function npmp_render_events_dashboard() {
 
 		while ( $past_query->have_posts() ) {
 			$past_query->the_post();
-			$details = npmp_get_event_details( get_the_ID() );
-			$location = get_post_meta( get_the_ID(), '_npmp_event_location', true );
+			// npmp_get_event_details() already fetches location meta into
+			// $details['location']; re-fetching it separately was redundant.
+			$details  = npmp_get_event_details( get_the_ID() );
+			$location = $details['location'];
 
 			echo '<tr>';
 			echo '<td><a href="' . esc_url( get_edit_post_link() ) . '">' . esc_html( get_the_title() ) . '</a></td>';
@@ -467,34 +471,67 @@ function npmp_get_event_details( $post_id ) {
 }
 
 /**
+ * Convert a stored "Y-m-d H:i:s" event date/time (entered by the admin as a
+ * local wall-clock value in the site's configured WordPress timezone — see
+ * npmp_save_event_meta()) into a true Unix timestamp.
+ *
+ * WordPress forces PHP's default timezone to UTC on every request (see
+ * wp-settings.php), so a bare strtotime() on this naive string always parses
+ * it as UTC rather than as the site's real timezone. Formatting that result
+ * with wp_date()/$timezone then shifts the displayed time by the site's UTC
+ * offset — e.g. an event entered as "10:00" on a UTC-7 site would display as
+ * "3:00". Parsing explicitly against wp_timezone() avoids that shift.
+ *
+ * @param string $mysql_datetime Stored "Y-m-d H:i:s" value.
+ * @return int|false Unix timestamp, or false if the value can't be parsed.
+ */
+function npmp_event_datetime_to_timestamp( $mysql_datetime ) {
+	if ( empty( $mysql_datetime ) ) {
+		return false;
+	}
+
+	try {
+		$date = new DateTimeImmutable( $mysql_datetime, wp_timezone() );
+	} catch ( Exception $e ) {
+		return false;
+	}
+
+	return $date->getTimestamp();
+}
+
+/**
  * Render formatted event date/time for lists.
  *
  * @param array $details Event details.
  * @return string
  */
 function npmp_format_event_datetime( $details ) {
-	$start = ! empty( $details['start'] ) ? strtotime( $details['start'] ) : false;
-	$end   = ! empty( $details['end'] ) ? strtotime( $details['end'] ) : false;
+	$start = ! empty( $details['start'] ) ? npmp_event_datetime_to_timestamp( $details['start'] ) : false;
+	$end   = ! empty( $details['end'] ) ? npmp_event_datetime_to_timestamp( $details['end'] ) : false;
 
 	if ( ! $start ) {
 		return '';
 	}
 
+	// wp_date(), not date_i18n(), because $start/$end are now true Unix
+	// timestamps (see npmp_event_datetime_to_timestamp()). date_i18n()
+	// assumes a timestamp already carries the site's UTC offset baked in and
+	// re-applies the offset itself, which would double-shift a real one.
+	$timezone    = wp_timezone();
 	$date_format = get_option( 'date_format' );
 	$time_format = get_option( 'time_format' );
 
-	$formatted = date_i18n( $date_format, $start );
+	$formatted = wp_date( $date_format, $start, $timezone );
 
 	if ( $time_format ) {
-		$formatted .= ' ' . date_i18n( $time_format, $start );
+		$formatted .= ' ' . wp_date( $time_format, $start, $timezone );
 	}
 
 	if ( $end ) {
-		$same_day = gmdate( 'Y-m-d', $start ) === gmdate( 'Y-m-d', $end );
-		$formatted .= $same_day ? ' &ndash; ' : ' &ndash; ';
-		$formatted .= date_i18n( $date_format, $end );
+		$formatted .= ' &ndash; ';
+		$formatted .= wp_date( $date_format, $end, $timezone );
 		if ( $time_format ) {
-			$formatted .= ' ' . date_i18n( $time_format, $end );
+			$formatted .= ' ' . wp_date( $time_format, $end, $timezone );
 		}
 	}
 
@@ -660,8 +697,8 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 		while ( $events_query->have_posts() ) {
 			$events_query->the_post();
 			$details  = npmp_get_event_details( get_the_ID() );
-			$start_ts = ! empty( $details['start'] ) ? strtotime( $details['start'] ) : 0;
-			$end_ts   = ! empty( $details['end'] ) ? strtotime( $details['end'] ) : $start_ts;
+			$start_ts = ! empty( $details['start'] ) ? npmp_event_datetime_to_timestamp( $details['start'] ) : 0;
+			$end_ts   = ! empty( $details['end'] ) ? npmp_event_datetime_to_timestamp( $details['end'] ) : $start_ts;
 
 			if ( ! $start_ts ) {
 				continue;
@@ -670,21 +707,34 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 				$end_ts = $start_ts;
 			}
 
+			$event_start_key = wp_date( 'Y-m-d', $start_ts, $timezone );
+			$event_end_key   = wp_date( 'Y-m-d', $end_ts, $timezone );
+
 			$event_data = array(
 				'title'     => get_the_title(),
 				'permalink' => get_permalink(),
 				'start_ts'  => $start_ts,
 				'end_ts'    => $end_ts,
-				'start_key' => wp_date( 'Y-m-d', $start_ts, $timezone ),
+				'start_key' => $event_start_key,
 			);
 
-			$loop_ts = $start_ts;
-			while ( $loop_ts <= $end_ts ) {
-				$loop_key = wp_date( 'Y-m-d', $loop_ts, $timezone );
+			// Step one calendar day at a time in the site's own timezone
+			// (not with raw +86400s arithmetic, which would misalign across
+			// a DST transition) from the event's first day through its last
+			// day, comparing calendar-day keys rather than full timestamps.
+			// Comparing timestamps instead (as this used to) drops a
+			// multi-day event's last day whenever its end time-of-day is
+			// earlier than its start time-of-day — e.g. a Friday 6pm to
+			// Sunday 2pm event would stop at Saturday, since "start + 2
+			// days" (Sunday 6pm) already falls after the Sunday 2pm end.
+			$loop_date = ( new DateTimeImmutable( '@' . $start_ts ) )->setTimezone( $timezone );
+			$loop_key  = $event_start_key;
+			while ( $loop_key <= $event_end_key ) {
 				if ( $loop_key >= $start_key && $loop_key <= $end_key ) {
 					$events_by_day[ $loop_key ][] = $event_data;
 				}
-				$loop_ts = strtotime( '+1 day', $loop_ts );
+				$loop_date = $loop_date->modify( '+1 day' );
+				$loop_key  = $loop_date->format( 'Y-m-d' );
 			}
 		}
 	}
@@ -1208,8 +1258,8 @@ function npmp_maybe_render_ical_feed() {
 
 	foreach ( $events as $event ) {
 		$details = npmp_get_event_details( $event->ID );
-		$start   = ! empty( $details['start'] ) ? strtotime( $details['start'] ) : false;
-		$end     = ! empty( $details['end'] ) ? strtotime( $details['end'] ) : $start;
+		$start   = ! empty( $details['start'] ) ? npmp_event_datetime_to_timestamp( $details['start'] ) : false;
+		$end     = ! empty( $details['end'] ) ? npmp_event_datetime_to_timestamp( $details['end'] ) : $start;
 
 		if ( ! $start ) {
 			continue;

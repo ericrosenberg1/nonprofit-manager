@@ -444,7 +444,13 @@ function npmp_newsletter_get_audience_label($post_id) {
  */
 function npmp_newsletter_normalize_levels($levels) {
     $levels = array_map('sanitize_text_field', (array) $levels);
-    if (in_array('__npmp_all__', $levels, true)) {
+    // The "All Members" checkbox posts value="__all__" (see the meta box markup
+    // above and newsletter-editor.js's gatherAudience()); '__npmp_all__' is only
+    // JS's fallback for the edge case where every checkbox is unchecked. Both
+    // must collapse to [] here, otherwise a saved "__all__" stays in the stored
+    // levels array, which makes $all_checked = empty($selected_levels) evaluate
+    // false on reload and the "All Members" checkbox loses its checked state.
+    if (in_array('__npmp_all__', $levels, true) || in_array('__all__', $levels, true)) {
         return [];
     }
     $levels = array_filter(

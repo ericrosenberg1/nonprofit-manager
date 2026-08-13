@@ -127,7 +127,11 @@ function npmp_import_ajax_preview() {
 			break;
 
 		case 'google_sheet':
-			$url = isset( $_POST['sheet_url'] ) ? esc_url_raw( wp_unslash( $_POST['sheet_url'] ) ) : '';
+			// is_string() guards against a hand-crafted sheet_url[]= request making
+			// $_POST['sheet_url'] an array: esc_url_raw() has no array handling of
+			// its own (it hits ltrim() on the raw value internally) and would throw
+			// an uncaught TypeError on one.
+			$url = ( isset( $_POST['sheet_url'] ) && is_string( $_POST['sheet_url'] ) ) ? esc_url_raw( wp_unslash( $_POST['sheet_url'] ) ) : '';
 			if ( empty( $url ) ) {
 				wp_send_json_error( __( 'Please enter a Google Sheet URL.', 'nonprofit-manager' ) );
 			}
@@ -359,7 +363,12 @@ function npmp_import_ajax_execute() {
 
 	$source     = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 	$file_token = isset( $_POST['file_token'] ) ? sanitize_text_field( wp_unslash( $_POST['file_token'] ) ) : '';
-	$mapping    = isset( $_POST['mapping'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['mapping'] ) ) : array();
+	// Cast to array before array_map(): the client is expected to send mapping[]
+	// as an array, but a malformed or hand-crafted request could send a plain
+	// string, which would otherwise throw an uncaught TypeError (array_map()
+	// requires an array in PHP 8) and fatal the request instead of failing
+	// gracefully.
+	$mapping    = isset( $_POST['mapping'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['mapping'] ) ) : array();
 
 	$options = array(
 		'duplicate_handling' => isset( $_POST['duplicate_handling'] ) ? sanitize_key( $_POST['duplicate_handling'] ) : 'skip',
@@ -498,7 +507,8 @@ function npmp_import_ajax_step() {
 			wp_send_json_error( __( 'This import source does not support chunked import.', 'nonprofit-manager' ) );
 		}
 
-		$mapping = isset( $_POST['mapping'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['mapping'] ) ) : array();
+		// See the cast comment on the same pattern in npmp_import_ajax_execute() above.
+		$mapping = isset( $_POST['mapping'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['mapping'] ) ) : array();
 		$options = array(
 			'duplicate_handling' => isset( $_POST['duplicate_handling'] ) ? sanitize_key( $_POST['duplicate_handling'] ) : 'skip',
 			'default_level'      => isset( $_POST['default_level'] ) ? sanitize_text_field( wp_unslash( $_POST['default_level'] ) ) : '',

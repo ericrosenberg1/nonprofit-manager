@@ -75,7 +75,8 @@ add_action(
 	static function () {
 		if (
 			isset( $_POST['npmp_setup_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_setup_nonce'] ) ), 'npmp_setup_wizard' )
+			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_setup_nonce'] ) ), 'npmp_setup_wizard' ) &&
+			current_user_can( 'manage_options' )
 		) {
 			$step = isset( $_POST['npmp_setup_step'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_setup_step'] ) ) : '';
 

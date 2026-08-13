@@ -2,9 +2,9 @@
 Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
-Tested up to: 7.0
-Stable tag: 2026.08.2
-Requires PHP: 7.4
+Tested up to: 7.1
+Stable tag: 2026.08.3
+Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -107,6 +107,20 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.08.3 =
+* Fixed: Sharing a post or event to X (formerly Twitter) no longer fails silently. The API request was signed with the wrong OAuth method, so every X share was rejected.
+* Fixed: Calendar event times could display shifted by your site's UTC offset (e.g. an event entered as 10:00 AM showing as a different hour). Event times are now parsed against your site's configured timezone.
+* Fixed: The "Default Level" setting for new email signups was being ignored; new signups always got a generic "member" label regardless of what you configured.
+* Fixed: An unparsable date in a member record could get silently saved as January 1, 1970 instead of being left blank.
+* Fixed: Clicking a tracked link in a newsletter that points off-site (a donation processor, a social profile) could redirect to your homepage instead of the real destination.
+* Fixed: The "All Members" checkbox on the newsletter recipient picker could lose its checked state after saving.
+* Fixed: Donation amounts with certain cents values (like $19.99) could be undercharged by a cent due to floating-point rounding.
+* Security: Closed a gap where a logged-out visitor could submit a fake donation record (and trigger a thank-you email) to the donation-logging endpoint without an actual PayPal payment behind it.
+* Security: Added missing capability checks on three admin settings-save handlers (General Settings, Feature toggles, Social Sharing) that previously relied on a nonce alone.
+* Improved: Sending a newsletter to a large recipient list now queues in batches instead of one database write per recipient.
+* Improved: The member-tier counts on the Membership dashboard run a cheaper query.
+* Housekeeping: Verified against the WordPress 7.1 changelog (releasing August 19, 2026) as a static code review; raised the minimum required PHP to 8.1 and closed several PHP 8.1+ deprecation warnings found in the process (a couple of which would fatal on newer PHP under specific malformed-input conditions). Kept in lockstep with Nonprofit Manager Pro 2026.08.3, which received a matching security, bug-fix, and performance pass.
 
 = 2026.08.2 =
 * Housekeeping: Version bump to stay in lockstep with Nonprofit Manager Pro 2026.08.2, which adds a clear warning banner when Pro isn't activated with a valid license key or the two plugins' versions don't match. No changes to the free plugin itself.
@@ -252,6 +266,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.08.3 =
+Recommended update. Fixes a broken X/Twitter share, shifted calendar event times, an ignored default-membership-level setting, and closes a gap that let a logged-out visitor log a fake donation. Raises the minimum PHP version to 8.1.
 
 = 2026.08.2 =
 Maintenance release keeping the free plugin in lockstep with Pro 2026.08.2. No functional changes to the free plugin.

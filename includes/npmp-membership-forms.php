@@ -640,12 +640,17 @@ function npmp_handle_membership_form() {
 			$result     = is_wp_error( $update ) ? 'error' : 'success';
 			$contact_id = (int) $existing->id;
 		} else {
-			$added = $member_manager->add_member(
+			// New contacts get the admin-configured "Default Level" (Membership
+			// Settings / General Settings) when one is set, matching the
+			// description shown next to that setting. Fall back to the
+			// generic 'member' label when no default has been configured.
+			$default_level = sanitize_text_field( get_option( 'npmp_default_membership_level', '' ) );
+			$added         = $member_manager->add_member(
 				array(
 					'name'             => $name,
 					'email'            => $email,
 					'status'           => 'subscribed',
-					'membership_level' => 'member',
+					'membership_level' => $default_level ? $default_level : 'member',
 					'source'           => 'form_signup',
 				)
 			);

@@ -220,9 +220,18 @@ function npmp_ajax_convert_to_event() {
 		wp_send_json_error( __( 'Event start date is required.', 'nonprofit-manager' ) );
 	}
 
+	// strtotime() returns false for a malformed value; gmdate() would then
+	// silently coerce that to 0 and create the event dated 1970-01-01
+	// instead of reporting the problem.
+	$start_time = strtotime( $start );
+	if ( ! $start_time ) {
+		wp_send_json_error( __( 'Event start date is invalid.', 'nonprofit-manager' ) );
+	}
+	$end_time = $end ? strtotime( $end ) : false;
+
 	// Format datetime for storage (Y-m-d H:i:s).
-	$start_formatted = gmdate( 'Y-m-d H:i:s', strtotime( $start ) );
-	$end_formatted   = $end ? gmdate( 'Y-m-d H:i:s', strtotime( $end ) ) : '';
+	$start_formatted = gmdate( 'Y-m-d H:i:s', $start_time );
+	$end_formatted   = $end_time ? gmdate( 'Y-m-d H:i:s', $end_time ) : '';
 
 	// Create the event post.
 	$event_id = wp_insert_post(

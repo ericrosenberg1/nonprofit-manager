@@ -959,12 +959,19 @@ class NPMP_Import_Manager {
 			}
 			$seen++;
 
-			$row_data  = array();
-			$max_col   = 0;
+			$row_data   = array();
+			$max_col    = 0;
+			// Positional fallback for cells with no "r" attribute. The OOXML spec
+			// makes "r" optional (cells are implicitly in document order when it's
+			// omitted); some non-Excel writers skip it to shave file size. Without
+			// this fallback, xlsx_col_index( '' ) returned -1 for every such cell,
+			// so every cell in the row collided on the same array key and only the
+			// last one survived — silently dropping every other column.
+			$col_cursor = 0;
 
 			foreach ( $xml_row->c as $cell ) {
 				$cell_ref = (string) $cell['r']; // e.g. "B3"
-				$col_idx  = $this->xlsx_col_index( $cell_ref );
+				$col_idx  = ( '' !== $cell_ref ) ? $this->xlsx_col_index( $cell_ref ) : $col_cursor;
 				$type     = isset( $cell['t'] ) ? (string) $cell['t'] : '';
 
 				if ( 's' === $type ) {
@@ -981,6 +988,7 @@ class NPMP_Import_Manager {
 				if ( $col_idx > $max_col ) {
 					$max_col = $col_idx;
 				}
+				$col_cursor = $col_idx + 1;
 			}
 
 			// Fill gaps with empty strings.

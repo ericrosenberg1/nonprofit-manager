@@ -189,7 +189,11 @@ class NPMP_Newsletter_Tracker {
 		$destination   = home_url();
 		$newsletter_id = isset( $_GET['nid'] ) ? absint( $_GET['nid'] ) : 0;
 		$user_id       = isset( $_GET['uid'] ) ? absint( $_GET['uid'] ) : 0;
-		$raw_url       = isset( $_GET['url'] ) ? wp_unslash( $_GET['url'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- URL is decoded then validated with esc_url_raw.
+		// is_string() guards against a crafted `url[]=` query arg making $_GET['url']
+		// an array: rawurldecode() below has no array handling of its own (unlike
+		// WP helpers such as sanitize_text_field()) and would throw an uncaught
+		// TypeError on an array, fataling this unauthenticated front-end endpoint.
+		$raw_url       = isset( $_GET['url'] ) && is_string( $_GET['url'] ) ? wp_unslash( $_GET['url'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- URL is decoded then validated with esc_url_raw.
 		$decoded_url   = $raw_url ? rawurldecode( $raw_url ) : '';
 		$url           = $decoded_url ? esc_url_raw( $decoded_url ) : '';
 		$nonce         = isset( $_GET['_npmp'] ) ? sanitize_text_field( wp_unslash( $_GET['_npmp'] ) ) : '';
@@ -216,7 +220,17 @@ class NPMP_Newsletter_Tracker {
 		}
 
 		if ( $url ) {
-			wp_safe_redirect( $url );
+			// wp_safe_redirect() rejects any host that is not this site's own
+			// (wp_validate_redirect() falls back silently unless the host is
+			// pre-registered via the allowed_redirect_hosts filter, which this
+			// plugin does not add). Newsletter links are routinely off-site
+			// (donation processors, social profiles, partner sites), so that
+			// would have quietly sent every external click back to the home
+			// page instead of the link's real destination. $url has already
+			// been through esc_url_raw() and its HMAC (which signs the exact
+			// destination, see the comment above) has just been verified, so
+			// it is safe to redirect to directly.
+			wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is HMAC-signed and esc_url_raw()'d above; see comment.
 			exit;
 		}
 

@@ -941,7 +941,12 @@ class NPMP_Member_Manager {
 					break;
 				case 'last_contacted':
 				case 'last_donation_at':
-					$value = $value ? gmdate( 'Y-m-d H:i:s', strtotime( $value ) ) : null;
+					// strtotime() returns false for a string it can't parse; guard it
+					// so an unparsable value clears the field instead of silently
+					// storing the Unix epoch (1970-01-01), which gmdate( …, false )
+					// would otherwise coerce to and save as if it were real data.
+					$parsed_time = $value ? strtotime( $value ) : false;
+					$value       = $parsed_time ? gmdate( 'Y-m-d H:i:s', $parsed_time ) : null;
 					break;
 				default:
 					$value = sanitize_text_field( $value );
@@ -1566,7 +1571,11 @@ class NPMP_Member_Manager {
 		$args = array(
 			'post_type'      => 'npmp_contact',
 			'post_status'    => 'publish',
-			'posts_per_page' => -1,
+			// Only found_posts is used below, so fetch a single row instead of
+			// materializing every matching post ID (found_posts reflects the
+			// full match count regardless of posts_per_page, same pattern as
+			// count_members() above).
+			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'no_found_rows'  => false,
 			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Required for filtering by membership level.

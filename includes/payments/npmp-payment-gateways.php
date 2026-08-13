@@ -496,7 +496,7 @@ function npmp_render_paypal_api_form() {
 	$sandbox_param = 'sandbox' === $mode ? '&buyer-country=US' : '';
 	wp_enqueue_script(
 		'paypal-sdk',
-		'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=USD' . $sandbox_param,
+		'https://www.paypal.com/sdk/js?client-id=' . rawurlencode( $client_id ) . '&currency=USD' . $sandbox_param,
 		array(),
 		null,
 		true
@@ -762,6 +762,17 @@ function npmp_ajax_log_donation() {
 	$gateway        = sanitize_text_field( wp_unslash( $_POST['gateway'] ?? 'paypal_api' ) );
 	$transaction_id = sanitize_text_field( wp_unslash( $_POST['transaction_id'] ?? '' ) );
 
+	// The only legitimate caller of this nopriv endpoint is the PayPal API
+	// onApprove handler, which always sends gateway=paypal_api and is
+	// server-verified against PayPal below. Any other gateway value would
+	// skip that verification entirely, letting a logged-out visitor holding
+	// only the public page nonce log an unverified "donation" (and trigger a
+	// thank-you email) for any amount/email with no payment behind it.
+	if ( 'paypal_api' !== $gateway ) {
+		npmp_payment_debug_log( 'donation log rejected: unsupported gateway' );
+		wp_send_json_error( array( 'message' => __( 'Unsupported payment gateway.', 'nonprofit-manager' ) ) );
+	}
+
 	if ( ! $email || ! is_email( $email ) ) {
 		npmp_payment_debug_log( 'donation log rejected: invalid email' );
 		wp_send_json_error( array( 'message' => __( 'Please provide a valid email address.', 'nonprofit-manager' ) ) );
@@ -905,7 +916,10 @@ function npmp_ajax_create_stripe_session() {
 	$cancel_url  = add_query_arg( 'npmp_donation', 'cancelled', $return_base );
 
 	$endpoint     = 'https://api.stripe.com/v1/checkout/sessions';
-	$amount_cents = intval( $amount * 100 ); // Convert to cents
+	// round() before casting: floats like 19.99 * 100 land on 1998.9999999999998
+	// in IEEE 754, and intval() truncates that down to 1998 (a 1-cent
+	// undercharge) instead of the correct 1999.
+	$amount_cents = (int) round( $amount * 100 ); // Convert to cents
 
 	$body = array(
 		'payment_method_types[]' => 'card',

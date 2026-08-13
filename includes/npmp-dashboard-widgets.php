@@ -467,7 +467,11 @@ function npmp_get_annual_recurring_total() {
 		$amount    = (float) get_post_meta( $post_id, NPMP_Donation_Manager::META_AMOUNT, true );
 		$frequency = get_post_meta( $post_id, NPMP_Donation_Manager::META_FREQUENCY, true );
 
-		// Convert to annual amount
+		// Convert to annual amount. The stored frequency values are
+		// 'weekly'/'monthly'/'quarterly'/'annual' (see
+		// includes/payments/npmp-payment-gateways.php) — this used to check
+		// for 'yearly', which never matched, so every annual-frequency
+		// recurring donation silently contributed $0 to this total.
 		switch ( $frequency ) {
 			case 'weekly':
 				$annual = $amount * 52;
@@ -478,7 +482,7 @@ function npmp_get_annual_recurring_total() {
 			case 'quarterly':
 				$annual = $amount * 4;
 				break;
-			case 'yearly':
+			case 'annual':
 				$annual = $amount;
 				break;
 			default:

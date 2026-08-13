@@ -39,7 +39,7 @@ function npmp_social_share_x( $result, $share_data, $credentials ) {
 	$oauth_params = array(
 		'oauth_consumer_key'     => $credentials['api_key'],
 		'oauth_nonce'            => wp_generate_password( 32, false ),
-		'oauth_signature_method' => 'HMAC-SHA256',
+		'oauth_signature_method' => 'HMAC-SHA1',
 		'oauth_timestamp'        => (string) time(),
 		'oauth_token'            => $credentials['access_token'],
 		'oauth_version'          => '1.0',
@@ -58,7 +58,7 @@ function npmp_social_share_x( $result, $share_data, $credentials ) {
 	$base_string = $method . '&' . rawurlencode( $url ) . '&' . rawurlencode( $param_string );
 
 	$signing_key = rawurlencode( $credentials['api_secret'] ) . '&' . rawurlencode( $credentials['access_token_secret'] );
-	$signature   = base64_encode( hash_hmac( 'sha256', $base_string, $signing_key, true ) );
+	$signature   = base64_encode( hash_hmac( 'sha1', $base_string, $signing_key, true ) );
 
 	$oauth_params['oauth_signature'] = $signature;
 
