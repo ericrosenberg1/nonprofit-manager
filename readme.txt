@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.08.3
+Stable tag: 2026.08.4
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.08.4 =
+* Security: If you accept PayPal donations but have not saved a PayPal API secret, the plugin now warns you in the admin. Without the secret, donations cannot be checked against PayPal before they are recorded, which means a fake donation record can be submitted without a real payment behind it. Genuine donations are still recorded either way, so nothing is lost by leaving it as is, but adding the secret in Payment Settings turns verification on.
 
 = 2026.08.3 =
 * Fixed: Sharing a post or event to X (formerly Twitter) no longer fails silently. The API request was signed with the wrong OAuth method, so every X share was rejected.
@@ -267,6 +270,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.08.4 =
+Adds an admin warning when PayPal donations are being accepted without a PayPal API secret saved, since donations cannot be verified against PayPal in that state.
 
 = 2026.08.3 =
 Recommended update. Fixes a broken X/Twitter share, shifted calendar event times, an ignored default-membership-level setting, a one-cent undercharge on some donation amounts, and an annual recurring total that read low. Also closes a gap that let a logged-out visitor log a fake donation. Raises the minimum PHP version to 8.1, so sites on PHP 8.0 or older will not be offered this update until they upgrade.

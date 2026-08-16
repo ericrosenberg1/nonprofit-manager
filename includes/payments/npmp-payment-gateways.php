@@ -1404,3 +1404,52 @@ function npmp_add_donor_to_membership( $email, $name = '' ) {
 		)
 	);
 }
+
+/**
+ * Warn when PayPal donations are being accepted but cannot be verified.
+ *
+ * npmp_paypal_verify_order() deliberately returns true when no API secret is
+ * saved, because failing closed there would stop a site recording genuine
+ * donations it has no way to check -- donors would pay and the organization
+ * would have no record. The trade-off is that on such a site the donation-
+ * logging endpoint accepts whatever it is handed, so a fake donation can be
+ * recorded without a payment behind it.
+ *
+ * That trade-off is only defensible if the site owner knows about it, and
+ * nothing surfaced it before: the donation record already carries
+ * verified => false, but nobody reads raw post meta. This puts it on screen.
+ */
+function npmp_paypal_verification_admin_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$screen = get_current_screen();
+	if ( ! $screen ) {
+		return;
+	}
+
+	// Only the PayPal REST gateway routes through npmp_paypal_verify_order().
+	$enabled = get_option( 'npmp_enabled_payment_gateways', array() );
+	if ( ! is_array( $enabled ) || ! in_array( 'paypal_api', $enabled, true ) ) {
+		return;
+	}
+
+	$mode   = get_option( 'npmp_paypal_mode', 'live' );
+	$secret = 'sandbox' === $mode
+		? get_option( 'npmp_paypal_sandbox_secret', '' )
+		: get_option( 'npmp_paypal_live_secret', '' );
+
+	if ( $secret ) {
+		return;
+	}
+
+	printf(
+		'<div class="notice notice-warning"><p><strong>%1$s</strong> %2$s</p><p><a href="%3$s">%4$s</a></p></div>',
+		esc_html__( 'Nonprofit Manager: PayPal donations are not being verified.', 'nonprofit-manager' ),
+		esc_html__( 'No PayPal API secret is saved, so donations cannot be checked against PayPal before they are recorded. Genuine donations are still logged, but a fake donation record can also be submitted without a real payment behind it. Adding your PayPal API secret turns verification on.', 'nonprofit-manager' ),
+		esc_url( admin_url( 'admin.php?page=npmp_payment_settings' ) ),
+		esc_html__( 'Open Payment Settings', 'nonprofit-manager' )
+	);
+}
+add_action( 'admin_notices', 'npmp_paypal_verification_admin_notice' );
