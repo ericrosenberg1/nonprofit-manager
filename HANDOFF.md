@@ -87,7 +87,22 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (stale as of 2026-07-24 below — live version is actually 2026.08.4 as of 2026-09-02, see `~/Code/WP71-PLUGIN-HANDOFF.md` for the WP 7.1 release round that shipped it)
+## Current state (2026-09-02: Free and Pro are both live at `2026.09.2`)
+
+Free `2026.09.2` is on wp.org (SVN trunk r3678894, tag r3678895). Pro `2026.09.2` is in R2 with
+the license server advertising it and a byte-verified customer download. All three repos are
+tagged `v2026.09.2`. That release carried the Pro MRR frequency-vocabulary fix, the free
+"One-time" display fix, and Pro `2026.09.1`'s one-time membership dues feature, and it put the
+two plugins back in lockstep after Pro shipped `2026.09.1` alone.
+
+Two things worth knowing for the next release. First, **read the live versions before picking a
+number** (`curl https://api.wordpress.org/plugins/info/1.0/nonprofit-manager.json` and
+`POST /api/license/version`), because a concurrent session can move one plugin without the other,
+which is exactly what happened here. Second, **GitHub Actions is disabled at the repo level on
+both plugin repos**, so CI is not a gate. Run `php tests/test-recurring-frequency.php` in the Pro
+repo by hand.
+
+## Prior state (stale as of 2026-07-24 below)
 
 Free was at **2026.07.5** as of this doc's writing (SVN trunk r3621632 + tag r3621635, GitHub
 tag v2026.07.5); both Free and Pro have since moved to **2026.08.4**. 2026.07.5 cleared the top
@@ -137,7 +152,11 @@ That backlog is clear. Nothing is currently known-broken.
 
 ## Known gaps / next priorities
 
-0. **Stripe webhook cross-product gap, fixed but not released (found 2026-09-02).**
+0. **Stripe webhook cross-product gap. RELEASED 2026-09-02 in Pro `2026.09.1`, nothing left
+   to do.** Both plugins are now on `2026.09.2` (see the release note at the end of this list).
+   The description below is kept for context.
+
+   **Stripe webhook cross-product gap, fixed but not released (found 2026-09-02).**
    Auditing HSA Tracker's webhook incident for the same bug class in sibling apps (all three
    share one Stripe account, one webhook per app, no product/metadata filter) found a real
    one: `payment_succeeded`'s auto-backfill (`npmp_stripe_create_local_subscription_from_invoice`)
