@@ -87,7 +87,34 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-03: Free and Pro are both live at `2026.09.5`)
+## Current state (2026-09-03: Free and Pro are both live at `2026.09.6`)
+
+`2026.09.6` is a coding-standards pass, finishing the quality review the accessibility
+release started. **phpcs is now installed globally** (`~/.composer/vendor/bin/phpcs`, with the
+WordPress, WordPress-Extra and PHPCompatibilityWP standards) so this is repeatable:
+
+```
+phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.1- --ignore='vendor/*,dist/*' includes/ nonprofit-manager-pro.php tests/
+phpcs --standard=WordPress --sniffs=WordPress.Security.EscapeOutput,WordPress.Security.NonceVerification,WordPress.Security.ValidatedSanitizedInput,WordPress.DB.PreparedSQL,WordPress.WP.I18n --ignore='vendor/*,dist/*' includes/
+```
+
+PHP 8.1 through 8.5 is clean. Fixed: dues pricing saved one option write per membership level
+(now one write for the whole form, all-or-nothing, and a rejected level is reported instead of
+skipped), eight placeholder strings had no `translators:` comment, `sanitize_key()` on `$_POST`
+without `wp_unslash()`, and a segment count now casts with `absint()`.
+
+**The ~14 remaining phpcs errors are verified false positives, do not "fix" them:** every one is
+`{$this->table}` / `{$table}` / `{$this->table_name()}` interpolation, which is `$wpdb->prefix`
+plus a constant, with all user values passed through `prepare()`. One more is a hardcoded
+`<span class="required">*</span>` literal concatenated after `esc_html()`. Audited line by line.
+
+Pro's test suite is 204 assertions across `tests/test-one-time-dues.php`,
+`test-recurring-frequency.php` and `test-webhook-retry.php`, sharing `tests/bootstrap.php`
+(fake `$wpdb` over SQLite, WP stubs, HTTP mocking, failure injection) and
+`tests/fakes-free-plugin.php`. GitHub Actions is disabled repo-wide, so run them by hand:
+`for t in tests/test-*.php; do php "$t"; done`.
+
+## Previous state
 
 `2026.09.5` is a Pro-only fix, with Free a no-op lockstep bump (SVN trunk r3680395, tag r3680396).
 The Stripe webhook claimed each event id up front, ran the handler, and answered 200 whatever
