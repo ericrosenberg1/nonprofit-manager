@@ -4,3 +4,4 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 0  # Actions retired; nothing can test or merge a PR
