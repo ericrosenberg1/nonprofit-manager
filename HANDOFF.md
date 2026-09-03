@@ -87,7 +87,27 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-03: Free and Pro are both live at `2026.09.3`)
+## Current state (2026-09-03: Free and Pro are both live at `2026.09.4`)
+
+`2026.09.4` is an accessibility and UX pass on the customer-facing screens, audited against
+WCAG 2.2 AA on a throwaway WordPress 7.1 install with axe-core. Both admin screens and the
+public join form now report zero axe violations. The headline fix: the bundled form
+stylesheet never loaded on a page whose only form was Pro's `[npmp_join_form]`, because
+`npmp_should_enqueue_form_styles()` listed the free plugin's own four shortcodes and not
+that one. The join form and the post-payment confirmation banner both rendered unstyled.
+That list is now filterable (`npmp_form_style_shortcodes`). Also: `autocomplete` on name
+and email (SC 1.3.5), heading level fixed, focus moves to errors, a real "Taking you to
+Stripe" busy state, translated price suffixes, Stripe error text no longer shown to the
+public visitor, "Cancelled" badge contrast raised from 4.39:1 to 6.87:1, one shared
+"Lapsed" colour, `aria-current` on filter tabs, and the license notice no longer prints the
+product name twice.
+
+To re-run that audit: build a throwaway WP per `[[reference_headless_wp_test_rig]]`, symlink
+both plugins in, seed levels/pricing/members, then inject axe-core from cdnjs and run it on
+`#wpbody-content` (admin) and `document` (front end). Ignore `aria-allowed-role` and `region`
+hits on `#wp-admin-bar-*` and `#wp-skip-link`, those are WordPress core's own, logged-in only.
+
+## Previous state (2026-09-03: Free and Pro were live at `2026.09.3`)
 
 Free `2026.09.3` is on wp.org (SVN trunk r3679556, tag r3679557), a lockstep bump that also
 carried the unreleased members-screen SQL aggregation from main. Pro `2026.09.3` is in R2 with
