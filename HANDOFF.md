@@ -154,20 +154,15 @@ That backlog is clear. Nothing is currently known-broken.
 
 0. **Stripe webhook cross-product gap. RELEASED 2026-09-02 in Pro `2026.09.1`, nothing left
    to do.** Both plugins are now on `2026.09.2` (see the release note at the end of this list).
-   The description below is kept for context.
-
-   **Stripe webhook cross-product gap, fixed but not released (found 2026-09-02).**
-   Auditing HSA Tracker's webhook incident for the same bug class in sibling apps (all three
-   share one Stripe account, one webhook per app, no product/metadata filter) found a real
-   one: `payment_succeeded`'s auto-backfill (`npmp_stripe_create_local_subscription_from_invoice`)
-   created a new NPM member from **any** subscription's first successful invoice, HSA/FD
-   subscribers included — a live sibling-product subscriber's first charge would silently turn
-   them into an NPM donor. Fixed in `nonprofit-manager-pro/includes/recurring-donations/
-   stripe-subscriptions.php` (commit `38145df`, pushed to `origin/main`), but **not yet
-   version-bumped or released** — a concurrent session was actively working this repo when the
-   fix landed. Ship it via `release.sh` following the version-lockstep policy
-   (`feedback_npm_version_policy.md`) next time either plugin gets a release. Full incident
-   context: `~/Code/hsatracker/docs/HANDOFF.md`.
+   Background: HSA Tracker, FreelancerDashboard, and Nonprofit Manager share one Stripe account
+   with one webhook per app and no product filter. `payment_succeeded`'s auto-backfill
+   (`npmp_stripe_create_local_subscription_from_invoice`) created a new NPM member from **any**
+   subscription's first successful invoice, HSA/FD subscribers included. The fix (commit
+   `38145df`) stamps `subscription_data[metadata][npmp_source]=dues` at Checkout Session
+   creation in `public-join-form.php` and checks that metadata via the Stripe API before the
+   backfill creates anything. Verified 2026-09-02 against the live customer download: the R2
+   zip's sha256 matches the `v2026.09.2` build and both files carry the `npmp_source` check.
+   Full incident context: `~/Code/hsatracker/docs/HANDOFF.md`.
 
 Gaps 1-3 below were the newsletter SEND queue, the Social Sharing 403, and the Pro
 import write-side timeout. **All three shipped in 2026.07.5 (2026-07-24)** — see the
