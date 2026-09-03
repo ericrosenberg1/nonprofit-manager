@@ -1597,20 +1597,46 @@ class NPMP_Member_Manager {
 	 * @return array
 	 */
 	public function get_tags_list() {
-		$members = $this->get_members(
-			array(
-				'per_page' => -1,
+		global $wpdb;
+
+		/*
+		 * Read the distinct tag strings straight from the meta table instead of
+		 * loading and hydrating every contact. The old version pulled all published
+		 * contacts through get_members(), which builds a full member object per row
+		 * with 19 meta lookups each, only to read one field off it.
+		 *
+		 * GROUP BY on the binary value, not SELECT DISTINCT: meta_value collates
+		 * case- and accent-insensitively, so DISTINCT would fold "Donor" into
+		 * "donor" and "Café" into "Cafe" and quietly drop tags the old code kept.
+		 * Grouping on the raw bytes makes every row in a group byte-identical, so
+		 * MIN() returns that exact value.
+		 */
+		$rows = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
+				"SELECT MIN( pm.meta_value )
+				 FROM {$wpdb->postmeta} pm
+				 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				 WHERE pm.meta_key = %s
+				   AND p.post_type = %s
+				   AND p.post_status = %s
+				   AND pm.meta_value <> ''
+				 GROUP BY CAST( pm.meta_value AS BINARY )",
+				'npmp_tags',
+				'npmp_contact',
+				'publish'
 			)
 		);
 
 		$tags = array();
 
-		foreach ( $members as $member ) {
-			if ( empty( $member->tags ) ) {
+		foreach ( (array) $rows as $tag_list ) {
+			// empty(), not just a blank check, so the literal tag string "0" keeps
+			// being skipped the way it always was.
+			if ( empty( $tag_list ) ) {
 				continue;
 			}
 
-			foreach ( explode( ',', (string) $member->tags ) as $tag ) {
+			foreach ( explode( ',', (string) $tag_list ) as $tag ) {
 				$tag = trim( $tag );
 				if ( '' !== $tag ) {
 					$tags[ $tag ] = $tag;
@@ -1646,32 +1672,57 @@ class NPMP_Member_Manager {
 	 * @return array
 	 */
 	public function get_financial_overview() {
-		$manager    = class_exists( 'NPMP_Donation_Manager' ) ? NPMP_Donation_Manager::get_instance() : null;
-		$donations  = $manager ? $manager->get_all_donations() : array();
-		$total      = 0.0;
-		$count      = 0;
-		$recent     = 0.0;
-		$cutoff     = strtotime( '-30 days' );
+		$empty = array(
+			'total_amount'       => 0.0,
+			'total_transactions' => 0,
+			'thirty_day_amount'  => 0.0,
+		);
 
-		foreach ( $donations as $donation_post ) {
-			$amount = (float) get_post_meta( $donation_post->ID, NPMP_Donation_Manager::META_AMOUNT, true );
-			if ( $amount <= 0 ) {
-				continue;
-			}
+		if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
+			return $empty;
+		}
 
-			$count ++;
-			$total += $amount;
+		global $wpdb;
 
-			$timestamp = get_post_time( 'U', true, $donation_post );
-			if ( $timestamp >= $cutoff ) {
-				$recent += $amount;
-			}
+		/*
+		 * Three totals in one aggregate query. The old version pulled every published
+		 * donation post into memory and summed the amounts in PHP, which grows with
+		 * the whole donation history every time the members screen loads.
+		 *
+		 * post_date_gmt is compared against a GMT string built here rather than with
+		 * MySQL's FROM_UNIXTIME(), which would read the database session timezone.
+		 */
+		$cutoff = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+		$row = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->prepare(
+				"SELECT COUNT(*) AS total_transactions,
+				        COALESCE( SUM( CAST( pm.meta_value AS DECIMAL(20,4) ) ), 0 ) AS total_amount,
+				        COALESCE( SUM( CASE WHEN p.post_date_gmt >= %s
+				                            THEN CAST( pm.meta_value AS DECIMAL(20,4) )
+				                            ELSE 0 END ), 0 ) AS thirty_day_amount
+				 FROM {$wpdb->postmeta} pm
+				 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				 WHERE pm.meta_key = %s
+				   AND p.post_type = %s
+				   AND p.post_status = %s
+				   AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0",
+				$cutoff,
+				NPMP_Donation_Manager::META_AMOUNT,
+				NPMP_Donation_Manager::POST_TYPE,
+				'publish'
+			),
+			ARRAY_A
+		);
+
+		if ( ! $row ) {
+			return $empty;
 		}
 
 		return array(
-			'total_amount'       => $total,
-			'total_transactions' => $count,
-			'thirty_day_amount'  => $recent,
+			'total_amount'       => (float) $row['total_amount'],
+			'total_transactions' => (int) $row['total_transactions'],
+			'thirty_day_amount'  => (float) $row['thirty_day_amount'],
 		);
 	}
 
