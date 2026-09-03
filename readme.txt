@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.2
+Stable tag: 2026.09.3
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.3 =
+* Housekeeping: Lockstep with Nonprofit Manager Pro 2026.09.3, which hardens the one-time (lifetime) membership dues option Pro added in 2026.09.1. No changes to the free plugin itself.
 
 = 2026.09.2 =
 * Fixed: A member's donation history listed a single donation as "One_time" instead of "One-time".
