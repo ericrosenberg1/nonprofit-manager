@@ -87,7 +87,31 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-03: Free and Pro are both live at `2026.09.4`)
+## Current state (2026-09-03: Free and Pro are both live at `2026.09.5`)
+
+`2026.09.5` is a Pro-only fix, with Free a no-op lockstep bump (SVN trunk r3680395, tag r3680396).
+The Stripe webhook claimed each event id up front, ran the handler, and answered 200 whatever
+happened in between, so a handler that failed for a temporary reason (Stripe unreachable or
+answering 5xx during the ownership check, a database write refused part-way) told Stripe the
+event was done and Stripe never retried it. Now `npmp_stripe_subscription_is_ours()` is
+tri-state (null means Stripe could not be asked), handlers return `true` or a `WP_Error`, and
+the dispatcher `npmp_stripe_process_event()` deletes the claim row and answers 500 on a
+`WP_Error` so Stripe's retry can re-claim the event. Same shape as the sales-site Worker's
+`stripe-webhook.ts`. Definitive outcomes (not ours, nothing to record, unknown type) still
+answer 200. Handlers are safe to re-run from the top: idempotent writes first, the donation
+log entry last and never fatal, and `checkout.session.completed` stops at an existing row for
+the same Stripe reference so a retry cannot cancel the subscription that was just paid for.
+Tests: Pro `tests/test-webhook-retry.php` (110 assertions) plus signed deliveries over HTTP
+on a throwaway WP 7.1 rig with a Stripe fake behind `pre_http_request`: a 503 and a network
+error each answered 500 with the claim row gone, the retry answered 200 and wrote the row,
+the duplicate answered "already processed", a 404 answered 200.
+
+Known gap left in place: `create_dues_subscription()` still ignores a failed Stripe cancel of
+the member's previous level during a level switch, so a Stripe outage at that moment can leave
+two subscriptions billing. Fixing it needs a 4xx/5xx split in
+`npmp_recurring_cancel_at_stripe()` so an already-cancelled subscription does not loop.
+
+## Previous state (2026-09-03: Free and Pro were live at `2026.09.4`)
 
 `2026.09.4` is an accessibility and UX pass on the customer-facing screens, audited against
 WCAG 2.2 AA on a throwaway WordPress 7.1 install with axe-core. Both admin screens and the
