@@ -87,11 +87,11 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (Free 2026.07.5 shipped 2026-07-24; Pro still 2026.07.4)
+## Current state (stale as of 2026-07-24 below — live version is actually 2026.08.4 as of 2026-09-02, see `~/Code/WP71-PLUGIN-HANDOFF.md` for the WP 7.1 release round that shipped it)
 
-Free is at **2026.07.5** (SVN trunk r3621632 + tag r3621635, GitHub tag v2026.07.5).
-Pro is unchanged at 2026.07.4 (the 2026.07.5 fixes were all in Free's shared code, so no
-Pro release was needed). 2026.07.5 cleared the top three known gaps below:
+Free was at **2026.07.5** as of this doc's writing (SVN trunk r3621632 + tag r3621635, GitHub
+tag v2026.07.5); both Free and Pro have since moved to **2026.08.4**. 2026.07.5 cleared the top
+three known gaps below:
 
 1. **Newsletter SEND queue** migrated off the `npmp_nl_queue` wp_posts CPT onto the
    dedicated `wp_npmp_newsletter_queue` table (gap #1, same pattern as the 2026.07.4
@@ -136,6 +136,19 @@ security/perf/UX review that prompted that round are fixed (5 in Free, 1 in Pro)
 That backlog is clear. Nothing is currently known-broken.
 
 ## Known gaps / next priorities
+
+0. **Stripe webhook cross-product gap, fixed but not released (found 2026-09-02).**
+   Auditing HSA Tracker's webhook incident for the same bug class in sibling apps (all three
+   share one Stripe account, one webhook per app, no product/metadata filter) found a real
+   one: `payment_succeeded`'s auto-backfill (`npmp_stripe_create_local_subscription_from_invoice`)
+   created a new NPM member from **any** subscription's first successful invoice, HSA/FD
+   subscribers included — a live sibling-product subscriber's first charge would silently turn
+   them into an NPM donor. Fixed in `nonprofit-manager-pro/includes/recurring-donations/
+   stripe-subscriptions.php` (commit `38145df`, pushed to `origin/main`), but **not yet
+   version-bumped or released** — a concurrent session was actively working this repo when the
+   fix landed. Ship it via `release.sh` following the version-lockstep policy
+   (`feedback_npm_version_policy.md`) next time either plugin gets a release. Full incident
+   context: `~/Code/hsatracker/docs/HANDOFF.md`.
 
 Gaps 1-3 below were the newsletter SEND queue, the Social Sharing 403, and the Pro
 import write-side timeout. **All three shipped in 2026.07.5 (2026-07-24)** — see the
