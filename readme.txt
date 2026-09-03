@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.08.4
+Stable tag: 2026.09.2
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,10 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.2 =
+* Fixed: A member's donation history listed a single donation as "One_time" instead of "One-time".
+* Housekeeping: Back in lockstep with Nonprofit Manager Pro, which skipped ahead to 2026.09.1 on its own for a new one-time membership dues option. Pro 2026.09.2 fixes the Monthly Recurring Revenue total, which counted a once-a-year subscription as if it billed every month.
 
 = 2026.08.4 =
 * Security: If you accept PayPal donations but have not saved a PayPal API secret, the plugin now warns you in the admin. Without the secret, donations cannot be checked against PayPal before they are recorded, which means a fake donation record can be submitted without a real payment behind it. Genuine donations are still recorded either way, so nothing is lost by leaving it as is, but adding the secret in Payment Settings turns verification on.
@@ -270,6 +274,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.2 =
+Small display fix in a member's donation history. Worth taking if you also run Nonprofit Manager Pro, which fixes a Monthly Recurring Revenue total that read too high for annual subscriptions.
 
 = 2026.08.4 =
 Adds an admin warning when PayPal donations are being accepted without a PayPal API secret saved, since donations cannot be verified against PayPal in that state.
