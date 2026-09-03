@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.4
+Stable tag: 2026.09.5
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.5 =
+* Housekeeping: Lockstep with Nonprofit Manager Pro 2026.09.5, which makes Stripe retry a webhook delivery that failed for a temporary reason (Stripe unreachable, or a database write that failed part-way) instead of treating it as done and losing the payment or status change it carried. No changes to the free plugin itself.
 
 = 2026.09.4 =
 * Fixed: The bundled form styles did not load on a page whose only form was the Pro membership join form, so that form and the confirmation banner a new member sees after paying both rendered unstyled. Any page using it now gets the same styling as the other forms.
