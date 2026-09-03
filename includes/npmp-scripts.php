@@ -111,7 +111,19 @@ function npmp_should_enqueue_form_styles() {
 	if ( is_singular() ) {
 		$post = get_post();
 		if ( $post instanceof WP_Post ) {
-			$shortcodes = array( 'npmp_email_signup', 'npmp_email_unsubscribe', 'npmp_manage_preferences', 'npmp_donation_form' );
+			/**
+			 * Shortcodes whose presence loads the bundled form styles.
+			 *
+			 * Pro registers its own public forms (the membership join form),
+			 * so the list is filterable rather than a fixed list this plugin
+			 * has to keep in step with an add-on.
+			 *
+			 * @param string[] $shortcodes Shortcode tags.
+			 */
+			$shortcodes = apply_filters(
+				'npmp_form_style_shortcodes',
+				array( 'npmp_email_signup', 'npmp_email_unsubscribe', 'npmp_manage_preferences', 'npmp_donation_form', 'npmp_join_form' )
+			);
 			foreach ( $shortcodes as $shortcode ) {
 				if ( has_shortcode( $post->post_content, $shortcode ) ) {
 					return true;
