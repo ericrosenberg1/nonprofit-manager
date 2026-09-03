@@ -1014,7 +1014,7 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 			echo '<tr>';
 			echo '<td>' . esc_html( $date ) . '</td>';
 			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( $donation->frequency ?? 'one_time' ) ) . '</td>';
+			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $donation->frequency ?? 'one_time' ) ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( $donation->gateway ?? 'donation' ) ) . '</td>';
 			echo '</tr>';
 		}
