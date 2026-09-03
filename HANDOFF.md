@@ -87,9 +87,23 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-02: Free and Pro are both live at `2026.09.2`)
+## Current state (2026-09-03: Free and Pro are both live at `2026.09.3`)
 
-Free `2026.09.2` is on wp.org (SVN trunk r3678894, tag r3678895). Pro `2026.09.2` is in R2 with
+Free `2026.09.3` is on wp.org (SVN trunk r3679556, tag r3679557), a lockstep bump that also
+carried the unreleased members-screen SQL aggregation from main. Pro `2026.09.3` is in R2 with
+the license server advertising it and a byte-verified customer download. All three repos are
+tagged `v2026.09.3`. Pro `2026.09.3` hardens the one-time (lifetime) membership dues option
+after an adversarial review of `2026.09.1`: `NPMP_Recurring_Manager::is_one_time()` replaces the
+scattered `'one_time'` literal, `pause_subscription()` refuses one-time rows server-side (both
+admin screens hide Pause for them), a level switch no longer relabels a completed lifetime
+payment "cancelled", and the join form stamps `npmp_frequency` + `npmp_amount` into the Checkout
+Session metadata so the webhook records what Stripe charged instead of re-reading the level's
+pricing (a price edit while a session was open could lose a captured one-time charge, since
+`checkout.session.completed` is the only webhook a one-time join ever fires). Pro now has two
+plain-PHP tests sharing `tests/bootstrap.php`; run them by hand with
+`for t in tests/test-*.php; do php "$t"; done` (GitHub Actions is off).
+
+Previous: Free `2026.09.2` is on wp.org (SVN trunk r3678894, tag r3678895). Pro `2026.09.2` is in R2 with
 the license server advertising it and a byte-verified customer download. All three repos are
 tagged `v2026.09.2`. That release carried the Pro MRR frequency-vocabulary fix, the free
 "One-time" display fix, and Pro `2026.09.1`'s one-time membership dues feature, and it put the
