@@ -87,7 +87,47 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-04: Free and Pro are both live at `2026.09.11`)
+## Current state (2026-09-04: Free and Pro are both live at `2026.09.12`)
+
+**`2026.09.12` is a bug-and-performance release.** Three fixes, all verified against a
+real WordPress 7.1 + MySQL on the `cloudpanel` test site rather than reasoned about:
+
+- **Post notifications emailed the whole subscriber list in one cron run.** A few thousand
+  subscribers pushed that run past `max_execution_time`, and since nothing recorded
+  progress, everyone after the cutoff was silently never emailed. The weekly digest had
+  already been fixed this way; post notifications now page by ascending contact ID and
+  reschedule for the remainder. **Two traps here, both caught by testing and both worth
+  remembering.** `get_posts()` sets `suppress_filters`, so a `posts_where` filter carrying
+  a cursor never runs at all and every batch silently re-reads the first rows. And the
+  cursor must travel as a *query var*, not captured in the closure: WordPress keys its
+  query cache on query vars, a `posts_where` filter does not change that key, so a
+  captured cursor asks for different rows under the previous run's cache key and is handed
+  the previous run's rows back. With a persistent object cache that loops forever.
+- **Dashboard totals aggregated in PHP.** Member counts ran one unbounded query per
+  membership level and `count()`ed the IDs; both donation totals loaded every row and
+  summed in a loop. All three are single SQL aggregates now. On 2,500 seeded rows:
+  membership summary 6 queries to 1 and 4.3x faster, YTD 3 to 1 and 2.2x, annual recurring
+  3 to 1 and 1.5x. The gap widens with row count since the old path was linear in PHP
+  memory. Results proven identical on data covering both once-a-year spellings, unknown
+  frequencies, missing meta, drafts, and case-varied tier names.
+- **Activating the same site twice concurrently returned a 500.** Both requests passed the
+  "already activated" check and the second hit `UNIQUE(license_id, site_url)`. The code
+  assumed that insert would no-op; SQLite raises, and nothing caught it. Now answered as
+  the 409 the caller wanted. The account page also reads licences and orders in parallel
+  and fetches activations in one query instead of one per licence.
+
+**The free plugin now has tests** (`tests/`, 18 assertions, excluded from the wp.org zip
+via `.gitattributes`) wired into its gates. Pro's gates run its suites too. Anything
+needing a real `$wpdb` is verified on the test site instead of against a faked database,
+because reproducing MySQL's collation and date handling faithfully enough to trust is more
+work than running the real thing.
+
+**Test-site gotcha:** `wp eval-file` runs the file inside a function scope, so top-level
+`$vars` are **not** global. `global $x` inside a helper in that file silently gets null.
+This produced a wrong benchmark and a cleanup that deleted nothing before it was noticed.
+Use `define()` or `$GLOBALS[...]`, and always re-check that seed data was actually removed.
+
+## Previous state (2026-09-04: Free and Pro were live at `2026.09.11`)
 
 **Release lockstep is now enforced, not just intended.** `scripts/check-lockstep.sh` in the
 free repo is the gate, wired into the pre-push hook of all three repos. It verifies the free
