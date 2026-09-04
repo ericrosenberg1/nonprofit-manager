@@ -87,7 +87,45 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-04: Free and Pro are both live at `2026.09.9`)
+## Current state (2026-09-04: Free and Pro are both live at `2026.09.11`)
+
+**Release lockstep is now enforced, not just intended.** `scripts/check-lockstep.sh` in the
+free repo is the gate, wired into the pre-push hook of all three repos. It verifies the free
+header against the readme stable tag, free against Pro, the licensing server's advertised
+`CURRENT_VERSION` against the shipping Pro version, that the changelog has an entry for that
+version, that changelog headings are literal strings rather than `${CURRENT_VERSION}`, and
+that Pro's `NPMP_PRO_MIN_FREE_VERSION` floor is satisfied by the shipping free version. Run it
+by hand any time: `scripts/check-lockstep.sh`.
+
+It exists because all three had already drifted. The bump to `2026.09.10` did not add a
+changelog entry, and because the heading interpolated `CURRENT_VERSION`, it silently retitled
+`2026.09.9`'s notes as `2026.09.10` and erased `2026.09.9` from the changelog customers read
+in their update screen. **The site repo had no pre-push hook and no gates at all**, which is
+how it shipped. It has both now (lockstep plus an astro build), and Pro's gates now run its
+test suites, which they also did not before.
+
+**Verified in lockstep at `2026.09.11`** by rebuilding each channel and diffing against its
+git tag: the wp.org zip matches free `v2026.09.11` (66 files, identical), the R2 zip matches
+Pro `v2026.09.11` (38 files, identical), and the licensing server advertises `2026.09.11`.
+
+**`2026.09.11` shipped two fixes.** Pro's `guard_package_download()`, the last check before
+WordPress unzips an update into `wp-content`, only engaged when the package URL contained the
+string `nonprofit-manager-pro`. Real download URLs are `/api/download/<key>` and contain no
+such string, so it returned early on every genuine upgrade and never checked a host. It now
+identifies the upgrade from `$hook_extra['plugin']`. No install was exposed, since the primary
+`is_allowed_package_url()` check in `check_for_update()` runs first and always worked.
+`tests/test-update-guard.php` drives the real class and fails 5 assertions against the old
+predicate. Free gained the **External Services** readme section wp.org requires: the
+`2026.09.10` wizard opt-in posts the site owner's email and name to Listmonk and nothing
+disclosed it. Consent was already correct (unticked by default).
+
+**Deploy gotcha:** `wrangler deploy` prints `No targets deployed` for this worker because the
+built config carries no routes (the custom domain is attached outside wrangler). The version
+*is* deployed at 100% regardless. Confirm with `wrangler deployments list --name
+nonprofit-manager-site`, and give the edge ~30s before testing the live endpoint or you will
+read the previous version and think the deploy failed.
+
+## Previous state (2026-09-04: Free and Pro were live at `2026.09.9`)
 
 **Auto-update is verified working end to end.** Proven on a throwaway WP 7.1 rig with a real
 licence key: Pro 2026.09.6 to 2026.09.9 through `Plugin_Upgrader`, downloaded, unpacked,
