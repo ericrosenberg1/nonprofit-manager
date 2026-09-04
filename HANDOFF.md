@@ -87,7 +87,23 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-04: Free and Pro are both live at `2026.09.12`)
+## Current state (2026-09-04: Free and Pro are both live at `2026.09.13`)
+
+`2026.09.13` is a Pro-only fix, with Free a no-op lockstep bump (SVN trunk r3681813, tag
+r3681814). It closes the gap `2026.09.5` left open: `create_dues_subscription()` cancels the
+member's previous recurring level at Stripe before writing the new row and ignored the result,
+so a Stripe outage during a level switch left the old subscription billing, wrote the new row
+anyway, and answered 200. `npmp_recurring_cancel_at_stripe()` now flags its `WP_Error` as
+transient for a network error, 5xx or 429 (`npmp_stripe_error_is_transient()`), and the
+level-switch loop fails the delivery on a transient cancel so Stripe retries the whole event:
+the retry cancels at Stripe, then writes the new row. A definitive 4xx (already cancelled, not
+found, key rejected) falls through as before, so a subscription Stripe already closed cannot
+loop for three days. Pro `tests/test-webhook-retry.php` is at 140 assertions, and Pro
+`tests/rig/` now holds the throwaway-WordPress scripts (Stripe fake behind `pre_http_request`,
+signed POST driver, install and setup) with a README of the exact steps, kept out of the
+customer zip by the tests export-ignore.
+
+## Previous state (2026-09-04: Free and Pro were live at `2026.09.12`)
 
 **`2026.09.12` is a bug-and-performance release.** Three fixes, all verified against a
 real WordPress 7.1 + MySQL on the `cloudpanel` test site rather than reasoned about:
@@ -266,7 +282,7 @@ on a throwaway WP 7.1 rig with a Stripe fake behind `pre_http_request`: a 503 an
 error each answered 500 with the claim row gone, the retry answered 200 and wrote the row,
 the duplicate answered "already processed", a 404 answered 200.
 
-Known gap left in place: `create_dues_subscription()` still ignores a failed Stripe cancel of
+Known gap at the time, closed in `2026.09.13`: `create_dues_subscription()` ignored a failed Stripe cancel of
 the member's previous level during a level switch, so a Stripe outage at that moment can leave
 two subscriptions billing. Fixing it needs a 4xx/5xx split in
 `npmp_recurring_cancel_at_stripe()` so an already-cancelled subscription does not loop.
