@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.8
+Stable tag: 2026.09.9
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.9 =
+* Added: If you run Nonprofit Manager Pro, the plugin now warns you when the two are on different version numbers, and a Site Health check reports the same thing. They are built and tested as one product on one version, so a mismatch can make features behave unexpectedly.
 
 = 2026.09.8 =
 * Fixed: The plugin zip included two development files (a git hook and a build script) that were never meant to ship. They are excluded now.
