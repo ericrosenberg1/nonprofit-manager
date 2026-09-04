@@ -359,23 +359,64 @@ function npmp_get_membership_tiers() {
  * @return int
  */
 function npmp_count_members_by_tier( $tier ) {
-	$args = array(
-		'post_type'      => 'npmp_contact',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'fields'         => 'ids',
-		'no_found_rows'  => true,
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Dashboard widget query, acceptable performance trade-off.
-		'meta_query'     => array(
-			array(
-				'key'   => 'npmp_membership_level',
-				'value' => $tier,
-			),
+	$counts = npmp_count_members_by_tier_map();
+	$key    = strtolower( (string) $tier );
+
+	return isset( $counts[ $key ] ) ? $counts[ $key ] : 0;
+}
+
+/**
+ * Count contacts per membership tier in one grouped query.
+ *
+ * Both callers of npmp_count_members_by_tier() loop over every tier, and the
+ * old implementation ran a separate unbounded query per tier that pulled every
+ * matching post ID into PHP just to count() the array. On a site with real
+ * membership numbers that is one full table scan per tier on each dashboard
+ * load, returning tens of thousands of rows to discard them.
+ *
+ * One GROUP BY returns every tier's count in a single row set, cached for the
+ * request since the dashboard and the Overview screen both ask for it.
+ *
+ * Keys are lower-cased because the tier comparison this replaces ran through
+ * MySQL's case-insensitive collation, and callers pass the tier name as the
+ * admin typed it.
+ *
+ * @return array<string,int> Lower-cased tier name => member count.
+ */
+function npmp_count_members_by_tier_map() {
+	static $counts = null;
+
+	if ( null !== $counts ) {
+		return $counts;
+	}
+
+	global $wpdb;
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Aggregate over a joined meta table; cached per request in the static above.
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT m.meta_value AS tier, COUNT(*) AS total
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+			 WHERE p.post_type = %s AND p.post_status = 'publish'
+			 GROUP BY m.meta_value",
+			'npmp_membership_level',
+			'npmp_contact'
 		),
+		ARRAY_A
 	);
 
-	$query = new WP_Query( $args );
-	return count( $query->posts );
+	$counts = array();
+	if ( is_array( $rows ) ) {
+		foreach ( $rows as $row ) {
+			$key = strtolower( (string) $row['tier'] );
+			// Collation folds case in the GROUP BY on some setups and not
+			// others, so add rather than assign.
+			$counts[ $key ] = ( isset( $counts[ $key ] ) ? $counts[ $key ] : 0 ) + (int) $row['total'];
+		}
+	}
+
+	return $counts;
 }
 
 /**
@@ -398,36 +439,29 @@ function npmp_get_ytd_donation_total() {
 		return 0.0;
 	}
 
+	global $wpdb;
+
 	$current_year = (int) gmdate( 'Y' );
 
-	$args = array(
-		'post_type'      => NPMP_Donation_Manager::POST_TYPE,
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'fields'         => 'ids',
-		'no_found_rows'  => true,
-		'date_query'     => array(
-			array(
-				'year' => $current_year,
-			),
-		),
+	// Sum in SQL rather than loading every donation ID and its meta into PHP.
+	// This runs on every wp-admin Dashboard load, and the old version returned
+	// the whole year's donations to add them up one at a time. The result is
+	// identical: a donation with no stored amount contributed 0 before and is
+	// excluded by the join now.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Single aggregate, no row set to cache.
+	$total = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT SUM(m.meta_value + 0)
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+			 WHERE p.post_type = %s AND p.post_status = 'publish' AND YEAR(p.post_date) = %d",
+			NPMP_Donation_Manager::META_AMOUNT,
+			NPMP_Donation_Manager::POST_TYPE,
+			$current_year
+		)
 	);
 
-	$query = new WP_Query( $args );
-	$total = 0.0;
-
-	// One meta-cache prime instead of one query per donation. This runs on
-	// every wp-admin Dashboard load.
-	if ( $query->posts ) {
-		update_meta_cache( 'post', $query->posts );
-	}
-
-	foreach ( $query->posts as $post_id ) {
-		$amount = (float) get_post_meta( $post_id, NPMP_Donation_Manager::META_AMOUNT, true );
-		$total += $amount;
-	}
-
-	return $total;
+	return (float) $total;
 }
 
 /**
@@ -440,65 +474,75 @@ function npmp_get_annual_recurring_total() {
 		return 0.0;
 	}
 
-	$args = array(
-		'post_type'      => NPMP_Donation_Manager::POST_TYPE,
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'fields'         => 'ids',
-		'no_found_rows'  => true,
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Dashboard widget query, acceptable performance trade-off.
-		'meta_query'     => array(
-			array(
-				'key'     => NPMP_Donation_Manager::META_FREQUENCY,
-				'value'   => 'one_time',
-				'compare' => '!=',
-			),
+	global $wpdb;
+
+	// Group the sum by frequency in SQL and convert the handful of resulting
+	// rows in PHP, instead of loading every recurring donation ever recorded
+	// and its meta to add them one at a time on each Dashboard load.
+	//
+	// The INNER JOIN on the frequency meta reproduces what the meta_query did:
+	// WordPress's "!=" compare only matches posts that actually have the key,
+	// so a donation with no frequency stored was excluded before and still is.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, nothing worth caching.
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT f.meta_value AS frequency, SUM(a.meta_value + 0) AS total
+			 FROM {$wpdb->posts} p
+			 INNER JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s
+			 INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+			 WHERE p.post_type = %s AND p.post_status = 'publish' AND f.meta_value != %s
+			 GROUP BY f.meta_value",
+			NPMP_Donation_Manager::META_FREQUENCY,
+			NPMP_Donation_Manager::META_AMOUNT,
+			NPMP_Donation_Manager::POST_TYPE,
+			'one_time'
 		),
+		ARRAY_A
 	);
 
-	$query = new WP_Query( $args );
-	$total = 0.0;
-
-	if ( $query->posts ) {
-		update_meta_cache( 'post', $query->posts );
+	if ( ! is_array( $rows ) ) {
+		return 0.0;
 	}
 
-	foreach ( $query->posts as $post_id ) {
-		$amount    = (float) get_post_meta( $post_id, NPMP_Donation_Manager::META_AMOUNT, true );
-		$frequency = get_post_meta( $post_id, NPMP_Donation_Manager::META_FREQUENCY, true );
-
-		// Convert to annual amount. The stored frequency values are
-		// 'weekly'/'monthly'/'quarterly'/'annual' (see
-		// includes/payments/npmp-payment-gateways.php) — this used to check
-		// for 'yearly', which never matched, so every annual-frequency
-		// recurring donation silently contributed $0 to this total.
-		switch ( $frequency ) {
-			case 'weekly':
-				$annual = $amount * 52;
-				break;
-			case 'monthly':
-				$annual = $amount * 12;
-				break;
-			case 'quarterly':
-				$annual = $amount * 4;
-				break;
-			// Two vocabularies reach this meta field and both mean once a year.
-			// The free donation form writes 'annual'; Pro's Stripe subscription
-			// sync maps Stripe's year interval to 'yearly' and passes that
-			// straight through to log_donation() on every renewal. Matching only
-			// one of them silently totals the other as $0, which is how this
-			// figure was wrong before: it tested 'yearly' alone, so every
-			// donation from the free form counted as nothing.
-			case 'annual':
-			case 'yearly':
-				$annual = $amount;
-				break;
-			default:
-				$annual = 0;
-		}
-
-		$total += $annual;
+	$total = 0.0;
+	foreach ( $rows as $row ) {
+		$total += npmp_annualize_donation_amount( (float) $row['total'], (string) $row['frequency'] );
 	}
 
 	return $total;
+}
+
+/**
+ * Convert an amount at a given billing frequency to its yearly equivalent.
+ *
+ * Split out of npmp_get_annual_recurring_total() so the frequency vocabulary
+ * lives in one place and can be tested on its own.
+ *
+ * Two vocabularies reach this meta field and both mean once a year. The free
+ * donation form writes 'annual'; Pro's Stripe subscription sync maps Stripe's
+ * year interval to 'yearly' and passes that straight through to log_donation()
+ * on every renewal. Matching only one of them silently totals the other as $0,
+ * which is how this figure was wrong before.
+ *
+ * An unrecognised frequency returns 0 rather than guessing, so a new value
+ * added elsewhere shows up as a missing total rather than a wrong one.
+ *
+ * @param float  $amount    Amount charged each period.
+ * @param string $frequency Stored frequency value.
+ * @return float Yearly equivalent.
+ */
+function npmp_annualize_donation_amount( $amount, $frequency ) {
+	switch ( strtolower( trim( (string) $frequency ) ) ) {
+		case 'weekly':
+			return $amount * 52;
+		case 'monthly':
+			return $amount * 12;
+		case 'quarterly':
+			return $amount * 4;
+		case 'annual':
+		case 'yearly':
+			return $amount;
+		default:
+			return 0.0;
+	}
 }

@@ -271,15 +271,20 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 	wp_schedule_single_event( time() + 10, 'npmp_async_post_notification', array( $post->ID, $meta_key ) );
 }
 
-add_action( 'npmp_async_post_notification', 'npmp_process_post_notification', 10, 2 );
+add_action( 'npmp_async_post_notification', 'npmp_process_post_notification', 10, 3 );
 
 /**
  * Send the new post/event notification blast (cron context).
  *
+ * Runs in batches: each pass emails up to npmp_post_notification_batch_size
+ * subscribers and reschedules itself for the rest, so a large list cannot time
+ * out partway through and silently skip everyone after the cutoff.
+ *
  * @param int    $post_id  Published post ID.
  * @param string $meta_key Subscriber opt-in meta key.
+ * @param int    $after_id Contact ID to resume after. 0 starts from the top.
  */
-function npmp_process_post_notification( $post_id, $meta_key ) {
+function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 	$post = get_post( $post_id );
 	if ( ! $post || 'publish' !== $post->post_status ) {
 		return;
@@ -287,15 +292,63 @@ function npmp_process_post_notification( $post_id, $meta_key ) {
 
 	$meta_key = in_array( $meta_key, array( '_npmp_notify_posts', '_npmp_notify_events' ), true ) ? $meta_key : '_npmp_notify_posts';
 
-	// Find all subscribers who opted in (and don't prefer digest).
+	/**
+	 * How many subscribers to email per cron run.
+	 *
+	 * This used to send the whole list in a single run. A site with a few
+	 * thousand subscribers hit max_execution_time partway through, and because
+	 * nothing recorded how far it got, the remainder were silently never
+	 * emailed. The weekly digest already drains in throttled batches for
+	 * exactly this reason; this brings post notifications in line.
+	 *
+	 * @param int $size Recipients handled per run.
+	 */
+	$batch_size = (int) apply_filters( 'npmp_post_notification_batch_size', 100 );
+	if ( $batch_size < 1 ) {
+		$batch_size = 100;
+	}
+
+	$after_id = (int) $after_id;
+
+	// Page by ascending contact ID rather than by offset. The cursor is stable:
+	// a contact added or deleted mid-run cannot shift rows past the reader, so
+	// nobody is skipped and nobody is emailed twice.
+	// Page by ascending contact ID rather than by offset. The cursor is stable:
+	// a contact added or deleted mid-run cannot shift rows past the reader, so
+	// nobody is skipped and nobody is emailed twice.
+	//
+	// The cursor is passed as a query var, not captured in the closure, and that
+	// detail matters. WordPress caches query results under a key built from the
+	// query vars, and a posts_where filter does not change that key. Reading the
+	// cursor from the closure instead meant run two asked for a different WHERE
+	// under run one's cache key and got run one's rows straight back, re-emailing
+	// the same people and never advancing. Passing it as a query var puts it in
+	// the key, and doubles as the marker that identifies our own query below.
+	$cursor = static function ( $where, $query ) {
+		global $wpdb;
+		$after = (int) $query->get( 'npmp_after_id' );
+		if ( $after > 0 ) {
+			$where .= $wpdb->prepare( " AND {$wpdb->posts}.ID > %d", $after );
+		}
+		return $where;
+	};
+	add_filter( 'posts_where', $cursor, 10, 2 );
+
+	// Find subscribers who opted in (and don't prefer digest).
 	$subscribers = get_posts( array(
-		'post_type'      => 'npmp_contact',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'fields'         => 'ids',
-		'no_found_rows'  => true,
+		'post_type'        => 'npmp_contact',
+		'post_status'      => 'publish',
+		'posts_per_page'   => $batch_size,
+		'orderby'          => 'ID',
+		'order'            => 'ASC',
+		'fields'           => 'ids',
+		'no_found_rows'    => true,
+		'npmp_after_id'    => $after_id,
+		// get_posts() suppresses posts_* filters by default, which silently
+		// dropped the cursor above and made every run re-read the first batch.
+		'suppress_filters' => false,
 		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Batch notification query.
-		'meta_query'     => array(
+		'meta_query'       => array(
 			'relation' => 'AND',
 			array( 'key' => $meta_key, 'value' => '1' ),
 			array(
@@ -305,6 +358,8 @@ function npmp_process_post_notification( $post_id, $meta_key ) {
 			),
 		),
 	) );
+
+	remove_filter( 'posts_where', $cursor, 10 );
 
 	if ( empty( $subscribers ) ) {
 		return;
@@ -346,6 +401,17 @@ function npmp_process_post_notification( $post_id, $meta_key ) {
 		}
 
 		npmp_send_mail( $email, $subject, $body, $headers );
+	}
+
+	// A full batch means there are probably more subscribers behind it, so pick
+	// up from the last ID handled. A short batch is the end of the list.
+	if ( count( $subscribers ) >= $batch_size ) {
+		$last = (int) $subscribers[ count( $subscribers ) - 1 ];
+		wp_schedule_single_event(
+			time() + 60,
+			'npmp_async_post_notification',
+			array( (int) $post_id, $meta_key, $last )
+		);
 	}
 }
 

@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.11
+Stable tag: 2026.09.12
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,10 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.12 =
+* Fixed: When you published a post or event, the "notify my subscribers" email went out to the whole list in one background run. On a larger list that run hit the server's time limit partway through, and because nothing recorded how far it got, everyone after the cutoff was silently never emailed. It now sends in batches and picks up where it left off, so the whole list is reached however long it takes.
+* Performance: The Dashboard and Overview screens counted members by asking the database for every matching record and counting them in PHP, once per membership level, and added up donation totals the same way. Those are now single database totals. On a site with a few thousand records the membership summary went from six queries to one and about four times faster, and both donation totals dropped from three queries to one.
 
 = 2026.09.11 =
 * Added: The readme now lists every outside service this plugin can contact, what data goes to each one, and when. Most are services you connect yourself, like Stripe or Mailchimp, and none of them are contacted unless you turn that feature on. Nothing about how the plugin behaves has changed.
