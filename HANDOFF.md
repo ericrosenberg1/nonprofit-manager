@@ -87,7 +87,28 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-03: Free and Pro are both live at `2026.09.6`)
+## Current state (2026-09-04: Free and Pro are both live at `2026.09.8`)
+
+Two releases today. `2026.09.7`: the Plugins screen now explains why an update is not being
+offered when the licence key is not active (it used to show nothing at all, which is what a
+paying customer hit), and refunds wind a licence down over 30 days instead of disabling it on
+the spot. `2026.09.8`: a packaging fix.
+
+**Refund policy:** `handleChargeRefunded` calls `expireLicenseIn(db, id, 30)`. The key stays
+`active` and `expires_at` moves 30 days out, so a refunded customer's site keeps working and
+Pro updates stop at the end of that window. It never extends an earlier expiry and never
+revives an already-expired key.
+
+**Packaging trap:** `.githooks/` and `scripts/` (the pre-push gate) had no `export-ignore`, so
+`git archive` shipped them inside both plugin zips. Fixed in both `.gitattributes`. Two things
+to remember: `git archive` reads `.gitattributes` from the **committed** tree, so the fix does
+nothing until it is committed; and the release checklist's `svn status | grep '^[?!]'` guard is
+what caught it, so keep that guard in the flow.
+
+wp.org skipped `2026.09.7` (its free build was aborted mid-release on the packaging catch) and
+went `2026.09.6` to `2026.09.8`.
+
+## Previous state
 
 `2026.09.6` is a coding-standards pass, finishing the quality review the accessibility
 release started. **phpcs is now installed globally** (`~/.composer/vendor/bin/phpcs`, with the
