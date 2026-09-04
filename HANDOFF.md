@@ -87,7 +87,41 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-04: Free and Pro are both live at `2026.09.8`)
+## Current state (2026-09-04: Free and Pro are both live at `2026.09.9`)
+
+**Auto-update is verified working end to end.** Proven on a throwaway WP 7.1 rig with a real
+licence key: Pro 2026.09.6 to 2026.09.9 through `Plugin_Upgrader`, downloaded, unpacked,
+installed, and the plugin stayed active. Two things had been breaking it:
+
+1. **The download endpoint rate-limited 5/hour/IP.** WordPress runs updates from the web
+   server's IP, not a browser, so shared hosting (hundreds of sites behind one IP) and an
+   agency updating client sites hit it and got a 429, which the WP upgrader reports as
+   "Download failed" and leaves the site on the old version. Now 120/hour/IP as a pure
+   bandwidth backstop, with the per-key limit (40/hour) doing the anti-redistribution work,
+   since a key is the licensed unit.
+2. **No update was shown at all when the licence key was not activated.** The API sends the
+   version to everyone but the download URL only to an active licence, and the updater
+   returned silently. Fixed in 2026.09.7.
+
+**Testing gotcha:** call `Plugin_Upgrader::upgrade()` outside cron and WP deactivates the
+plugin (`deactivate_plugin_before_upgrade` skips this only when `wp_doing_cron()`), and
+nothing reactivates it outside the browser flow. Define `DOING_CRON` in the rig or you will
+think auto-update deactivates plugins. It does not.
+
+**Lockstep (2026.09.9).** Free owns the shared helpers in `includes/npmp-version.php`
+(`npmp_version_status()`, `npmp_versions_in_lockstep()`, `npmp_version_mismatch_message()`),
+raises a non-dismissible notice naming which half is behind, and registers a Site Health test.
+Pro declares `NPMP_PRO_MIN_FREE_VERSION` (currently `2026.09.0`): below that floor it loads
+its licence system and notices and nothing else, so it cannot call free-plugin code that is
+not there. Drift inside the floor warns but keeps working. Raise the floor only when Pro
+starts depending on something new in free, and say so in the release notes.
+`tests/test-lockstep.php` covers it in 20 assertions.
+
+**Account portal** now has the free plugin download (points at wordpress.org), payment history
+from `orders`, and a licence key reset (`POST /api/license/reset`, drops every activation and
+clears the old key from KV so it dies immediately).
+
+## Previous state
 
 Two releases today. `2026.09.7`: the Plugins screen now explains why an update is not being
 offered when the licence key is not active (it used to show nothing at all, which is what a
