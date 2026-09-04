@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.10
+Stable tag: 2026.09.11
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -58,6 +58,34 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
 * Give visitors share buttons and a contact form, each as a block or shortcode
 
+== External Services ==
+
+Nonprofit Manager talks to outside services only where a feature needs it. Nothing below runs unless you turn that feature on or enter your own credentials.
+
+**Product update emails (optional, off by default)**
+
+If you tick the product update box in the setup wizard, your email address and display name are sent once to our newsletter system at listmonk.ericrosenberg.com to start a double opt-in signup. You then get one confirmation email, and nothing else is sent unless you click it. Leave the box unticked and no request is made. Data sent: your email address and display name, at that one moment. Service: Listmonk, self-hosted by Rosenberg Digital LLC. Privacy policy: https://nonprofitmanager.app/privacy-policy/
+
+**Nonprofit Manager Pro licensing (only with Pro installed)**
+
+The free plugin on its own does not contact our servers. If you also install Nonprofit Manager Pro, Pro checks your licence and looks for updates at nonprofitmanager.app, sending your licence key, your site URL, and the installed version. Terms: https://nonprofitmanager.app/terms-of-service/ Privacy policy: https://nonprofitmanager.app/privacy-policy/
+
+**Payment processors (only when you enable one)**
+
+Donations are sent to the processor you configure with your own account credentials. Stripe (api.stripe.com), PayPal (paypal.com), and Venmo (venmo.com) receive donation amounts and the donor details you collect. Stripe: https://stripe.com/legal and https://stripe.com/privacy PayPal and Venmo: https://www.paypal.com/legalhub/useragreement-full and https://www.paypal.com/privacy
+
+**Spam protection (only when you enable one)**
+
+If you turn on a captcha, form submissions are verified with Cloudflare Turnstile (challenges.cloudflare.com) or Google reCAPTCHA (google.com/recaptcha), using your own site keys. Cloudflare: https://www.cloudflare.com/website-terms/ and https://www.cloudflare.com/privacypolicy/ Google: https://policies.google.com/terms and https://policies.google.com/privacy
+
+**List imports (only when you run one)**
+
+Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://mailchimp.com/legal/privacy/ Constant Contact: https://www.constantcontact.com/legal/terms-of-service and https://www.constantcontact.com/legal/privacy-statement
+
+**Social sharing (only when you connect an account)**
+
+Auto-sharing posts sends the title, link, and excerpt you configure to the networks you connect, using your own account credentials.
+
 == Installation ==
 
 1. Install from the WordPress Plugin Directory (search for "Nonprofit Manager"), or upload the `nonprofit-manager` folder to `/wp-content/plugins/`.
@@ -108,8 +136,11 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 
 == Changelog ==
 
+= 2026.09.11 =
+* Added: The readme now lists every outside service this plugin can contact, what data goes to each one, and when. Most are services you connect yourself, like Stripe or Mailchimp, and none of them are contacted unless you turn that feature on. Nothing about how the plugin behaves has changed.
+
 = 2026.09.10 =
-* Fixed: An in-plugin upgrade notice quoted Pro's price as $17 a year. It's $47 a year; the notice and its monthly-equivalent line now say so.
+* Fixed: An in-plugin upgrade notice quoted Pro's price as $17 a year. It's $47 a year, and the notice and its monthly-equivalent line now say so.
 * Added: The setup wizard offers two opt-ins, both off unless you check them: showing a "Powered by Nonprofit Manager" credit on your donation forms and newsletter emails, and joining the product-update email list. Both were already available under Settings, this just surfaces them once during setup.
 
 = 2026.09.9 =
@@ -144,7 +175,7 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 = 2026.08.3 =
 * Fixed: Sharing a post or event to X (formerly Twitter) no longer fails silently. The API request was signed with the wrong OAuth method, so every X share was rejected.
 * Fixed: Calendar event times could display shifted by your site's UTC offset (e.g. an event entered as 10:00 AM showing as a different hour). Event times are now parsed against your site's configured timezone.
-* Fixed: The "Default Level" setting for new email signups was being ignored; new signups always got a generic "member" label regardless of what you configured.
+* Fixed: The "Default Level" setting for new email signups was being ignored, so new signups always got a generic "member" label regardless of what you configured.
 * Fixed: An unparsable date in a member record could get silently saved as January 1, 1970 instead of being left blank.
 * Fixed: Clicking a tracked link in a newsletter that points off-site (a donation processor, a social profile) could redirect to your homepage instead of the real destination. This applies to newsletters sent from version 2.0.0 onward, where the link's destination is signed into the tracking token. Links from older newsletters still resolve to your homepage rather than an external site, deliberately: those tokens don't identify a destination, so honoring an arbitrary one would let anyone holding an old link bounce visitors off your domain to a site of their choosing.
 * Fixed: The "All Members" checkbox on the newsletter recipient picker could lose its checked state after saving.
@@ -207,7 +238,7 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 
 = 2026.06.3 =
 * Added: Redesigned events calendar with Month, Week, and List views and a navigation toolbar (Today, previous/next, and year jumps), plus a clean, responsive front-end stylesheet
-* Added: Calendar display options on the Calendar Settings screen (default view, highlight color, event times, list length, show past events); the grid follows your WordPress "Week starts on" setting
+* Added: Calendar display options on the Calendar Settings screen (default view, highlight color, event times, list length, show past events). The grid follows your WordPress "Week starts on" setting
 * Added: Events Calendar and Upcoming Events blocks for the WordPress editor, so you can drop a calendar or event list onto any page with Month, Week, List, and category options
 * Fixed: The calendar no longer renders twice on the configured calendar page
 * Added: "Edit Event" button in the WordPress admin toolbar on single event pages, matching the default behavior for posts and pages
@@ -218,7 +249,7 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 
 = 2026.06.2 =
 * Added: Member import wizard (CSV, XLSX, Google Sheets, Mailchimp, Constant Contact) and a guided onboarding tour, brought into the main plugin line
-* Changed: Version numbering realigned with the WordPress.org listing; free and Pro now ship in lockstep
+* Changed: Version numbering realigned with the WordPress.org listing, and free and Pro now ship in lockstep
 * Added: One-click unsubscribe with RFC 8058 List-Unsubscribe headers on newsletters, post/event notifications, and the weekly digest for better Gmail and Yahoo inbox placement
 * Added: Default front-end stylesheet for the signup, unsubscribe, preferences, and donation forms (turn it off with the npmp_enable_default_form_styles filter)
 * Added: Setup status check on the Membership Settings screen that flags a missing or form-less unsubscribe page
@@ -227,7 +258,7 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Fixed: [unsubscribe_url] now resolves to your configured unsubscribe page instead of a hardcoded /unsubscribe link
 * Fixed: CAN-SPAM footer [address] uses your postal mailing address instead of the site admin email
 * Fixed: Sentry events are tagged with the real plugin version instead of "unknown"
-* Changed: Cleaned up admin and marketing copy; corrected the README version and shortcode list
+* Changed: Cleaned up admin and marketing copy, and corrected the README version and shortcode list
 
 = 2.0.1 =
 * Changed: Pro features now work when Pro plugin is installed (license required for updates only)
