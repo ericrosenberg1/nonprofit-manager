@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.12
+Stable tag: 2026.09.13
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.13 =
+* Housekeeping: Lockstep with Nonprofit Manager Pro 2026.09.13, which retries a membership level switch when Stripe cannot be reached to stop the previous level's billing, instead of recording the new level and leaving both billing. No changes to the free plugin itself.
 
 = 2026.09.12 =
 * Fixed: When you published a post or event, the "notify my subscribers" email went out to the whole list in one background run. On a larger list that run hit the server's time limit partway through, and because nothing recorded how far it got, everyone after the cutoff was silently never emailed. It now sends in batches and picks up where it left off, so the whole list is reached however long it takes.
