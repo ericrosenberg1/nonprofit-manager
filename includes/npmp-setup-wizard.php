@@ -98,6 +98,22 @@ add_action(
 				update_option( 'npmp_enabled_features', $enabled );
 				update_option( 'npmp_setup_completed', true );
 
+				// Both opt-ins below are unchecked by default and only act on an
+				// explicit, intentional checkbox the site owner ticked themselves
+				// (WordPress.org requires attribution links and any data leaving
+				// the site to be opt-in, not defaulted on).
+				if ( isset( $_POST['npmp_setup_powered_by_optin'] ) ) {
+					update_option( 'npmp_powered_by_optin', 1 );
+				}
+
+				if ( isset( $_POST['npmp_setup_email_optin'] ) && isset( $_POST['npmp_setup_email'] ) ) {
+					$wizard_email = sanitize_email( wp_unslash( $_POST['npmp_setup_email'] ) );
+					if ( is_email( $wizard_email ) && function_exists( 'npmp_subscribe_to_newsletter' ) ) {
+						$current_user = wp_get_current_user();
+						npmp_subscribe_to_newsletter( $wizard_email, $current_user ? $current_user->display_name : '' );
+					}
+				}
+
 				wp_safe_redirect( admin_url( 'admin.php?page=npmp_main&setup_complete=1' ) );
 				exit;
 			}
@@ -257,6 +273,33 @@ function npmp_render_setup_wizard() {
 						</p>
 					</div>
 				<?php endif; ?>
+
+				<h2><?php esc_html_e( 'Optional', 'nonprofit-manager' ); ?></h2>
+				<p class="npmp-setup-optin">
+					<label>
+						<input type="checkbox" name="npmp_setup_powered_by_optin" value="1">
+						<?php esc_html_e( 'Show a "Powered by Nonprofit Manager" link on public donation forms and newsletter emails.', 'nonprofit-manager' ); ?>
+					</label>
+					<br>
+					<span class="description"><?php esc_html_e( 'Off unless checked. Change this any time under Settings > General.', 'nonprofit-manager' ); ?></span>
+				</p>
+				<p class="npmp-setup-optin">
+					<label>
+						<input type="checkbox" name="npmp_setup_email_optin" value="1" onchange="document.getElementById('npmp-setup-email').disabled = !this.checked;">
+						<?php esc_html_e( 'Email me setup tips and Nonprofit Manager product updates.', 'nonprofit-manager' ); ?>
+					</label>
+					<br>
+					<input
+						type="email"
+						id="npmp-setup-email"
+						name="npmp_setup_email"
+						value="<?php echo esc_attr( wp_get_current_user()->user_email ); ?>"
+						disabled
+						style="margin-top: 6px; max-width: 320px;"
+					>
+					<br>
+					<span class="description"><?php esc_html_e( 'Off unless checked. Double opt-in, unsubscribe any time.', 'nonprofit-manager' ); ?></span>
+				</p>
 
 				<?php submit_button( __( 'Complete Setup', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
 			</form>

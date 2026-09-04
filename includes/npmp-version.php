@@ -222,6 +222,19 @@ function npmp_get_upgrade_url() {
 }
 
 /**
+ * Pro's starting price, for in-plugin upsell copy.
+ *
+ * One place to update when pricing changes, instead of a string baked into
+ * each upsell screen. Matches the Single Site annual price on the pricing
+ * page (nonprofit-manager-site/src/pages/pricing.astro).
+ *
+ * @return string Human-readable price, e.g. "$47 a year".
+ */
+function npmp_get_pro_starting_price() {
+	return __( '$47 a year', 'nonprofit-manager' );
+}
+
+/**
  * Get plugin version number
  *
  * @return string Version number

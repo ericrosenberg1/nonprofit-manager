@@ -385,8 +385,16 @@ function npmp_render_main_plugin_page() {
 		<?php if ( ! $is_pro ) : ?>
 			<div class="npmp-upgrade-section">
 				<h2><?php esc_html_e( 'Thank You for Using Nonprofit Manager', 'nonprofit-manager' ); ?></h2>
-				<p><?php esc_html_e( 'The free edition covers what most nonprofits need. Want more features and customization? Nonprofit Manager Pro is $17 a year.', 'nonprofit-manager' ); ?></p>
-				<p><?php esc_html_e( 'That\'s nonprofit pricing — under $2 a month for a CRM, donation manager, newsletter platform, and event calendar, all inside your WordPress site.', 'nonprofit-manager' ); ?></p>
+				<p>
+					<?php
+					printf(
+						/* translators: %s: Pro's starting price, e.g. "$47 a year". */
+						esc_html__( 'The free edition covers what most nonprofits need. Want more features and customization? Nonprofit Manager Pro starts at %s.', 'nonprofit-manager' ),
+						esc_html( npmp_get_pro_starting_price() )
+					);
+					?>
+				</p>
+				<p><?php esc_html_e( 'That\'s nonprofit pricing. Under $4 a month for a CRM, donation manager, newsletter platform, and event calendar, all inside your WordPress site.', 'nonprofit-manager' ); ?></p>
 
 				<div class="npmp-upgrade-box">
 					<h3><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro', 'nonprofit-manager' ); ?></h3>

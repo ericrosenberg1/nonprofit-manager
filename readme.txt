@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.9
+Stable tag: 2026.09.10
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -107,6 +107,10 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.10 =
+* Fixed: An in-plugin upgrade notice quoted Pro's price as $17 a year. It's $47 a year; the notice and its monthly-equivalent line now say so.
+* Added: The setup wizard offers two opt-ins, both off unless you check them: showing a "Powered by Nonprofit Manager" credit on your donation forms and newsletter emails, and joining the product-update email list. Both were already available under Settings, this just surfaces them once during setup.
 
 = 2026.09.9 =
 * Added: If you run Nonprofit Manager Pro, the plugin now warns you when the two are on different version numbers, and a Site Health check reports the same thing. They are built and tested as one product on one version, so a mismatch can make features behave unexpectedly.
