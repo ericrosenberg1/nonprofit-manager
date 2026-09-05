@@ -1522,34 +1522,33 @@ class NPMP_Member_Manager {
 	 * @return array
 	 */
 	public function get_status_counts() {
-		$query = new WP_Query(
-			array(
-				'post_type'      => 'npmp_contact',
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-			)
+		global $wpdb;
+
+		// Count in the database instead of loading every contact ID and its
+		// status meta to tally them in PHP. The LEFT JOIN matters: a contact
+		// with no npmp_status row, or an empty one, counted as 'subscribed'
+		// before and an INNER JOIN would quietly drop them from the totals.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Grouped aggregate over a joined meta table.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT COALESCE(NULLIF(m.meta_value, ''), 'subscribed') AS status, COUNT(*) AS total
+				 FROM {$wpdb->posts} p
+				 LEFT JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
+				 WHERE p.post_type = %s AND p.post_status = 'publish'
+				 GROUP BY status",
+				'npmp_status',
+				'npmp_contact'
+			),
+			ARRAY_A
 		);
 
 		$stats = array();
 
-		// fields => 'ids' skips meta-cache priming, so without this each
-		// get_post_meta() below is its own query: thousands per dashboard
-		// view on a large contact list.
-		if ( $query->posts ) {
-			update_meta_cache( 'post', $query->posts );
-		}
-
-		foreach ( $query->posts as $post_id ) {
-			$status = get_post_meta( $post_id, 'npmp_status', true );
-			if ( ! $status ) {
-				$status = 'subscribed';
-			}
-			if ( ! isset( $stats[ $status ] ) ) {
-				$stats[ $status ] = 0;
-			}
-			$stats[ $status ] ++;
+		foreach ( (array) $rows as $row ) {
+			$status = (string) $row['status'];
+			// Collation may or may not fold case in the GROUP BY, so add
+			// rather than assign.
+			$stats[ $status ] = ( isset( $stats[ $status ] ) ? $stats[ $status ] : 0 ) + (int) $row['total'];
 		}
 
 		foreach ( $this->get_statuses() as $key => $label ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable

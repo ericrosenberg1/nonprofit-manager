@@ -207,29 +207,26 @@ class NPMP_Donation_Manager {
 	 * @return array List of years (int).
 	 */
 	public function years_with_donations() {
-		$ids = get_posts(
-			array(
-				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-				'no_found_rows'  => true,
+		global $wpdb;
+
+		// This drives a year dropdown, so the answer is a handful of numbers.
+		// It used to fetch every donation ID ever recorded and call
+		// get_the_date() on each one, and because 'fields' => 'ids' skips
+		// meta and post cache priming, each of those calls could be its own
+		// query. On a charity with years of history that was the single most
+		// expensive thing on the Donations screen.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small DISTINCT aggregate; there is no row set worth caching.
+		$years = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT YEAR(post_date) AS y
+				 FROM {$wpdb->posts}
+				 WHERE post_type = %s AND post_status = 'publish'
+				 ORDER BY y DESC",
+				self::POST_TYPE
 			)
 		);
 
-		$years = array();
-
-		foreach ( $ids as $post_id ) {
-			$year = (int) get_the_date( 'Y', $post_id );
-			if ( $year ) {
-				$years[] = $year;
-			}
-		}
-
-		$years = array_values( array_unique( $years ) );
-		rsort( $years, SORT_NUMERIC );
+		$years = array_values( array_filter( array_map( 'intval', (array) $years ) ) );
 
 		return $years ?: array( intval( gmdate( 'Y' ) ) );
 	}
@@ -242,72 +239,63 @@ class NPMP_Donation_Manager {
 	 * @return array List of [ 'period' => string, 'count' => int, 'total' => float ].
 	 */
 	public function summary( $year, $month = null ) {
-		$args = array(
-			'post_type'      => self::POST_TYPE,
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-			'no_found_rows'  => true,
-			'orderby'        => 'date',
-			'order'          => 'DESC',
-			'date_query'     => array(
-				array(
-					'year'     => absint( $year ),
-					'monthnum' => $month ? absint( $month ) : null,
-				),
-			),
-		);
+		global $wpdb;
 
-		if ( ! $month ) {
-			unset( $args['date_query'][0]['monthnum'] );
+		$year  = absint( $year );
+		$month = $month ? absint( $month ) : null;
+
+		// Group and total in the database rather than loading every donation
+		// in the period and adding them up a row at a time. The grouping is
+		// deliberately kept as it was: the period is cut on post_date_gmt while
+		// the year/month filter reads post_date, which is what the date_query
+		// this replaces did.
+		// The percent signs are doubled because this string goes through
+		// $wpdb->prepare(), which reads % as the start of a placeholder. Left
+		// single, the %d in the day format is eaten as an integer placeholder,
+		// the parameters shift, and the query silently returns nothing.
+		$period_expr = $month
+			? "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m-%%d')"
+			: "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m')";
+
+		$sql = "SELECT {$period_expr} AS period_key,
+		               COUNT(*) AS donation_count,
+		               SUM(a.meta_value + 0) AS total_amount,
+		               MAX(p.post_date_gmt) AS latest
+		        FROM {$wpdb->posts} p
+		        INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+		        WHERE p.post_type = %s
+		          AND p.post_status = 'publish'
+		          AND YEAR(p.post_date) = %d
+		          AND (a.meta_value + 0) > 0";
+
+		$params = array( self::META_AMOUNT, self::POST_TYPE, $year );
+
+		if ( $month ) {
+			$sql     .= ' AND MONTH(p.post_date) = %d';
+			$params[] = $month;
 		}
 
-		$ids     = get_posts( $args );
-		$summary = array();
+		$sql .= ' GROUP BY period_key';
 
-		// One round trip for all posts + meta instead of two queries per
-		// donation inside the loop.
-		if ( $ids ) {
-			_prime_post_caches( $ids, false, true );
-		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Built from a fixed template; every value is a placeholder.
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 
-		foreach ( $ids as $post_id ) {
-			$post = get_post( $post_id );
-			if ( ! $post ) {
-				continue;
-			}
-
-			$timestamp = strtotime( $post->post_date_gmt );
-			$amount    = (float) get_post_meta( $post_id, self::META_AMOUNT, true );
-			if ( $amount <= 0 ) {
-				continue;
-			}
-
-			$key = $month ? gmdate( 'Y-m-d', $timestamp ) : gmdate( 'Y-m', $timestamp );
-
-			if ( ! isset( $summary[ $key ] ) ) {
-				$summary[ $key ] = array(
-					'count'     => 0,
-					'total'     => 0.0,
-					'timestamp' => $timestamp,
-				);
-			}
-
-			$summary[ $key ]['count'] ++;
-			$summary[ $key ]['total'] += $amount;
-			$summary[ $key ]['timestamp'] = max( $summary[ $key ]['timestamp'], $timestamp );
+		if ( ! is_array( $rows ) ) {
+			return array();
 		}
 
 		$output = array();
 
-		foreach ( $summary as $period => $data ) {
+		foreach ( $rows as $row ) {
+			$period = (string) $row['period_key'];
+
 			$output[] = array(
 				'period'    => $month
 					? date_i18n( 'M j, Y', strtotime( $period ) )
 					: date_i18n( 'F Y', strtotime( $period . '-01' ) ),
-				'count'     => (int) $data['count'],
-				'total'     => (float) $data['total'],
-				'timestamp' => (int) $data['timestamp'],
+				'count'     => (int) $row['donation_count'],
+				'total'     => (float) $row['total_amount'],
+				'timestamp' => (int) strtotime( (string) $row['latest'] ),
 			);
 		}
 
@@ -343,43 +331,34 @@ class NPMP_Donation_Manager {
 			);
 		}
 
-		$query = new WP_Query(
-			array(
-				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'no_found_rows'  => true,
-					'orderby'        => 'date',
-					'order'          => 'DESC',
-					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Donations are stored in post meta; filtering by email requires a meta query.
-					'meta_query'     => array(
-						array(
-							'key'   => self::META_EMAIL,
-							'value' => $email,
-						),
-					),
-			)
+		global $wpdb;
+
+		// Three numbers about one donor. Loading every donation they ever made
+		// to add them up in PHP is work the database already does in one pass.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Single aggregate row; nothing to cache.
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT COUNT(*) AS donation_count,
+				        SUM(a.meta_value + 0) AS total_amount,
+				        MAX(p.post_date_gmt) AS last_at
+				 FROM {$wpdb->posts} p
+				 INNER JOIN {$wpdb->postmeta} e ON e.post_id = p.ID AND e.meta_key = %s
+				 LEFT JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+				 WHERE p.post_type = %s AND p.post_status = 'publish' AND e.meta_value = %s",
+				self::META_EMAIL,
+				self::META_AMOUNT,
+				self::POST_TYPE,
+				$email
+			),
+			ARRAY_A
 		);
 
-		$total_amount = 0.0;
-		$last_at      = '';
-
-		if ( $query->posts ) {
-			_prime_post_caches( $query->posts, false, true );
-		}
-
-		foreach ( $query->posts as $post_id ) {
-			$total_amount += (float) get_post_meta( $post_id, self::META_AMOUNT, true );
-			if ( ! $last_at ) {
-				$last_at = get_post_time( 'Y-m-d H:i:s', true, $post_id );
-			}
-		}
-
 		return array(
-			'count' => (int) count( $query->posts ),
-			'total' => (float) $total_amount,
-			'last'  => $last_at,
+			'count' => isset( $row['donation_count'] ) ? (int) $row['donation_count'] : 0,
+			'total' => isset( $row['total_amount'] ) ? (float) $row['total_amount'] : 0.0,
+			// Matches the previous behaviour: the most recent donation's GMT
+			// time, and an empty string when this donor has none.
+			'last'  => ! empty( $row['last_at'] ) ? (string) $row['last_at'] : '',
 		);
 	}
 
