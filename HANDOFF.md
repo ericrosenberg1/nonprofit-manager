@@ -87,7 +87,42 @@ Mailchimp/Constant Contact imports, more email providers (Brevo, SendGrid, Mailg
 SparkPost, AWS SES) via the multi-provider email settings, guided provider setup wizard, license
 system with activation/deactivation/auto-updates.
 
-## Current state (2026-09-04: Free and Pro are both live at `2026.09.13`)
+## Current state (2026-09-05: Free and Pro are both live at `2026.09.14`)
+
+**`2026.09.14` finished the unbounded-query audit** started in `2026.09.12`, which had
+only covered the Dashboard. Every `posts_per_page => -1` in both plugins was walked and
+triaged:
+
+- **`years_with_donations()` was the worst thing in the product.** It populated a year
+  dropdown by fetching every donation ID ever recorded and calling `get_the_date()` on
+  each, and `'fields' => 'ids'` skips post-cache priming so each call was its own query.
+  Measured on 3,000 seeded donations: **3,002 queries and 1.63 seconds to produce four
+  numbers.** One `DISTINCT YEAR` query, 6ms, 266x. It grew with every donation ever taken.
+- `summary()`, `get_totals_for_email()` and `get_status_counts()` were the same shape and
+  are single aggregates now. `get_status_counts()` needed a LEFT JOIN: a contact with no
+  `npmp_status` row, or an empty one, counts as `subscribed`, and an inner join drops them.
+- Pro's `count_matching()` read only `found_posts` but `build_query_args()` asks for every
+  row, so counting a segment materialised every match. Now `posts_per_page => 1`.
+- **Deliberately left:** `get_all_donations()` is unbounded and has no caller in either
+  repo, but it is a public method third-party code could call and that cannot be checked
+  from here. The Donations screen's own table is also unpaginated, which is a product
+  decision rather than a bug. Both are flagged, not silently changed.
+- Bounded on inspection, no change needed: the calendar's month query (date range), the
+  iCal feed (already transient-cached), newsletter templates (a handful per site), and the
+  weekly digest recipient load (queues rows, and the drain is already batched).
+
+**`$wpdb->prepare()` reads `%` as the start of a placeholder.** The `%d` in
+`DATE_FORMAT('%Y-%m-%d')` was eaten as an integer placeholder, the arguments shifted, and
+the by-day summary silently returned nothing instead of erroring. Percent signs meant
+literally must be `%%`. `tests/test-prepare-placeholders.php` scans both plugins for this
+and self-verifies against a known-bad and known-good sample.
+
+**Every aggregate was diffed against the old implementation on real MySQL** (the
+`cloudpanel` test site) over zero and negative amounts, missing meta, drafts, previous
+years, empty periods and same-day grouping. That comparison is what caught the `%` bug.
+Reasoning about these rewrites without running them would have shipped it.
+
+## Previous state (2026-09-04: Free and Pro were live at `2026.09.13`)
 
 `2026.09.13` is a Pro-only fix, with Free a no-op lockstep bump (SVN trunk r3681813, tag
 r3681814). It closes the gap `2026.09.5` left open: `create_dues_subscription()` cancels the
