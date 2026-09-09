@@ -5,7 +5,7 @@
  * The free plugin had no tests at all. This covers the pieces that can be
  * reasoned about on their own: aggregation, formatting, version comparison.
  * Anything needing a real $wpdb is verified against the WP test site instead
- * (see HANDOFF.md), because faking MySQL's collation and date handling well
+ * (see ~/Code/MASTER-HANDOFF.md 3.17.3), because faking MySQL's collation and date handling well
  * enough to trust the result is more work than running the real thing.
  *
  * Excluded from the distributed zip via .gitattributes export-ignore.

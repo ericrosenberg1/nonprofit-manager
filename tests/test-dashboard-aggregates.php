@@ -2,7 +2,7 @@
 /**
  * The Dashboard totals moved from "load every row and add it up in PHP" to
  * SQL aggregates. The SQL itself is verified against real MySQL on the WP test
- * site (identical results on seeded data, see HANDOFF.md). What is tested here
+ * site (identical results on seeded data, see ~/Code/MASTER-HANDOFF.md 3.17.3). What is tested here
  * is the part that stayed in PHP: turning a per-period amount into a yearly
  * one, and folding tier names the way MySQL's collation does.
  *
