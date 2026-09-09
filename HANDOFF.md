@@ -1,5 +1,7 @@
 # Nonprofit Manager: Development Handoff
 
+> **Tracker:** status, priorities, and everything Eric owes across all projects live in `~/Code/MASTER-HANDOFF.md` (the master handoff). This doc carries this project's detail. Update both when something closes.
+
 Written 2026-07-13. Read this instead of replaying the conversation history that produced it.
 For fix-level detail, `git log` in each repo has full commit messages.
 
