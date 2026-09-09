@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.14
+Stable tag: 2026.09.15
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.15 =
+* Housekeeping: The Members screen's donation totals and tag list have been single database queries since 2026.09.3, whose notes wrongly said the free plugin had no changes. Both were checked against the previous row-by-row version on MySQL 8 and give the same figures. On 2,000 contacts and 2,000 donations the pair went from 515 ms and 7 MB of memory to 100 ms and no measurable memory. This release adds the regression test that keeps them that way. No functional change.
 
 = 2026.09.14 =
 * Performance: The Donations screen built its year dropdown by fetching every donation ever recorded and reading the date off each one individually. On a site with 3,000 donations that was 3,002 database queries and about 1.6 seconds, for a list of four numbers. It is one query now.
