@@ -844,7 +844,7 @@ class NPMP_Import_Manager {
 			return new WP_Error( 'npmp_csv_open', __( 'Failed to open CSV file.', 'nonprofit-manager' ) );
 		}
 
-		// phpcs:ignore WordPress.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
+		// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
 		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
 			// $total doubles as the 0-based physical row index during the loop.
 			if ( $total >= $skip && ( null === $keep_limit || count( $rows ) < $keep_limit ) ) {
