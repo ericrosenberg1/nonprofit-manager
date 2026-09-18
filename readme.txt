@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.15
+Stable tag: 2026.09.16
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.16 =
+* Housekeeping: Version lockstep with Nonprofit Manager Pro 2026.09.16. On sites that run Pro, both plugins now update automatically by default and share one automatic-updates setting, so each release installs on both together. Sites without Pro are unchanged, and automatic updates stay your choice in Plugins. No functional change to the free plugin.
 
 = 2026.09.15 =
 * Housekeeping: The Members screen's donation totals and tag list have been single database queries since 2026.09.3, whose notes wrongly said the free plugin had no changes. Both were checked against the previous row-by-row version on MySQL 8 and give the same figures. On 2,000 contacts and 2,000 donations the pair went from 515 ms and 7 MB of memory to 100 ms and no measurable memory. This release adds the regression test that keeps them that way. No functional change.
@@ -345,6 +348,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.16 =
+No change to the free plugin. If you also run Nonprofit Manager Pro, updating Pro to 2026.09.16 turns on automatic updates for both plugins, once, so each release installs on both together. Switch them off in Plugins any time and they stay off.
 
 = 2026.09.2 =
 Small display fix in a member's donation history. Worth taking if you also run Nonprofit Manager Pro, which fixes a Monthly Recurring Revenue total that read too high for annual subscriptions.
