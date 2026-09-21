@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.16
+Stable tag: 2026.09.17
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,10 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.17 =
+* Changed: The optional "Powered by Nonprofit Manager" link is now offered once, right after your first donation comes in, instead of in the setup wizard. The checkbox starts unticked, and nothing changes unless you tick it and save. You can switch the link on or off any time in General Settings.
+* Changed: The request to rate Nonprofit Manager now waits until three days after you answer that, so the two never appear together.
 
 = 2026.09.16 =
 * Housekeeping: Version lockstep with Nonprofit Manager Pro 2026.09.16. On sites that run Pro, both plugins now update automatically by default and share one automatic-updates setting, so each release installs on both together. Sites without Pro are unchanged, and automatic updates stay your choice in Plugins. No functional change to the free plugin.
@@ -348,6 +352,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.17 =
+The optional "Powered by" link is now offered once after your first donation instead of in the setup wizard. Nothing changes unless you tick the box. Lockstep with Nonprofit Manager Pro 2026.09.17.
 
 = 2026.09.16 =
 No change to the free plugin. If you also run Nonprofit Manager Pro, updating Pro to 2026.09.16 turns on automatic updates for both plugins, once, so each release installs on both together. Switch them off in Plugins any time and they stay off.

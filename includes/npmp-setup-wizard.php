@@ -98,14 +98,11 @@ add_action(
 				update_option( 'npmp_enabled_features', $enabled );
 				update_option( 'npmp_setup_completed', true );
 
-				// Both opt-ins below are unchecked by default and only act on an
-				// explicit, intentional checkbox the site owner ticked themselves
-				// (WordPress.org requires attribution links and any data leaving
-				// the site to be opt-in, not defaulted on).
-				if ( isset( $_POST['npmp_setup_powered_by_optin'] ) ) {
-					update_option( 'npmp_powered_by_optin', 1 );
-				}
-
+				// The newsletter opt-in below is unchecked by default and only
+				// acts on a checkbox the site owner ticked themselves
+				// (WordPress.org requires any data leaving the site to be
+				// opt-in). The "Powered by" link is no longer offered here. It
+				// is asked once after the first donation (npmp-credit-ask.php).
 				if ( isset( $_POST['npmp_setup_email_optin'] ) && isset( $_POST['npmp_setup_email'] ) ) {
 					$wizard_email = sanitize_email( wp_unslash( $_POST['npmp_setup_email'] ) );
 					if ( is_email( $wizard_email ) && function_exists( 'npmp_subscribe_to_newsletter' ) ) {
@@ -275,14 +272,6 @@ function npmp_render_setup_wizard() {
 				<?php endif; ?>
 
 				<h2><?php esc_html_e( 'Optional', 'nonprofit-manager' ); ?></h2>
-				<p class="npmp-setup-optin">
-					<label>
-						<input type="checkbox" name="npmp_setup_powered_by_optin" value="1">
-						<?php esc_html_e( 'Show a "Powered by Nonprofit Manager" link on public donation forms and newsletter emails.', 'nonprofit-manager' ); ?>
-					</label>
-					<br>
-					<span class="description"><?php esc_html_e( 'Off unless checked. Change this any time under Settings > General.', 'nonprofit-manager' ); ?></span>
-				</p>
 				<p class="npmp-setup-optin">
 					<label>
 						<input type="checkbox" name="npmp_setup_email_optin" value="1" onchange="document.getElementById('npmp-setup-email').disabled = !this.checked;">

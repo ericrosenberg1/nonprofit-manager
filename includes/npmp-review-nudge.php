@@ -21,6 +21,11 @@ if ( ! function_exists( 'npmp_mark_milestone' ) ) {
 	 * @param string $type Milestone source, e.g. 'donation' or 'newsletter'.
 	 */
 	function npmp_mark_milestone( $type = '' ) {
+		// The "Powered by" ask (npmp-credit-ask.php) waits for a donation
+		// specifically, not just any milestone.
+		if ( 'donation' === $type && ! (int) get_option( 'npmp_first_donation_at', 0 ) ) {
+			update_option( 'npmp_first_donation_at', time(), false );
+		}
 		if ( get_option( 'npmp_first_milestone_at' ) ) {
 			return;
 		}
@@ -74,6 +79,15 @@ if ( ! function_exists( 'npmp_review_nudge_should_show' ) ) {
 		}
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
+			return false;
+		}
+		// One ask at a time. The "Powered by" ask after the first donation
+		// goes first, and this one waits a few days after it's answered.
+		if ( function_exists( 'npmp_credit_ask_should_show' ) && npmp_credit_ask_should_show() ) {
+			return false;
+		}
+		$credit_done = (int) get_option( 'npmp_credit_ask_done', 0 );
+		if ( $credit_done && ( time() - $credit_done ) < 3 * DAY_IN_SECONDS ) {
 			return false;
 		}
 		return true;

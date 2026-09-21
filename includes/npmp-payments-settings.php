@@ -790,7 +790,7 @@ function npmp_render_donation_form() {
 
 /**
  * "Powered by Nonprofit Manager" attribution appended below the donation form.
- * Free always shows it. Pro can remove it via the npmp_show_powered_by filter.
+ * Empty unless the site owner opted in (npmp-powered-by.php).
  *
  * @return string
  */
