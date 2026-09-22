@@ -50,7 +50,8 @@ function is_wp_error( $v ) { return false; }
 function wp_remote_get( $url, $args ) {
 	$GLOBALS['t_http']++;
 	return array(
-		'body' => json_encode(
+		'response' => array( 'code' => 200 ),
+		'body'     => json_encode(
 			array(
 				'payment_status'   => 'paid',
 				'mode'             => 'payment',
@@ -62,6 +63,7 @@ function wp_remote_get( $url, $args ) {
 	);
 }
 function wp_remote_retrieve_body( $r ) { return $r['body']; }
+function wp_remote_retrieve_response_code( $r ) { return $r['response']['code'] ?? ''; }
 function wp_send_json_success( $data = null ) { throw new Npmp_Test_Json_Exit( true, $data ); }
 function wp_send_json_error( $data = null ) { throw new Npmp_Test_Json_Exit( false, $data ); }
 function npmp_stripe_secret_key() { return 'sk_test_x'; }
