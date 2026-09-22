@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.19
+Stable tag: 2026.09.20
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -136,6 +136,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.20 =
+* Fixed: Constant Contact imports brought in no contacts. The importer read an email field that Constant Contact's current API no longer sends, so every contact failed the email check. Contacts now arrive with their email address, people who unsubscribed in Constant Contact come in as unsubscribed, and deleted contacts stay out.
+* Removed: SparkPost as an email sending service. It stopped sending in version 2026.05.9, but the settings screen still offered it. A site that still has it selected sends through WordPress's default mail and now sees a notice asking it to pick another service.
+* Changed: While the import wizard runs, Nonprofit Manager Pro's automations don't send, so importing a list doesn't email everyone on it.
 
 = 2026.09.19 =
 * Added: Stripe card payments in the free version. Turn on Stripe in the donation payment settings, paste your API keys, and donors can give by card. One-time gifts are free. Monthly giving and membership dues billing through Stripe stay in Nonprofit Manager Pro.
@@ -361,6 +366,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.20 =
+Constant Contact imports now bring in your contacts, with opt-outs carried over. SparkPost is no longer offered as an email service.
 
 = 2026.09.19 =
 Stripe card payments are now part of the free version for one-time gifts. Monthly giving stays in Pro.
