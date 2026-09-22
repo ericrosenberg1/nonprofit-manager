@@ -1044,6 +1044,18 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
+	// Stripe answering with an error (a 429 rate limit, a 5xx outage) is as
+	// transient as a dropped connection. The donor has paid, and in the free
+	// plugin this return visit is the only thing that records a one-time
+	// donation, so release the lock and let a refresh try again rather than
+	// ignoring every retry for the next 15 minutes.
+	$response_code = (int) wp_remote_retrieve_response_code( $response );
+	if ( 200 !== $response_code ) {
+		npmp_payment_debug_log( 'stripe session lookup HTTP ' . $response_code );
+		delete_transient( $lock_key );
+		return;
+	}
+
 	$session = json_decode( wp_remote_retrieve_body( $response ), true );
 	if ( ! is_array( $session ) || empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
 		return;
