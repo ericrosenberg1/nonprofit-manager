@@ -32,10 +32,11 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 **Donations**
 
 * Accept one-time donations through PayPal, Venmo, and Stripe
-* Drop a donation form on any page as a block or shortcode, complete with thank-you messages and donor confirmation emails
-* Every PayPal capture keeps a server-side verification record, so your books always have something to check against
+* Drop a donation form on any page as a block or shortcode, with a thank-you message on the page
 * Recurring donations*
 * Membership dues auto-billing*
+* Donor thank-you emails with the gift amount and date*
+* PayPal Smart Buttons, with a server-side verification record for every capture*
 
 **Newsletters and email**
 
@@ -45,7 +46,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * One-click unsubscribe with RFC 8058 List-Unsubscribe headers, which Gmail and Yahoo now expect
 * Tell subscribers about new posts and events instantly or in an automatic weekly digest, and let them pick their own preferences
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
-* Send through AWS SES, Brevo, SendGrid, Mailgun, Postmark, or SparkPost*
+* Send through AWS SES, Brevo, SendGrid, Mailgun, or Postmark*
 
 **Events**
 
@@ -80,7 +81,7 @@ If you turn on a captcha, form submissions are verified with Cloudflare Turnstil
 
 **List imports (only when you run one)**
 
-Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://mailchimp.com/legal/privacy/ Constant Contact: https://www.constantcontact.com/legal/terms-of-service and https://www.constantcontact.com/legal/privacy-statement
+Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms-of-service and https://www.constantcontact.com/legal/privacy-statement
 
 **Social sharing (only when you connect an account)**
 
@@ -117,11 +118,11 @@ Yes. Use the "Convert to Event" action on any post or page. It carries your cont
 
 = How do I import my existing email list? =
 
-Go to Nonprofit Manager > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. The free plugin imports up to 50 supporters per job, and Pro removes the cap.
+Go to Membership > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. The free plugin imports up to 50 supporters per job, and Pro removes the cap.
 
 = Where can I get support? =
 
-Ask in the WordPress.org support forums and we'll help. Pro customers also get priority email support at support@nonprofitmanager.app.
+Ask in the WordPress.org support forums and we'll help. Pro includes email support at support@nonprofitmanager.app, with priority replies on the Multi-Site and Developer plans.
 
 == Screenshots ==
 

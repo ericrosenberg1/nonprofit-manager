@@ -51,8 +51,10 @@ function npmp_email_get_settings() {
 		$settings['smtp']   = wp_parse_args( $settings['smtp'] ?? array(), $defaults['smtp'] );
 		$settings['aws']    = wp_parse_args( $settings['aws'] ?? array(), $defaults['aws'] );
 
-		// Validate provider - include all valid providers
-		$valid_providers = array( 'wordpress', 'smtp', 'aws_ses', 'brevo', 'sendgrid', 'mailgun', 'postmark', 'sparkpost' );
+		// Validate provider. SparkPost left in 2026.09.20 (Pro dropped its
+		// sender in 2026.05.9), so a saved 'sparkpost' reads as WordPress
+		// default mail, which is what those sites were already getting.
+		$valid_providers = array( 'wordpress', 'smtp', 'aws_ses', 'brevo', 'sendgrid', 'mailgun', 'postmark' );
 		$settings['provider'] = in_array( $settings['provider'] ?? '', $valid_providers, true )
 			? $settings['provider']
 			: 'wordpress';
@@ -190,7 +192,6 @@ function npmp_email_get_provider_choices( $include_pro = false ) {
 			'mailgun'   => __( 'Mailgun', 'nonprofit-manager' ),
 			'postmark'  => __( 'Postmark', 'nonprofit-manager' ),
 			'sendgrid'  => __( 'SendGrid', 'nonprofit-manager' ),
-			'sparkpost' => __( 'SparkPost', 'nonprofit-manager' ),
 		);
 
 		// Add "(Pro)" suffix for free version users

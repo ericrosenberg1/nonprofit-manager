@@ -111,11 +111,6 @@ function npmp_render_email_settings_page() {
 				update_option( 'npmp_postmark_api_key', $postmark_key );
 			}
 
-			// SparkPost API key
-			$sparkpost_key = isset( $_POST['npmp_sparkpost_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_sparkpost_api_key'] ) ) : '';
-			if ( '' !== $sparkpost_key ) {
-				update_option( 'npmp_sparkpost_api_key', $sparkpost_key );
-			}
 		}
 
 		$region = sanitize_key( wp_unslash( $_POST['npmp_aws_region'] ?? $new_settings['aws']['region'] ?? 'us-east-1' ) );
@@ -252,19 +247,6 @@ function npmp_render_email_settings_page() {
 			exit;
 		}
 
-		// SparkPost test
-		if (
-			isset( $_POST['npmp_test_sparkpost_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sparkpost_nonce'] ) ), 'npmp_test_sparkpost' )
-		) {
-			$result = function_exists( 'npmp_pro_test_sparkpost' ) ? npmp_pro_test_sparkpost() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SparkPost' ) );
-			}
-			exit;
-		}
 	}
 
 	// Handle test email
@@ -685,34 +667,6 @@ function npmp_render_email_settings_page() {
 						</table>
 </div>
 
-					<!-- SparkPost -->
-					<div class="npmp-provider-block npmp-provider-sparkpost" <?php echo 'sparkpost' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
-						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'SparkPost API Configuration', 'nonprofit-manager' ); ?></h3>
-						<?php
-						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
-							$help_url = npmp_pro_get_provider_help( 'sparkpost' );
-							if ( ! empty( $help_url ) ) {
-								?>
-								<div class="npmp-provider-help">
-									<p style="margin: 0;">
-										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
-									</p>
-								</div>
-								<?php
-							}
-						}
-						?>
-						<table class="form-table" style="margin-top: 15px;">
-							<tr>
-								<th><label for="npmp_sparkpost_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
-								<td>
-									<input type="password" id="npmp_sparkpost_api_key" name="npmp_sparkpost_api_key" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_sparkpost_api_key', '' ) ? '••••••••' : ''; ?>">
-									<p class="description"><?php esc_html_e( 'Enter your SparkPost API key with Transmissions permission. Leave blank to keep existing key.', 'nonprofit-manager' ); ?></p>
-								</td>
-							</tr>
-						</table>
-</div>
 				<?php endif; ?>
 
 				<?php submit_button( __( 'Save Email Settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
@@ -1944,3 +1898,31 @@ function npmp_member_cache_invalidate( $post_id ) {
 add_action( 'save_post_npmp_contact', 'npmp_member_cache_invalidate' );
 add_action( 'deleted_post', 'npmp_member_cache_invalidate' );
 add_action( 'trashed_post', 'npmp_member_cache_invalidate' );
+
+/*
+ * Sites that chose SparkPost before it was removed (2026.09.20) get their
+ * email sent through WordPress's default mail. Say so on our screens until an
+ * admin picks another service, instead of switching them silently.
+ */
+add_action(
+	'admin_notices',
+	static function () {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$raw = get_option( 'npmp_email_settings' );
+		if ( ! is_array( $raw ) || 'sparkpost' !== ( $raw['provider'] ?? '' ) ) {
+			return;
+		}
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
+			return;
+		}
+		$message = sprintf(
+			/* translators: %s: URL of the Email Settings screen. */
+			__( 'SparkPost is no longer offered, so Nonprofit Manager is sending your email through WordPress\'s default mail. Choose another sending service in <a href="%s">Email Settings</a>.', 'nonprofit-manager' ),
+			esc_url( admin_url( 'admin.php?page=npmp_email_settings' ) )
+		);
+		echo '<div class="notice notice-warning"><p>' . wp_kses_post( $message ) . '</p></div>';
+	}
+);
