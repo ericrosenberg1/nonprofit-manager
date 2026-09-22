@@ -20,6 +20,25 @@ class NPMP_Import_Manager {
 	private static $instance = null;
 
 	/**
+	 * True while an imported row is being written. Pro's automation triggers
+	 * check it through npmp_is_importing(), so bringing in an existing list
+	 * doesn't send every imported contact a welcome email, including people
+	 * who had unsubscribed from the old tool.
+	 *
+	 * @var bool
+	 */
+	private static $importing = false;
+
+	/**
+	 * Whether an imported row is being written right now.
+	 *
+	 * @return bool
+	 */
+	public static function is_importing() {
+		return self::$importing;
+	}
+
+	/**
 	 * Member manager reference.
 	 *
 	 * @var NPMP_Member_Manager
@@ -722,6 +741,24 @@ class NPMP_Import_Manager {
 	 * @return array { status: imported|skipped|updated|error, message?: string }
 	 */
 	private function import_single_record( $record, $options, $row_num ) {
+		self::$importing = true;
+		try {
+			return $this->write_single_record( $record, $options, $row_num );
+		} finally {
+			self::$importing = false;
+		}
+	}
+
+	/**
+	 * Validate and write one record. Called only through import_single_record(),
+	 * which marks the import in progress around it.
+	 *
+	 * @param array $record  Mapped member data.
+	 * @param array $options Import options.
+	 * @param int   $row_num Row number for error reporting.
+	 * @return array { status: imported|skipped|updated|error, message?: string }
+	 */
+	private function write_single_record( $record, $options, $row_num ) {
 		// Validate email.
 		if ( empty( $record['email'] ) || ! is_email( $record['email'] ) ) {
 			$email_display = ! empty( $record['email'] ) ? $record['email'] : '(empty)';
@@ -1182,5 +1219,17 @@ class NPMP_Import_Manager {
 				}
 				break;
 		}
+	}
+}
+
+if ( ! function_exists( 'npmp_is_importing' ) ) {
+	/**
+	 * Whether the import wizard is writing a member right now. Pro's automation
+	 * triggers skip their emails while it is.
+	 *
+	 * @return bool
+	 */
+	function npmp_is_importing() {
+		return NPMP_Import_Manager::is_importing();
 	}
 }
