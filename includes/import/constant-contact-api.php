@@ -86,7 +86,9 @@ function npmp_cc_get_contacts( $access_token, $list_id, $cursor = null ) {
 	$url = NPMP_CC_API_BASE . '/contacts';
 	$url = add_query_arg(
 		array(
-			'status'        => 'all',
+			// No status filter: the default returns every contact except deleted
+			// ones. status=all adds deleted contacts. Unsubscribed contacts still
+			// come through and import as unsubscribed (cc-contact-map.php).
 			'limit'         => 100,
 			'include'       => 'phone_numbers,street_addresses',
 			'lists'         => rawurlencode( $list_id ),

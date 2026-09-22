@@ -477,7 +477,7 @@ class NPMP_Import_Manager {
 
 		} while ( ! empty( $cursor ) );
 
-		return $this->process_named_rows( $all_rows, $mapping, $options );
+		return $this->process_named_rows( $all_rows, $this->with_cc_status( $mapping ), $options );
 	}
 
 	/**
@@ -514,7 +514,7 @@ class NPMP_Import_Manager {
 			$rows[] = $this->map_cc_contact_row( $cc_contact );
 		}
 
-		$page_stats  = $this->process_named_rows( $rows, $mapping, $options );
+		$page_stats  = $this->process_named_rows( $rows, $this->with_cc_status( $mapping ), $options );
 		$next_cursor = ! empty( $result['cursor'] ) ? $result['cursor'] : null;
 
 		return array(
@@ -528,45 +528,28 @@ class NPMP_Import_Manager {
 	/**
 	 * Flatten one Constant Contact contact record into the named-row shape
 	 * process_named_rows() expects. Shared by the one-shot and chunked CC paths.
+	 * The mapping itself lives in cc-contact-map.php so it can be tested alone.
 	 *
 	 * @param array $cc_contact One contact from the CC API.
 	 * @return array Named row.
 	 */
 	private function map_cc_contact_row( $cc_contact ) {
-		$email = '';
-		if ( ! empty( $cc_contact['email_addresses'] ) ) {
-			$email = $cc_contact['email_addresses'][0]['address'];
-		}
+		return npmp_cc_contact_row( $cc_contact );
+	}
 
-		$row = array(
-			'email_address' => $email,
-			'first_name'    => isset( $cc_contact['first_name'] ) ? $cc_contact['first_name'] : '',
-			'last_name'     => isset( $cc_contact['last_name'] ) ? $cc_contact['last_name'] : '',
-			'phone'         => '',
-			'tags'          => '',
-		);
-
-		// Phone numbers.
-		if ( ! empty( $cc_contact['phone_numbers'] ) ) {
-			$row['phone'] = $cc_contact['phone_numbers'][0]['phone_number'];
-		}
-
-		// Street address.
-		if ( ! empty( $cc_contact['street_addresses'] ) ) {
-			$addr                 = $cc_contact['street_addresses'][0];
-			$row['address_line1'] = isset( $addr['street'] ) ? $addr['street'] : '';
-			$row['city']          = isset( $addr['city'] ) ? $addr['city'] : '';
-			$row['state']         = isset( $addr['state'] ) ? $addr['state'] : '';
-			$row['postal_code']   = isset( $addr['postal_code'] ) ? $addr['postal_code'] : '';
-			$row['country']       = isset( $addr['country'] ) ? $addr['country'] : '';
-		}
-
-		// Tags / lists.
-		if ( ! empty( $cc_contact['taggings'] ) ) {
-			$row['tags'] = implode( ',', $cc_contact['taggings'] );
-		}
-
-		return $row;
+	/**
+	 * The wizard's column mapping has no status column for Constant Contact,
+	 * so without this every contact took the default status and people who had
+	 * unsubscribed there came in as subscribed. The status always comes from
+	 * the contact's permission_to_send.
+	 *
+	 * @param array $mapping Named mapping (cc_field => npm_field).
+	 * @return array
+	 */
+	private function with_cc_status( $mapping ) {
+		$mapping           = is_array( $mapping ) ? $mapping : array();
+		$mapping['status'] = 'status';
+		return $mapping;
 	}
 
 	// ------------------------------------------------------------------

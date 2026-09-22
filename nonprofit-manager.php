@@ -69,6 +69,7 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-cap.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/cc-contact-map.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/class-import-manager.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/admin-import.php';
 }
@@ -191,8 +192,8 @@ add_action(
 // Transport selection is handled dynamically at send time by
 // includes/email/smtp.php (loaded unconditionally above), which reads
 // npmp_email_get_settings() and hooks phpmailer_init to configure SMTP for
-// whichever provider (Custom SMTP, Amazon SES, Brevo, SendGrid, Mailgun,
-// Postmark, SparkPost) is selected. There used to be a second,
+// whichever provider (Custom SMTP, Amazon SES, Brevo, SendGrid, Mailgun or
+// Postmark) is selected. There used to be a second,
 // provider-per-file loader here keyed on a `npmp_email_delivery_settings`
 // option that nothing ever wrote, pointing at includes/email/ses.php,
 // sendgrid.php, and mailgun.php, none of which exist. It was always a

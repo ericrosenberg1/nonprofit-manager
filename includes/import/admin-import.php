@@ -317,7 +317,7 @@ function npmp_import_ajax_preview() {
 
 			$preview_contacts = array_slice( $result['contacts'], 0, 5 );
 			foreach ( $preview_contacts as $c ) {
-				$email = ! empty( $c['email_addresses'] ) ? $c['email_addresses'][0]['address'] : '';
+				$email = npmp_cc_contact_email( $c );
 				$phone = ! empty( $c['phone_numbers'] ) ? $c['phone_numbers'][0]['phone_number'] : '';
 				$rows[] = array(
 					$email,
