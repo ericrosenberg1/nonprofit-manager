@@ -355,8 +355,9 @@ function npmp_render_payment_settings_page() {
 
 		// Validate each gateway selection
 		foreach ( $posted_gateways as $gateway ) {
-			// Free users can only enable free-tier gateways
-			if ( ! $is_pro && ! in_array( $gateway, array( 'paypal_link', 'venmo_link' ), true ) ) {
+			// Free sites take one-time gifts through the PayPal link, the
+			// Venmo link and Stripe. The PayPal API gateway needs Pro.
+			if ( ! in_array( $gateway, npmp_allowed_gateways( $is_pro ), true ) ) {
 				continue;
 			}
 			$enabled_gateways[] = $gateway;
@@ -401,36 +402,37 @@ function npmp_render_payment_settings_page() {
 			if ( ! empty( $_POST['npmp_paypal_sandbox_secret'] ) ) {
 				update_option( 'npmp_paypal_sandbox_secret', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_sandbox_secret'] ) ) );
 			}
+		}
 
-			// Stripe (Pro only)
-			// Save Stripe mode
-			if ( isset( $_POST['npmp_stripe_mode'] ) ) {
-				update_option( 'npmp_stripe_mode', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_mode'] ) ) );
-			}
+		// Stripe keys save on every site: one-time Stripe gifts are part of
+		// the free plugin. Recurring gifts and dues (the webhook) need Pro.
+		// Save Stripe mode
+		if ( isset( $_POST['npmp_stripe_mode'] ) ) {
+			update_option( 'npmp_stripe_mode', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_mode'] ) ) );
+		}
 
-			// Save Stripe Live keys
-			if ( isset( $_POST['npmp_stripe_live_publishable_key'] ) ) {
-				update_option( 'npmp_stripe_live_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_publishable_key'] ) ) );
-			}
-			if ( ! empty( $_POST['npmp_stripe_live_secret_key'] ) ) {
-				update_option( 'npmp_stripe_live_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_secret_key'] ) ) );
-			}
+		// Save Stripe Live keys
+		if ( isset( $_POST['npmp_stripe_live_publishable_key'] ) ) {
+			update_option( 'npmp_stripe_live_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_publishable_key'] ) ) );
+		}
+		if ( ! empty( $_POST['npmp_stripe_live_secret_key'] ) ) {
+			update_option( 'npmp_stripe_live_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_secret_key'] ) ) );
+		}
 
-			// Save Stripe Test keys
-			if ( isset( $_POST['npmp_stripe_test_publishable_key'] ) ) {
-				update_option( 'npmp_stripe_test_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_publishable_key'] ) ) );
-			}
-			if ( ! empty( $_POST['npmp_stripe_test_secret_key'] ) ) {
-				update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
-			}
+		// Save Stripe Test keys
+		if ( isset( $_POST['npmp_stripe_test_publishable_key'] ) ) {
+			update_option( 'npmp_stripe_test_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_publishable_key'] ) ) );
+		}
+		if ( ! empty( $_POST['npmp_stripe_test_secret_key'] ) ) {
+			update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
+		}
 
-			// Stripe webhook signing secret (whsec_...). Used by the Pro
-			// recurring/dues webhook to verify Stripe signatures. This option
-			// was consumed by the webhook handler but had no admin field
-			// anywhere, so it could only be set with update_option() by hand.
-			if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
-				update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
-			}
+		// Stripe webhook signing secret (whsec_...). Used by the Pro
+		// recurring/dues webhook to verify Stripe signatures. This option
+		// was consumed by the webhook handler but had no admin field
+		// anywhere, so it could only be set with update_option() by hand.
+		if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
+			update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
 		}
 
 		// Always enable one-time for free users
@@ -502,14 +504,8 @@ function npmp_render_payment_settings_page() {
 						</label><br>
 
 						<label>
-							<input type="checkbox" name="npmp_gateways[]" value="stripe" <?php checked( in_array( 'stripe', $enabled_gateways, true ) ); ?> <?php disabled( ! $is_pro ); ?> class="npmp-gateway-checkbox" data-gateway="stripe">
-							<?php
-							if ( $is_pro ) {
-								esc_html_e( 'Stripe', 'nonprofit-manager' );
-							} else {
-								esc_html_e( 'Stripe (Pro Upgrade Required)', 'nonprofit-manager' );
-							}
-							?>
+							<input type="checkbox" name="npmp_gateways[]" value="stripe" <?php checked( in_array( 'stripe', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="stripe">
+							<?php esc_html_e( 'Stripe (card payments)', 'nonprofit-manager' ); ?>
 						</label><br>
 
 						<?php if ( ! $is_pro ) : ?>
@@ -517,7 +513,7 @@ function npmp_render_payment_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( 'Want to use PayPal API or Stripe? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( 'Want monthly giving or the PayPal API? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 									esc_url( npmp_get_upgrade_url() )
 								);
 								?>
@@ -631,6 +627,8 @@ function npmp_render_payment_settings_page() {
 					<p class="description"><?php esc_html_e( 'PayPal API supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 				</div>
 
+			<?php endif; ?>
+
 				<!-- Stripe Settings -->
 				<div class="npmp-gateway-settings npmp-gateway-stripe" style="<?php echo ! in_array( 'stripe', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 					<hr>
@@ -692,6 +690,7 @@ function npmp_render_payment_settings_page() {
 						</tr>
 					</table>
 
+					<?php if ( $is_pro ) : ?>
 					<h4><?php esc_html_e( 'Webhook Signing Secret', 'nonprofit-manager' ); ?></h4>
 					<table class="form-table">
 						<tr>
@@ -714,8 +713,18 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_stripe_enable_quarterly" value="1" <?php checked( get_option( 'npmp_stripe_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
+					<?php else : ?>
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %s: URL to upgrade page */
+							wp_kses_post( __( 'Stripe takes one-time gifts on the free plugin, and no webhook is needed for them. Monthly giving and membership dues billing through Stripe come with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+							esc_url( npmp_get_upgrade_url() )
+						);
+						?>
+					</p>
+					<?php endif; ?>
 				</div>
-			<?php endif; ?>
 
 			<?php submit_button( __( 'Save Payment Settings', 'nonprofit-manager' ) ); ?>
 		</form>

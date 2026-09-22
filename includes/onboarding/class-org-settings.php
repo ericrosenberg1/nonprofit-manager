@@ -142,7 +142,7 @@ class NPMP_Org_Settings {
 					<th scope="row"><label for="npmp_org_ein"><?php esc_html_e( 'EIN (Federal Tax ID)', 'nonprofit-manager' ); ?></label></th>
 					<td>
 						<input type="text" id="npmp_org_ein" name="npmp_org_settings[ein]" value="<?php echo esc_attr( $org['ein'] ); ?>" class="regular-text" placeholder="XX-XXXXXXX" pattern="[0-9-]*">
-						<p class="description"><?php esc_html_e( 'Optional — required on donation receipts if you\'re a 501(c)(3).', 'nonprofit-manager' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Optional. Many charities print it on donation receipts, although the IRS doesn\'t require it there.', 'nonprofit-manager' ); ?></p>
 					</td>
 				</tr>
 				<tr>

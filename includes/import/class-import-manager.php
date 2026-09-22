@@ -776,7 +776,7 @@ class NPMP_Import_Manager {
 							'status'  => 'error',
 							'message' => sprintf(
 								/* translators: %1$d: row number, %2$s: error message */
-								__( 'Row %1$d: Update failed — %2$s', 'nonprofit-manager' ),
+								__( 'Row %1$d: Update failed: %2$s', 'nonprofit-manager' ),
 								$row_num,
 								$result->get_error_message()
 							),

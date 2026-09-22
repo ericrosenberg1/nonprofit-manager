@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.18
+Stable tag: 2026.09.19
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -135,6 +135,11 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.19 =
+* Added: Stripe card payments in the free version. Turn on Stripe in the donation payment settings, paste your API keys, and donors can give by card. One-time gifts are free. Monthly giving and membership dues billing through Stripe stay in Nonprofit Manager Pro.
+* Fixed: The guided tour pointed to a [npmp_donation] shortcode that doesn't exist. It now names [npmp_donation_form].
+* Fixed: The note under the EIN field said an EIN is required on donation receipts. The IRS doesn't require it there, and the note now says so.
 
 = 2026.09.18 =
 * Housekeeping: Version lockstep with Nonprofit Manager Pro 2026.09.18, which checks for its own update as soon as WordPress sees a new free release, so the two install together. No functional change to the free plugin.
@@ -355,6 +360,9 @@ Ask in the WordPress.org support forums and we'll help. Pro customers also get p
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.19 =
+Stripe card payments are now part of the free version for one-time gifts. Monthly giving stays in Pro.
 
 = 2026.09.18 =
 No change to the free plugin. Lockstep with Nonprofit Manager Pro 2026.09.18.

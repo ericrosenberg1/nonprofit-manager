@@ -76,7 +76,7 @@ function npmp_get_membership_setup_status() {
 		$rows[] = array(
 			'status'  => 'warning',
 			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
-			'message' => __( 'No unsubscribe page is set, so newsletter unsubscribe links fall back to /unsubscribe — which may not exist. Choose a page in the Unsubscribe Form section below.', 'nonprofit-manager' ),
+			'message' => __( 'No unsubscribe page is set, so newsletter unsubscribe links fall back to /unsubscribe, which may not exist. Choose a page in the Unsubscribe Form section below.', 'nonprofit-manager' ),
 		);
 	} elseif ( 'publish' !== get_post_status( $unsub_id ) ) {
 		$rows[] = array(
