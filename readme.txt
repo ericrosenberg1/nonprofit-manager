@@ -138,12 +138,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 == Changelog ==
 
 = 2026.09.20 =
-* Fixed Constant Contact imports, which brought in no contacts.
-* Removed SparkPost as an email sending service.
-* Imports no longer trigger Pro's automation emails.
+* Fixed Constant Contact imports.
+* Removed SparkPost as an email service.
+* Imports no longer trigger Pro's automations.
 
 = 2026.09.19 =
-* Added Stripe card payments for one-time gifts in the free version.
+* Added Stripe card payments for one-time gifts.
 * Fixed the shortcode named in the guided tour.
 * Fixed the note under the EIN field.
 
@@ -151,14 +151,14 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.09.17 =
-* The optional "Powered by" link is now offered after your first donation instead of in the setup wizard.
+* The "Powered by" link is now offered after your first donation.
 * The review request waits three days after that.
 
 = 2026.09.16 =
-* Automatic updates now cover both plugins together on sites running Pro.
+* Automatic updates now cover both plugins together.
 
 = 2026.09.15 =
-* Added a regression test for the Members screen totals. No functional change.
+* Added a regression test for the Members screen totals.
 
 = 2026.09.14 =
 * Faster Donations screen, donor totals and subscriber counts.
@@ -167,18 +167,18 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.09.12 =
-* Fixed subscriber notifications stopping partway through a large list.
+* Fixed subscriber notifications on large lists.
 * Faster Dashboard and Overview counts.
 
 = 2026.09.11 =
-* Listed every outside service the plugin can contact in this readme.
+* Listed every outside service the plugin can contact.
 
 = 2026.09.10 =
-* Fixed the Pro price shown in an upgrade notice.
-* Added two optional opt-ins to the setup wizard, both off by default.
+* Fixed the Pro price in an upgrade notice.
+* Added two optional opt-ins to the setup wizard.
 
 = 2026.09.9 =
-* Added a warning when the free and Pro plugins are on different versions.
+* Added a warning when free and Pro versions differ.
 
 = 2026.09.8 =
 * Removed two development files from the plugin zip.
@@ -193,73 +193,73 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.09.4 =
-* Fixed missing form styles on pages with only the Pro membership join form.
+* Fixed missing form styles on the membership join form.
 * Added the npmp_form_style_shortcodes filter.
 
 = 2026.09.3 =
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.09.2 =
-* Fixed "One_time" appearing in a member's donation history.
+* Fixed "One_time" in donation history.
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.08.4 =
-* Added an admin warning when PayPal donations can't be verified without an API secret.
+* Added a warning when PayPal donations can't be verified.
 
 = 2026.08.3 =
-* Fixed sharing to X, which failed silently.
-* Fixed calendar event times shifting by your UTC offset.
-* Fixed the default level being ignored for new email signups.
-* Fixed unreadable dates saving as January 1, 1970.
-* Fixed newsletter links to other sites redirecting to your homepage.
+* Fixed sharing to X.
+* Fixed shifted calendar event times.
+* Fixed the default level for new email signups.
+* Fixed unreadable dates saving as 1970.
+* Fixed newsletter links that point off-site.
 * Fixed the "All Members" checkbox losing its state.
-* Fixed donation amounts being undercharged by a cent.
-* Fixed the Annual Recurring Donations total missing some donations.
-* Closed a gap that allowed fake donation records without a payment.
+* Fixed donation amounts undercharged by a cent.
+* Fixed the Annual Recurring Donations total.
+* Closed a gap that allowed unpaid donation records.
 * Added missing permission checks on three settings screens.
 * Faster newsletter sending and member counts.
-* Raised the minimum PHP version to 8.1 and tested on WordPress 7.1.
+* Raised the minimum PHP version to 8.1.
 
 = 2026.08.2 =
 * Version lockstep with Nonprofit Manager Pro.
 
 = 2026.08.1 =
-* Moved to a new home at nonprofitmanager.app. Old links redirect.
+* Moved to a new home at nonprofitmanager.app.
 * Refreshed the plugin listing.
 
 = 2026.07.5 =
-* Fixed a permissions error on the Social Sharing settings page.
+* Fixed a permissions error on the Social Sharing page.
 * Large member imports now run in the background.
 * Newsletter sending no longer bloats your database.
 
 = 2026.07.4 =
-* Fixed "Force From Address" changing mail sent by other plugins.
+* Fixed "Force From Address" changing other plugins' mail.
 * PayPal donations now keep a verification record.
 * The weekly digest sends in batches.
-* Large CSV and XLSX imports use far less memory.
+* Large CSV and XLSX imports use less memory.
 * Open and click tracking no longer bloats your database.
 
 = 2026.07.3 =
 * Fixed recurring Stripe donations charging only once.
-* Fixed Stripe donors landing on the homepage with no thank-you.
+* Fixed the thank-you page and email for Stripe donors.
 * Donations are recorded only after Stripe confirms payment.
-* Fixed the PayPal Smart Buttons form failing to load.
+* Fixed the PayPal Smart Buttons form.
 * The unsubscribe form now sends a confirmation link.
 * Stored API keys are no longer shown back in settings.
 * Fixed newsletter click-tracking links being altered.
-* Fixed Pro custom fields, segments and notification preferences not appearing.
+* Fixed Pro custom fields, segments and notification preferences.
 * Subscriber notifications no longer run while you publish.
 * Faster admin dashboard, member list and calendar feed.
 * Removed an upgrade notice for a feature that doesn't exist.
 
 = 2026.07.2 =
-* Added five editor blocks: Email Signup, Email Unsubscribe, Donation Form, Social Share and Contact Form.
+* Added five editor blocks for signup, unsubscribe, donations, sharing and contact.
 * Added visitor social sharing buttons.
 * Added a general contact form.
 
 = 2026.07.1 =
-* Added an optional "Powered by Nonprofit Manager" link, off by default.
-* Added a dismissible review reminder after your first donation or newsletter.
+* Added an optional "Powered by Nonprofit Manager" link.
+* Added a dismissible review reminder.
 * Fixed a PHP warning on the Setup screen.
 
 = 2026.06.4 =
@@ -269,35 +269,35 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Added a redesigned events calendar with Month, Week and List views.
 * Added calendar display options and two calendar blocks.
 * Added an "Edit Event" button in the admin toolbar.
-* Fixed the calendar rendering twice on the calendar page.
-* Fixed quick-added events and members saving incorrectly.
-* PayPal's script loads only on pages with a donation form.
+* Fixed the calendar rendering twice.
+* Fixed quick-added events and members.
+* PayPal's script loads only on donation pages.
 
 = 2026.06.2 =
-* Added the member import wizard (CSV, XLSX, Google Sheets, Mailchimp, Constant Contact) and a guided tour.
-* Added one-click unsubscribe headers for better Gmail and Yahoo delivery.
-* Added default styles for the signup, unsubscribe, preferences and donation forms.
-* Added an organization mailing address setting for the CAN-SPAM footer.
+* Added the member import wizard and a guided tour.
+* Added one-click unsubscribe headers.
+* Added default styles for the plugin's forms.
+* Added an organization mailing address setting.
 * The unsubscribe page is created on activation.
 * Fixed [unsubscribe_url] and the CAN-SPAM footer address.
 * Free and Pro now ship on the same version number.
 
 = 2.0.1 =
-* Changed: Pro features now work when Pro plugin is installed (license required for updates only)
-* Fixed: Class declaration conflict when upgrading Pro plugin
+* Pro features work with Pro installed. A license is needed for updates.
+* Fixed a conflict when upgrading Pro.
 
 = 2.0.0 =
-* Added: Stripe payment gateway for free users (one-time donations)
-* Added: Social sharing module - auto-share posts and events to Facebook and X (Twitter)
-* Added: Subscriber notification preferences (instant or weekly digest for new posts/events)
-* Added: Convert any post or page to a calendar event with one click
-* Added: Click tracking for newsletter links (previously "coming soon")
-* Added: Manage preferences page with HMAC-secured subscriber links
-* Added: Weekly digest cron for automatic summary emails
-* Improved: Newsletter tracking now uses HMAC tokens instead of expiring nonces (links work indefinitely)
-* Improved: Stripe checkout now includes security nonce in multi-gateway form
-* Improved: Upgrade URL now points to nonprofitmanager.ericrosenberg.com
-* Security: Fixed missing nonce in multi-gateway Stripe AJAX call
+* Added the Stripe gateway for one-time donations.
+* Added auto-sharing of posts and events to Facebook and X.
+* Added subscriber notification preferences.
+* Added one-click conversion of a post or page to an event.
+* Added click tracking for newsletter links.
+* Added a manage preferences page for subscribers.
+* Added a weekly digest email.
+* Newsletter tracking links no longer expire.
+* Added a security check to the multi-gateway Stripe form.
+* Updated the upgrade link.
+* Security fix: added a missing check to the Stripe form.
 * Pro: License key system with activation, deactivation, and auto-updates
 * Pro: Recurring donations with Stripe subscription management
 * Pro: Custom member fields (8 field types, drag-and-drop ordering)
@@ -309,40 +309,40 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Pro: Email validation before sending to external provider APIs
 
 = 1.1.3 =
-* Added: Plugin action links (Overview, Developer, Support) for easy access
-* Added: Membership and Donations summary tables on main overview page
-* Improved: Main page layout - feature activation box now auto-sizes to content
-* Improved: Membership Settings page now includes membership levels management
-* Changed: "Membership Forms" renamed to "Membership Settings" for clarity
-* Updated: Tested up to WordPress 6.8.3
+* Added plugin action links.
+* Added membership and donation summaries to the overview.
+* Improved the main page layout.
+* Membership levels moved to Membership Settings.
+* Renamed "Membership Forms" to "Membership Settings".
+* Tested up to WordPress 6.8.3.
 
 = 1.1.2 =
-* Fixed: Dashboard widget member count now displays accurate data using correct meta key
+* Fixed the dashboard widget's member count.
 
 = 1.1.1 =
-* Fixed: Venmo payment button now uses proper deep link protocol with fallback to profile page
+* Fixed the Venmo payment button.
 
 = 1.1 =
-* Added: Newsletter template system with Gutenberg editor
-* Added: "Send to All Members" option for newsletters
-* Added: Version mismatch warning for Pro users
-* Added: Admin helper functions for consistent UI
-* Improved: Security - verified all nonce checks and sanitization
-* Improved: Performance - optimized member counting queries
-* Improved: UI consistency across all admin pages
-* Fixed: Newsletter audience selection and tracking
-* Fixed: PayPal button rendering issues
+* Added newsletter templates.
+* Added a "Send to All Members" option.
+* Added a version mismatch warning for Pro.
+* Added admin helper functions.
+* Security fix: verified nonce checks and sanitization.
+* Faster member counting.
+* More consistent admin screens.
+* Fixed newsletter audience selection and tracking.
+* Fixed PayPal button rendering.
 
 = 1.0.2 =
-* Fixed: AWS SES validation for email delivery
-* Fixed: PayPal/Venmo button display issues
-* Fixed: Dashboard widget member counts
-* Improved: Email delivery error handling
+* Fixed Amazon SES validation.
+* Fixed PayPal and Venmo button display.
+* Fixed dashboard widget member counts.
+* Better email delivery error handling.
 
 = 1.0.1 =
-* Fixed: Activation hooks for better compatibility
-* Improved: Setup wizard flow
-* Added: Better error messages for payment processing
+* Fixed activation hooks.
+* Improved the setup wizard.
+* Clearer payment error messages.
 
 = 1.0.0 =
 * Initial release
