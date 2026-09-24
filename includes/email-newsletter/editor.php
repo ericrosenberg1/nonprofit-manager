@@ -618,3 +618,22 @@ function npmp_handle_duplicate_newsletter() {
     exit;
 }
 add_action('admin_action_npmp_duplicate_newsletter', 'npmp_handle_duplicate_newsletter');
+
+/**
+ * Keep newsletters and newsletter templates out of the public REST API.
+ *
+ * Both types are private (public => false) but need show_in_rest for the
+ * block editor, which also let logged-out visitors list every published
+ * newsletter at /wp-json/wp/v2/npmp_newsletter, members-only issues included.
+ * Only users who can edit posts get these routes.
+ */
+add_filter('rest_pre_dispatch', function ($result, $server, $request) {
+    if (null !== $result) {
+        return $result;
+    }
+    $route = (string) $request->get_route();
+    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic)(/|$)#', $route) && !current_user_can('edit_posts')) {
+        return new WP_Error('rest_forbidden', __('Sorry, you are not allowed to do that.', 'nonprofit-manager'), array('status' => rest_authorization_required_code()));
+    }
+    return $result;
+}, 10, 3);

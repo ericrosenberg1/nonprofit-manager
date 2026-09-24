@@ -213,6 +213,12 @@ $sig    = hash_hmac( 'sha256', $t . '.{}', $secret );
 rig_check( 'second v1 signature accepted (secret roll)', true, npmp_verify_stripe_signature( '{}', "t=$t,v1=" . str_repeat( 'a', 64 ) . ",v1=$sig", $secret ) );
 rig_check( 'bad signatures refused', false, npmp_verify_stripe_signature( '{}', "t=$t,v1=" . str_repeat( 'a', 64 ), $secret ) );
 
+echo "== Newsletters stay out of the public REST API ==\n";
+wp_set_current_user( 0 );
+rig_check( 'anonymous newsletter list refused', 401, rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/npmp_newsletter' ) )->get_status() );
+wp_set_current_user( 1 );
+rig_check( 'admin newsletter list allowed', 200, rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/npmp_newsletter' ) )->get_status() );
+
 // Cleanup.
 foreach ( array_merge( $cleanup_emails, array( 'victim@example.org' ) ) as $e ) { $x = $mm->get_member_by_email( $e ); if ( $x ) { $mm->delete_member( $x->id ); } }
 foreach ( array( $nl, $draft, $pub, $d2, $ev, $ev2 ) as $p ) { if ( $p ) { wp_delete_post( $p, true ); } }
