@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.21
+Stable tag: 2026.09.22
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -136,6 +136,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.22 =
+* Limited how often one visitor can sign up.
+* Limited Stripe checkout attempts per visitor.
+* PayPal gifts must be paid to your account.
+* Newsletters are hidden from the public REST API.
 
 = 2026.09.21 =
 * Only editors and admins can send newsletters.
@@ -366,6 +372,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.22 =
+Security fixes for the signup form, Stripe checkout and PayPal verification. Recommended for every site.
 
 = 2026.09.21 =
 Security and reliability fixes. Only editors and administrators can send newsletters, the signup form no longer re-subscribes people who opted out, and Stripe and PayPal gifts that were missed before are now recorded.
