@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.20
+Stable tag: 2026.09.21
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -69,7 +69,7 @@ If you tick the product update box in the setup wizard, your email address and d
 
 **Nonprofit Manager Pro licensing (only with Pro installed)**
 
-The free plugin on its own does not contact our servers. If you also install Nonprofit Manager Pro, Pro checks your licence and looks for updates at nonprofitmanager.app, sending your licence key, your site URL, and the installed version. Terms: https://nonprofitmanager.app/terms-of-service/ Privacy policy: https://nonprofitmanager.app/privacy-policy/
+The free plugin on its own does not contact our servers. If you also install Nonprofit Manager Pro, Pro checks your license and looks for updates at nonprofitmanager.app, sending your license key, your site URL, and the installed version. Terms: https://nonprofitmanager.app/terms-of-service/ Privacy policy: https://nonprofitmanager.app/privacy-policy/
 
 **Payment processors (only when you enable one)**
 
@@ -136,6 +136,19 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.09.21 =
+* Only editors and admins can send newsletters.
+* Contributors' converted events wait for review.
+* Share Now only posts published content.
+* Signup no longer re-subscribes people who opted out.
+* Unsubscribe links ask for one confirming click.
+* Import files are stored privately.
+* Fixed Stripe gifts lost on pages with anchors.
+* Fixed PayPal gifts missing from combined donation forms.
+* Fixed newsletter links with encoded characters.
+* Fixed duplicate events in calendar feeds.
+* Pro newsletter segments now apply.
 
 = 2026.09.20 =
 * Fixed Constant Contact imports.
@@ -353,6 +366,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.09.21 =
+Security and reliability fixes. Only editors and administrators can send newsletters, the signup form no longer re-subscribes people who opted out, and Stripe and PayPal gifts that were missed before are now recorded.
 
 = 2026.09.20 =
 Constant Contact imports now bring in your contacts, with opt-outs carried over. SparkPost is no longer offered as an email service.
