@@ -20,6 +20,8 @@ set_error_handler( function ( $no, $str, $errfile, $line ) {
 } );
 require $wp_root . '/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/post.php';
+// A fresh visitor address per run, so the per-visitor limits don't carry over.
+$_SERVER['REMOTE_ADDR'] = '192.0.2.' . wp_rand( 1, 250 );
 
 $GLOBALS['rig_pass'] = 0;
 $GLOBALS['rig_fail'] = 0;
@@ -212,6 +214,50 @@ $t      = time();
 $sig    = hash_hmac( 'sha256', $t . '.{}', $secret );
 rig_check( 'second v1 signature accepted (secret roll)', true, npmp_verify_stripe_signature( '{}', "t=$t,v1=" . str_repeat( 'a', 64 ) . ",v1=$sig", $secret ) );
 rig_check( 'bad signatures refused', false, npmp_verify_stripe_signature( '{}', "t=$t,v1=" . str_repeat( 'a', 64 ), $secret ) );
+
+echo "== Signup and Stripe session rate limits ==\n";
+$_SERVER['REMOTE_ADDR'] = '203.0.113.' . wp_rand( 1, 250 );
+$made = 0;
+for ( $i = 0; $i < 12; $i++ ) {
+	$e = "rig-rl$i@example.org";
+	rig_signup( $e, 'RL' );
+	if ( $mm->get_member_by_email( $e ) ) { $made++; }
+	$cleanup_emails[] = $e;
+}
+rig_check( 'one visitor adds at most 10 signups an hour', 10, $made );
+$_SERVER['REMOTE_ADDR'] = '198.51.100.' . wp_rand( 1, 250 );
+rig_signup( 'rig-rl-other@example.org', 'Other' );
+rig_check( 'another visitor is not blocked', true, (bool) $mm->get_member_by_email( 'rig-rl-other@example.org' ) );
+$cleanup_emails[] = 'rig-rl-other@example.org';
+update_option( 'npmp_stripe_live_secret_key', 'sk_live_rigdummy' );
+add_filter( 'pre_http_request', $rig_stripe_stub = function ( $pre, $args, $url ) { return false !== strpos( $url, 'api.stripe.com' ) ? array( 'headers' => array(), 'body' => '{"id":"cs_rig","url":"https://checkout.stripe.com/x"}', 'response' => array( 'code' => 200, 'message' => 'OK' ), 'cookies' => array(), 'filename' => null ) : $pre; }, 10, 3 );
+$ok = 0; $limited = false;
+for ( $i = 0; $i < 11; $i++ ) {
+	$_POST = array( 'nonce' => wp_create_nonce( 'npmp_stripe_checkout' ), 'amount' => '5', 'email' => 'rig-donor@example.org' );
+	$r = rig_ajax( 'npmp_ajax_create_stripe_session' );
+	if ( ! empty( $r['success'] ) ) { $ok++; } elseif ( false !== strpos( (string) ( $r['data'] ?? '' ), 'Too many' ) ) { $limited = true; }
+}
+remove_filter( 'pre_http_request', $rig_stripe_stub, 10 );
+delete_option( 'npmp_stripe_live_secret_key' );
+$_POST = array();
+rig_check( 'Stripe sessions capped at 10 per visitor', 10, $ok );
+rig_check( 'the 11th is told to wait', true, $limited );
+
+echo "== PayPal payee must be this site ==\n";
+update_option( 'npmp_paypal_merchant_' . md5( 'live|CLIENT' ), 'OURMERCHANT1' );
+$order = function ( $merchant, $email = '' ) { return array( 'purchase_units' => array( array( 'payee' => array( 'merchant_id' => $merchant, 'email_address' => $email ) ) ) ); };
+rig_check( 'own merchant accepted', true, npmp_paypal_payee_is_ours( $order( 'OURMERCHANT1' ), 'https://api-m.paypal.com', 't', 'live', 'CLIENT' ) );
+rig_check( 'other merchant refused', 'npmp_paypal_wrong_payee', npmp_paypal_payee_is_ours( $order( 'ATTACKER99' ), 'https://api-m.paypal.com', 't', 'live', 'CLIENT' )->get_error_code() );
+delete_option( 'npmp_paypal_merchant_' . md5( 'live|CLIENT' ) );
+set_transient( 'npmp_paypal_merchant_' . md5( 'live|CLIENT2' ) . '_retry', 1, 60 );
+update_option( 'npmp_paypal_email', 'Giving@Example.org' );
+rig_check( 'saved PayPal email accepted', true, npmp_paypal_payee_is_ours( $order( '', 'giving@example.org' ), 'https://api-m.paypal.com', 't', 'live', 'CLIENT2' ) );
+rig_check( 'other email refused', true, is_wp_error( npmp_paypal_payee_is_ours( $order( '', 'thief@example.org' ), 'https://api-m.paypal.com', 't', 'live', 'CLIENT2' ) ) );
+delete_option( 'npmp_paypal_email' );
+add_filter( 'pre_http_request', $rig_pp_stub = function ( $pre, $args, $url ) { return false !== strpos( $url, '/v2/checkout/orders' ) ? array( 'headers' => array(), 'body' => '{"id":"X","purchase_units":[{"payee":{"merchant_id":"LEARNED777"}}]}', 'response' => array( 'code' => 201, 'message' => 'Created' ), 'cookies' => array(), 'filename' => null ) : $pre; }, 10, 3 );
+rig_check( 'merchant id learned from an unapproved order', 'LEARNED777', npmp_paypal_own_merchant_id( 'https://api-m.paypal.com', 't', 'live', 'CLIENT3' ) );
+remove_filter( 'pre_http_request', $rig_pp_stub, 10 );
+delete_option( 'npmp_paypal_merchant_' . md5( 'live|CLIENT3' ) );
 
 echo "== Newsletters stay out of the public REST API ==\n";
 wp_set_current_user( 0 );

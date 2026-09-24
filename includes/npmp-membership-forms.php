@@ -495,6 +495,9 @@ function npmp_get_banner_html( $type, $settings ) {
 		if ( 'captcha' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-captcha"><p>' . esc_html__( 'Please complete the spam protection check before submitting.', 'nonprofit-manager' ) . '</p></div>';
 		}
+		if ( 'busy' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-error" role="alert"><p>' . esc_html__( 'We received many signups in a short time. Please try again in an hour.', 'nonprofit-manager' ) . '</p></div>';
+		}
 		if ( 'confirm' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'If that address is on our list, a confirmation email is on its way. Click the link in it to finish unsubscribing.', 'nonprofit-manager' ) . '</p></div>';
 		}
@@ -630,6 +633,16 @@ function npmp_handle_membership_form() {
 
 		if ( ! is_email( $email ) ) {
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'error' ) );
+			exit;
+		}
+
+		// Every signup can email the address it names (the confirmation link,
+		// or Pro's welcome automation for a new contact), and the form is
+		// public. Cap it per visitor, and site-wide, so it can't be used to
+		// send a site's mail to a list of strangers. Both are filterable
+		// through npmp_rate_limit_max ('signup' and 'signup_site').
+		if ( ! npmp_rate_limit_allows( 'signup', 10, HOUR_IN_SECONDS ) || ! npmp_rate_limit_allows( 'signup_site', 200, HOUR_IN_SECONDS, 'site' ) ) {
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'busy' ) );
 			exit;
 		}
 

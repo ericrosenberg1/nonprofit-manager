@@ -905,6 +905,14 @@ function npmp_ajax_create_stripe_session() {
 		wp_send_json_error( __( 'Invalid security token. Please refresh and try again.', 'nonprofit-manager' ) );
 	}
 
+	// Each call creates a Checkout Session with the site's Stripe secret key.
+	// Cap it per visitor so a script can't burn the site's Stripe API quota or
+	// use the form for card testing. A donor clicks once or twice.
+	if ( ! npmp_rate_limit_allows( 'stripe_session', 10, 10 * MINUTE_IN_SECONDS ) ) {
+		npmp_payment_debug_log( 'stripe session rejected: rate limit' );
+		wp_send_json_error( __( 'Too many attempts. Please wait a few minutes and try again.', 'nonprofit-manager' ) );
+	}
+
 	$amount    = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
 	$email     = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 	$frequency = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
@@ -1263,9 +1271,118 @@ function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
 		return new WP_Error( 'npmp_paypal_amount_mismatch', __( 'The PayPal payment does not match the reported amount.', 'nonprofit-manager' ) );
 	}
 
+	// The money has to reach this organization. The Smart Buttons run in the
+	// donor's browser with the site's public client id, so a crafted order can
+	// name any payee, and a donation paid to someone else would otherwise
+	// verify and be recorded (and receipted) here.
+	$payee_check = npmp_paypal_payee_is_ours( $order, $base, $token_body['access_token'], $mode, $client_id );
+	if ( is_wp_error( $payee_check ) ) {
+		return $payee_check;
+	}
+
 	$order_data = $order;
 
 	return true;
+}
+
+/**
+ * Whether a PayPal order pays this site's own PayPal account.
+ *
+ * Checks the order's payee against, in order: the merchant id PayPal gives
+ * orders this site's API credentials create (learned once per client id by
+ * creating an order that is never approved, so nothing is charged), then the
+ * PayPal email saved in Payment Settings.
+ *
+ * @param array  $order     Decoded PayPal order.
+ * @param string $base      PayPal API base URL.
+ * @param string $token     OAuth access token.
+ * @param string $mode      live or sandbox.
+ * @param string $client_id Client id in use.
+ * @return true|WP_Error
+ */
+function npmp_paypal_payee_is_ours( $order, $base, $token, $mode, $client_id ) {
+	$payee          = $order['purchase_units'][0]['payee'] ?? array();
+	$payee_merchant = is_array( $payee ) ? (string) ( $payee['merchant_id'] ?? '' ) : '';
+	$payee_email    = is_array( $payee ) ? strtolower( (string) ( $payee['email_address'] ?? '' ) ) : '';
+
+	$own = npmp_paypal_own_merchant_id( $base, $token, $mode, $client_id );
+	if ( '' !== $own && '' !== $payee_merchant ) {
+		return hash_equals( $own, $payee_merchant )
+			? true
+			: new WP_Error( 'npmp_paypal_wrong_payee', __( 'This PayPal payment went to a different PayPal account.', 'nonprofit-manager' ) );
+	}
+
+	$own_email = strtolower( sanitize_email( (string) get_option( 'npmp_paypal_email', '' ) ) );
+	if ( '' !== $own_email && '' !== $payee_email ) {
+		return $own_email === $payee_email
+			? true
+			: new WP_Error( 'npmp_paypal_wrong_payee', __( 'This PayPal payment went to a different PayPal account.', 'nonprofit-manager' ) );
+	}
+
+	// Nothing to compare against (PayPal couldn't be asked and no email is
+	// saved). Keep recording rather than lose a donation, as the no-secret
+	// path does.
+	return true;
+}
+
+/**
+ * This site's PayPal merchant id, for the client id in use.
+ *
+ * PayPal fills in the payee on an order created with the site's own API
+ * credentials, so creating one (never approved, expires unpaid) reveals the
+ * merchant id with no charge. Cached per mode and client id, and retried at
+ * most hourly when PayPal can't be reached.
+ *
+ * @param string $base      PayPal API base URL.
+ * @param string $token     OAuth access token.
+ * @param string $mode      live or sandbox.
+ * @param string $client_id Client id in use.
+ * @return string Merchant id, or '' when unknown.
+ */
+function npmp_paypal_own_merchant_id( $base, $token, $mode, $client_id ) {
+	$option = 'npmp_paypal_merchant_' . md5( $mode . '|' . $client_id );
+	$known  = (string) get_option( $option, '' );
+	if ( '' !== $known ) {
+		return $known;
+	}
+	if ( get_transient( $option . '_retry' ) ) {
+		return '';
+	}
+	set_transient( $option . '_retry', 1, HOUR_IN_SECONDS );
+
+	$response = wp_remote_post(
+		$base . '/v2/checkout/orders',
+		array(
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $token,
+				'Content-Type'  => 'application/json',
+				'Prefer'        => 'return=representation',
+			),
+			'body'    => wp_json_encode(
+				array(
+					'intent'         => 'CAPTURE',
+					'purchase_units' => array(
+						array(
+							'amount'      => array( 'currency_code' => 'USD', 'value' => '1.00' ),
+							'description' => 'Nonprofit Manager account check (never charged)',
+						),
+					),
+				)
+			),
+			'timeout' => 15,
+		)
+	);
+	if ( is_wp_error( $response ) ) {
+		return '';
+	}
+	$body     = json_decode( wp_remote_retrieve_body( $response ), true );
+	$merchant = is_array( $body ) ? (string) ( $body['purchase_units'][0]['payee']['merchant_id'] ?? '' ) : '';
+	if ( '' === $merchant || ! preg_match( '/^[A-Z0-9]{8,20}$/', $merchant ) ) {
+		return '';
+	}
+	update_option( $option, $merchant, false );
+	delete_transient( $option . '_retry' );
+	return $merchant;
 }
 
 /**

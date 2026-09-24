@@ -32,6 +32,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-setup-wizard.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/onboarding/class-org-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/onboarding/class-tour.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-settings.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-rate-limit.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-general-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scripts.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/activation-hooks.php';
