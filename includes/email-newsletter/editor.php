@@ -347,6 +347,10 @@ function npmp_newsletter_send_controls_html($post) {
     echo '</ul>';
 
     echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '" data-default="' . esc_attr__('Send Test Email', 'nonprofit-manager') . '" data-working="' . esc_attr__('Sending…', 'nonprofit-manager') . '">' . esc_html__('Send Test Email', 'nonprofit-manager') . '</button></p>';
+    if (!current_user_can(npmp_newsletter_send_capability())) {
+        echo '<p class="description">' . esc_html__('An editor or administrator sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
+        return;
+    }
     echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';
 }
 
@@ -391,6 +395,17 @@ add_action('wp_ajax_npmp_send_test_newsletter', function () {
 });
 
 /**
+ * Capability needed to send a newsletter to the list. Editing a newsletter only
+ * takes edit_posts, so without this a Contributor could email every member from
+ * the organization's address. Editors and administrators can send.
+ *
+ * @return string
+ */
+function npmp_newsletter_send_capability() {
+    return (string) apply_filters('npmp_newsletter_send_capability', 'edit_others_posts');
+}
+
+/**
      * AJAX: Queue Newsletter for Delivery
      */
 add_action('wp_ajax_npmp_send_newsletter_now', function () {
@@ -400,6 +415,7 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
     if (
         empty($post_id) ||
         !current_user_can('edit_post', $post_id) ||
+        !current_user_can(npmp_newsletter_send_capability()) ||
         !wp_verify_nonce($nonce, 'npmp_send_newsletter_' . $post_id)
     ) {
         wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));

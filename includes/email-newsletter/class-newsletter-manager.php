@@ -72,7 +72,7 @@ class NPMP_Newsletter_Manager {
 		global $wpdb;
 
 		$newsletter_id = absint( $newsletter_id );
-		$recipients    = self::get_recipient_list( $newsletter_id );
+		$recipients    = self::apply_recipient_filter( self::get_recipient_list( $newsletter_id ), $newsletter_id );
 		$table         = $wpdb->prefix . 'npmp_newsletter_queue';
 		$queued        = 0;
 
@@ -330,6 +330,56 @@ class NPMP_Newsletter_Manager {
 	/* ===================================================================
 	 * Recipients
 	 * =================================================================== */
+	/**
+	 * Let add-ons replace the audience (Pro's segments do), then keep only
+	 * subscribed contacts.
+	 *
+	 * Pro hooked npmp_newsletter_recipients, but the filter was never applied,
+	 * so a newsletter sent to a 20-person segment went to the whole audience.
+	 * Filtered lists may come back as objects (ID, user_email) or arrays
+	 * (user_id, email). Either way nobody unsubscribed is mailed.
+	 *
+	 * @param array $recipients    Recipient objects from get_recipient_list().
+	 * @param int   $newsletter_id Newsletter ID.
+	 * @return array Recipient objects.
+	 */
+	public static function apply_recipient_filter( $recipients, $newsletter_id ) {
+		if ( ! has_filter( 'npmp_newsletter_recipients' ) ) {
+			return $recipients;
+		}
+		$filtered = apply_filters( 'npmp_newsletter_recipients', $recipients, $newsletter_id );
+		if ( $filtered === $recipients || ! is_array( $filtered ) ) {
+			return $recipients;
+		}
+
+		$subscribed = null;
+		if ( class_exists( 'NPMP_Member_Manager' ) ) {
+			$subscribed = array();
+			foreach ( NPMP_Member_Manager::get_instance()->get_members( array( 'per_page' => -1, 'status' => 'subscribed' ) ) as $member ) {
+				$subscribed[ strtolower( (string) ( $member->email ?? '' ) ) ] = true;
+			}
+		}
+
+		$out = array();
+		foreach ( $filtered as $row ) {
+			$row   = (array) $row;
+			$email = sanitize_email( (string) ( $row['user_email'] ?? $row['email'] ?? '' ) );
+			if ( ! $email ) {
+				continue;
+			}
+			$key = strtolower( $email );
+			if ( null !== $subscribed && ! isset( $subscribed[ $key ] ) ) {
+				continue;
+			}
+			$out[ $key ] = (object) array(
+				'ID'         => (int) ( $row['ID'] ?? $row['user_id'] ?? $row['id'] ?? 0 ),
+				'user_email' => $email,
+				'name'       => (string) ( $row['name'] ?? '' ),
+			);
+		}
+		return array_values( $out );
+	}
+
 	public static function get_recipient_list( $newsletter_id ) {
 		$levels = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
 		if ( ! is_array( $levels ) ) {

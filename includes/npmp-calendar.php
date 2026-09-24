@@ -1253,7 +1253,10 @@ function npmp_maybe_render_ical_feed() {
 
 	$output = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Nonprofit Manager//EN\r\n";
 
-	$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+	// The site's own host, not the request's: the feed is cached for everyone,
+	// so a Host header baked into the UIDs changed them between cache fills
+	// and calendar apps showed every event twice.
+	$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 	$host = preg_replace( '/[^A-Za-z0-9\.\-]/', '', $host );
 
 	foreach ( $events as $event ) {

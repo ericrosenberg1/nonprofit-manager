@@ -225,8 +225,50 @@ function npmp_generate_preferences_token( $email ) {
 	return substr( hash_hmac( 'sha256', 'prefs|' . $email, wp_salt( 'auth' ) ), 0, 20 );
 }
 
+/**
+ * The published page that holds [npmp_manage_preferences].
+ *
+ * Nothing in the plugin ever saved npmp_preferences_page_id, so every "Manage
+ * your email preferences" link pointed at the home page. Find the page by its
+ * shortcode once and remember it. A page that stops qualifying is looked up
+ * again.
+ *
+ * @return int Page ID, or 0 when there is none.
+ */
+function npmp_get_preferences_page_id() {
+	$page_id = absint( get_option( 'npmp_preferences_page_id', 0 ) );
+	if ( $page_id && 'publish' === get_post_status( $page_id ) && has_shortcode( (string) get_post_field( 'post_content', $page_id ), 'npmp_manage_preferences' ) ) {
+		return $page_id;
+	}
+	if ( false !== get_transient( 'npmp_prefs_page_lookup' ) ) {
+		return 0;
+	}
+	$found = get_posts(
+		array(
+			'post_type'      => 'page',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			's'              => '[npmp_manage_preferences',
+		)
+	);
+	$page_id = $found ? (int) $found[0] : 0;
+	if ( $page_id ) {
+		update_option( 'npmp_preferences_page_id', $page_id );
+	} else {
+		set_transient( 'npmp_prefs_page_lookup', 1, HOUR_IN_SECONDS );
+	}
+	return $page_id;
+}
+
 function npmp_get_preferences_url( $email ) {
-	$prefs_page = get_option( 'npmp_preferences_page_id', 0 );
+	$prefs_page = npmp_get_preferences_page_id();
+	if ( ! $prefs_page && function_exists( 'npmp_get_one_click_unsubscribe_url' ) ) {
+		// No preferences page on this site: the unsubscribe link is the one
+		// preference a reader can act on.
+		return npmp_get_one_click_unsubscribe_url( $email );
+	}
 	$base_url   = $prefs_page ? get_permalink( $prefs_page ) : home_url( '/' );
 	return add_query_arg( array(
 		'email' => rawurlencode( $email ),
@@ -356,6 +398,13 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 				array( 'key' => '_npmp_weekly_digest', 'compare' => 'NOT EXISTS' ),
 				array( 'key' => '_npmp_weekly_digest', 'value' => '' ),
 			),
+			// A contact an admin or an import marked unsubscribed gets nothing,
+			// whatever their notification checkboxes still say.
+			array(
+				'relation' => 'OR',
+				array( 'key' => 'npmp_status', 'compare' => 'NOT EXISTS' ),
+				array( 'key' => 'npmp_status', 'value' => 'unsubscribed', 'compare' => '!=' ),
+			),
 		),
 	) );
 
@@ -483,7 +532,15 @@ function npmp_process_weekly_digest() {
 		'fields'         => 'ids',
 		'no_found_rows'  => true,
 		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Weekly digest batch query.
-		'meta_query'     => array( array( 'key' => '_npmp_weekly_digest', 'value' => '1' ) ),
+		'meta_query'     => array(
+			'relation' => 'AND',
+			array( 'key' => '_npmp_weekly_digest', 'value' => '1' ),
+			array(
+				'relation' => 'OR',
+				array( 'key' => 'npmp_status', 'compare' => 'NOT EXISTS' ),
+				array( 'key' => 'npmp_status', 'value' => 'unsubscribed', 'compare' => '!=' ),
+			),
+		),
 	) );
 
 	if ( empty( $subscribers ) ) {

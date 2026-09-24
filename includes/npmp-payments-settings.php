@@ -812,6 +812,12 @@ function npmp_donation_form_attribution() {
  * ============================================================= */
 add_filter( 'the_content', function ( $content ) {
 	if ( is_page() && get_the_ID() === absint( get_option( 'npmp_donation_page_id' ) ) ) {
+		// The page may already carry the form as a shortcode or block. A second
+		// copy duplicated element IDs, and its script bound to the first form.
+		$raw = (string) get_post_field( 'post_content', get_the_ID() );
+		if ( has_shortcode( $raw, 'npmp_donation_form' ) || false !== strpos( $raw, 'wp:nonprofit-manager/donation' ) || false !== strpos( $content, 'npmp-donation-form' ) ) {
+			return $content;
+		}
 		return $content . do_shortcode( '[npmp_donation_form]' );
 	}
 	return $content;

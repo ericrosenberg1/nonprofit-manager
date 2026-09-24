@@ -233,11 +233,18 @@ function npmp_ajax_convert_to_event() {
 	$start_formatted = gmdate( 'Y-m-d H:i:s', $start_time );
 	$end_formatted   = $end_time ? gmdate( 'Y-m-d H:i:s', $end_time ) : '';
 
+	// Publish only for someone allowed to publish events. Anyone else (a
+	// Contributor converting their own draft) gets a pending event for review,
+	// the same as saving a new event themselves.
+	$event_type   = get_post_type_object( 'npmp_event' );
+	$can_publish  = $event_type && current_user_can( $event_type->cap->publish_posts );
+	$event_status = $can_publish ? 'publish' : 'pending';
+
 	// Create the event post.
 	$event_id = wp_insert_post(
 		array(
 			'post_type'    => 'npmp_event',
-			'post_status'  => 'publish',
+			'post_status'  => $event_status,
 			'post_title'   => $source->post_title,
 			'post_content' => $source->post_content,
 			'post_excerpt' => $source->post_excerpt,
@@ -272,7 +279,7 @@ function npmp_ajax_convert_to_event() {
 	}
 
 	// Optionally delete the original.
-	if ( $delete ) {
+	if ( $delete && current_user_can( 'delete_post', $post_id ) ) {
 		wp_trash_post( $post_id );
 	}
 

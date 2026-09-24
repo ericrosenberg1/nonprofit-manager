@@ -110,7 +110,14 @@ function npmp_import_ajax_preview() {
 				wp_send_json_error( $uploaded['error'] );
 			}
 
-			$file_path = $uploaded['file'];
+			// wp_handle_upload() leaves the file at a public, guessable URL
+			// (/wp-content/uploads/YYYY/MM/members.csv) holding the whole
+			// contact list. Move it somewhere private under a random name.
+			$file_path = npmp_import_privatize_upload( $uploaded['file'] );
+			if ( is_wp_error( $file_path ) ) {
+				wp_delete_file( $uploaded['file'] );
+				wp_send_json_error( $file_path->get_error_message() );
+			}
 
 			// Store path in transient for the execute step.
 			$token = wp_generate_password( 16, false );
@@ -1675,3 +1682,72 @@ function npmp_import_render_scripts( $field_labels ) {
 	</script>
 	<?php
 }
+
+/**
+ * Private folder for uploaded import files: under uploads, with deny rules for
+ * Apache and an empty index, and files named at random so nothing is
+ * guessable on servers (nginx) that ignore .htaccess.
+ *
+ * @return string|WP_Error Directory path with trailing slash.
+ */
+function npmp_import_private_dir() {
+	$uploads = wp_upload_dir();
+	if ( ! empty( $uploads['error'] ) ) {
+		return new WP_Error( 'npmp_import_dir', $uploads['error'] );
+	}
+	$dir = trailingslashit( $uploads['basedir'] ) . 'npmp-private/';
+	if ( ! wp_mkdir_p( $dir ) ) {
+		return new WP_Error( 'npmp_import_dir', __( 'Could not create a private folder for the import file.', 'nonprofit-manager' ) );
+	}
+	if ( ! file_exists( $dir . 'index.php' ) ) {
+		file_put_contents( $dir . 'index.php', "<?php\n// Silence is golden.\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	if ( ! file_exists( $dir . '.htaccess' ) ) {
+		file_put_contents( $dir . '.htaccess', "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	return $dir;
+}
+
+/**
+ * Move a just-uploaded import file into the private folder and schedule its
+ * deletion, so an abandoned preview doesn't leave the list on disk.
+ *
+ * @param string $path Path wp_handle_upload() returned.
+ * @return string|WP_Error New path.
+ */
+function npmp_import_privatize_upload( $path ) {
+	$dir = npmp_import_private_dir();
+	if ( is_wp_error( $dir ) ) {
+		return $dir;
+	}
+	$ext    = strtolower( (string) pathinfo( $path, PATHINFO_EXTENSION ) );
+	$target = $dir . 'import-' . wp_generate_password( 32, false ) . ( $ext ? '.' . $ext : '' );
+	if ( ! @rename( $path, $target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rename_rename
+		return new WP_Error( 'npmp_import_move', __( 'Could not store the import file privately.', 'nonprofit-manager' ) );
+	}
+	// Longer than the one-hour transient that points at it, so a slow chunked
+	// import isn't cut off, but it doesn't sit there for good.
+	wp_schedule_single_event( time() + 3 * HOUR_IN_SECONDS, 'npmp_delete_import_file', array( $target ) );
+	return $target;
+}
+
+add_action( 'npmp_delete_import_file', 'npmp_delete_import_file' );
+
+/**
+ * Delete an import file, only ever inside the private import folder.
+ *
+ * @param string $path File path.
+ * @return void
+ */
+function npmp_delete_import_file( $path ) {
+	$dir = npmp_import_private_dir();
+	if ( is_wp_error( $dir ) || ! is_string( $path ) ) {
+		return;
+	}
+	$real_dir  = realpath( $dir );
+	$real_file = realpath( $path );
+	if ( $real_dir && $real_file && 0 === strpos( $real_file, trailingslashit( $real_dir ) ) && is_file( $real_file ) ) {
+		wp_delete_file( $real_file );
+	}
+}
+

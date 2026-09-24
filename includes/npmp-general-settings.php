@@ -27,6 +27,9 @@ add_action(
 			$new_level = isset( $_POST['npmp_new_level'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_new_level'] ) ) : '';
 			if ( ! empty( $new_level ) ) {
 				$levels = get_option( 'npmp_membership_levels', array() );
+				if ( ! is_array( $levels ) ) { // Old sites stored a newline-separated string.
+					$levels = array_filter( array_map( 'trim', explode( "\n", (string) $levels ) ) );
+				}
 				if ( ! in_array( $new_level, $levels, true ) ) {
 					$levels[] = $new_level;
 					update_option( 'npmp_membership_levels', $levels );
@@ -44,6 +47,9 @@ add_action(
 			$level_to_remove = isset( $_POST['npmp_level_to_remove'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_level_to_remove'] ) ) : '';
 			if ( ! empty( $level_to_remove ) ) {
 				$levels = get_option( 'npmp_membership_levels', array() );
+				if ( ! is_array( $levels ) ) { // Old sites stored a newline-separated string.
+					$levels = array_filter( array_map( 'trim', explode( "\n", (string) $levels ) ) );
+				}
 				$levels = array_values( array_diff( $levels, array( $level_to_remove ) ) );
 				update_option( 'npmp_membership_levels', $levels );
 

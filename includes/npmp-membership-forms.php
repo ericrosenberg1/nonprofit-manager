@@ -532,6 +532,7 @@ function npmp_email_signup_shortcode() {
 		<h3>' . esc_html( $s['signup_heading'] ) . '</h3>' .
 		( $s['signup_description'] ? '<p>' . esc_html( $s['signup_description'] ) . '</p>' : '' ) .
 		$fields . '
+		<p class="npmp-hp" aria-hidden="true" style="position:absolute;left:-9999px;"><label>' . esc_html__( 'Leave this field empty', 'nonprofit-manager' ) . '<input type="text" name="npmp_signup_website" tabindex="-1" autocomplete="off"></label></p>
 		' . npmp_captcha_render_widget( 'email_signup' ) . '
 		' . wp_nonce_field( 'npmp_email_signup', 'npmp_email_signup_nonce', true, false ) . '
 		<input type="hidden" name="npmp_action" value="email_signup">
@@ -618,6 +619,12 @@ function npmp_handle_membership_form() {
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'captcha' ) );
 			exit;
 		}
+		// Honeypot: a bot filled the hidden field. Answer as if it worked.
+		if ( '' !== trim( (string) wp_unslash( $_POST['npmp_signup_website'] ?? '' ) ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only tested for emptiness.
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'success' ) );
+			exit;
+		}
+
 		$name  = sanitize_text_field( wp_unslash( $_POST['npmp_name'] ?? '' ) );
 		$email = sanitize_email( wp_unslash( $_POST['npmp_email'] ?? '' ) );
 
@@ -628,11 +635,22 @@ function npmp_handle_membership_form() {
 
 		$existing   = $member_manager->get_member_by_email( $email );
 		$contact_id = 0;
-		if ( $existing ) {
+		if ( $existing && 'unsubscribed' === ( $existing->status ?? '' ) ) {
+			// Someone who unsubscribed is only put back on the list once they
+			// confirm from their own inbox. The form used to flip them straight
+			// back to subscribed, so anyone could re-subscribe a stranger. The
+			// visitor sees the same answer either way.
+			npmp_send_resubscribe_confirmation( $email );
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'success' ) );
+			exit;
+		} elseif ( $existing ) {
+			// Existing contact: subscribe them, but never overwrite a name or
+			// level someone else typed. A public form is not the place to
+			// rename a contact.
 			$update = $member_manager->update_member(
 				$existing->id,
 				array(
-					'name'             => $name ?: $existing->name,
+					'name'             => ( '' !== (string) $existing->name ) ? $existing->name : $name,
 					'status'           => 'subscribed',
 					'membership_level' => $existing->membership_level ?: 'member',
 				)
@@ -739,6 +757,126 @@ function npmp_handle_membership_form() {
  */
 function npmp_generate_unsubscribe_token( $email ) {
 	return substr( hash_hmac( 'sha256', 'unsubscribe|' . strtolower( (string) $email ), wp_salt( 'auth' ) ), 0, 20 );
+}
+
+/**
+ * Signed token for the "put me back on the list" link. Scoped to its own
+ * action so an unsubscribe token can't be replayed here, or the reverse.
+ *
+ * @param string $email Recipient email address.
+ * @return string
+ */
+function npmp_generate_resubscribe_token( $email ) {
+	return substr( hash_hmac( 'sha256', 'resubscribe|' . strtolower( (string) $email ), wp_salt( 'auth' ) ), 0, 20 );
+}
+
+/**
+ * Email an unsubscribed contact a signed link that puts them back on the list.
+ *
+ * @param string $email Recipient email address.
+ * @return void
+ */
+function npmp_send_resubscribe_confirmation( $email ) {
+	$url = add_query_arg(
+		array(
+			'action' => 'npmp_confirm_resubscribe',
+			'email'  => rawurlencode( $email ),
+			'token'  => npmp_generate_resubscribe_token( $email ),
+		),
+		admin_url( 'admin-post.php' )
+	);
+	$subject = __( 'Confirm you want to subscribe again', 'nonprofit-manager' );
+	$body    = sprintf(
+		/* translators: 1: site name, 2: confirmation URL. */
+		__( "We received a request to add this address back to the %1\$s email list.
+
+To confirm, open this link and press the button:
+%2\$s
+
+If you didn't ask for this, ignore this email and you'll stay unsubscribed.", 'nonprofit-manager' ),
+		get_bloginfo( 'name' ),
+		$url
+	);
+	if ( function_exists( 'npmp_send_mail' ) ) {
+		npmp_send_mail( $email, $subject, $body );
+	}
+}
+
+add_action( 'admin_post_nopriv_npmp_confirm_resubscribe', 'npmp_handle_confirm_resubscribe' );
+add_action( 'admin_post_npmp_confirm_resubscribe', 'npmp_handle_confirm_resubscribe' );
+
+/**
+ * Confirm a re-subscribe request from the signed email link. A GET shows a
+ * button and only the POST changes anything, so a mail scanner that opens the
+ * link doesn't subscribe anyone.
+ *
+ * @return void
+ */
+function npmp_handle_confirm_resubscribe() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Token-authenticated email link.
+	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
+	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
+	// phpcs:enable
+	$valid  = $email && is_email( $email ) && hash_equals( npmp_generate_resubscribe_token( $email ), $token );
+	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+
+	if ( ! $valid ) {
+		wp_die( esc_html__( 'This link is invalid. Please use the signup form on our website.', 'nonprofit-manager' ), esc_html__( 'Subscribe', 'nonprofit-manager' ), array( 'response' => 400, 'back_link' => true ) );
+	}
+
+	if ( 'POST' !== $method ) {
+		npmp_render_email_link_confirm_page(
+			__( 'Subscribe again', 'nonprofit-manager' ),
+			__( 'Press the button to add this address back to our email list.', 'nonprofit-manager' ),
+			__( 'Subscribe', 'nonprofit-manager' ),
+			'npmp_confirm_resubscribe',
+			$email,
+			$token
+		);
+	}
+
+	if ( class_exists( 'NPMP_Member_Manager' ) ) {
+		$manager  = NPMP_Member_Manager::get_instance();
+		$existing = $manager->get_member_by_email( $email );
+		if ( $existing ) {
+			$manager->update_member( $existing->id, array( 'status' => 'subscribed' ) );
+		}
+	}
+	wp_die( esc_html__( "You're subscribed again. Thanks for coming back.", 'nonprofit-manager' ), esc_html__( 'Subscribe', 'nonprofit-manager' ), array( 'response' => 200, 'back_link' => true ) );
+}
+
+/**
+ * Render a one-button confirmation page for a signed email link and stop.
+ *
+ * Link scanners (Microsoft Safe Links, Mimecast and others) open every link in
+ * an email. Acting on the GET let them unsubscribe people who never clicked,
+ * so the GET shows this page and the button's POST does the work.
+ *
+ * @param string $title   Page title.
+ * @param string $message Line above the button.
+ * @param string $button  Button label.
+ * @param string $action  admin-post action.
+ * @param string $email   Email from the link.
+ * @param string $token   Token from the link.
+ * @return void
+ */
+function npmp_render_email_link_confirm_page( $title, $message, $button, $action, $email, $token ) {
+	$html  = '<p>' . esc_html( $message ) . '</p>';
+	$html .= '<p><strong>' . esc_html( $email ) . '</strong></p>';
+	$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+	$html .= '<input type="hidden" name="action" value="' . esc_attr( $action ) . '">';
+	$html .= '<input type="hidden" name="email" value="' . esc_attr( $email ) . '">';
+	$html .= '<input type="hidden" name="token" value="' . esc_attr( $token ) . '">';
+	$html .= '<input type="hidden" name="npmp_confirm" value="1">';
+	$html .= '<p><button type="submit" class="button button-primary">' . esc_html( $button ) . '</button></p>';
+	$html .= '</form>';
+	wp_die( wp_kses( $html, array(
+		'p'      => array(),
+		'strong' => array(),
+		'form'   => array( 'method' => true, 'action' => true ),
+		'input'  => array( 'type' => true, 'name' => true, 'value' => true ),
+		'button' => array( 'type' => true, 'class' => true ),
+	) ), esc_html( $title ), array( 'response' => 200 ) );
 }
 
 /**
@@ -858,14 +996,29 @@ function npmp_handle_one_click_unsubscribe() {
 
 	$valid = $email && is_email( $email ) && hash_equals( npmp_generate_unsubscribe_token( $email ), $token );
 
-	if ( $valid ) {
+	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Token-authenticated email link.
+	$from_button = isset( $_POST['npmp_confirm'] );
+
+	// A GET is a person clicking the link, or a mail scanner opening it. Ask
+	// for a button press so scanners don't unsubscribe people.
+	if ( $valid && 'POST' !== $method ) {
+		npmp_render_email_link_confirm_page(
+			__( 'Unsubscribe', 'nonprofit-manager' ),
+			__( 'Press the button to stop receiving these emails.', 'nonprofit-manager' ),
+			__( 'Unsubscribe', 'nonprofit-manager' ),
+			'npmp_one_click_unsubscribe',
+			$email,
+			$token
+		);
+	}
+
+	if ( $valid && 'POST' === $method ) {
 		npmp_unsubscribe_email_everywhere( $email );
 	}
 
-	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
-
 	// RFC 8058 one-click: mailbox provider POSTs and expects a bare 2xx/4xx.
-	if ( 'POST' === $method ) {
+	if ( 'POST' === $method && ! $from_button ) {
 		status_header( $valid ? 200 : 400 );
 		exit;
 	}

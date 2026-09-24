@@ -163,7 +163,7 @@ function npmp_render_membership_dashboard() {
 	$recent_donors    = $member_manager->get_recent_donors();
 	$available_status = $member_manager->get_statuses();
 	$levels_option    = 'npmp_membership_levels';
-	$levels           = get_option( $levels_option, array() );
+	$levels           = npmp_get_membership_levels_array(); // Handles the old newline-string format.
 
 	$total_donations = isset( $financial['total_amount'] ) ? floatval( $financial['total_amount'] ) : 0.0;
 	$recent_amount   = isset( $financial['thirty_day_amount'] ) ? floatval( $financial['thirty_day_amount'] ) : 0.0;

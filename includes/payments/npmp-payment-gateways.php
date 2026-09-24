@@ -295,15 +295,34 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 								}
 
 								return actions.order.create({
+									intent: 'CAPTURE',
 									purchase_units: [{
-										amount: { value: amount.toFixed(2) }
+										amount: { value: amount.toFixed(2), currency_code: 'USD' },
+										description: 'Donation'
 									}]
 								});
 							},
 							onApprove: function(data, actions) {
 								return actions.order.capture().then(function(details) {
-									alert('<?php echo esc_js( __( 'Thank you for your donation!', 'nonprofit-manager' ) ); ?>');
-									window.location.reload();
+									// Record the gift the same way the single-gateway PayPal
+									// form does. This button captured payment and reloaded,
+									// so the donation never reached the site's records.
+									var formData = new FormData();
+									formData.append('action', 'npmp_log_donation');
+									formData.append('nonce', '<?php echo esc_js( wp_create_nonce( 'npmp_donation' ) ); ?>');
+									formData.append('email', emailInput.value);
+									formData.append('amount', parseFloat(amountInput.value).toFixed(2));
+									formData.append('frequency', 'one_time');
+									formData.append('gateway', 'paypal_api');
+									formData.append('transaction_id', details.id);
+									var done = function() {
+										alert('<?php echo esc_js( __( 'Thank you for your donation!', 'nonprofit-manager' ) ); ?>');
+										window.location.reload();
+									};
+									return fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
+										method: 'POST',
+										body: formData
+									}).then(done, done);
 								});
 							}
 						}).render('#paypal-button-container-multi');
@@ -794,8 +813,17 @@ function npmp_ajax_log_donation() {
 	}
 
 	try {
-		// Log donation
 		$donation_manager = NPMP_Donation_Manager::get_instance();
+
+		// Already recorded: a replay of the same PayPal order. Answer success
+		// and stop, so a replay can't send another thank-you email to an
+		// address of the caller's choosing, add members, or grow the log.
+		if ( $transaction_id && $donation_manager->find_by_transaction_id( $transaction_id ) ) {
+			npmp_payment_debug_log( 'donation log: duplicate transaction ignored' );
+			wp_send_json_success( array( 'donation_id' => (int) $donation_manager->find_by_transaction_id( $transaction_id ) ) );
+		}
+
+		// Log donation
 		$donation_id       = $donation_manager->log_donation(
 			array(
 				'email'          => $email,
@@ -947,6 +975,11 @@ function npmp_ajax_create_stripe_session() {
 		$body['line_items[0][price_data][recurring][interval]']       = $intervals[ $frequency ][0];
 		$body['line_items[0][price_data][recurring][interval_count]'] = $intervals[ $frequency ][1];
 		$body['line_items[0][price_data][product_data][name]']        = __( 'Recurring donation', 'nonprofit-manager' );
+		// Pro's webhook records each invoice of a subscription only when it can
+		// tell the subscription is ours. Without this stamp it ignored every
+		// recurring gift made through this form.
+		$body['subscription_data[metadata][npmp_source]'] = 'donation';
+		$body['subscription_data[metadata][frequency]']   = $frequency;
 	} else {
 		$body['mode'] = 'payment';
 		$body['line_items[0][price_data][product_data][name]'] = __( 'Donation', 'nonprofit-manager' );
@@ -1044,6 +1077,19 @@ function npmp_maybe_finalize_stripe_donation() {
 
 	$session = json_decode( wp_remote_retrieve_body( $response ), true );
 	if ( ! is_array( $session ) || empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
+		return;
+	}
+
+	// Only sessions this form created. A Stripe account shared with a store
+	// (WooCommerce and the like) has other paid sessions, and those aren't
+	// donations.
+	if ( 'stripe' !== ( $session['metadata']['gateway'] ?? '' ) ) {
+		return;
+	}
+
+	// Already recorded (a refresh after the 15-minute guard, or a replayed
+	// link): don't send the thank-you again.
+	if ( class_exists( 'NPMP_Donation_Manager' ) && NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
 		return;
 	}
 
@@ -1206,6 +1252,12 @@ function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
 		return new WP_Error( 'npmp_paypal_not_completed', __( 'PayPal reports this donation as not completed.', 'nonprofit-manager' ) );
 	}
 
+	// Every form charges in USD. Without this, 100 JPY verified as a $100 gift.
+	$currency = isset( $order['purchase_units'][0]['amount']['currency_code'] ) ? strtoupper( (string) $order['purchase_units'][0]['amount']['currency_code'] ) : '';
+	if ( strtoupper( (string) apply_filters( 'npmp_donation_currency', 'USD' ) ) !== $currency ) {
+		return new WP_Error( 'npmp_paypal_currency_mismatch', __( 'The PayPal payment is in a different currency.', 'nonprofit-manager' ) );
+	}
+
 	$paid = isset( $order['purchase_units'][0]['amount']['value'] ) ? (float) $order['purchase_units'][0]['amount']['value'] : 0;
 	if ( $paid + 0.001 < (float) $amount ) {
 		return new WP_Error( 'npmp_paypal_amount_mismatch', __( 'The PayPal payment does not match the reported amount.', 'nonprofit-manager' ) );
@@ -1237,6 +1289,14 @@ function npmp_payment_return_base( $raw_url ) {
 
 	if ( ! $url_host || strtolower( (string) $url_host ) !== strtolower( (string) $home_host ) ) {
 		return $fallback;
+	}
+
+	// Drop a #fragment. Stripe appends the status args after it otherwise
+	// (/donate/#give?npmp_donation=success...), the browser never sends them,
+	// and the donation is charged but never recorded.
+	$hash = strpos( $raw_url, '#' );
+	if ( false !== $hash ) {
+		$raw_url = substr( $raw_url, 0, $hash );
 	}
 
 	// Strip any stale status args from a previous round trip.
