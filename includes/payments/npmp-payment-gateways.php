@@ -781,6 +781,17 @@ function npmp_ajax_log_donation() {
 		wp_send_json_error( array( 'message' => __( 'Please provide a valid donation amount.', 'nonprofit-manager' ) ) );
 	}
 
+	// A PayPal order already recorded is a replay (a double-fired onApprove,
+	// or someone re-posting a real order id). Answer as the first call did
+	// without re-verifying, re-logging the verification row, or emailing the
+	// donor a second thank-you.
+	if ( '' !== $transaction_id ) {
+		$existing_id = NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $transaction_id );
+		if ( $existing_id ) {
+			wp_send_json_success( array( 'donation_id' => $existing_id ) );
+		}
+	}
+
 	// This endpoint is reachable by logged-out visitors holding only the
 	// public page nonce, so a client-reported PayPal capture is verified
 	// against PayPal's own API before anything is recorded or emailed.
@@ -1021,6 +1032,15 @@ function npmp_maybe_finalize_stripe_donation() {
 	}
 	set_transient( $lock_key, 1, 15 * MINUTE_IN_SECONDS );
 
+	// Durable guard. A recorded donation for this session means it was
+	// already finalized and the donor already thanked. Without this, a visit
+	// to the same success URL after the 15-minute lock expired (browser
+	// history, a bookmark, a flushed object cache) sent the thank-you email
+	// again, because log_donation() dedupes the record but not the email.
+	if ( class_exists( 'NPMP_Donation_Manager' ) && NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
+		return;
+	}
+
 	$secret_key = npmp_stripe_secret_key();
 	if ( empty( $secret_key ) ) {
 		return;
@@ -1086,6 +1106,10 @@ function npmp_maybe_finalize_stripe_donation() {
 	);
 
 	npmp_add_donor_to_membership( $email, $name );
+
+	// Subscription sessions leave no donation record here (Pro's webhook
+	// records them), so hold the lock long enough to cover a revisit.
+	set_transient( $lock_key, 1, 30 * DAY_IN_SECONDS );
 }
 add_action( 'template_redirect', 'npmp_maybe_finalize_stripe_donation' );
 
