@@ -27,7 +27,7 @@ if ( ! function_exists( 'npmp_crm_format_currency' ) ) {
  * Register dashboard widgets.
  */
 function npmp_register_dashboard_widgets() {
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
 		return;
 	}
 
@@ -58,8 +58,9 @@ function npmp_register_dashboard_widgets() {
 		);
 	}
 
-	// Quick Add Event widget
-	if ( ! empty( $features['calendar'] ) ) {
+	// Quick Add Event widget. Events are calendar content, not member work,
+	// so this one stays with administrators.
+	if ( ! empty( $features['calendar'] ) && current_user_can( 'manage_options' ) ) {
 		wp_add_dashboard_widget(
 			'npmp_quick_add_event_widget',
 			__( 'Quick Add Event', 'nonprofit-manager' ),
@@ -164,7 +165,7 @@ function npmp_render_summary_widget() {
  */
 function npmp_render_quick_add_member_widget() {
 	// Check if form was submitted
-	if ( isset( $_POST['npmp_quick_add_member_nonce'] ) &&
+	if ( current_user_can( npmp_staff_cap() ) && isset( $_POST['npmp_quick_add_member_nonce'] ) &&
 	     wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_quick_add_member_nonce'] ) ), 'npmp_quick_add_member' ) ) {
 
 		$email = sanitize_email( wp_unslash( $_POST['npmp_member_email'] ?? '' ) );
@@ -254,7 +255,7 @@ function npmp_render_quick_add_member_widget() {
  */
 function npmp_render_quick_add_event_widget() {
 	// Check if form was submitted
-	if ( isset( $_POST['npmp_quick_add_event_nonce'] ) &&
+	if ( current_user_can( 'manage_options' ) && isset( $_POST['npmp_quick_add_event_nonce'] ) &&
 	     wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_quick_add_event_nonce'] ) ), 'npmp_quick_add_event' ) ) {
 
 		$title    = sanitize_text_field( wp_unslash( $_POST['npmp_event_title'] ?? '' ) );

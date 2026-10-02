@@ -102,6 +102,7 @@ class NPMP_Newsletter_Stats {
  */
 
 function npmp_render_newsletter_reports() {
+    npmp_verify_admin_access('edit_npmp_newsletters');
     echo '<div class="wrap">';
     echo '<h1>' . esc_html__('Newsletter Reports', 'nonprofit-manager') . '</h1>';
     echo '<p>' . esc_html__('Track opens, failures, and engagement for each newsletter.', 'nonprofit-manager') . '</p><hr>';

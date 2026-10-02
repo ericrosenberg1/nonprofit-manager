@@ -24,6 +24,11 @@ function npmp_should_show_setup_wizard() {
 add_action(
 	'admin_init',
 	static function () {
+		// Leave the flag for an administrator: a Membership Manager signing
+		// in first would otherwise use it up on a page they can't open.
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
 		if ( get_transient( 'npmp_activation_redirect' ) ) {
 			delete_transient( 'npmp_activation_redirect' );
 

@@ -31,6 +31,7 @@ function npmp_run_plugin_activation_tasks() {
 	npmp_initialize_default_newsletter_settings();
 	npmp_maybe_create_unsubscribe_page();
 	npmp_schedule_newsletter_cron();
+	npmp_install_roles();
 
 	// Set transient to trigger setup wizard redirect
 	set_transient( 'npmp_activation_redirect', true, 30 );

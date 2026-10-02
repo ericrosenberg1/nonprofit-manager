@@ -31,10 +31,27 @@ function npmp_import_register_menu() {
 		$parent,
 		__( 'Import Members', 'nonprofit-manager' ),
 		__( 'Import', 'nonprofit-manager' ),
-		'manage_options',
+		npmp_staff_cap(),
 		'npmp_import',
 		'npmp_import_render_page'
 	);
+}
+
+/**
+ * Can the current user import from this source?
+ *
+ * File and published-sheet imports are plain contact imports, open to the
+ * staff capability. Mailchimp and Constant Contact imports take a third-party
+ * API key or access token, so they stay with administrators.
+ *
+ * @param string $source Import source key.
+ * @return bool
+ */
+function npmp_import_user_can_source( $source ) {
+	if ( in_array( $source, array( 'csv', 'xlsx', 'google_sheet' ), true ) ) {
+		return current_user_can( npmp_staff_cap() );
+	}
+	return current_user_can( 'manage_options' );
 }
 
 /**
@@ -81,11 +98,11 @@ add_action( 'wp_ajax_npmp_import_cc_lists', 'npmp_import_ajax_cc_lists' );
 function npmp_import_ajax_preview() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
+
+	if ( ! npmp_import_user_can_source( $source ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
-
-	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 	$import = NPMP_Import_Manager::get_instance();
 
 	switch ( $source ) {
@@ -364,11 +381,12 @@ function npmp_import_ajax_preview() {
 function npmp_import_ajax_execute() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
+
+	if ( ! npmp_import_user_can_source( $source ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
 
-	$source     = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 	$file_token = isset( $_POST['file_token'] ) ? sanitize_text_field( wp_unslash( $_POST['file_token'] ) ) : '';
 	// Cast to array before array_map(): the client is expected to send mapping[]
 	// as an array, but a malformed or hand-crafted request could send a plain
@@ -474,7 +492,7 @@ function npmp_import_ajax_execute() {
 function npmp_import_ajax_step() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
 
@@ -536,6 +554,13 @@ function npmp_import_ajax_step() {
 				'error_messages' => array(),
 			),
 		);
+	}
+
+	// The job's source, not this request's, decides who may run a chunk: a
+	// Membership Manager can't drive a Mailchimp job an administrator started.
+	if ( ! npmp_import_user_can_source( $state['source'] ) ) {
+		delete_transient( $lock_key );
+		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
 
 	$import = NPMP_Import_Manager::get_instance();
@@ -881,6 +906,8 @@ function npmp_import_ajax_cc_lists() {
  * Render the import wizard page.
  */
 function npmp_import_render_page() {
+	npmp_verify_admin_access( npmp_staff_cap() );
+
 	$import        = NPMP_Import_Manager::get_instance();
 	$field_labels  = $import->get_field_labels();
 	$member_mgr    = NPMP_Member_Manager::get_instance();
@@ -918,6 +945,7 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Paste a published Google Sheet URL.', 'nonprofit-manager' ); ?></span>
 				</label>
 
+				<?php if ( current_user_can( 'manage_options' ) ) : // API imports take a third-party key, see npmp_import_user_can_source(). ?>
 				<label class="npmp-import-source-card">
 					<input type="radio" name="import_source" value="mailchimp">
 					<span class="npmp-import-source-icon dashicons dashicons-email-alt"></span>
@@ -931,6 +959,7 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-title"><?php esc_html_e( 'Constant Contact', 'nonprofit-manager' ); ?></span>
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Connect to Constant Contact and import a list.', 'nonprofit-manager' ); ?></span>
 				</label>
+				<?php endif; ?>
 			</div>
 
 			<!-- Source-specific inputs -->

@@ -14,8 +14,8 @@ require_once plugin_dir_path( __FILE__ ) . 'payments/npmp-payment-gateways.php';
  * Donations Summary Dashboard
  * ============================================================= */
 function npmp_render_donations_dashboard() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'nonprofit-manager' ) );
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
 
 	$dm = NPMP_Donation_Manager::get_instance();

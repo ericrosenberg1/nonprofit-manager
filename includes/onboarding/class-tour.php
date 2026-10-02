@@ -153,6 +153,16 @@ class NPMP_Tour {
 	}
 
 	/**
+	 * The tour walks through settings screens, so it's for administrators.
+	 * A Membership Manager would be sent to pages they can't open.
+	 *
+	 * @return bool
+	 */
+	public static function user_can_take_tour() {
+		return current_user_can( 'manage_options' );
+	}
+
+	/**
 	 * Test whether the current admin screen is one of ours.
 	 *
 	 * @return bool
@@ -234,6 +244,10 @@ class NPMP_Tour {
 	 * Enqueue the engine JS + CSS on every NPM admin screen.
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
+		if ( ! self::user_can_take_tour() ) {
+			return;
+		}
+
 		// Don't waste bytes on non-NPM admin pages.
 		if ( ! self::is_npmp_admin_screen() ) {
 			// Exception: enqueue on the WP plugins screen too so the
@@ -312,7 +326,7 @@ class NPMP_Tour {
 	 * until the user completes or explicitly dismisses.
 	 */
 	public static function render_banner() {
-		if ( ! self::should_show_banner() ) {
+		if ( ! self::user_can_take_tour() || ! self::should_show_banner() ) {
 			return;
 		}
 		?>
@@ -332,6 +346,9 @@ class NPMP_Tour {
 	 * Empty container the JS mounts the modal + overlay into.
 	 */
 	public static function render_modal_container() {
+		if ( ! self::user_can_take_tour() ) {
+			return;
+		}
 		if ( ! self::is_npmp_admin_screen() && ! self::should_show_modal() ) {
 			return;
 		}

@@ -151,9 +151,13 @@ add_action( 'plugins_loaded', 'npmp_maybe_migrate_legacy_members', 30 );
  *====================================================================*/
 function npmp_render_membership_dashboard() {
 
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
+
+	// Tiers feed the public signup forms and Pro's dues pricing, so adding or
+	// removing one is a settings change: administrators only.
+	$can_edit_tiers = current_user_can( 'manage_options' );
 
 	$member_manager   = NPMP_Member_Manager::get_instance();
 	$total_contacts   = $member_manager->count_members();
@@ -169,7 +173,7 @@ function npmp_render_membership_dashboard() {
 	$recent_amount   = isset( $financial['thirty_day_amount'] ) ? floatval( $financial['thirty_day_amount'] ) : 0.0;
 	$total_activity  = isset( $financial['total_transactions'] ) ? intval( $financial['total_transactions'] ) : 0;
 
-	if ( ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
+	if ( $can_edit_tiers && ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$new = sanitize_text_field( wp_unslash( $_POST['new_level'] ) );
 		if ( $new && ! in_array( $new, $levels, true ) ) {
 			$levels[] = $new;
@@ -178,7 +182,7 @@ function npmp_render_membership_dashboard() {
 		}
 	}
 
-	if ( ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
+	if ( $can_edit_tiers && ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$slug   = sanitize_text_field( wp_unslash( $_POST['level_slug'] ) );
 		$levels = array_diff( $levels, array( $slug ) );
 		update_option( $levels_option, $levels );
@@ -198,7 +202,10 @@ function npmp_render_membership_dashboard() {
 	echo '<p>' . esc_html__( 'Track and manage your members, donors, and contacts in one centralized location.', 'nonprofit-manager' ) . '</p>';
 
 	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=npmp_members' ) ) . '">' . esc_html__( 'View All Members', 'nonprofit-manager' ) . '</a> ';
-	echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ) . '">' . esc_html__( 'Membership Settings', 'nonprofit-manager' ) . '</a></p>';
+	if ( $can_edit_tiers ) {
+		echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ) . '">' . esc_html__( 'Membership Settings', 'nonprofit-manager' ) . '</a>';
+	}
+	echo '</p>';
 
 	// Membership Overview Card
 	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
@@ -278,6 +285,11 @@ function npmp_render_membership_dashboard() {
 	}
 	echo '</div>';
 
+	if ( ! $can_edit_tiers ) {
+		echo '</div>';
+		return;
+	}
+
 	// Membership Tiers/Levels Management Card
 	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
 	echo '<h2 class="title">' . esc_html__( 'Membership Tiers', 'nonprofit-manager' ) . '</h2>';
@@ -336,7 +348,7 @@ function npmp_handle_member_list_actions() {
 	if ( ! isset( $_GET['page'] ) || 'npmp_members' !== $_GET['page'] ) {
 		return;
 	}
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
 		return;
 	}
 
@@ -507,8 +519,8 @@ add_action( 'admin_init', 'npmp_handle_member_list_actions' );
  */
 function npmp_render_members_page() {
 
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
 
 	$member_manager = NPMP_Member_Manager::get_instance();
@@ -600,6 +612,8 @@ function npmp_render_members_page() {
 			'list_url'       => $list_url,
 		)
 	);
+
+	npmp_render_staff_access_panel();
 
 	echo '</div>';
 }
