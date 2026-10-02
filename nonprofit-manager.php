@@ -20,6 +20,8 @@ defined( 'ABSPATH' ) || exit;
  * Core components (always loaded)
  * ---------------------------------------------------------------------- */
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-version.php';
+// Site currency: formatting, gateway minor units, minimums. Pro calls these too.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-currency.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
 // Membership Manager role + npmp_staff_cap(). Loaded before any screen that
 // registers a menu or handler against the staff capability.

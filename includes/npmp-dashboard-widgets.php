@@ -14,13 +14,51 @@ if ( ! function_exists( 'npmp_crm_format_currency' ) ) {
 	/**
 	 * Format amount as currency.
 	 *
-	 * @param float $amount Amount to format.
+	 * @param float       $amount   Amount to format.
+	 * @param string|null $currency Currency the amount is in, or null for the site currency.
 	 * @return string
 	 */
-	function npmp_crm_format_currency( $amount ) {
-		$symbol = apply_filters( 'npmp_crm_currency_symbol', '$' );
-		return sprintf( '%s%s', $symbol, number_format_i18n( (float) $amount, 2 ) );
+	function npmp_crm_format_currency( $amount, $currency = null ) {
+		$currency = npmp_resolve_currency( $currency );
+
+		// A site that customised the dollar sign through this filter keeps it.
+		if ( 'USD' === $currency && has_filter( 'npmp_crm_currency_symbol' ) ) {
+			$symbol = apply_filters( 'npmp_crm_currency_symbol', '$' );
+			return sprintf( '%s%s', $symbol, number_format_i18n( (float) $amount, 2 ) );
+		}
+
+		return npmp_format_amount( $amount, $currency );
 	}
+}
+
+/**
+ * A member's lifetime donation value, in the currency (or currencies) given.
+ *
+ * @param object $member Member object from NPMP_Member_Manager.
+ * @return string
+ */
+function npmp_member_lifetime_value( $member ) {
+	$totals = isset( $member->donation_totals ) && is_array( $member->donation_totals ) ? $member->donation_totals : array();
+	if ( count( $totals ) > 1 ) {
+		return npmp_format_amounts_by_currency( $totals );
+	}
+	return npmp_crm_format_currency( (float) ( $member->donation_total ?? 0 ), npmp_record_currency( $member->donation_currency ?? '' ) );
+}
+
+/**
+ * Format per-currency totals for a dashboard cell, honouring the legacy
+ * npmp_crm_currency_symbol filter when everything is in US dollars.
+ *
+ * @param array<string,float> $totals Totals keyed by currency.
+ * @return string
+ */
+function npmp_crm_format_totals( $totals ) {
+	$totals = is_array( $totals ) ? $totals : array();
+	if ( count( $totals ) <= 1 ) {
+		$currency = $totals ? (string) array_key_first( $totals ) : npmp_currency();
+		return npmp_crm_format_currency( $totals ? (float) reset( $totals ) : 0.0, $currency );
+	}
+	return npmp_format_amounts_by_currency( $totals );
 }
 
 /**
@@ -140,20 +178,20 @@ function npmp_render_summary_widget() {
 		<?php if ( ! empty( $features['donations'] ) && class_exists( 'NPMP_Donation_Manager' ) ) : ?>
 			<?php
 			// Year-to-date donations
-			$ytd_total = npmp_get_ytd_donation_total();
+			$ytd_totals = npmp_get_ytd_donation_totals_by_currency();
 			?>
 			<tr>
 				<th><?php esc_html_e( 'Year-to-Date Donations', 'nonprofit-manager' ); ?></th>
-				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_currency( $ytd_total ) ); ?></td>
+				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $ytd_totals ) ); ?></td>
 			</tr>
 
 			<?php
 			// Annual recurring donations
-			$recurring_total = npmp_get_annual_recurring_total();
+			$recurring_totals = npmp_get_annual_recurring_totals_by_currency();
 			?>
 			<tr>
 				<th><?php esc_html_e( 'Annual Recurring Donations', 'nonprofit-manager' ); ?></th>
-				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_currency( $recurring_total ) ); ?></td>
+				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $recurring_totals ) ); ?></td>
 			</tr>
 		<?php endif; ?>
 	</table>
@@ -431,13 +469,27 @@ function npmp_count_total_members() {
 }
 
 /**
- * Helper: Get year-to-date donation total.
+ * Helper: Get year-to-date donation total in the site currency.
+ *
+ * Kept for callers outside this file. Amounts in other currencies are left
+ * out rather than added in. npmp_get_ytd_donation_totals_by_currency() has
+ * every currency.
  *
  * @return float
  */
 function npmp_get_ytd_donation_total() {
+	$totals = npmp_get_ytd_donation_totals_by_currency();
+	return (float) ( $totals[ npmp_currency() ] ?? ( 1 === count( $totals ) ? reset( $totals ) : 0.0 ) );
+}
+
+/**
+ * Helper: Year-to-date donation totals, one per currency.
+ *
+ * @return array<string,float> Currency => total. Empty when nothing was given this year.
+ */
+function npmp_get_ytd_donation_totals_by_currency() {
 	if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
-		return 0.0;
+		return array();
 	}
 
 	global $wpdb;
@@ -446,40 +498,59 @@ function npmp_get_ytd_donation_total() {
 
 	// Sum in SQL rather than loading every donation ID and its meta into PHP.
 	// This runs on every wp-admin Dashboard load, and the old version returned
-	// the whole year's donations to add them up one at a time. The result is
-	// identical: a donation with no stored amount contributed 0 before and is
-	// excluded by the join now.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Single aggregate, no row set to cache.
-	$total = $wpdb->get_var(
+	// the whole year's donations to add them up one at a time. A donation with
+	// no stored amount contributed 0 before and is excluded by the join now.
+	// Grouped by currency so a site that changed currency never adds pounds
+	// to dollars. A donation with no currency stored is USD.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, no row set to cache.
+	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT SUM(m.meta_value + 0)
+			"SELECT COALESCE( c.meta_value, '' ) AS currency, SUM(m.meta_value + 0) AS total
 			 FROM {$wpdb->posts} p
 			 INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = %s
-			 WHERE p.post_type = %s AND p.post_status = 'publish' AND YEAR(p.post_date) = %d",
+			 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
+			 WHERE p.post_type = %s AND p.post_status = 'publish' AND YEAR(p.post_date) = %d
+			 GROUP BY COALESCE( c.meta_value, '' )",
 			NPMP_Donation_Manager::META_AMOUNT,
+			NPMP_Donation_Manager::META_CURRENCY,
 			NPMP_Donation_Manager::POST_TYPE,
 			$current_year
-		)
+		),
+		ARRAY_A
 	);
 
-	return (float) $total;
+	return npmp_group_totals_by_currency( is_array( $rows ) ? $rows : array() );
 }
 
 /**
- * Helper: Get annual recurring donation total.
+ * Helper: Get annual recurring donation total in the site currency.
+ *
+ * Kept for callers outside this file. See
+ * npmp_get_annual_recurring_totals_by_currency() for every currency.
  *
  * @return float
  */
 function npmp_get_annual_recurring_total() {
+	$totals = npmp_get_annual_recurring_totals_by_currency();
+	return (float) ( $totals[ npmp_currency() ] ?? ( 1 === count( $totals ) ? reset( $totals ) : 0.0 ) );
+}
+
+/**
+ * Helper: Annualised recurring donation totals, one per currency.
+ *
+ * @return array<string,float> Currency => yearly total.
+ */
+function npmp_get_annual_recurring_totals_by_currency() {
 	if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
-		return 0.0;
+		return array();
 	}
 
 	global $wpdb;
 
-	// Group the sum by frequency in SQL and convert the handful of resulting
-	// rows in PHP, instead of loading every recurring donation ever recorded
-	// and its meta to add them one at a time on each Dashboard load.
+	// Group the sum by frequency and currency in SQL and convert the handful
+	// of resulting rows in PHP, instead of loading every recurring donation
+	// ever recorded and its meta to add them one at a time on each Dashboard
+	// load.
 	//
 	// The INNER JOIN on the frequency meta reproduces what the meta_query did:
 	// WordPress's "!=" compare only matches posts that actually have the key,
@@ -487,14 +558,16 @@ function npmp_get_annual_recurring_total() {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, nothing worth caching.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT f.meta_value AS frequency, SUM(a.meta_value + 0) AS total
+			"SELECT f.meta_value AS frequency, COALESCE( c.meta_value, '' ) AS currency, SUM(a.meta_value + 0) AS total
 			 FROM {$wpdb->posts} p
 			 INNER JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s
 			 INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+			 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
 			 WHERE p.post_type = %s AND p.post_status = 'publish' AND f.meta_value != %s
-			 GROUP BY f.meta_value",
+			 GROUP BY f.meta_value, COALESCE( c.meta_value, '' )",
 			NPMP_Donation_Manager::META_FREQUENCY,
 			NPMP_Donation_Manager::META_AMOUNT,
+			NPMP_Donation_Manager::META_CURRENCY,
 			NPMP_Donation_Manager::POST_TYPE,
 			'one_time'
 		),
@@ -502,15 +575,18 @@ function npmp_get_annual_recurring_total() {
 	);
 
 	if ( ! is_array( $rows ) ) {
-		return 0.0;
+		return array();
 	}
 
-	$total = 0.0;
+	$annualised = array();
 	foreach ( $rows as $row ) {
-		$total += npmp_annualize_donation_amount( (float) $row['total'], (string) $row['frequency'] );
+		$annualised[] = array(
+			'currency' => $row['currency'],
+			'total'    => npmp_annualize_donation_amount( (float) $row['total'], (string) $row['frequency'] ),
+		);
 	}
 
-	return $total;
+	return npmp_group_totals_by_currency( $annualised );
 }
 
 /**
