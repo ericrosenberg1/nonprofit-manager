@@ -47,6 +47,13 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 
 	$opts = npmp_get_donation_form_options();
 
+	// Every comparison in the inline scripts below is written "min > amount",
+	// never with a less-than sign. A block theme runs the whole page through
+	// wptexturize(), which reads a less-than sign as the start of an HTML tag,
+	// loses track of the script it is in, and turns each double ampersand after
+	// it into an entity: a syntax error that left the donate buttons dead.
+	// tests/test-inline-scripts.php holds the line.
+
 	ob_start();
 	?>
 	<div class="npmp-donation-form npmp-multi-gateway" style="max-width:600px;">
@@ -147,7 +154,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
-					if (!amount || amount < 1) {
+					if (!amount || 1 > amount) {
 						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
@@ -176,7 +183,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
-					if (!amount || amount < 1) {
+					if (!amount || 1 > amount) {
 						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
@@ -219,7 +226,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 
 						npmpClearMultiError();
 
-						if (!amount || amount < 1) {
+						if (!amount || 1 > amount) {
 							npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 							return;
 						}
@@ -284,7 +291,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 								var amount = parseFloat(amountInput.value);
 								var email = emailInput.value;
 
-								if (!amount || amount < 1) {
+								if (!amount || 1 > amount) {
 									npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
 									return false;
 								}
@@ -569,7 +576,7 @@ function npmp_render_paypal_api_form() {
 			var amount = document.getElementById('npmp-paypal-api-amount').value;
 			var email = document.getElementById('npmp-paypal-api-email').value;
 
-			if (!amount || amount < 1) {
+			if (!amount || 1 > amount) {
 				showPayPalError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 				return false;
 			}
@@ -710,7 +717,7 @@ function npmp_render_stripe_form() {
 			}
 		}
 
-		if (!amount || amount < 1) {
+		if (!amount || 1 > amount) {
 			showError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 			return;
 		}
