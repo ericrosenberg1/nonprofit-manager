@@ -185,59 +185,6 @@ class NPMP_Import_Manager {
 	}
 
 	/**
-	 * Import members from a published Google Sheet CSV URL.
-	 *
-	 * @param string $url     Published CSV URL.
-	 * @param array  $mapping Column index => field name.
-	 * @param array  $options Import options.
-	 * @return array|WP_Error Stats array.
-	 */
-	public function import_google_sheet( $url, $mapping, $options = array() ) {
-		// Host-restrict before any network call. This method accepts a URL parameter
-		// from anywhere. Prevent SSRF (server-side request forgery, where a URL pointed
-		// at an internal address gets fetched as the server) by enforcing docs.google.com.
-		$parsed_host = wp_parse_url( $url, PHP_URL_HOST );
-		if ( ! $parsed_host || 'docs.google.com' !== strtolower( $parsed_host ) ) {
-			return new WP_Error( 'npmp_gsheet_host', __( 'Only docs.google.com URLs are supported.', 'nonprofit-manager' ) );
-		}
-
-		$response = wp_safe_remote_get(
-			$url,
-			array(
-				'timeout'             => 60,
-				'sslverify'           => true,
-				'reject_unsafe_urls'  => true,
-				'limit_response_size' => 10 * MB_IN_BYTES,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return new WP_Error( 'npmp_gsheet_fetch', __( 'Could not fetch Google Sheet. Check the URL and try again.', 'nonprofit-manager' ) );
-		}
-
-		$body = wp_remote_retrieve_body( $response );
-		if ( empty( $body ) ) {
-			return new WP_Error( 'npmp_gsheet_empty', __( 'The Google Sheet returned no data. Make sure it is published as CSV.', 'nonprofit-manager' ) );
-		}
-
-		// Write to temp file and parse.
-		$tmp = wp_tempnam( 'npmp_gsheet' );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		file_put_contents( $tmp, $body );
-		$parsed = $this->parse_csv( $tmp, $this->import_parse_keep_limit() );
-		wp_delete_file( $tmp );
-
-		if ( is_wp_error( $parsed ) ) {
-			return $parsed;
-		}
-		$rows = $parsed['rows'];
-
-		array_shift( $rows );
-
-		return $this->process_rows( $rows, $mapping, $options );
-	}
-
-	/**
 	 * Import one bounded window of rows from an uploaded CSV / XLSX / Google
 	 * Sheet file. Used by the chunked AJAX import path (npmp_import_ajax_step)
 	 * so a large file commits in small batches instead of looping every row in
@@ -290,69 +237,6 @@ class NPMP_Import_Manager {
 			'total'       => $total_data,
 			'done'        => $done,
 		);
-	}
-
-	/**
-	 * Import members from Mailchimp via API.
-	 *
-	 * @param string $api_key Mailchimp API key.
-	 * @param string $list_id List/audience ID.
-	 * @param array  $mapping Column name => field name.
-	 * @param array  $options Import options.
-	 * @return array|WP_Error Stats array.
-	 */
-	public function import_mailchimp( $api_key, $list_id, $mapping, $options = array() ) {
-		if ( ! function_exists( 'npmp_mailchimp_get_members' ) ) {
-			return new WP_Error( 'npmp_mc_missing', __( 'Mailchimp API module is not loaded.', 'nonprofit-manager' ) );
-		}
-
-		$all_rows = array();
-		$offset   = 0;
-		$count    = 100;
-
-		do {
-			$result = npmp_mailchimp_get_members( $api_key, $list_id, $offset, $count );
-			if ( is_wp_error( $result ) ) {
-				return $result;
-			}
-
-			foreach ( $result['members'] as $mc_member ) {
-				$row = array(
-					'email_address' => isset( $mc_member['email_address'] ) ? $mc_member['email_address'] : '',
-					'first_name'    => isset( $mc_member['merge_fields']['FNAME'] ) ? $mc_member['merge_fields']['FNAME'] : '',
-					'last_name'     => isset( $mc_member['merge_fields']['LNAME'] ) ? $mc_member['merge_fields']['LNAME'] : '',
-					'phone'         => isset( $mc_member['merge_fields']['PHONE'] ) ? $mc_member['merge_fields']['PHONE'] : '',
-					'status'        => $this->map_mailchimp_status( isset( $mc_member['status'] ) ? $mc_member['status'] : '' ),
-					'tags'          => '',
-				);
-
-				// Combine tags.
-				if ( ! empty( $mc_member['tags'] ) ) {
-					$tag_names  = wp_list_pluck( $mc_member['tags'], 'name' );
-					$row['tags'] = implode( ',', $tag_names );
-				}
-
-				// Address fields from merge fields.
-				if ( ! empty( $mc_member['merge_fields']['ADDRESS'] ) ) {
-					$addr = $mc_member['merge_fields']['ADDRESS'];
-					$row['address_line1'] = isset( $addr['addr1'] ) ? $addr['addr1'] : '';
-					$row['address_line2'] = isset( $addr['addr2'] ) ? $addr['addr2'] : '';
-					$row['city']          = isset( $addr['city'] ) ? $addr['city'] : '';
-					$row['state']         = isset( $addr['state'] ) ? $addr['state'] : '';
-					$row['postal_code']   = isset( $addr['zip'] ) ? $addr['zip'] : '';
-					$row['country']       = isset( $addr['country'] ) ? $addr['country'] : '';
-				}
-
-				$all_rows[] = $row;
-			}
-
-			$offset     += $count;
-			$total_items = isset( $result['total_items'] ) ? (int) $result['total_items'] : 0;
-
-		} while ( $offset < $total_items );
-
-		// For API sources we use named-key rows and convert mapping.
-		return $this->process_named_rows( $all_rows, $mapping, $options );
 	}
 
 	/**

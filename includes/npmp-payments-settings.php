@@ -36,8 +36,9 @@ function npmp_render_donations_dashboard() {
 		}
 	}
 
-	// The per-period summary() aggregate used to be computed here and never
-	// shown. Dropping the call saves a grouped query on every page load.
+	// A per-period donation summary used to be computed here and never shown.
+	// Dropping it saved a grouped query on every page load, and the method
+	// itself was removed once nothing called it.
 	$years = $dm->years_with_donations();
 
 	// Label the amount column with the currency when every donation is in
