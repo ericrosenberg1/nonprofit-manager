@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.22
+Stable tag: 2026.10.1
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -137,6 +137,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.10.1 =
+* Added a Membership Manager role for volunteers.
+* Fixed saving contacts from the member list.
+* Fixed email provider test results.
+* Fixed a CSV import warning on PHP 8.4.
 
 = 2026.09.22 =
 * Limited how often one visitor can sign up.
@@ -373,6 +379,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.10.1 =
+Adds a Membership Manager role, so a volunteer can work with members, donations and newsletters without full admin access.
 
 = 2026.09.22 =
 Security fixes for the signup form, Stripe checkout and PayPal verification. Recommended for every site.
