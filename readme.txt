@@ -26,6 +26,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Members and donors share one contact list, so you can see anyone's lifetime giving at a glance
 * Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
 * Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
+* Give a volunteer a Membership Manager login that sees members, donations, and newsletters, and none of your settings
 * Custom member fields with 8 field types and drag-and-drop ordering*
 * Segment members with an AND/OR condition builder*
 
