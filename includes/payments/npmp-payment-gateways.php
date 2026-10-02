@@ -1129,6 +1129,15 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
+	// A Stripe 5xx or 429 is no answer at all. This return is the only place a
+	// one-time gift gets recorded (there is no webhook for them), so holding
+	// the lock here dropped the donation for anyone whose refresh came inside
+	// the 15-minute window. Only a 200 is a definitive answer worth locking on.
+	if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		delete_transient( $lock_key );
+		return;
+	}
+
 	$session = json_decode( wp_remote_retrieve_body( $response ), true );
 	if ( ! is_array( $session ) || empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
 		return;
