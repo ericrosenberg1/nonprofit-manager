@@ -1294,27 +1294,6 @@ class NPMP_Member_Manager {
 	}
 
 	/**
-	 * Upsert a member record using the email address.
-	 *
-	 * @param array $data Member data.
-	 * @return int|WP_Error
-	 */
-	public function upsert_member( $data ) {
-		$email = sanitize_email( $data['email'] ?? '' );
-		if ( ! $email ) {
-			return new WP_Error( 'npmp_missing_email', __( 'An email address is required.', 'nonprofit-manager' ) );
-		}
-
-		$existing = $this->get_member_by_email( $email );
-		if ( $existing ) {
-			$result = $this->update_member( $existing->id, $data );
-			return is_wp_error( $result ) ? $result : $existing->id;
-		}
-
-		return $this->add_member( $data );
-	}
-
-	/**
 	 * Delete a member permanently.
 	 *
 	 * @param int $id Member ID.
@@ -1348,15 +1327,6 @@ class NPMP_Member_Manager {
 			$deleted += (int) $this->delete_member( $id );
 		}
 		return $deleted;
-	}
-
-	/**
-	 * Return all members.
-	 *
-	 * @return array
-	 */
-	public function get_all_members() {
-		return $this->get_members( array( 'per_page' => -1 ) );
 	}
 
 	/**
@@ -1552,23 +1522,6 @@ class NPMP_Member_Manager {
 		ksort( $tags );
 
 		return array_values( $tags );
-	}
-
-	/**
-	 * Update the last contacted timestamp.
-	 *
-	 * @param int         $member_id Member ID.
-	 * @param string|null $timestamp Timestamp.
-	 * @return void
-	 */
-	public function set_last_contacted( $member_id, $timestamp = null ) {
-		$timestamp = $timestamp ? gmdate( 'Y-m-d H:i:s', strtotime( $timestamp ) ) : current_time( 'mysql' );
-		$this->update_member(
-			$member_id,
-			array(
-				'last_contacted' => $timestamp,
-			)
-		);
 	}
 
 	/**

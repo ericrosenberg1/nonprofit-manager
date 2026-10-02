@@ -205,23 +205,6 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Retrieve all donations, newest first.
-	 *
-	 * @return array List of donation records.
-	 */
-	public function get_all_donations() {
-		return get_posts(
-			array(
-				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-			)
-		);
-	}
-
-	/**
 	 * Get all years in which donations exist.
 	 *
 	 * @return array List of years (int).
@@ -249,90 +232,6 @@ class NPMP_Donation_Manager {
 		$years = array_values( array_filter( array_map( 'intval', (array) $years ) ) );
 
 		return $years ?: array( intval( gmdate( 'Y' ) ) );
-	}
-
-	/**
-	 * Summary counts and totals by day or by month.
-	 *
-	 * @param int      $year  Four-digit year.
-	 * @param int|null $month Optional 1-12 month.
-	 * @return array List of [ 'period' => string, 'count' => int, 'total' => float ].
-	 */
-	public function summary( $year, $month = null ) {
-		global $wpdb;
-
-		$year  = absint( $year );
-		$month = $month ? absint( $month ) : null;
-
-		// Group and total in the database rather than loading every donation
-		// in the period and adding them up a row at a time. The grouping is
-		// deliberately kept as it was: the period is cut on post_date_gmt while
-		// the year/month filter reads post_date, which is what the date_query
-		// this replaces did.
-		// The percent signs are doubled because this string goes through
-		// $wpdb->prepare(), which reads % as the start of a placeholder. Left
-		// single, the %d in the day format is eaten as an integer placeholder,
-		// the parameters shift, and the query silently returns nothing.
-		$period_expr = $month
-			? "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m-%%d')"
-			: "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m')";
-
-		$sql = "SELECT {$period_expr} AS period_key,
-		               COUNT(*) AS donation_count,
-		               SUM(a.meta_value + 0) AS total_amount,
-		               MAX(p.post_date_gmt) AS latest
-		        FROM {$wpdb->posts} p
-		        INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
-		        WHERE p.post_type = %s
-		          AND p.post_status = 'publish'
-		          AND YEAR(p.post_date) = %d
-		          AND (a.meta_value + 0) > 0";
-
-		$params = array( self::META_AMOUNT, self::POST_TYPE, $year );
-
-		if ( $month ) {
-			$sql     .= ' AND MONTH(p.post_date) = %d';
-			$params[] = $month;
-		}
-
-		$sql .= ' GROUP BY period_key';
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Built from a fixed template. Every value is a placeholder.
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
-
-		if ( ! is_array( $rows ) ) {
-			return array();
-		}
-
-		$output = array();
-
-		foreach ( $rows as $row ) {
-			$period = (string) $row['period_key'];
-
-			$output[] = array(
-				'period'    => $month
-					? date_i18n( 'M j, Y', strtotime( $period ) )
-					: date_i18n( 'F Y', strtotime( $period . '-01' ) ),
-				'count'     => (int) $row['donation_count'],
-				'total'     => (float) $row['total_amount'],
-				'timestamp' => (int) strtotime( (string) $row['latest'] ),
-			);
-		}
-
-		usort(
-			$output,
-			static function ( $a, $b ) {
-				return $b['timestamp'] <=> $a['timestamp'];
-			}
-		);
-
-		return array_map(
-			static function ( $row ) {
-				unset( $row['timestamp'] );
-				return $row;
-			},
-			$output
-		);
 	}
 
 	/**

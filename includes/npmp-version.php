@@ -91,17 +91,6 @@ function npmp_version_status() {
 }
 
 /**
- * Whether the two plugins are on the same version. True when Pro is not
- * installed, since there is nothing to keep in step.
- *
- * @return bool
- */
-function npmp_versions_in_lockstep() {
-	$status = npmp_version_status();
-	return ! empty( $status['matched'] );
-}
-
-/**
  * One sentence naming the mismatch, for a notice or a Site Health row.
  *
  * @return string Empty when the versions agree.
