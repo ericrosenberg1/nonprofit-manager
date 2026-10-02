@@ -321,23 +321,26 @@ function npmp_render_membership_dashboard() {
 /*=====================================================================
  * 2. Member List / Edit page  (submenu "Member List")
  *====================================================================*/
-function npmp_render_members_page() {
-
+/**
+ * Create, update and delete contacts from the Member List screen.
+ *
+ * Runs on admin_init, before any admin markup is sent. It used to run inside
+ * the page callback, after the admin header had already been printed, so
+ * every wp_safe_redirect() here failed with "headers already sent" and the
+ * user was left on a half-drawn page after saving a contact.
+ *
+ * @return void
+ */
+function npmp_handle_member_list_actions() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; each action below verifies its own nonce.
+	if ( ! isset( $_GET['page'] ) || 'npmp_members' !== $_GET['page'] ) {
+		return;
+	}
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+		return;
 	}
 
 	$member_manager = NPMP_Member_Manager::get_instance();
-	$statuses       = $member_manager->get_statuses();
-	$levels         = array_filter( array_map( 'sanitize_text_field', (array) get_option( 'npmp_membership_levels', array() ) ) );
-	sort( $levels );
-	$tags           = $member_manager->get_tags_list();
-	$list_url       = add_query_arg(
-		array(
-			'page' => 'npmp_members',
-		),
-		admin_url( 'admin.php' )
-	);
 
 	/* -----------------------------------------------------------------
 	 * Handle POST actions (create/update/bulk delete)
@@ -476,7 +479,7 @@ function npmp_render_members_page() {
 	/* -----------------------------------------------------------------
 	 * Handle single delete action
 	 * ----------------------------------------------------------------- */
-	$action    = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
+	$action    = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 	$member_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 
 	if ( 'delete' === $action && $member_id ) {
@@ -494,9 +497,39 @@ function npmp_render_members_page() {
 		);
 		exit;
 	}
+}
+add_action( 'admin_init', 'npmp_handle_member_list_actions' );
 
+/**
+ * Render the Member List screen (list, view, edit, new).
+ *
+ * @return void
+ */
+function npmp_render_members_page() {
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+	}
+
+	$member_manager = NPMP_Member_Manager::get_instance();
+	$statuses       = $member_manager->get_statuses();
+	$levels         = array_filter( array_map( 'sanitize_text_field', (array) get_option( 'npmp_membership_levels', array() ) ) );
+	sort( $levels );
+	$tags           = $member_manager->get_tags_list();
+	$list_url       = add_query_arg(
+		array(
+			'page' => 'npmp_members',
+		),
+		admin_url( 'admin.php' )
+	);
+
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only view routing and status flags; writes go through npmp_handle_member_list_actions().
+	$action       = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
+	$member_id    = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 	$message_code = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
 	$error_text   = isset( $_GET['error_message'] ) ? sanitize_text_field( wp_unslash( $_GET['error_message'] ) ) : '';
+	$deleted      = isset( $_GET['deleted'] ) ? absint( $_GET['deleted'] ) : 0;
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 	echo '<div class="wrap">';
 	echo '<h1 class="wp-heading-inline">' . esc_html__( 'Contacts & Members', 'nonprofit-manager' ) . '</h1>';
@@ -524,7 +557,7 @@ function npmp_render_members_page() {
 				break;
 			case 'bulk_deleted':
 				$classes[] = 'notice-success';
-				$count     = isset( $_GET['deleted'] ) ? absint( $_GET['deleted'] ) : 0;
+				$count     = $deleted;
 				$text      = 0 === $count
 					? __( 'No contacts were removed.', 'nonprofit-manager' )
 					: sprintf(
