@@ -15,10 +15,15 @@ register_deactivation_hook( $npmp_main_file, 'npmp_clear_newsletter_cron' );
 /**
  * Perform setup tasks on activation.
  *
+ * @param bool $network_wide Network-wide activation on multisite.
  * @return void
  */
-function npmp_run_plugin_activation_tasks() {
+function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 	ob_start();
+
+	// First, before the tasks below write the options it checks for: queue
+	// the one-time setup wizard redirect on a fresh install only.
+	npmp_queue_setup_wizard_on_activation( $network_wide );
 
 	npmp_create_members_table();
 	npmp_create_donations_table();
@@ -32,9 +37,6 @@ function npmp_run_plugin_activation_tasks() {
 	npmp_maybe_create_unsubscribe_page();
 	npmp_schedule_newsletter_cron();
 	npmp_install_roles();
-
-	// Set transient to trigger setup wizard redirect
-	set_transient( 'npmp_activation_redirect', true, 30 );
 
 	$features = get_option(
 		'npmp_enabled_features',

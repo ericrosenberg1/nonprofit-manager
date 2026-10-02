@@ -19,7 +19,8 @@
  *     matching the current admin screen, and renders. Step navigation
  *     between admin pages uses `window.location` with a continuation
  *     param so the next page picks up where we left off.
- *   - A modal triggers on the first admin pageview after activation; a
+ *   - A modal triggers on the first NPM admin pageview (never on the
+ *     setup wizards, and not while a wizard redirect is pending); a
  *     dismissible banner shows on every NPM admin screen until the user
  *     completes or explicitly dismisses the tour.
  *
@@ -126,6 +127,10 @@ class NPMP_Tour {
 		if ( ! self::is_npmp_admin_screen() ) {
 			return false;
 		}
+		// One onboarding surface at a time: a setup wizard goes first.
+		if ( self::setup_wizard_pending() ) {
+			return false;
+		}
 		$p = self::get_progress();
 		return ( 0 === $p['step'] ) && ! $p['dismissed'] && ! $p['completed'] && ! $p['started_at'];
 	}
@@ -173,7 +178,46 @@ class NPMP_Tour {
 			return false;
 		}
 		$id = (string) $screen->id;
+		if ( self::is_setup_wizard_screen_id( $id ) ) {
+			// The wizards are ours, but the tour has nothing to say there.
+			return false;
+		}
 		return ( false !== strpos( $id, 'npmp' ) ) || ( false !== strpos( $id, 'npmp-' ) );
+	}
+
+	/**
+	 * Whether a screen ID is the free or Pro setup wizard. Both are hidden
+	 * pages, so their screen IDs are admin_page_<slug>.
+	 *
+	 * @param string $id Screen ID.
+	 * @return bool
+	 */
+	public static function is_setup_wizard_screen_id( $id ) {
+		$id = (string) $id;
+		foreach ( array( 'npmp_setup_wizard', 'npmp_pro_setup_wizard' ) as $slug ) {
+			if ( substr( $id, -strlen( '_page_' . $slug ) ) === '_page_' . $slug ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether a setup wizard redirect (free or Pro) is still waiting to
+	 * happen. The tour holds its modal until the wizard is finished or
+	 * skipped.
+	 *
+	 * @return bool
+	 */
+	public static function setup_wizard_pending() {
+		if ( function_exists( 'npmp_setup_wizard_redirect_pending' ) && npmp_setup_wizard_redirect_pending() ) {
+			return true;
+		}
+		// Pro's flag only counts while Pro's redirect is loaded (Pro active,
+		// licensed, and new enough), or an idle flag would hold the tour back.
+		return function_exists( 'npmp_pro_maybe_redirect_to_setup_wizard' )
+			&& get_option( 'npmp_pro_setup_wizard_redirect', false )
+			&& ! get_option( 'npmp_pro_setup_completed', false );
 	}
 
 	/**
