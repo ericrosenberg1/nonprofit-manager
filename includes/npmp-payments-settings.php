@@ -36,8 +36,20 @@ function npmp_render_donations_dashboard() {
 		}
 	}
 
-	$years   = $dm->years_with_donations();
-	$summary = $dm->summary( $current_year, $current_month ?: null );
+	// The per-period summary() aggregate used to be computed here and never
+	// shown. Dropping the call saves a grouped query on every page load.
+	$years = $dm->years_with_donations();
+
+	// Label the amount column with the currency when every donation is in
+	// one. A site that has taken more than one shows each amount with its own.
+	$currencies   = npmp_donation_currencies() ?: array( npmp_currency() );
+	$amount_label = __( 'Amount', 'nonprofit-manager' );
+	if ( 1 === count( $currencies ) ) {
+		$amount_label = 'USD' === $currencies[0]
+			? __( 'Amount (USD)', 'nonprofit-manager' )
+			/* translators: %s: ISO currency code, e.g. GBP. */
+			: sprintf( __( 'Amount (%s)', 'nonprofit-manager' ), $currencies[0] );
+	}
 
 	echo '<div class="wrap"><h1>' . esc_html__( 'Donations Summary', 'nonprofit-manager' ) . '</h1>';
 
@@ -101,7 +113,7 @@ function npmp_render_donations_dashboard() {
 	echo '<thead><tr>';
 	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html__( 'Amount (USD)', 'nonprofit-manager' ) . '</th>';
+	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
@@ -122,7 +134,7 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">$' . esc_html( number_format_i18n( $amount, 2 ) ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
 			echo '</tr>';
@@ -138,7 +150,7 @@ function npmp_render_donations_dashboard() {
 	echo '<thead><tr>';
 	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html__( 'Amount (USD)', 'nonprofit-manager' ) . '</th>';
+	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
@@ -161,7 +173,7 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">$' . esc_html( number_format_i18n( $amount, 2 ) ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $frequency ) ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
@@ -366,6 +378,31 @@ function npmp_render_payment_settings_page() {
 		// Save enabled gateways as array
 		update_option( 'npmp_enabled_payment_gateways', $enabled_gateways );
 
+		// Site currency, limited to the codes both Stripe and PayPal accept.
+		if ( isset( $_POST['npmp_currency'] ) ) {
+			$previous_currency = npmp_currency();
+			$new_currency      = npmp_sanitize_currency( sanitize_text_field( wp_unslash( $_POST['npmp_currency'] ) ) );
+			update_option( 'npmp_currency', $new_currency );
+
+			$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
+			if ( $new_currency !== $previous_currency && $active_subscriptions > 0 ) {
+				echo '<div class="notice notice-warning"><p>' . esc_html(
+					sprintf(
+						/* translators: 1: number of subscriptions, 2: old currency code, 3: new currency code. */
+						_n(
+							'Currency changed from %2$s to %3$s. %1$d active subscription keeps billing in the currency it started in. New gifts and dues use %3$s.',
+							'Currency changed from %2$s to %3$s. %1$d active subscriptions keep billing in the currency they started in. New gifts and dues use %3$s.',
+							$active_subscriptions,
+							'nonprofit-manager'
+						),
+						$active_subscriptions,
+						$previous_currency,
+						$new_currency
+					)
+				) . '</p></div>';
+			}
+		}
+
 		// Save gateway-specific settings (these are saved regardless of whether gateway is enabled)
 		// PayPal Link
 		if ( isset( $_POST['npmp_paypal_email'] ) ) {
@@ -471,6 +508,9 @@ function npmp_render_payment_settings_page() {
 	// For backward compatibility with UI that still uses $current_gateway
 	$current_gateway = ! empty( $enabled_gateways ) ? $enabled_gateways[0] : 'none';
 
+	$site_currency        = npmp_currency();
+	$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
+
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Payment Gateway Settings', 'nonprofit-manager' ); ?></h1>
@@ -478,6 +518,39 @@ function npmp_render_payment_settings_page() {
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_payment_gateway', 'npmp_payment_gateway_nonce' ); ?>
+
+			<h2><?php esc_html_e( 'Currency', 'nonprofit-manager' ); ?></h2>
+			<table class="form-table">
+				<tr>
+					<th><label for="npmp_currency"><?php esc_html_e( 'Donation Currency', 'nonprofit-manager' ); ?></label></th>
+					<td>
+						<select id="npmp_currency" name="npmp_currency">
+							<?php foreach ( npmp_supported_currencies() as $code => $currency_name ) : ?>
+								<option value="<?php echo esc_attr( $code ); ?>" <?php selected( $site_currency, $code ); ?>><?php echo esc_html( $code . ' · ' . $currency_name . ' (' . npmp_currency_symbol( $code ) . ')' ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description"><?php esc_html_e( 'Every donation form, membership dues price and recurring gift uses this currency. Gifts already recorded keep the currency they were made in.', 'nonprofit-manager' ); ?></p>
+						<?php if ( $active_subscriptions > 0 ) : ?>
+							<p class="description" style="color:#996800;">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %d: number of active recurring subscriptions. */
+										_n(
+											'You have %d active recurring subscription. Changing the currency does not touch it: it keeps billing in the currency it started in. Only new gifts and dues use the new currency.',
+											'You have %d active recurring subscriptions. Changing the currency does not touch them: they keep billing in the currency they started in. Only new gifts and dues use the new currency.',
+											$active_subscriptions,
+											'nonprofit-manager'
+										),
+										$active_subscriptions
+									)
+								);
+								?>
+							</p>
+						<?php endif; ?>
+					</td>
+				</tr>
+			</table>
 
 			<h2><?php esc_html_e( 'Choose Payment Gateways', 'nonprofit-manager' ); ?></h2>
 			<p><?php esc_html_e( 'Select one or more payment gateways to accept donations. You can enable multiple payment methods.', 'nonprofit-manager' ); ?></p>
@@ -490,6 +563,19 @@ function npmp_render_payment_settings_page() {
 						<label><input type="checkbox" name="npmp_gateways[]" value="paypal_link" <?php checked( in_array( 'paypal_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="paypal_link"> <?php esc_html_e( 'PayPal (Link)', 'nonprofit-manager' ); ?></label><br>
 
 						<label><input type="checkbox" name="npmp_gateways[]" value="venmo_link" <?php checked( in_array( 'venmo_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="venmo_link"> <?php esc_html_e( 'Venmo (Link)', 'nonprofit-manager' ); ?></label><br>
+						<?php if ( ! npmp_venmo_available( $site_currency ) && in_array( 'venmo_link', $enabled_gateways, true ) ) : ?>
+							<p class="description" style="color:#b32d2e;">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %s: ISO currency code, e.g. GBP. */
+										__( 'Venmo only takes US dollars from US accounts, so the Venmo button is hidden while your currency is %s.', 'nonprofit-manager' ),
+										$site_currency
+									)
+								);
+								?>
+							</p>
+						<?php endif; ?>
 
 						<!-- Pro Options -->
 						<label>
@@ -778,6 +864,9 @@ function npmp_render_donation_form() {
 			$enabled_gateways = array( $old_gateway );
 		}
 	}
+
+	// Venmo only moves US dollars, so it drops out on any other currency.
+	$enabled_gateways = npmp_filter_gateways_for_currency( $enabled_gateways );
 
 	// If no gateways are enabled, show message
 	if ( empty( $enabled_gateways ) ) {
