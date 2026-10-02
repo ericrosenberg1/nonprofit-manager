@@ -175,80 +175,6 @@ function npmp_render_email_settings_page() {
 		}
 	}
 
-	// Handle provider credential tests
-	if ( $is_pro ) {
-		// AWS SES test
-		if (
-			isset( $_POST['npmp_test_aws_ses_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_aws_ses_nonce'] ) ), 'npmp_test_aws_ses' )
-		) {
-			$result = function_exists( 'npmp_pro_test_aws_ses' ) ? npmp_pro_test_aws_ses() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Amazon SES' ) );
-			}
-			exit;
-		}
-
-		// Brevo test
-		if (
-			isset( $_POST['npmp_test_brevo_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_brevo_nonce'] ) ), 'npmp_test_brevo' )
-		) {
-			$result = function_exists( 'npmp_pro_test_brevo' ) ? npmp_pro_test_brevo() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Brevo' ) );
-			}
-			exit;
-		}
-
-		// SendGrid test
-		if (
-			isset( $_POST['npmp_test_sendgrid_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sendgrid_nonce'] ) ), 'npmp_test_sendgrid' )
-		) {
-			$result = function_exists( 'npmp_pro_test_sendgrid' ) ? npmp_pro_test_sendgrid() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SendGrid' ) );
-			}
-			exit;
-		}
-
-		// Mailgun test
-		if (
-			isset( $_POST['npmp_test_mailgun_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_mailgun_nonce'] ) ), 'npmp_test_mailgun' )
-		) {
-			$result = function_exists( 'npmp_pro_test_mailgun' ) ? npmp_pro_test_mailgun() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Mailgun' ) );
-			}
-			exit;
-		}
-
-		// Postmark test
-		if (
-			isset( $_POST['npmp_test_postmark_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_postmark_nonce'] ) ), 'npmp_test_postmark' )
-		) {
-			$result = function_exists( 'npmp_pro_test_postmark' ) ? npmp_pro_test_postmark() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Postmark' ) );
-			}
-			exit;
-		}
-
-	}
-
 	// Handle test email
 	$test_result = '';
 	if (
@@ -1926,3 +1852,91 @@ add_action(
 		echo '<div class="notice notice-warning"><p>' . wp_kses_post( $message ) . '</p></div>';
 	}
 );
+
+/**
+ * Provider credential tests (Pro). They redirect back with the result, so they
+ * run on admin_init, before any admin markup is sent. Inside the page render
+ * the redirect came after the header and the screen half-drew.
+ *
+ * @return void
+ */
+function npmp_handle_email_provider_tests() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; each test verifies its own nonce.
+	if ( ! isset( $_GET['page'] ) || 'npmp_email_settings' !== sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
+		return;
+	}
+	if ( empty( $_POST ) || ! current_user_can( 'manage_options' ) || ! npmp_is_pro() ) {
+		return;
+	}
+
+	// AWS SES test
+	if (
+		isset( $_POST['npmp_test_aws_ses_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_aws_ses_nonce'] ) ), 'npmp_test_aws_ses' )
+	) {
+		$result = function_exists( 'npmp_pro_test_aws_ses' ) ? npmp_pro_test_aws_ses() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Amazon SES' ) );
+		}
+		exit;
+	}
+
+	// Brevo test
+	if (
+		isset( $_POST['npmp_test_brevo_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_brevo_nonce'] ) ), 'npmp_test_brevo' )
+	) {
+		$result = function_exists( 'npmp_pro_test_brevo' ) ? npmp_pro_test_brevo() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Brevo' ) );
+		}
+		exit;
+	}
+
+	// SendGrid test
+	if (
+		isset( $_POST['npmp_test_sendgrid_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sendgrid_nonce'] ) ), 'npmp_test_sendgrid' )
+	) {
+		$result = function_exists( 'npmp_pro_test_sendgrid' ) ? npmp_pro_test_sendgrid() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SendGrid' ) );
+		}
+		exit;
+	}
+
+	// Mailgun test
+	if (
+		isset( $_POST['npmp_test_mailgun_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_mailgun_nonce'] ) ), 'npmp_test_mailgun' )
+	) {
+		$result = function_exists( 'npmp_pro_test_mailgun' ) ? npmp_pro_test_mailgun() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Mailgun' ) );
+		}
+		exit;
+	}
+
+	// Postmark test
+	if (
+		isset( $_POST['npmp_test_postmark_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_postmark_nonce'] ) ), 'npmp_test_postmark' )
+	) {
+		$result = function_exists( 'npmp_pro_test_postmark' ) ? npmp_pro_test_postmark() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Postmark' ) );
+		}
+		exit;
+	}
+}
+add_action( 'admin_init', 'npmp_handle_email_provider_tests' );
