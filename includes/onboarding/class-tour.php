@@ -250,16 +250,7 @@ class NPMP_Tour {
 
 		// Don't waste bytes on non-NPM admin pages.
 		if ( ! self::is_npmp_admin_screen() ) {
-			// Exception: enqueue on the WP plugins screen too so the
-			// post-activation modal fires (the redirect lands first on a
-			// non-npmp screen sometimes).
-			if ( 'plugins.php' !== $hook_suffix ) {
-				return;
-			}
-			$p = self::get_progress();
-			if ( $p['completed'] || $p['dismissed'] || $p['started_at'] ) {
-				return;
-			}
+			return;
 		}
 
 		$plugin_file = dirname( __DIR__, 2 ) . '/nonprofit-manager.php';
