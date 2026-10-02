@@ -169,8 +169,6 @@ function npmp_render_membership_dashboard() {
 	$levels_option    = 'npmp_membership_levels';
 	$levels           = npmp_get_membership_levels_array(); // Handles the old newline-string format.
 
-	$total_donations = isset( $financial['total_amount'] ) ? floatval( $financial['total_amount'] ) : 0.0;
-	$recent_amount   = isset( $financial['thirty_day_amount'] ) ? floatval( $financial['thirty_day_amount'] ) : 0.0;
 	$total_activity  = isset( $financial['total_transactions'] ) ? intval( $financial['total_transactions'] ) : 0;
 
 	if ( $can_edit_tiers && ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
@@ -253,8 +251,8 @@ function npmp_render_membership_dashboard() {
 	echo '<table class="widefat striped">';
 	echo '<thead><tr><th>' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th style="text-align:right">' . esc_html__( 'Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
 	echo '<tr><td>' . esc_html__( 'Lifetime Donations Recorded', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( number_format_i18n( $total_activity ) ) . '</td></tr>';
-	echo '<tr><td>' . esc_html__( 'Lifetime Donation Value', 'nonprofit-manager' ) . '</td><td style="text-align:right"><strong>' . esc_html( npmp_crm_format_currency( $total_donations ) ) . '</strong></td></tr>';
-	echo '<tr><td>' . esc_html__( 'Donations in Last 30 Days', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( npmp_crm_format_currency( $recent_amount ) ) . '</td></tr>';
+	echo '<tr><td>' . esc_html__( 'Lifetime Donation Value', 'nonprofit-manager' ) . '</td><td style="text-align:right"><strong>' . esc_html( npmp_crm_format_totals( $financial['total_by_currency'] ?? array() ) ) . '</strong></td></tr>';
+	echo '<tr><td>' . esc_html__( 'Donations in Last 30 Days', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( npmp_crm_format_totals( $financial['thirty_day_by_currency'] ?? array() ) ) . '</td></tr>';
 	echo '</tbody></table>';
 	echo '</div>';
 
@@ -277,7 +275,7 @@ function npmp_render_membership_dashboard() {
 			echo '<tr><td><a href="' . esc_url( $view_url ) . '">' . esc_html( $donor->name ?: $donor->email ) . '</a></td>';
 			echo '<td>' . esc_html( $donor->email ) . '</td>';
 			echo '<td>' . esc_html( $last_donation ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( npmp_crm_format_currency( (float) $donor->donation_total ) ) . '</td></tr>';
+			echo '<td style="text-align:right">' . esc_html( npmp_member_lifetime_value( $donor ) ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
 	} else {
@@ -796,7 +794,7 @@ function npmp_render_member_list_table( $context ) {
 				$tag_display[] = '<span class="tag">' . esc_html( trim( $single ) ) . '</span>';
 			}
 
-			$donation_label = $member->donation_total ? npmp_crm_format_currency( $member->donation_total ) : '&mdash;';
+			$donation_label = $member->donation_total || ! empty( $member->donation_totals ) ? npmp_member_lifetime_value( $member ) : '&mdash;';
 			$last_donation  = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : '—';
 			$created_at     = $member->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) : '—';
 
@@ -1044,7 +1042,7 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 	echo '<table class="widefat striped" style="max-width:600px;margin-bottom:20px;">';
 	echo '<tbody>';
 	echo '<tr><th>' . esc_html__( 'Total donations', 'nonprofit-manager' ) . '</th><td>' . esc_html( $member->donation_count ) . '</td></tr>';
-	echo '<tr><th>' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_crm_format_currency( (float) $member->donation_total ) ) . '</td></tr>';
+	echo '<tr><th>' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_member_lifetime_value( $member ) ) . '</td></tr>';
 	$last_donation = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : __( 'Not yet recorded', 'nonprofit-manager' );
 	echo '<tr><th>' . esc_html__( 'Most recent donation', 'nonprofit-manager' ) . '</th><td>' . esc_html( $last_donation ) . '</td></tr>';
 	echo '<tr><th>' . esc_html__( 'First added', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) ) . '</td></tr>';
@@ -1060,7 +1058,7 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 			$date = $donation->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $donation->created_at ) ) : '—';
 			echo '<tr>';
 			echo '<td>' . esc_html( $date ) . '</td>';
-			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount, $donation->currency ?? 'USD' ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $donation->frequency ?? 'one_time' ) ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( $donation->gateway ?? 'donation' ) ) . '</td>';
 			echo '</tr>';

@@ -690,6 +690,13 @@ class NPMP_Member_Manager {
 			'last_donation_at' => 'npmp_last_donation_at',
 			'donation_count'   => 'npmp_donation_count',
 			'donation_total'   => 'npmp_donation_total',
+			// Currency donation_total is in. Absent on donors recorded before
+			// currency support, whose totals are US dollars.
+			'donation_currency' => 'npmp_donation_currency',
+			// Per-currency totals, stored only for a donor who has given in
+			// more than one currency. Amounts in different currencies are never
+			// added together.
+			'donation_totals'  => 'npmp_donation_totals',
 		);
 	}
 
@@ -719,6 +726,8 @@ class NPMP_Member_Manager {
 			'last_donation_at',
 			'donation_count',
 			'donation_total',
+			'donation_currency',
+			'donation_totals',
 		);
 	}
 
@@ -816,6 +825,21 @@ class NPMP_Member_Manager {
 				case 'donation_total':
 					$value = floatval( $value );
 					break;
+				case 'donation_currency':
+					$value = npmp_normalize_currency_code( $value );
+					break;
+				case 'donation_totals':
+					$totals = array();
+					foreach ( is_array( $value ) ? $value : array() as $code => $total ) {
+						$code = npmp_normalize_currency_code( $code );
+						if ( '' !== $code ) {
+							$totals[ $code ] = (float) $total;
+						}
+					}
+					// One currency (or none) needs no breakdown: donation_total
+					// and donation_currency already say it all.
+					$value = count( $totals ) > 1 ? $totals : null;
+					break;
 				case 'donation_count':
 					$value = intval( $value );
 					break;
@@ -880,6 +904,8 @@ class NPMP_Member_Manager {
 			'last_donation_at' => isset( $meta['last_donation_at'] ) ? $meta['last_donation_at'] : '',
 			'donation_count'   => isset( $meta['donation_count'] ) ? (int) $meta['donation_count'] : 0,
 			'donation_total'   => isset( $meta['donation_total'] ) ? (float) $meta['donation_total'] : 0.0,
+			'donation_currency' => npmp_record_currency( $meta['donation_currency'] ?? '' ),
+			'donation_totals'  => ! empty( $meta['donation_totals'] ) && is_array( $meta['donation_totals'] ) ? $meta['donation_totals'] : array(),
 			'created_at'       => $post->post_date,
 			'updated_at'       => $post->post_modified,
 		);
@@ -1548,13 +1574,20 @@ class NPMP_Member_Manager {
 	/**
 	 * Retrieve high-level financial metrics from the donations table.
 	 *
+	 * Amounts are summed per currency. total_amount and thirty_day_amount are
+	 * the site currency's figures (on a site that only ever took one currency,
+	 * that is everything), and total_by_currency and thirty_day_by_currency carry
+	 * each currency on its own.
+	 *
 	 * @return array
 	 */
 	public function get_financial_overview() {
 		$empty = array(
-			'total_amount'       => 0.0,
-			'total_transactions' => 0,
-			'thirty_day_amount'  => 0.0,
+			'total_amount'           => 0.0,
+			'total_transactions'     => 0,
+			'thirty_day_amount'      => 0.0,
+			'total_by_currency'      => array(),
+			'thirty_day_by_currency' => array(),
 		);
 
 		if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
@@ -1564,29 +1597,34 @@ class NPMP_Member_Manager {
 		global $wpdb;
 
 		/*
-		 * Three totals in one aggregate query. The old version pulled every published
-		 * donation post into memory and summed the amounts in PHP, which grows with
-		 * the whole donation history every time the members screen loads.
+		 * Totals in one aggregate query, a row per currency. The old version pulled
+		 * every published donation post into memory and summed the amounts in PHP,
+		 * which grows with the whole donation history every time the members screen
+		 * loads.
 		 *
 		 * post_date_gmt is compared against a GMT string built here rather than with
 		 * MySQL's FROM_UNIXTIME(), which would read the database session timezone.
 		 */
 		$cutoff = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
 
-		$row = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				"SELECT COUNT(*) AS total_transactions,
+				"SELECT COALESCE( c.meta_value, '' ) AS currency,
+				        COUNT(*) AS total_transactions,
 				        COALESCE( SUM( CAST( pm.meta_value AS DECIMAL(20,4) ) ), 0 ) AS total_amount,
 				        COALESCE( SUM( CASE WHEN p.post_date_gmt >= %s
 				                            THEN CAST( pm.meta_value AS DECIMAL(20,4) )
 				                            ELSE 0 END ), 0 ) AS thirty_day_amount
 				 FROM {$wpdb->postmeta} pm
 				 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
 				 WHERE pm.meta_key = %s
 				   AND p.post_type = %s
 				   AND p.post_status = %s
-				   AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0",
+				   AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0
+				 GROUP BY COALESCE( c.meta_value, '' )",
 				$cutoff,
+				NPMP_Donation_Manager::META_CURRENCY,
 				NPMP_Donation_Manager::META_AMOUNT,
 				NPMP_Donation_Manager::POST_TYPE,
 				'publish'
@@ -1594,14 +1632,25 @@ class NPMP_Member_Manager {
 			ARRAY_A
 		);
 
-		if ( ! $row ) {
+		if ( ! $rows ) {
 			return $empty;
 		}
 
+		$transactions = 0;
+		foreach ( $rows as $row ) {
+			$transactions += (int) $row['total_transactions'];
+		}
+
+		$totals = npmp_group_totals_by_currency( $rows, 'total_amount' );
+		$recent = npmp_group_totals_by_currency( $rows, 'thirty_day_amount' );
+		$site   = npmp_currency();
+
 		return array(
-			'total_amount'       => (float) $row['total_amount'],
-			'total_transactions' => (int) $row['total_transactions'],
-			'thirty_day_amount'  => (float) $row['thirty_day_amount'],
+			'total_amount'           => (float) ( $totals[ $site ] ?? ( 1 === count( $totals ) ? reset( $totals ) : 0.0 ) ),
+			'total_transactions'     => $transactions,
+			'thirty_day_amount'      => (float) ( $recent[ $site ] ?? ( 1 === count( $recent ) ? reset( $recent ) : 0.0 ) ),
+			'total_by_currency'      => $totals,
+			'thirty_day_by_currency' => $recent,
 		);
 	}
 
@@ -1748,9 +1797,11 @@ class NPMP_Member_Manager {
 		$this->update_member(
 			$member_id,
 			array(
-				'donation_count'   => (int) $totals['count'],
-				'donation_total'   => (float) $totals['total'],
-				'last_donation_at' => $totals['last'] ? gmdate( 'Y-m-d H:i:s', strtotime( $totals['last'] ) ) : $latest,
+				'donation_count'    => (int) $totals['count'],
+				'donation_total'    => (float) $totals['total'],
+				'donation_currency' => (string) $totals['currency'],
+				'donation_totals'   => (array) $totals['totals'],
+				'last_donation_at'  => $totals['last'] ? gmdate( 'Y-m-d H:i:s', strtotime( $totals['last'] ) ) : $latest,
 			)
 		);
 	}
@@ -1792,6 +1843,7 @@ class NPMP_Member_Manager {
 				'amount'    => (float) get_post_meta( $post->ID, NPMP_Donation_Manager::META_AMOUNT, true ),
 				'frequency' => get_post_meta( $post->ID, NPMP_Donation_Manager::META_FREQUENCY, true ),
 				'gateway'   => get_post_meta( $post->ID, NPMP_Donation_Manager::META_GATEWAY, true ),
+				'currency'  => npmp_record_currency( get_post_meta( $post->ID, NPMP_Donation_Manager::META_CURRENCY, true ) ),
 				'created_at'=> get_post_time( 'Y-m-d H:i:s', true, $post ),
 			);
 		}

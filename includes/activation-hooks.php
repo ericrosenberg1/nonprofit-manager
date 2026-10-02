@@ -134,6 +134,9 @@ function npmp_maybe_migrate_legacy_donations() {
 				'gateway'    => sanitize_text_field( $row->gateway ),
 				'created_at' => $row->created_at,
 				'legacy_id'  => (int) $row->id,
+				// The legacy table predates currency support: every row is USD,
+				// whatever the site's currency is now.
+				'currency'   => 'USD',
 			)
 		);
 	}
