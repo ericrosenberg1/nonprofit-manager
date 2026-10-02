@@ -139,7 +139,7 @@ class NPMP_Import_Manager {
 		}
 		$rows = $parsed['rows'];
 
-		// First row is headers — skip it.
+		// First row is headers. Skip it.
 		array_shift( $rows );
 
 		return $this->process_rows( $rows, $mapping, $options );
@@ -178,7 +178,7 @@ class NPMP_Import_Manager {
 		}
 		$rows = $parsed['rows'];
 
-		// First row is headers — skip it.
+		// First row is headers. Skip it.
 		array_shift( $rows );
 
 		return $this->process_rows( $rows, $mapping, $options );
@@ -194,7 +194,7 @@ class NPMP_Import_Manager {
 	 */
 	public function import_google_sheet( $url, $mapping, $options = array() ) {
 		// Host-restrict before any network call. This method accepts a URL parameter
-		// from anywhere; prevent SSRF (server-side request forgery, where a URL pointed
+		// from anywhere. Prevent SSRF (server-side request forgery, where a URL pointed
 		// at an internal address gets fetched as the server) by enforcing docs.google.com.
 		$parsed_host = wp_parse_url( $url, PHP_URL_HOST );
 		if ( ! $parsed_host || 'docs.google.com' !== strtolower( $parsed_host ) ) {
@@ -243,13 +243,13 @@ class NPMP_Import_Manager {
 	 * so a large file commits in small batches instead of looping every row in
 	 * a single request that would blow PHP's max_execution_time (or a front-end
 	 * proxy timeout) partway through, leaving a half-finished import with no way
-	 * to resume. Free imports stay small so they finish in one page; this
+	 * to resume. Free imports stay small so they finish in one page. This
 	 * matters most for Pro, which lifts the row cap.
 	 *
 	 * Mirrors import_mailchimp_page()'s contract. The caller advances its cursor
 	 * by next_cursor each step and loops until done.
 	 *
-	 * @param string $type      'xlsx' for an Excel file; anything else = CSV.
+	 * @param string $type      'xlsx' for an Excel file. Anything else = CSV.
 	 * @param string $file_path Absolute path to the uploaded file.
 	 * @param array  $mapping   Column index => field name.
 	 * @param array  $options   Import options.
@@ -373,7 +373,7 @@ class NPMP_Import_Manager {
 	 * @param array  $mapping    Named mapping (mc_field => npm_field).
 	 * @param array  $options    Import options (duplicate_handling, default_level, etc.).
 	 * @param int    $cursor     Offset to start at (number of members already processed).
-	 * @param int    $batch_size Members per page; Mailchimp caps at 1000, default 100.
+	 * @param int    $batch_size Members per page. Mailchimp caps at 1000, default 100.
 	 * @return array|WP_Error {
 	 *   page_stats: same shape as process_named_rows return,
 	 *   next_cursor: int,
@@ -891,8 +891,8 @@ class NPMP_Import_Manager {
 	 * Parse an XLSX file using ZipArchive + XML (zero external deps).
 	 *
 	 * XLSX is a ZIP containing XML files:
-	 *   xl/sharedStrings.xml — string table
-	 *   xl/worksheets/sheet1.xml — first sheet data
+	 *   xl/sharedStrings.xml · string table
+	 *   xl/worksheets/sheet1.xml · first sheet data
 	 *
 	 * Note on memory: $keep_limit bounds the PHP row array built below and
 	 * the cell-processing work, but sharedStrings.xml and sheet1.xml are
@@ -900,7 +900,7 @@ class NPMP_Import_Manager {
 	 * $keep_limit: any kept row's cells can reference any shared string, so
 	 * that table can't be safely truncated, and simplexml has no partial-read
 	 * mode. A true fix for very large XLSX files would need to replace
-	 * simplexml with XMLReader-based streaming; this keeps the existing
+	 * simplexml with XMLReader-based streaming. This keeps the existing
 	 * (working, well-tested) parsing logic and only bounds the second copy
 	 * of the data.
 	 *
@@ -985,10 +985,10 @@ class NPMP_Import_Manager {
 			$max_col    = 0;
 			// Positional fallback for cells with no "r" attribute. The OOXML spec
 			// makes "r" optional (cells are implicitly in document order when it's
-			// omitted); some non-Excel writers skip it to shave file size. Without
+			// omitted). Some non-Excel writers skip it to shave file size. Without
 			// this fallback, xlsx_col_index( '' ) returned -1 for every such cell,
 			// so every cell in the row collided on the same array key and only the
-			// last one survived — silently dropping every other column.
+			// last one survived, silently dropping every other column.
 			$col_cursor = 0;
 
 			foreach ( $xml_row->c as $cell ) {

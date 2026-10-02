@@ -342,7 +342,7 @@ function npmp_render_membership_dashboard() {
  * @return void
  */
 function npmp_handle_member_list_actions() {
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; each action below verifies its own nonce.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only. Each action below verifies its own nonce.
 	if ( ! isset( $_GET['page'] ) || 'npmp_members' !== $_GET['page'] ) {
 		return;
 	}
@@ -533,7 +533,7 @@ function npmp_render_members_page() {
 		admin_url( 'admin.php' )
 	);
 
-	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only view routing and status flags; writes go through npmp_handle_member_list_actions().
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only view routing and status flags. Writes go through npmp_handle_member_list_actions().
 	$action       = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
 	$member_id    = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 	$message_code = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';

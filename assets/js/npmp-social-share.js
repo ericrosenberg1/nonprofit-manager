@@ -1,5 +1,5 @@
 /**
- * Nonprofit Manager — front-end copy-to-clipboard for the social-share block.
+ * Nonprofit Manager · front-end copy-to-clipboard for the social-share block.
  * Delegated click handler so it works no matter how many share bars are on a page.
  */
 ( function () {

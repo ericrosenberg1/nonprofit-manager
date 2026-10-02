@@ -226,12 +226,12 @@ function npmp_maybe_migrate_newsletter_events() {
 		$event_time    = $row->event_time ? $row->event_time : current_time( 'mysql' );
 
 		if ( ! $newsletter_id || ! $user_id ) {
-			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row. Drop it, nothing to carry over.
 			continue;
 		}
 
 		if ( NPMP_Newsletter_Manager::ACTION_OPEN === $row->event_type ) {
-			$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration; IGNORE relies on the destination table's unique key for dedup.
+			$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration. IGNORE relies on the destination table's unique key for dedup.
 				$wpdb->prepare(
 					"INSERT IGNORE INTO {$opens_table} (user_id, newsletter_id, opened_at) VALUES (%d, %d, %s)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
 					$user_id,
@@ -370,7 +370,7 @@ function npmp_maybe_migrate_newsletter_queue() {
 		$email         = sanitize_email( (string) $row->email );
 
 		if ( ! $newsletter_id || ! $email ) {
-			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row. Drop it, nothing to carry over.
 			continue;
 		}
 
@@ -402,7 +402,7 @@ function npmp_maybe_migrate_newsletter_queue() {
 		$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
 		$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
 
-		// Raw SQL deletes don't clear WordPress's post object cache; harmless
+		// Raw SQL deletes don't clear WordPress's post object cache. Harmless
 		// on the default per-request cache, but a persistent object cache
 		// (Redis/Memcached) would keep serving the deleted post otherwise.
 		foreach ( $migrated_ids as $migrated_id ) {

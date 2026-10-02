@@ -25,7 +25,7 @@ check( 'quarterly x4',   400.0, npmp_annualize_donation_amount( 100.0, 'quarterl
 check( 'annual x1',      100.0, npmp_annualize_donation_amount( 100.0, 'annual' ) );
 
 echo "\n== 2. Both words for once-a-year count the same ==\n";
-// The free donation form writes 'annual'; Pro's Stripe sync writes 'yearly'.
+// The free donation form writes 'annual'. Pro's Stripe sync writes 'yearly'.
 // Matching only one silently totals the other as zero, which is a bug this
 // figure has already had once.
 check( "'yearly' matches 'annual'", npmp_annualize_donation_amount( 250.0, 'annual' ), npmp_annualize_donation_amount( 250.0, 'yearly' ) );

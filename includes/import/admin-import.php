@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 // =====================================================================
 
 // Priority 11 so the membership module (default priority 10) has registered
-// its menu first; we read the menu globals to choose our parent.
+// its menu first. We read the menu globals to choose our parent.
 add_action( 'admin_menu', 'npmp_import_register_menu', 11 );
 
 /**
@@ -161,8 +161,8 @@ function npmp_import_ajax_preview() {
 			}
 
 			// Constrain to docs.google.com host before any network call. The user
-			// types this URL; without a host check we'd happily fetch arbitrary
-			// internal endpoints (SSRF — server-side request forgery). The Google
+			// types this URL. Without a host check we'd happily fetch arbitrary
+			// internal endpoints (SSRF: server-side request forgery). The Google
 			// Sheets "publish to web" URL is always under docs.google.com.
 			$parsed_host = wp_parse_url( $url, PHP_URL_HOST );
 			if ( ! $parsed_host || 'docs.google.com' !== strtolower( $parsed_host ) ) {
@@ -184,7 +184,7 @@ function npmp_import_ajax_preview() {
 				array(
 					'timeout'     => 60,
 					'reject_unsafe_urls' => true,
-					'limit_response_size' => 10 * MB_IN_BYTES, // cap at 10 MB; a 50k-row CSV is ~3-5 MB.
+					'limit_response_size' => 10 * MB_IN_BYTES, // cap at 10 MB. A 50k-row CSV is ~3-5 MB.
 				)
 			);
 			if ( is_wp_error( $response ) ) {
@@ -266,7 +266,7 @@ function npmp_import_ajax_preview() {
 				foreach ( $merge_fields as $mf ) {
 					$tag = $mf['tag'];
 					$val = isset( $m['merge_fields'][ $tag ] ) ? $m['merge_fields'][ $tag ] : '';
-					// Mailchimp returns ADDRESS as a structured value; flatten to "street, city, state zip"
+					// Mailchimp returns ADDRESS as a structured value. Flatten to "street, city, state zip"
 					// for the preview. The actual import handler unpacks the structure into NPM address fields.
 					if ( is_array( $val ) ) {
 						$parts = array_filter(
@@ -507,7 +507,7 @@ function npmp_import_ajax_step() {
 	// Best-effort mutex via a short-TTL transient. If a second request for the
 	// same job_token arrives while the first is still mid-page (double-click,
 	// two tabs, slow handler, JS retry race), it sees the lock and bails with
-	// 409. The lock is auto-released at the end of this handler; the 90-second
+	// 409. The lock is auto-released at the end of this handler. The 90-second
 	// TTL is a safety net in case PHP dies. Real consistency comes from D1-style
 	// locks, not transients, but this catches 99% of the practical race.
 	if ( false !== get_transient( $lock_key ) ) {
@@ -603,7 +603,7 @@ function npmp_import_ajax_step() {
 					array(
 						'done'         => true,
 						'progress'     => $cursor,
-						'total'        => $cursor, // we don't actually know more; cap is the ceiling for UI math.
+						'total'        => $cursor, // we don't actually know more. Cap is the ceiling for UI math.
 						'stats'        => $state['totals'],
 						'cap_reached'  => true,
 						'cap_max_rows' => $max_rows,
@@ -663,7 +663,7 @@ function npmp_import_ajax_step() {
 			);
 		}
 
-		// More pages remain; persist state and report progress.
+		// More pages remain. Persist state and report progress.
 		set_transient( $state_key, $state, HOUR_IN_SECONDS );
 		wp_send_json_success(
 			array(
@@ -842,7 +842,7 @@ function npmp_import_ajax_step() {
 			array(
 				'done'          => false,
 				'progress'      => $state['cursor'],
-				'total'         => 0, // Unknown until the last page; JS shows an indeterminate bar.
+				'total'         => 0, // Unknown until the last page. JS shows an indeterminate bar.
 				'partial_stats' => $state['totals'],
 			)
 		);
@@ -1361,7 +1361,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			previewData = null;
 
 		// -------------------------------------------------------
-		// Step 1: Source selection — show/hide panels
+		// Step 1: Source selection · show/hide panels
 		// -------------------------------------------------------
 		$('input[name="import_source"]').on('change', function() {
 			var val = $(this).val();
@@ -1417,7 +1417,7 @@ function npmp_import_render_scripts( $field_labels ) {
 				if (!resp.success) { showError('#npmp-step1-error', resp.data); return; }
 				var sel = $('#npmp-cc-list-select').empty();
 				$.each(resp.data, function(i, l) {
-					// Same DOM-safe construction as the Mailchimp branch —
+					// Same DOM-safe construction as the Mailchimp branch,
 					// see comment above for the threat model.
 					var count = parseInt(l.member_count, 10);
 					if (isNaN(count)) { count = 0; }

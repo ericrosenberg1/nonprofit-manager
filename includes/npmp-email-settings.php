@@ -845,7 +845,7 @@ class NPMP_Member_Manager {
 					break;
 				case 'last_contacted':
 				case 'last_donation_at':
-					// strtotime() returns false for a string it can't parse; guard it
+					// strtotime() returns false for a string it can't parse. Guard it
 					// so an unparsable value clears the field instead of silently
 					// storing the Unix epoch (1970-01-01), which gmdate( …, false )
 					// would otherwise coerce to and save as if it were real data.
@@ -1913,7 +1913,7 @@ add_action(
  * @return void
  */
 function npmp_handle_email_provider_tests() {
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; each test verifies its own nonce.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only. Each test verifies its own nonce.
 	if ( ! isset( $_GET['page'] ) || 'npmp_email_settings' !== sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
 		return;
 	}

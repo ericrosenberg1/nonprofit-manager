@@ -72,7 +72,7 @@ function npmp_render_main_plugin_page() {
 				<span class="npmp-pro-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 			<?php endif; ?>
 			<?php
-			// "Re-run setup tour" link (onboarding module); guarded so the
+			// "Re-run setup tour" link (onboarding module). Guarded so the
 			// header survives a build that excludes onboarding.
 			if ( class_exists( 'NPMP_Tour' ) ) {
 				echo ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_main&npmp_tour_restart=1' ) ) . '" class="page-title-action" style="margin-left:8px;">' . esc_html__( 'Re-run setup tour', 'nonprofit-manager' ) . '</a>';

@@ -341,7 +341,7 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 	 * thousand subscribers hit max_execution_time partway through, and because
 	 * nothing recorded how far it got, the remainder were silently never
 	 * emailed. The weekly digest already drains in throttled batches for
-	 * exactly this reason; this brings post notifications in line.
+	 * exactly this reason. This brings post notifications in line.
 	 *
 	 * @param int $size Recipients handled per run.
 	 */
@@ -481,7 +481,7 @@ add_action( 'init', function () {
 		// Schedule for Monday mornings at 9 AM site time. wp_schedule_event()
 		// needs a true Unix (UTC) timestamp, but current_time( 'timestamp' )
 		// returns time() shifted by the site's UTC offset (WordPress's
-		// "local" pseudo-timestamp convention) — feeding that shifted value
+		// "local" pseudo-timestamp convention). Feeding that shifted value
 		// straight in made the digest fire at 9:00 UTC-offset-from-9AM
 		// instead of 9 AM local. Building the target moment directly in the
 		// site's real timezone gives wp_schedule_event() a correct UTC
@@ -500,7 +500,7 @@ function npmp_process_weekly_digest() {
 
 	// Get posts and events from the last 7 days. date_query's 'after' value
 	// is compared against the post_date column, which WordPress stores as
-	// site-local time — gmdate( 'Y-m-d H:i:s', strtotime( '-7 days' ) )
+	// site-local time. gmdate( 'Y-m-d H:i:s', strtotime( '-7 days' ) )
 	// produced a UTC-labeled string instead, shifting the 7-day cutoff by
 	// the site's UTC offset. Building it directly in the site's timezone
 	// keeps the window aligned to local time.
@@ -668,7 +668,7 @@ function npmp_process_digest_queue() {
 		$limit = 10;
 	}
 
-	$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $limit is cast to int above; fixed table name.
+	$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $limit is cast to int above. Fixed table name.
 		$wpdb->prepare(
 			"SELECT id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
 			$limit

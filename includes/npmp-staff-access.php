@@ -258,7 +258,7 @@ add_action( 'admin_bar_menu', 'npmp_staff_declutter_admin_bar', 999 );
 /**
  * Preselect the Membership Manager role on Users > Add New when an admin
  * follows the "Give a volunteer access" link. Only changes which option the
- * Role dropdown starts on; the stored default role is untouched, and the
+ * Role dropdown starts on. The stored default role is untouched, and the
  * submitted form decides the role as usual.
  *
  * @return void

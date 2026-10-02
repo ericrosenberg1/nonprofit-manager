@@ -235,7 +235,7 @@ class NPMP_Donation_Manager {
 		// meta and post cache priming, each of those calls could be its own
 		// query. On a charity with years of history that was the single most
 		// expensive thing on the Donations screen.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small DISTINCT aggregate; there is no row set worth caching.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small DISTINCT aggregate. There is no row set worth caching.
 		$years = $wpdb->get_col(
 			$wpdb->prepare(
 				"SELECT DISTINCT YEAR(post_date) AS y
@@ -297,7 +297,7 @@ class NPMP_Donation_Manager {
 
 		$sql .= ' GROUP BY period_key';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Built from a fixed template; every value is a placeholder.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Built from a fixed template. Every value is a placeholder.
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 
 		if ( ! is_array( $rows ) ) {

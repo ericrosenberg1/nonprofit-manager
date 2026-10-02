@@ -11,7 +11,7 @@
  * Architecture:
  *
  *   - Step definitions live in `tour-data.php` (free) and Pro's
- *     `includes/onboarding/pro-tour-data.php` — both go through the
+ *     `includes/onboarding/pro-tour-data.php`. Both go through the
  *     `npmp_tour_steps` filter so Pro can append.
  *   - Per-user state lives in user-meta `npmp_tour_progress` (a JSON
  *     blob: step, dismissed, completed, started_at).
@@ -20,7 +20,7 @@
  *     between admin pages uses `window.location` with a continuation
  *     param so the next page picks up where we left off.
  *   - A modal triggers on the first NPM admin pageview (never on the
- *     setup wizards, and not while a wizard redirect is pending); a
+ *     setup wizards, and not while a wizard redirect is pending). A
  *     dismissible banner shows on every NPM admin screen until the user
  *     completes or explicitly dismisses the tour.
  *
@@ -39,7 +39,7 @@ class NPMP_Tour {
 	const REST_NAMESPACE  = 'npmp/v1';
 
 	/**
-	 * Boot the controller. Idempotent — safe to call multiple times.
+	 * Boot the controller. Idempotent, safe to call multiple times.
 	 */
 	public static function init() {
 		static $booted = false;
@@ -107,7 +107,7 @@ class NPMP_Tour {
 		$current = self::get_progress();
 		$merged  = wp_parse_args( $progress, $current );
 
-		// Defensive type coercion — never trust client JSON values.
+		// Defensive type coercion: never trust client JSON values.
 		$merged['step']       = max( 0, (int) $merged['step'] );
 		$merged['dismissed']  = (bool) $merged['dismissed'];
 		$merged['completed']  = (bool) $merged['completed'];
@@ -223,7 +223,7 @@ class NPMP_Tour {
 	/**
 	 * Compiled list of tour steps for the current user (Free + Pro merged
 	 * via filter). Each step gets a `_resolved_skip` flag set if its
-	 * `skip_if` predicate already returns true — the JS engine skips
+	 * `skip_if` predicate already returns true. The JS engine skips
 	 * those without ever rendering them.
 	 *
 	 * @return array[]
@@ -232,7 +232,7 @@ class NPMP_Tour {
 		$steps = npmp_tour_get_free_steps();
 		/**
 		 * Filter the tour step list. Pro hooks this to append its own
-		 * steps; themes can hook it to inject custom steps too.
+		 * steps. Themes can hook it to inject custom steps too.
 		 *
 		 * @param array $steps Ordered step array.
 		 */

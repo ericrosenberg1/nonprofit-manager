@@ -109,7 +109,7 @@ file_put_contents(
 );
 $caught = scan_for_bare_percents( $tmp );
 unlink( $tmp );
-// %Y and %m are bare; %d is worse still because prepare consumes it.
+// %Y and %m are bare. %d is worse still because prepare consumes it.
 check( 'flags a bare %Y/%m format string', true, count( $caught ) >= 2 );
 
 $tmp2 = sys_get_temp_dir() . '/npmp-prepare-ok.php';

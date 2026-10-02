@@ -1091,7 +1091,7 @@ function npmp_ajax_create_stripe_session() {
  * @return void
  */
 function npmp_maybe_finalize_stripe_donation() {
-	if ( is_admin() || empty( $_GET['npmp_donation'] ) || 'success' !== $_GET['npmp_donation'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag; the session id is verified against Stripe's API below.
+	if ( is_admin() || empty( $_GET['npmp_donation'] ) || 'success' !== $_GET['npmp_donation'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag. The session id is verified against Stripe's API below.
 		return;
 	}
 
@@ -1246,7 +1246,7 @@ function npmp_payment_debug_log( $message ) {
  * @param string     $order_id   PayPal order id from the client.
  * @param float      $amount     Claimed donation amount.
  * @param array|null $order_data Output. Set to PayPal's decoded order response when a
- *                                real API check ran and passed; left null when verification
+ *                                real API check ran and passed. Left null when verification
  *                                was skipped (no API credentials) or failed.
  * @return true|WP_Error True when verified. WP_Error when PayPal refuses or the order doesn't match.
  */

@@ -70,7 +70,7 @@ function npmp_get_membership_setup_status() {
 	$settings = npmp_get_membership_form_settings();
 	$rows     = array();
 
-	/* Unsubscribe page — the failure that silently breaks CAN-SPAM links. */
+	/* Unsubscribe page: the failure that silently breaks CAN-SPAM links. */
 	$unsub_id = absint( $settings['unsubscribe_page_id'] ?? 0 );
 	if ( ! $unsub_id ) {
 		$rows[] = array(
@@ -700,7 +700,7 @@ function npmp_handle_membership_form() {
 			 * @param int   $contact_id Contact post ID.
 			 * @param array $post_data  Submitted form data.
 			 */
-			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read; the array shape matches the documented hook contract.
+			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
 		}
 
 		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $result ) );
@@ -1002,7 +1002,7 @@ add_action( 'admin_post_npmp_one_click_unsubscribe', 'npmp_handle_one_click_unsu
  * @return void
  */
 function npmp_handle_one_click_unsubscribe() {
-	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Token-authenticated email link; no cookie/nonce is available for one-click POSTs.
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Token-authenticated email link. No cookie/nonce is available for one-click POSTs.
 	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
 	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended

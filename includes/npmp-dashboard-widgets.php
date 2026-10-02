@@ -431,7 +431,7 @@ function npmp_count_members_by_tier_map() {
 
 	global $wpdb;
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Aggregate over a joined meta table; cached per request in the static above.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Aggregate over a joined meta table. Cached per request in the static above.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT m.meta_value AS tier, COUNT(*) AS total
@@ -596,7 +596,7 @@ function npmp_get_annual_recurring_totals_by_currency() {
  * lives in one place and can be tested on its own.
  *
  * Two vocabularies reach this meta field and both mean once a year. The free
- * donation form writes 'annual'; Pro's Stripe subscription sync maps Stripe's
+ * donation form writes 'annual'. Pro's Stripe subscription sync maps Stripe's
  * year interval to 'yearly' and passes that straight through to log_donation()
  * on every renewal. Matching only one of them silently totals the other as $0,
  * which is how this figure was wrong before.

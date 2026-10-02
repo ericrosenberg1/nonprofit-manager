@@ -128,7 +128,7 @@ function npmp_mailchimp_get_members( $api_key, $list_id, $offset = 0, $count = 1
  * Get the merge-field schema for a Mailchimp list (audience).
  *
  * Standard fields (FNAME / LNAME / PHONE / ADDRESS / BIRTHDAY) ship on every
- * audience; the org may also have any number of custom merge tags. The preview
+ * audience. The org may also have any number of custom merge tags. The preview
  * step calls this so the column-to-NPM-field mapping dropdowns can list real
  * field names instead of guessed-from-data positions.
  *
@@ -194,7 +194,7 @@ function npmp_mailchimp_get_merge_fields( $api_key, $list_id ) {
 
 /**
  * Suggest an NPM field for a Mailchimp merge tag, when the tag name is a
- * recognized standard. Returns '' for unknown tags; the UI defaults those to
+ * recognized standard. Returns '' for unknown tags. The UI defaults those to
  * "Skip" and lets the user pick.
  *
  * @param string $tag  Merge tag (e.g. "FNAME").

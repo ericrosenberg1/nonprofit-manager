@@ -1,5 +1,5 @@
 /**
- * Nonprofit Manager — editor blocks for the member/donor content widgets.
+ * Nonprofit Manager · editor blocks for the member/donor content widgets.
  *
  * All are dynamic (server-rendered) blocks: save() returns null and the
  * front-end output comes from the same PHP that powers the matching shortcodes,

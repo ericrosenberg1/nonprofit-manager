@@ -71,7 +71,7 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-membership-forms.php';
 
 	// Member import wizard (CSV / XLSX / Google Sheets / Mailchimp / Constant
-	// Contact). Row-capped in Free via npmp_import_max_rows(); Pro lifts the cap.
+	// Contact). Row-capped in Free via npmp_import_max_rows(). Pro lifts the cap.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-cap.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
@@ -100,8 +100,8 @@ if ( ! empty( $npmp_features['social'] ) ) {
 }
 
 // Content blocks + shortcodes (email signup, unsubscribe, donation form, social
-// share, contact form). Always loaded so the two new shortcodes are available;
-// each wrapper block registers only when its feature module was loaded above.
+// share, contact form). Always loaded so the two new shortcodes are available.
+// Each wrapper block registers only when its feature module was loaded above.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
 
 /* -------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * Nonprofit Manager — editor blocks for the calendar and upcoming events.
+ * Nonprofit Manager · editor blocks for the calendar and upcoming events.
  *
  * Both are dynamic (server-rendered) blocks: save() returns null and the
  * front-end output comes from the same PHP that powers the [npmp_calendar] and

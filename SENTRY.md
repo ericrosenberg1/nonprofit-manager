@@ -1,4 +1,4 @@
-# Sentry — Nonprofit Manager (WP plugin)
+# Sentry: Nonprofit Manager (WP plugin)
 
 Project: `rosenberg-digital/nonprofit-manager-wp` · platform `php`
 
@@ -49,7 +49,7 @@ WP-Sentry-Integration `WP_SENTRY_PHP_DSN` to the NPMP project DSN:
 define( 'WP_SENTRY_PHP_DSN', 'https://7e2558c74621ddf8f8f0f1ca68f53ced@o4507525754060800.ingest.us.sentry.io/4511429521244160' );
 ```
 
-That sends *all* errors from that site to the NPMP project — fine for a
+That sends *all* errors from that site to the NPMP project, fine for a
 site whose only purpose is running NPMP (e.g. a dedicated nonprofit site).
 
 For multi-purpose sites that also need their own Sentry project, use the

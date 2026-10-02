@@ -41,8 +41,8 @@ function npmp_calendar_register_blocks() {
 		wp_set_script_translations( $handle, 'nonprofit-manager' );
 	}
 
-	// Shared front-end stylesheet (same one the shortcodes use). Register once;
-	// setting it as each block's "style" lets WordPress load it wherever a block
+	// Shared front-end stylesheet (same one the shortcodes use). Register once.
+	// Setting it as each block's "style" lets WordPress load it wherever a block
 	// appears, including block themes and widget areas.
 	if ( ! wp_style_is( $style, 'registered' ) ) {
 		wp_register_style(

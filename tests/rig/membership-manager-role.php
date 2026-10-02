@@ -288,7 +288,7 @@ function rig_login( $base, $login, $password ) {
 	return array( $jar, $r );
 }
 function rig_denied( $r ) {
-	// wp_die() pages carry this class; a page that rendered does not.
+	// wp_die() pages carry this class. A page that rendered does not.
 	return 403 === $r['code'] || false !== strpos( $r['body'], 'wp-die-message' );
 }
 

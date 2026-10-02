@@ -12,7 +12,7 @@ A WordPress plugin for nonprofits to manage members, donations, newsletters, and
 
 == Description ==
 
-Manage members, send newsletters, and collect donations — built for how small nonprofits actually work.
+Manage members, send newsletters, and collect donations. Built for how small nonprofits actually work.
 
 == Installation ==
 

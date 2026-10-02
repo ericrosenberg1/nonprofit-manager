@@ -15,7 +15,7 @@
  *               a centered full-page popover.
  *   placement   tooltip placement: 'top' | 'right' | 'bottom' | 'left' | 'center'.
  *   title       short title shown in the tooltip header.
- *   body        explanatory paragraph; supports basic HTML.
+ *   body        explanatory paragraph. Supports basic HTML.
  *   advance     how the user advances:
  *                 'next'    show a Next button (default).
  *                 'click'   wait for the spotlight target to be clicked.

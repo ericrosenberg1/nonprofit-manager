@@ -29,7 +29,7 @@ class NPMP_Newsletter_Stats {
         $table = $wpdb->prefix . 'npmp_newsletter_queue';
 
         if ( '' !== $status ) {
-            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated queue table.
+            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below. Dedicated queue table.
                 $wpdb->prepare(
                     "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
                     absint( $newsletter_id ),
@@ -37,7 +37,7 @@ class NPMP_Newsletter_Stats {
                 )
             );
         } else {
-            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated queue table.
+            $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below. Dedicated queue table.
                 $wpdb->prepare(
                     "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
                     absint( $newsletter_id )
@@ -77,7 +77,7 @@ class NPMP_Newsletter_Stats {
 
         global $wpdb;
         $table = $wpdb->prefix . 'npmp_newsletter_opens';
-        $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below; dedicated tracking table.
+        $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below. Dedicated tracking table.
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
                 absint( $newsletter_id )
