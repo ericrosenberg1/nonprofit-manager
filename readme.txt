@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.3
+Stable tag: 2026.10.4
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -138,6 +138,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.10.4 =
+* Fixed: a one-time Stripe donation is recorded even when Stripe has a brief outage as the donor returns to your site.
 
 = 2026.10.3 =
 * Bug fixes and performance improvements.
