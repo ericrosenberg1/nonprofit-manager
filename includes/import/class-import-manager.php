@@ -139,7 +139,7 @@ class NPMP_Import_Manager {
 		}
 		$rows = $parsed['rows'];
 
-		// First row is headers — skip it.
+		// First row is headers. Skip it.
 		array_shift( $rows );
 
 		return $this->process_rows( $rows, $mapping, $options );
@@ -178,60 +178,7 @@ class NPMP_Import_Manager {
 		}
 		$rows = $parsed['rows'];
 
-		// First row is headers — skip it.
-		array_shift( $rows );
-
-		return $this->process_rows( $rows, $mapping, $options );
-	}
-
-	/**
-	 * Import members from a published Google Sheet CSV URL.
-	 *
-	 * @param string $url     Published CSV URL.
-	 * @param array  $mapping Column index => field name.
-	 * @param array  $options Import options.
-	 * @return array|WP_Error Stats array.
-	 */
-	public function import_google_sheet( $url, $mapping, $options = array() ) {
-		// Host-restrict before any network call. This method accepts a URL parameter
-		// from anywhere; prevent SSRF (server-side request forgery, where a URL pointed
-		// at an internal address gets fetched as the server) by enforcing docs.google.com.
-		$parsed_host = wp_parse_url( $url, PHP_URL_HOST );
-		if ( ! $parsed_host || 'docs.google.com' !== strtolower( $parsed_host ) ) {
-			return new WP_Error( 'npmp_gsheet_host', __( 'Only docs.google.com URLs are supported.', 'nonprofit-manager' ) );
-		}
-
-		$response = wp_safe_remote_get(
-			$url,
-			array(
-				'timeout'             => 60,
-				'sslverify'           => true,
-				'reject_unsafe_urls'  => true,
-				'limit_response_size' => 10 * MB_IN_BYTES,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return new WP_Error( 'npmp_gsheet_fetch', __( 'Could not fetch Google Sheet. Check the URL and try again.', 'nonprofit-manager' ) );
-		}
-
-		$body = wp_remote_retrieve_body( $response );
-		if ( empty( $body ) ) {
-			return new WP_Error( 'npmp_gsheet_empty', __( 'The Google Sheet returned no data. Make sure it is published as CSV.', 'nonprofit-manager' ) );
-		}
-
-		// Write to temp file and parse.
-		$tmp = wp_tempnam( 'npmp_gsheet' );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		file_put_contents( $tmp, $body );
-		$parsed = $this->parse_csv( $tmp, $this->import_parse_keep_limit() );
-		wp_delete_file( $tmp );
-
-		if ( is_wp_error( $parsed ) ) {
-			return $parsed;
-		}
-		$rows = $parsed['rows'];
-
+		// First row is headers. Skip it.
 		array_shift( $rows );
 
 		return $this->process_rows( $rows, $mapping, $options );
@@ -243,13 +190,13 @@ class NPMP_Import_Manager {
 	 * so a large file commits in small batches instead of looping every row in
 	 * a single request that would blow PHP's max_execution_time (or a front-end
 	 * proxy timeout) partway through, leaving a half-finished import with no way
-	 * to resume. Free imports stay small so they finish in one page; this
+	 * to resume. Free imports stay small so they finish in one page. This
 	 * matters most for Pro, which lifts the row cap.
 	 *
 	 * Mirrors import_mailchimp_page()'s contract. The caller advances its cursor
 	 * by next_cursor each step and loops until done.
 	 *
-	 * @param string $type      'xlsx' for an Excel file; anything else = CSV.
+	 * @param string $type      'xlsx' for an Excel file. Anything else = CSV.
 	 * @param string $file_path Absolute path to the uploaded file.
 	 * @param array  $mapping   Column index => field name.
 	 * @param array  $options   Import options.
@@ -293,69 +240,6 @@ class NPMP_Import_Manager {
 	}
 
 	/**
-	 * Import members from Mailchimp via API.
-	 *
-	 * @param string $api_key Mailchimp API key.
-	 * @param string $list_id List/audience ID.
-	 * @param array  $mapping Column name => field name.
-	 * @param array  $options Import options.
-	 * @return array|WP_Error Stats array.
-	 */
-	public function import_mailchimp( $api_key, $list_id, $mapping, $options = array() ) {
-		if ( ! function_exists( 'npmp_mailchimp_get_members' ) ) {
-			return new WP_Error( 'npmp_mc_missing', __( 'Mailchimp API module is not loaded.', 'nonprofit-manager' ) );
-		}
-
-		$all_rows = array();
-		$offset   = 0;
-		$count    = 100;
-
-		do {
-			$result = npmp_mailchimp_get_members( $api_key, $list_id, $offset, $count );
-			if ( is_wp_error( $result ) ) {
-				return $result;
-			}
-
-			foreach ( $result['members'] as $mc_member ) {
-				$row = array(
-					'email_address' => isset( $mc_member['email_address'] ) ? $mc_member['email_address'] : '',
-					'first_name'    => isset( $mc_member['merge_fields']['FNAME'] ) ? $mc_member['merge_fields']['FNAME'] : '',
-					'last_name'     => isset( $mc_member['merge_fields']['LNAME'] ) ? $mc_member['merge_fields']['LNAME'] : '',
-					'phone'         => isset( $mc_member['merge_fields']['PHONE'] ) ? $mc_member['merge_fields']['PHONE'] : '',
-					'status'        => $this->map_mailchimp_status( isset( $mc_member['status'] ) ? $mc_member['status'] : '' ),
-					'tags'          => '',
-				);
-
-				// Combine tags.
-				if ( ! empty( $mc_member['tags'] ) ) {
-					$tag_names  = wp_list_pluck( $mc_member['tags'], 'name' );
-					$row['tags'] = implode( ',', $tag_names );
-				}
-
-				// Address fields from merge fields.
-				if ( ! empty( $mc_member['merge_fields']['ADDRESS'] ) ) {
-					$addr = $mc_member['merge_fields']['ADDRESS'];
-					$row['address_line1'] = isset( $addr['addr1'] ) ? $addr['addr1'] : '';
-					$row['address_line2'] = isset( $addr['addr2'] ) ? $addr['addr2'] : '';
-					$row['city']          = isset( $addr['city'] ) ? $addr['city'] : '';
-					$row['state']         = isset( $addr['state'] ) ? $addr['state'] : '';
-					$row['postal_code']   = isset( $addr['zip'] ) ? $addr['zip'] : '';
-					$row['country']       = isset( $addr['country'] ) ? $addr['country'] : '';
-				}
-
-				$all_rows[] = $row;
-			}
-
-			$offset     += $count;
-			$total_items = isset( $result['total_items'] ) ? (int) $result['total_items'] : 0;
-
-		} while ( $offset < $total_items );
-
-		// For API sources we use named-key rows and convert mapping.
-		return $this->process_named_rows( $all_rows, $mapping, $options );
-	}
-
-	/**
 	 * Import a single page of Mailchimp members. Used by the chunked AJAX
 	 * import path so a 5,000-member list does not block PHP's max_execution_time.
 	 *
@@ -373,7 +257,7 @@ class NPMP_Import_Manager {
 	 * @param array  $mapping    Named mapping (mc_field => npm_field).
 	 * @param array  $options    Import options (duplicate_handling, default_level, etc.).
 	 * @param int    $cursor     Offset to start at (number of members already processed).
-	 * @param int    $batch_size Members per page; Mailchimp caps at 1000, default 100.
+	 * @param int    $batch_size Members per page. Mailchimp caps at 1000, default 100.
 	 * @return array|WP_Error {
 	 *   page_stats: same shape as process_named_rows return,
 	 *   next_cursor: int,
@@ -864,8 +748,10 @@ class NPMP_Import_Manager {
 			return new WP_Error( 'npmp_csv_open', __( 'Failed to open CSV file.', 'nonprofit-manager' ) );
 		}
 
+		// The escape argument is spelled out because PHP 8.4 deprecates leaving
+		// it to the default. '\\' is that default, so parsing is unchanged.
 		// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition.FoundInWhileCondition
-		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+		while ( ( $row = fgetcsv( $handle, 0, ',', '"', '\\' ) ) !== false ) {
 			// $total doubles as the 0-based physical row index during the loop.
 			if ( $total >= $skip && ( null === $keep_limit || count( $rows ) < $keep_limit ) ) {
 				$rows[] = array_map( 'trim', $row );
@@ -889,8 +775,8 @@ class NPMP_Import_Manager {
 	 * Parse an XLSX file using ZipArchive + XML (zero external deps).
 	 *
 	 * XLSX is a ZIP containing XML files:
-	 *   xl/sharedStrings.xml — string table
-	 *   xl/worksheets/sheet1.xml — first sheet data
+	 *   xl/sharedStrings.xml · string table
+	 *   xl/worksheets/sheet1.xml · first sheet data
 	 *
 	 * Note on memory: $keep_limit bounds the PHP row array built below and
 	 * the cell-processing work, but sharedStrings.xml and sheet1.xml are
@@ -898,7 +784,7 @@ class NPMP_Import_Manager {
 	 * $keep_limit: any kept row's cells can reference any shared string, so
 	 * that table can't be safely truncated, and simplexml has no partial-read
 	 * mode. A true fix for very large XLSX files would need to replace
-	 * simplexml with XMLReader-based streaming; this keeps the existing
+	 * simplexml with XMLReader-based streaming. This keeps the existing
 	 * (working, well-tested) parsing logic and only bounds the second copy
 	 * of the data.
 	 *
@@ -983,10 +869,10 @@ class NPMP_Import_Manager {
 			$max_col    = 0;
 			// Positional fallback for cells with no "r" attribute. The OOXML spec
 			// makes "r" optional (cells are implicitly in document order when it's
-			// omitted); some non-Excel writers skip it to shave file size. Without
+			// omitted). Some non-Excel writers skip it to shave file size. Without
 			// this fallback, xlsx_col_index( '' ) returned -1 for every such cell,
 			// so every cell in the row collided on the same array key and only the
-			// last one survived — silently dropping every other column.
+			// last one survived, silently dropping every other column.
 			$col_cursor = 0;
 
 			foreach ( $xml_row->c as $cell ) {

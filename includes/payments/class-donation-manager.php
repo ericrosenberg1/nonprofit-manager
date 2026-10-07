@@ -18,6 +18,9 @@ class NPMP_Donation_Manager {
 	const META_FREQUENCY = '_npmp_donation_frequency';
 	const META_GATEWAY   = '_npmp_donation_gateway';
 	const META_TXN_ID    = '_npmp_donation_txn_id';
+	// ISO 4217 code the gift was taken in. Donations recorded before currency
+	// support have no value here and are US dollars (npmp_record_currency()).
+	const META_CURRENCY  = '_npmp_donation_currency';
 
 	private static $instance = null;
 
@@ -42,6 +45,9 @@ class NPMP_Donation_Manager {
 	 *     @type float  $amount    Donation amount.
 	 *     @type string $frequency Donation frequency.
 	 *     @type string $gateway   Donation gateway.
+	 *     @type string $currency  ISO 4217 code the gift was taken in. Defaults to
+	 *                             the site currency. Gateway handlers pass the
+	 *                             currency the gateway reports, never the setting.
 	 * }
 	 * @return int|false Insert ID on success, false on failure.
 	 */
@@ -52,6 +58,10 @@ class NPMP_Donation_Manager {
 		$frequency = sanitize_text_field( $data['frequency'] ?? 'one_time' );
 		$gateway   = sanitize_text_field( $data['gateway'] ?? 'paypal' );
 		$txn_id    = sanitize_text_field( $data['transaction_id'] ?? '' );
+		$currency  = npmp_normalize_currency_code( $data['currency'] ?? '' );
+		if ( '' === $currency ) {
+			$currency = npmp_currency();
+		}
 
 		$legacy_id  = isset( $data['legacy_id'] ) ? absint( $data['legacy_id'] ) : 0;
 		$created_at = isset( $data['created_at'] ) ? strtotime( $data['created_at'] ) : false;
@@ -81,6 +91,7 @@ class NPMP_Donation_Manager {
 			self::META_AMOUNT    => $amount,
 			self::META_FREQUENCY => $frequency,
 			self::META_GATEWAY   => $gateway,
+			self::META_CURRENCY  => $currency,
 		);
 		if ( $txn_id ) {
 			$meta_input[ self::META_TXN_ID ] = $txn_id;
@@ -106,6 +117,13 @@ class NPMP_Donation_Manager {
 			return false;
 		}
 
+		// The dashboards read the list of currencies in use from a cache. A
+		// currency it hasn't seen yet means the list changed.
+		$known = get_option( 'npmp_donation_currencies_cache', false );
+		if ( ! is_array( $known ) || ! in_array( $currency, $known, true ) ) {
+			npmp_flush_donation_currencies();
+		}
+
 		if ( class_exists( 'NPMP_Member_Manager' ) ) {
 			NPMP_Member_Manager::get_instance()->record_donation(
 				array(
@@ -115,6 +133,7 @@ class NPMP_Donation_Manager {
 					'amount'      => $amount,
 					'frequency'   => $frequency,
 					'gateway'     => $gateway,
+					'currency'    => $currency,
 					'created_at'  => current_time( 'mysql' ),
 				)
 			);
@@ -135,7 +154,7 @@ class NPMP_Donation_Manager {
 		 * silently never ran.
 		 *
 		 * @param int   $post_id Donation post ID.
-		 * @param array $data    Donation fields (email, name, amount, frequency, gateway).
+		 * @param array $data    Donation fields (email, name, amount, frequency, gateway, currency).
 		 */
 		do_action(
 			'npmp_donation_recorded',
@@ -146,6 +165,7 @@ class NPMP_Donation_Manager {
 				'amount'    => $amount,
 				'frequency' => $frequency,
 				'gateway'   => $gateway,
+				'currency'  => $currency,
 			)
 		);
 
@@ -185,23 +205,6 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Retrieve all donations, newest first.
-	 *
-	 * @return array List of donation records.
-	 */
-	public function get_all_donations() {
-		return get_posts(
-			array(
-				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-			)
-		);
-	}
-
-	/**
 	 * Get all years in which donations exist.
 	 *
 	 * @return array List of years (int).
@@ -215,7 +218,7 @@ class NPMP_Donation_Manager {
 		// meta and post cache priming, each of those calls could be its own
 		// query. On a charity with years of history that was the single most
 		// expensive thing on the Donations screen.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small DISTINCT aggregate; there is no row set worth caching.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small DISTINCT aggregate. There is no row set worth caching.
 		$years = $wpdb->get_col(
 			$wpdb->prepare(
 				"SELECT DISTINCT YEAR(post_date) AS y
@@ -232,134 +235,85 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Summary counts and totals by day or by month.
-	 *
-	 * @param int      $year  Four-digit year.
-	 * @param int|null $month Optional 1-12 month.
-	 * @return array List of [ 'period' => string, 'count' => int, 'total' => float ].
-	 */
-	public function summary( $year, $month = null ) {
-		global $wpdb;
-
-		$year  = absint( $year );
-		$month = $month ? absint( $month ) : null;
-
-		// Group and total in the database rather than loading every donation
-		// in the period and adding them up a row at a time. The grouping is
-		// deliberately kept as it was: the period is cut on post_date_gmt while
-		// the year/month filter reads post_date, which is what the date_query
-		// this replaces did.
-		// The percent signs are doubled because this string goes through
-		// $wpdb->prepare(), which reads % as the start of a placeholder. Left
-		// single, the %d in the day format is eaten as an integer placeholder,
-		// the parameters shift, and the query silently returns nothing.
-		$period_expr = $month
-			? "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m-%%d')"
-			: "DATE_FORMAT(p.post_date_gmt, '%%Y-%%m')";
-
-		$sql = "SELECT {$period_expr} AS period_key,
-		               COUNT(*) AS donation_count,
-		               SUM(a.meta_value + 0) AS total_amount,
-		               MAX(p.post_date_gmt) AS latest
-		        FROM {$wpdb->posts} p
-		        INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
-		        WHERE p.post_type = %s
-		          AND p.post_status = 'publish'
-		          AND YEAR(p.post_date) = %d
-		          AND (a.meta_value + 0) > 0";
-
-		$params = array( self::META_AMOUNT, self::POST_TYPE, $year );
-
-		if ( $month ) {
-			$sql     .= ' AND MONTH(p.post_date) = %d';
-			$params[] = $month;
-		}
-
-		$sql .= ' GROUP BY period_key';
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Built from a fixed template; every value is a placeholder.
-		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
-
-		if ( ! is_array( $rows ) ) {
-			return array();
-		}
-
-		$output = array();
-
-		foreach ( $rows as $row ) {
-			$period = (string) $row['period_key'];
-
-			$output[] = array(
-				'period'    => $month
-					? date_i18n( 'M j, Y', strtotime( $period ) )
-					: date_i18n( 'F Y', strtotime( $period . '-01' ) ),
-				'count'     => (int) $row['donation_count'],
-				'total'     => (float) $row['total_amount'],
-				'timestamp' => (int) strtotime( (string) $row['latest'] ),
-			);
-		}
-
-		usort(
-			$output,
-			static function ( $a, $b ) {
-				return $b['timestamp'] <=> $a['timestamp'];
-			}
-		);
-
-		return array_map(
-			static function ( $row ) {
-				unset( $row['timestamp'] );
-				return $row;
-			},
-			$output
-		);
-	}
-
-	/**
 	 * Retrieve donation aggregate info for an email address.
 	 *
+	 * Totals are kept per currency and never added across currencies.
+	 * 'total' and 'currency' are the donor's single currency when they only
+	 * ever gave in one (every donor on a site that never changed currency).
+	 * For a donor with gifts in several, they are the site currency's share,
+	 * and 'totals' carries every currency.
+	 *
 	 * @param string $email Email address.
-	 * @return array
+	 * @return array{count:int,total:float,currency:string,totals:array<string,float>,last:string}
 	 */
 	public function get_totals_for_email( $email ) {
 		$email = sanitize_email( $email );
 		if ( ! $email ) {
 			return array(
-				'count' => 0,
-				'total' => 0,
-				'last'  => '',
+				'count'    => 0,
+				'total'    => 0,
+				'currency' => npmp_currency(),
+				'totals'   => array(),
+				'last'     => '',
 			);
 		}
 
 		global $wpdb;
 
-		// Three numbers about one donor. Loading every donation they ever made
-		// to add them up in PHP is work the database already does in one pass.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Single aggregate row; nothing to cache.
-		$row = $wpdb->get_row(
+		// One grouped pass instead of loading every donation this donor made.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A row per currency, nothing to cache.
+		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT COUNT(*) AS donation_count,
+				"SELECT COALESCE( c.meta_value, '' ) AS currency,
+				        COUNT(*) AS donation_count,
 				        SUM(a.meta_value + 0) AS total_amount,
 				        MAX(p.post_date_gmt) AS last_at
 				 FROM {$wpdb->posts} p
 				 INNER JOIN {$wpdb->postmeta} e ON e.post_id = p.ID AND e.meta_key = %s
 				 LEFT JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
-				 WHERE p.post_type = %s AND p.post_status = 'publish' AND e.meta_value = %s",
+				 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
+				 WHERE p.post_type = %s AND p.post_status = 'publish' AND e.meta_value = %s
+				 GROUP BY COALESCE( c.meta_value, '' )",
 				self::META_EMAIL,
 				self::META_AMOUNT,
+				self::META_CURRENCY,
 				self::POST_TYPE,
 				$email
 			),
 			ARRAY_A
 		);
 
+		$count = 0;
+		$last  = '';
+		foreach ( (array) $rows as $row ) {
+			$count += (int) $row['donation_count'];
+			if ( ! empty( $row['last_at'] ) && (string) $row['last_at'] > $last ) {
+				$last = (string) $row['last_at'];
+			}
+		}
+
+		$totals   = npmp_group_totals_by_currency( (array) $rows, 'total_amount' );
+		$currency = 1 === count( $totals ) ? (string) array_key_first( $totals ) : npmp_currency();
+
 		return array(
-			'count' => isset( $row['donation_count'] ) ? (int) $row['donation_count'] : 0,
-			'total' => isset( $row['total_amount'] ) ? (float) $row['total_amount'] : 0.0,
+			'count'    => $count,
+			'total'    => (float) ( $totals[ $currency ] ?? 0.0 ),
+			'currency' => $currency,
+			'totals'   => $totals,
 			// Matches the previous behaviour: the most recent donation's GMT
 			// time, and an empty string when this donor has none.
-			'last'  => ! empty( $row['last_at'] ) ? (string) $row['last_at'] : '',
+			'last'     => $last,
 		);
+	}
+
+	/**
+	 * Currency a stored donation was taken in.
+	 *
+	 * @param int $donation_id Donation post ID.
+	 * @return string ISO code, USD for a donation recorded before currency support.
+	 */
+	public function get_donation_currency( $donation_id ) {
+		return npmp_record_currency( get_post_meta( (int) $donation_id, self::META_CURRENCY, true ) );
 	}
 
 	/**

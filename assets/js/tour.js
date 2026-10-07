@@ -68,7 +68,7 @@
 
 	function saveProgress( patch, cb ) {
 		if ( ! window.wp || ! window.wp.apiFetch ) {
-			// No apiFetch — fall back to a fetch() call manually.
+			// No apiFetch. Fall back to a fetch() call manually.
 			fetch( T.restRoot, {
 				method: 'POST',
 				headers: {
@@ -113,7 +113,7 @@
 		var idx   = ( T.progress && T.progress.step ) ? T.progress.step : 0;
 		var screen = T.currentScreen || '';
 
-		// Step 0 is the welcome — only counts as visible if not started yet.
+		// Step 0 is the welcome: only counts as visible if not started yet.
 		// If progress.step > 0 we're past welcome.
 		for ( var i = idx; i < steps.length; i++ ) {
 			var s = steps[ i ];

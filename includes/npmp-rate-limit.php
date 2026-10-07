@@ -29,7 +29,7 @@ function npmp_client_ip() {
  * @param string $bucket Name of the thing being limited, e.g. 'signup'.
  * @param int    $max    Attempts allowed per window.
  * @param int    $window Window length in seconds.
- * @param string $key    Who is counted. Defaults to the visitor's IP; pass
+ * @param string $key    Who is counted. Defaults to the visitor's IP. Pass
  *                       'site' for a site-wide ceiling.
  * @return bool True when this attempt is within the limit.
  */

@@ -24,6 +24,19 @@ if ( ! defined( 'ARRAY_A' ) ) {
 	define( 'ARRAY_A', 'ARRAY_A' );
 }
 
+// get_financial_overview() groups its rows with the currency helpers.
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $key, $default = false ) {
+		return $GLOBALS['npmp_test_options'][ $key ] ?? $default;
+	}
+}
+if ( ! function_exists( 'apply_filters' ) ) {
+	function apply_filters( $tag, $value, ...$args ) {
+		return $value;
+	}
+}
+require_once __DIR__ . '/../includes/npmp-currency.php';
+
 // WordPress forces UTC at bootstrap, and the cutoff maths below assumes it.
 date_default_timezone_set( 'UTC' ); // phpcs:ignore WordPress.DateTime.RestrictedFunctions.timezone_change_date_default_timezone_set
 
@@ -40,6 +53,7 @@ class NPMP_Test_WPDB {
 	public $calls    = array();
 	public $col      = array();
 	public $row      = null;
+	public $results  = array();
 
 	public function prepare( $sql, ...$args ) {
 		if ( 1 === count( $args ) && is_array( $args[0] ) ) {
@@ -75,7 +89,7 @@ class NPMP_Test_WPDB {
 
 	public function get_results( $sql, $mode = null ) {
 		$this->calls[] = array( 'get_results', $sql );
-		return array();
+		return $this->results;
 	}
 
 	public function get_var( $sql ) {
@@ -136,15 +150,16 @@ $wpdb            = new NPMP_Test_WPDB();
 $GLOBALS['wpdb'] = $wpdb;
 $out             = $mm->get_financial_overview();
 check( 'NPMP_Donation_Manager is absent for this check', false, class_exists( 'NPMP_Donation_Manager' ) );
-check( 'returns the zero shape', array( 'total_amount' => 0.0, 'total_transactions' => 0, 'thirty_day_amount' => 0.0 ), $out );
+check( 'returns the zero shape', array( 'total_amount' => 0.0, 'total_transactions' => 0, 'thirty_day_amount' => 0.0, 'total_by_currency' => array(), 'thirty_day_by_currency' => array() ), $out );
 check( 'total_amount is a float', true, is_float( $out['total_amount'] ) );
 check( 'total_transactions is an int', true, is_int( $out['total_transactions'] ) );
 check( 'no query was issued', 0, count( $wpdb->calls ) );
 
 if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
 	class NPMP_Donation_Manager { // phpcs:ignore Generic.Files.OneObjectStructurePerFile.MultipleFound
-		const POST_TYPE   = 'npmp_donation';
-		const META_AMOUNT = '_npmp_donation_amount';
+		const POST_TYPE     = 'npmp_donation';
+		const META_AMOUNT   = '_npmp_donation_amount';
+		const META_CURRENCY = '_npmp_donation_currency';
 	}
 }
 
@@ -191,10 +206,11 @@ check( 'only published contacts', true, false !== strpos( $sql, "post_status = '
 check( 'skips empty tag strings in SQL', true, false !== strpos( $sql, "meta_value <> ''" ) );
 check( 'no LIMIT, the group set is the bound', false, stripos( $sql, 'LIMIT' ) );
 
-echo "\n== 5. The financial row is cast on the way out ==\n";
-$wpdb->row = array( 'total_transactions' => '3', 'total_amount' => '175.5000', 'thirty_day_amount' => '150.0000' );
-$out       = $mm->get_financial_overview();
-check( 'keys and order match the old return shape', array( 'total_amount', 'total_transactions', 'thirty_day_amount' ), array_keys( $out ) );
+echo "\n== 5. The financial rows are cast on the way out ==\n";
+// A row per currency. '' is a donation recorded before currency support.
+$wpdb->results = array( array( 'currency' => '', 'total_transactions' => '3', 'total_amount' => '175.5000', 'thirty_day_amount' => '150.0000' ) );
+$out           = $mm->get_financial_overview();
+check( 'old keys first, in the old order, per-currency maps after', array( 'total_amount', 'total_transactions', 'thirty_day_amount', 'total_by_currency', 'thirty_day_by_currency' ), array_keys( $out ) );
 check( 'total_amount is a float', true, is_float( $out['total_amount'] ) );
 check( 'total_amount value', 175.5, $out['total_amount'] );
 check( 'total_transactions is an int', true, is_int( $out['total_transactions'] ) );
@@ -202,24 +218,39 @@ check( 'total_transactions value', 3, $out['total_transactions'] );
 check( 'thirty_day_amount is a float', true, is_float( $out['thirty_day_amount'] ) );
 check( 'thirty_day_amount value', 150.0, $out['thirty_day_amount'] );
 
-$wpdb->row = null;
-check( 'a failed query gives the zero shape', array( 'total_amount' => 0.0, 'total_transactions' => 0, 'thirty_day_amount' => 0.0 ), $mm->get_financial_overview() );
+check( 'a donation with no currency counts as USD', array( 'USD' => 175.5 ), $out['total_by_currency'] );
+
+// A site that switched from USD to GBP: the two are reported side by side.
+$wpdb->results = array(
+	array( 'currency' => '', 'total_transactions' => '2', 'total_amount' => '100.0000', 'thirty_day_amount' => '0.0000' ),
+	array( 'currency' => 'GBP', 'total_transactions' => '1', 'total_amount' => '40.0000', 'thirty_day_amount' => '40.0000' ),
+);
+$out = $mm->get_financial_overview();
+check( 'transactions count across currencies', 3, $out['total_transactions'] );
+check( 'USD and GBP totals kept apart', array( 'USD' => 100.0, 'GBP' => 40.0 ), $out['total_by_currency'] );
+check( '30-day totals kept apart too', array( 'USD' => 0.0, 'GBP' => 40.0 ), $out['thirty_day_by_currency'] );
+check( 'total_amount is the site currency only, never USD + GBP', 100.0, $out['total_amount'] );
+
+$wpdb->results = array();
+check( 'a failed query gives the zero shape', array( 'total_amount' => 0.0, 'total_transactions' => 0, 'thirty_day_amount' => 0.0, 'total_by_currency' => array(), 'thirty_day_by_currency' => array() ), $mm->get_financial_overview() );
 
 echo "\n== 6. The financial query is one aggregate with one row filter ==\n";
 // COUNT(*), SUM() and the 30-day SUM() must all see the same rows, so the
 // amount > 0 test lives in WHERE, not in a CASE inside each aggregate.
-$wpdb->calls = array();
-$wpdb->row   = array( 'total_transactions' => '0', 'total_amount' => '0', 'thirty_day_amount' => '0' );
+$wpdb->calls   = array();
+$wpdb->results = array( array( 'currency' => '', 'total_transactions' => '0', 'total_amount' => '0', 'thirty_day_amount' => '0' ) );
 $mm->get_financial_overview();
 $sql = $wpdb->last_sql();
 check( 'exactly one query', 1, count( $wpdb->calls ) );
 check( 'counts rows', true, false !== stripos( $sql, 'COUNT(*)' ) );
 check( 'positive amounts only, filtered once in WHERE', true, false !== strpos( $sql, 'AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0' ) );
-check( 'empty result sums to 0, not NULL', 2, substr_count( strtoupper( $sql ), 'COALESCE(' ) );
+check( 'empty result sums to 0, not NULL', 2, substr_count( strtoupper( $sql ), 'COALESCE( SUM(' ) );
+check( 'one row per currency, no-currency rows grouped together', true, false !== strpos( $sql, "GROUP BY COALESCE( c.meta_value, '' )" ) );
+check( 'currency read from its own meta key', true, false !== strpos( $sql, "c.meta_key = '_npmp_donation_currency'" ) );
 check( 'reads the amount key', true, false !== strpos( $sql, "meta_key = '_npmp_donation_amount'" ) );
 check( 'only donations', true, false !== strpos( $sql, "post_type = 'npmp_donation'" ) );
 check( 'only published donations', true, false !== strpos( $sql, "post_status = 'publish'" ) );
-check( 'no LIMIT, one row comes back regardless', false, stripos( $sql, 'LIMIT' ) );
+check( 'no LIMIT, the currency groups are the bound', false, stripos( $sql, 'LIMIT' ) );
 
 echo "\n== 7. The 30-day cutoff is a GMT string built in PHP ==\n";
 // post_date_gmt is UTC. FROM_UNIXTIME() or NOW() would read the MySQL

@@ -7,7 +7,7 @@
  * "About" widget, and the iCal feed organizer details.
  *
  * Stored under the `npmp_org_settings` option as a flat associative
- * array. Keep the schema small and predictable — third-party themes /
+ * array. Keep the schema small and predictable. Third-party themes /
  * helpers can read this directly via get_option().
  *
  * @package NonprofitManager
@@ -88,7 +88,7 @@ class NPMP_Org_Settings {
 		$clean = array(
 			'name'           => sanitize_text_field( $incoming['name'] ?? '' ),
 			'type'           => in_array( ( $incoming['type'] ?? '' ), $types, true ) ? $incoming['type'] : '',
-			// Strip non-digits and dashes for EIN; allow empty.
+			// Strip non-digits and dashes for EIN. Allow empty.
 			'ein'            => preg_replace( '/[^0-9-]/', '', (string) ( $incoming['ein'] ?? '' ) ),
 			'address_line1'  => sanitize_text_field( $incoming['address_line1'] ?? '' ),
 			'address_line2'  => sanitize_text_field( $incoming['address_line2'] ?? '' ),

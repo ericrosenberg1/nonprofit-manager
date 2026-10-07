@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.09.22
+ * Version: 2026.10.4
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -20,7 +20,12 @@ defined( 'ABSPATH' ) || exit;
  * Core components (always loaded)
  * ---------------------------------------------------------------------- */
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-version.php';
+// Site currency: formatting, gateway minor units, minimums. Pro calls these too.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-currency.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
+// Membership Manager role + npmp_staff_cap(). Loaded before any screen that
+// registers a menu or handler against the staff capability.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-staff-access.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-powered-by.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-marketing-optin.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-review-nudge.php';
@@ -66,7 +71,7 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-membership-forms.php';
 
 	// Member import wizard (CSV / XLSX / Google Sheets / Mailchimp / Constant
-	// Contact). Row-capped in Free via npmp_import_max_rows(); Pro lifts the cap.
+	// Contact). Row-capped in Free via npmp_import_max_rows(). Pro lifts the cap.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-cap.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
@@ -95,8 +100,8 @@ if ( ! empty( $npmp_features['social'] ) ) {
 }
 
 // Content blocks + shortcodes (email signup, unsubscribe, donation form, social
-// share, contact form). Always loaded so the two new shortcodes are available;
-// each wrapper block registers only when its feature module was loaded above.
+// share, contact form). Always loaded so the two new shortcodes are available.
+// Each wrapper block registers only when its feature module was loaded above.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
 
 /* -------------------------------------------------------------------------
@@ -154,31 +159,33 @@ add_action(
 			add_menu_page(
 				'Membership',
 				'Membership',
-				'manage_options',
+				npmp_staff_cap(),
 				'npmp_membership',
 				'npmp_render_membership_dashboard',
 				'dashicons-admin-users',
 				3.05
 			);
 
-			add_submenu_page( 'npmp_membership', 'Member List',       'Member List',       'manage_options', 'npmp_members',            'npmp_render_members_page' );
+			add_submenu_page( 'npmp_membership', 'Member List',       'Member List',       npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
 			add_submenu_page( 'npmp_membership', 'Membership Settings',  'Membership Settings',  'manage_options', 'npmp_membership_forms',   'npmp_render_membership_forms_page' );
 			add_submenu_page( 'npmp_main',       'Email Settings',    'Email Settings',    'manage_options', 'npmp_email_settings',     'npmp_render_email_settings_page' );
 		}
 
 		/* Newsletters */
 		if ( ! empty( $npmp_features['newsletters'] ) ) {
-			add_menu_page( 'Email Newsletters', 'Email Newsletters', 'edit_posts', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
-			add_submenu_page( 'npmp-newsletters', 'New Newsletter',       'New Newsletter',       'edit_posts',    'npmp-newsletters',          'npmp_render_newsletter_editor' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Templates', 'Newsletter Templates', 'edit_posts',    'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Archive',   'Newsletter Archive',   'edit_posts',    'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Reports',   'Newsletter Reports',   'edit_posts',    'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
+			// phpcs:disable WordPress.WP.Capabilities.Unknown -- edit_npmp_newsletters is the newsletter post types' own capability, resolved in npmp_filter_staff_caps().
+			add_menu_page( 'Email Newsletters', 'Email Newsletters', 'edit_npmp_newsletters', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
+			add_submenu_page( 'npmp-newsletters', 'New Newsletter',       'New Newsletter',       'edit_npmp_newsletters', 'npmp-newsletters',          'npmp_render_newsletter_editor' );
+			add_submenu_page( 'npmp-newsletters', 'Newsletter Templates', 'Newsletter Templates', 'edit_npmp_newsletters', 'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
+			add_submenu_page( 'npmp-newsletters', 'Newsletter Archive',   'Newsletter Archive',   'edit_npmp_newsletters', 'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
+			add_submenu_page( 'npmp-newsletters', 'Newsletter Reports',   'Newsletter Reports',   'edit_npmp_newsletters', 'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
 			add_submenu_page( 'npmp-newsletters', 'Newsletter Settings',  'Newsletter Settings',  'manage_options','npmp_newsletter_settings',  'npmp_render_newsletter_settings' );
+			// phpcs:enable WordPress.WP.Capabilities.Unknown
 		}
 
 		/* Donations */
 		if ( ! empty( $npmp_features['donations'] ) ) {
-			add_menu_page( 'Donations', 'Donations', 'manage_options', 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
+			add_menu_page( 'Donations', 'Donations', npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
 			add_submenu_page( 'npmp_donations_group', 'Donation Settings', 'Donation Settings', 'manage_options', 'npmp_donation_settings', 'npmp_render_donation_settings_page' );
 			add_submenu_page( 'npmp_donations_group', 'Payment Settings', 'Payment Settings', 'manage_options', 'npmp_payment_settings', 'npmp_render_payment_settings_page' );
 		}

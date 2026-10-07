@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.09.22
+Stable tag: 2026.10.4
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -26,6 +26,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Members and donors share one contact list, so you can see anyone's lifetime giving at a glance
 * Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
 * Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
+* Give a volunteer a Membership Manager login that sees members, donations, and newsletters, and none of your settings
 * Custom member fields with 8 field types and drag-and-drop ordering*
 * Segment members with an AND/OR condition builder*
 
@@ -33,6 +34,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 
 * Accept one-time donations through PayPal, Venmo, and Stripe
 * Drop a donation form on any page as a block or shortcode, with a thank-you message on the page
+* Take gifts in US, Canadian, Australian or New Zealand dollars, pounds, euros, yen and 9 more currencies (Venmo is US dollars only)
 * Recurring donations*
 * Membership dues auto-billing*
 * Donor thank-you emails with the gift amount and date*
@@ -136,6 +138,24 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Subscriber notification preference management
 
 == Changelog ==
+
+= 2026.10.4 =
+* Fixed: a one-time Stripe donation is recorded even when Stripe has a brief outage as the donor returns to your site.
+
+= 2026.10.3 =
+* Bug fixes and performance improvements.
+
+= 2026.10.2 =
+* Added currency support for donations, dues and recurring gifts.
+* Fixed donate buttons on block themes.
+* The setup wizard now opens after first activation.
+* Added Skip to the setup wizard.
+
+= 2026.10.1 =
+* Added a Membership Manager role for volunteers.
+* Fixed saving contacts from the member list.
+* Fixed email provider test results.
+* Fixed a CSV import warning on PHP 8.4.
 
 = 2026.09.22 =
 * Limited how often one visitor can sign up.
@@ -372,6 +392,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.10.2 =
+Fixes donate buttons that did nothing on block themes such as Twenty Twenty-Five, and adds a currency setting for donations outside the US. Recommended for every site.
+
+= 2026.10.1 =
+Adds a Membership Manager role, so a volunteer can work with members, donations and newsletters without full admin access.
 
 = 2026.09.22 =
 Security fixes for the signup form, Stripe checkout and PayPal verification. Recommended for every site.

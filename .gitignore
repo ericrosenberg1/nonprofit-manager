@@ -3,12 +3,12 @@ node_modules/
 *.code-workspace
 .DS_Store
 
-# Secrets — never commit credentials; load from a chmod 600 env file at runtime.
+# Secrets: never commit credentials. Load from a chmod 600 env file at runtime.
 .env
 .env.*
 *.pem
 *.key
 /dist
 
-# Nested site repo — separate project, never part of the plugin
+# Nested site repo: separate project, never part of the plugin
 /nonprofit-manager-site

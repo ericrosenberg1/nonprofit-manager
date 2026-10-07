@@ -1,5 +1,5 @@
 /**
- * Nonprofit Manager — default front-end form styles.
+ * Nonprofit Manager · default front-end form styles.
  *
  * Intentionally light and easy to override: it uses low-specificity selectors
  * and standard system spacing so it sits politely inside any theme. Turn it
@@ -257,7 +257,7 @@
 	background: #fcf0f1;
 }
 
-/* Donation form wrapper — modest spacing only; gateway markup keeps its own layout. */
+/* Donation form wrapper: modest spacing only. Gateway markup keeps its own layout. */
 .npmp-donation-form {
 	max-width: 32rem;
 	margin: 1.5rem 0;

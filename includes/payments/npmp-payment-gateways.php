@@ -18,6 +18,9 @@ function npmp_render_gateway_donation_form( $gateway ) {
 		case 'paypal_link':
 			return npmp_render_paypal_link_form();
 		case 'venmo_link':
+			if ( ! npmp_venmo_available() ) {
+				return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Venmo only accepts US dollars, so it is not offered for this currency.', 'nonprofit-manager' ) . '</p></div>';
+			}
 			return npmp_render_venmo_link_form();
 		case 'paypal_api':
 			if ( npmp_is_pro() ) {
@@ -41,11 +44,25 @@ function npmp_render_gateway_donation_form( $gateway ) {
  * @return string HTML form output.
  */
 function npmp_render_multi_gateway_donation_form( $gateways ) {
+	// Venmo only moves US dollars.
+	$gateways = npmp_filter_gateways_for_currency( $gateways );
+
 	if ( empty( $gateways ) ) {
 		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'No payment gateways configured.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
-	$opts = npmp_get_donation_form_options();
+	$opts     = npmp_get_donation_form_options();
+	$currency = npmp_currency();
+	$decimals = npmp_currency_decimals( $currency );
+	$input    = npmp_currency_input_attrs( $currency );
+	$min_msg  = npmp_currency_min_amount_message( 'enter', $currency );
+
+	// Every comparison in the inline scripts below is written "min > amount",
+	// never with a less-than sign. A block theme runs the whole page through
+	// wptexturize(), which reads a less-than sign as the start of an HTML tag,
+	// loses track of the script it is in, and turns each double ampersand after
+	// it into an entity: a syntax error that left the donate buttons dead.
+	// tests/test-inline-scripts.php holds the line.
 
 	ob_start();
 	?>
@@ -55,7 +72,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 
 		<form id="npmp-multi-gateway-form">
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
-			<input type="number" step="0.01" min="1" name="amount" id="npmp-donation-amount" required style="width:100%;"></label></p>
+			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-donation-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
 			<input type="email" name="email" id="npmp-donation-email" required style="width:100%;"></label></p>
@@ -119,6 +136,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			var amountInput = document.getElementById('npmp-donation-amount');
 			var emailInput = document.getElementById('npmp-donation-email');
 			var multiError = document.getElementById('npmp-multi-error');
+			var npmpMinAmount = <?php echo (float) npmp_currency_min_donation( $currency ); ?>;
 
 			if (!amountInput || !emailInput) {
 				console.error('NPMP: Donation form inputs not found');
@@ -147,8 +165,8 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
-					if (!amount || amount < 1) {
-						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+					if (!amount || npmpMinAmount > amount) {
+						npmpShowMultiError('<?php echo esc_js( $min_msg ); ?>');
 						return;
 					}
 
@@ -163,7 +181,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 						npmpShowMultiError('<?php echo esc_js( __( 'PayPal email is not configured. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
 						return;
 					}
-					var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(paypalEmail) + '&amount=' + amount + '&currency_code=USD&item_name=' + encodeURIComponent('Donation');
+					var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(paypalEmail) + '&amount=' + amount + '&currency_code=<?php echo esc_js( $currency ); ?>&item_name=' + encodeURIComponent('Donation');
 					window.open(paypalUrl, '_blank');
 				});
 			});
@@ -176,8 +194,8 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
-					if (!amount || amount < 1) {
-						npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+					if (!amount || npmpMinAmount > amount) {
+						npmpShowMultiError('<?php echo esc_js( $min_msg ); ?>');
 						return;
 					}
 
@@ -219,8 +237,8 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 
 						npmpClearMultiError();
 
-						if (!amount || amount < 1) {
-							npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+						if (!amount || npmpMinAmount > amount) {
+							npmpShowMultiError('<?php echo esc_js( $min_msg ); ?>');
 							return;
 						}
 
@@ -267,7 +285,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 				$mode      = get_option( 'npmp_paypal_mode', 'live' );
 				$client_id = 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' );
 				if ( $client_id ) :
-					$sdk_url = 'https://www.paypal.com/sdk/js?client-id=' . rawurlencode( $client_id ) . '&currency=USD';
+					$sdk_url = 'https://www.paypal.com/sdk/js?client-id=' . rawurlencode( $client_id ) . '&currency=' . rawurlencode( $currency );
 					if ( 'sandbox' === $mode ) {
 						$sdk_url .= '&debug=true';
 					}
@@ -284,8 +302,8 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 								var amount = parseFloat(amountInput.value);
 								var email = emailInput.value;
 
-								if (!amount || amount < 1) {
-									npmpShowMultiError('<?php echo esc_js( __( 'Please enter a valid donation amount (minimum $1).', 'nonprofit-manager' ) ); ?>');
+								if (!amount || npmpMinAmount > amount) {
+									npmpShowMultiError('<?php echo esc_js( $min_msg ); ?>');
 									return false;
 								}
 
@@ -297,7 +315,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 								return actions.order.create({
 									intent: 'CAPTURE',
 									purchase_units: [{
-										amount: { value: amount.toFixed(2), currency_code: 'USD' },
+										amount: { value: amount.toFixed(<?php echo (int) $decimals; ?>), currency_code: '<?php echo esc_js( $currency ); ?>' },
 										description: 'Donation'
 									}]
 								});
@@ -311,7 +329,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 									formData.append('action', 'npmp_log_donation');
 									formData.append('nonce', '<?php echo esc_js( wp_create_nonce( 'npmp_donation' ) ); ?>');
 									formData.append('email', emailInput.value);
-									formData.append('amount', parseFloat(amountInput.value).toFixed(2));
+									formData.append('amount', parseFloat(amountInput.value).toFixed(<?php echo (int) $decimals; ?>));
 									formData.append('frequency', 'one_time');
 									formData.append('gateway', 'paypal_api');
 									formData.append('transaction_id', details.id);
@@ -360,7 +378,9 @@ function npmp_render_paypal_link_form() {
 		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'PayPal is not configured. Please contact the administrator.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
-	$opts = npmp_get_donation_form_options();
+	$opts     = npmp_get_donation_form_options();
+	$currency = npmp_currency();
+	$input    = npmp_currency_input_attrs( $currency );
 
 	ob_start();
 	?>
@@ -370,7 +390,7 @@ function npmp_render_paypal_link_form() {
 
 		<form id="npmp-paypal-link-form" onsubmit="return npmpSubmitPayPalLink(event)">
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
-			<input type="number" step="0.01" min="1" name="amount" id="npmp-amount" required style="width:100%;"></label></p>
+			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
 			<input type="email" name="email" id="npmp-email" required style="width:100%;"></label></p>
@@ -404,7 +424,7 @@ function npmp_render_paypal_link_form() {
 
 		var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(business) +
 			'&amount=' + encodeURIComponent(amount) +
-			'&currency_code=USD' +
+			'&currency_code=<?php echo esc_js( $currency ); ?>' +
 			'&item_name=' + encodeURIComponent('Donation');
 
 		window.open(paypalUrl, '_blank');
@@ -507,13 +527,19 @@ function npmp_render_paypal_api_form() {
 		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'PayPal API is not configured. Please contact the administrator.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
-	$opts = npmp_get_donation_form_options();
+	$opts     = npmp_get_donation_form_options();
+	$currency = npmp_currency();
+	// PayPal rejects decimals on a zero-decimal currency (JPY), so the order
+	// value is rounded to whole units there. Two-decimal currencies send the
+	// amount as typed, as they always have.
+	$decimals = npmp_currency_decimals( $currency );
+	$input    = npmp_currency_input_attrs( $currency );
 
 	// Enqueue PayPal SDK
 	$sandbox_param = 'sandbox' === $mode ? '&buyer-country=US' : '';
 	wp_enqueue_script(
 		'paypal-sdk',
-		'https://www.paypal.com/sdk/js?client-id=' . rawurlencode( $client_id ) . '&currency=USD' . $sandbox_param,
+		'https://www.paypal.com/sdk/js?client-id=' . rawurlencode( $client_id ) . '&currency=' . rawurlencode( $currency ) . $sandbox_param,
 		array(),
 		null,
 		true
@@ -527,7 +553,7 @@ function npmp_render_paypal_api_form() {
 
 		<form id="npmp-paypal-api-form">
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
-			<input type="number" step="0.01" min="1" name="amount" id="npmp-paypal-api-amount" required style="width:100%;"></label></p>
+			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-paypal-api-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
 			<input type="email" name="email" id="npmp-paypal-api-email" required style="width:100%;"></label></p>
@@ -569,7 +595,7 @@ function npmp_render_paypal_api_form() {
 			var amount = document.getElementById('npmp-paypal-api-amount').value;
 			var email = document.getElementById('npmp-paypal-api-email').value;
 
-			if (!amount || amount < 1) {
+			if (!amount || <?php echo (float) npmp_currency_min_donation( $currency ); ?> > amount) {
 				showPayPalError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 				return false;
 			}
@@ -585,8 +611,8 @@ function npmp_render_paypal_api_form() {
 				intent: 'CAPTURE',
 				purchase_units: [{
 					amount: {
-						value: amount,
-						currency_code: 'USD'
+						value: <?php echo 2 === $decimals ? 'amount' : 'Number(amount).toFixed(' . (int) $decimals . ')'; ?>,
+						currency_code: '<?php echo esc_js( $currency ); ?>'
 					},
 					description: 'Donation'
 				}]
@@ -650,7 +676,9 @@ function npmp_render_stripe_form() {
 		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Stripe is not configured. Please contact the administrator.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
-	$opts = npmp_get_donation_form_options();
+	$opts     = npmp_get_donation_form_options();
+	$currency = npmp_currency();
+	$input    = npmp_currency_input_attrs( $currency );
 
 	// No Stripe.js needed: the server creates the Checkout Session and the
 	// browser follows the session's own URL. redirectToCheckout() is
@@ -664,7 +692,7 @@ function npmp_render_stripe_form() {
 
 		<form id="npmp-stripe-form">
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
-			<input type="number" step="0.01" min="1" name="amount" id="npmp-stripe-amount" required style="width:100%;"></label></p>
+			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-stripe-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
 			<input type="email" name="email" id="npmp-stripe-email" required style="width:100%;"></label></p>
@@ -710,7 +738,7 @@ function npmp_render_stripe_form() {
 			}
 		}
 
-		if (!amount || amount < 1) {
+		if (!amount || <?php echo (float) npmp_currency_min_donation( $currency ); ?> > amount) {
 			showError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
 			return;
 		}
@@ -800,6 +828,17 @@ function npmp_ajax_log_donation() {
 		wp_send_json_error( array( 'message' => __( 'Please provide a valid donation amount.', 'nonprofit-manager' ) ) );
 	}
 
+	// A PayPal order already recorded is a replay (a double-fired onApprove,
+	// or someone re-posting a real order id). Answer as the first call did
+	// without re-verifying, re-logging the verification row, or emailing the
+	// donor a second thank-you.
+	if ( '' !== $transaction_id ) {
+		$existing_id = NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $transaction_id );
+		if ( $existing_id ) {
+			wp_send_json_success( array( 'donation_id' => $existing_id ) );
+		}
+	}
+
 	// This endpoint is reachable by logged-out visitors holding only the
 	// public page nonce, so a client-reported PayPal capture is verified
 	// against PayPal's own API before anything is recorded or emailed.
@@ -823,6 +862,15 @@ function npmp_ajax_log_donation() {
 			wp_send_json_success( array( 'donation_id' => (int) $donation_manager->find_by_transaction_id( $transaction_id ) ) );
 		}
 
+		// The currency PayPal says it captured, when the order was checked
+		// against PayPal (verification already refused any other currency).
+		// Without API credentials there is nothing to read, and the order was
+		// created in the site currency.
+		$currency = npmp_normalize_currency_code( $paypal_order_data['purchase_units'][0]['amount']['currency_code'] ?? '' );
+		if ( '' === $currency ) {
+			$currency = npmp_currency();
+		}
+
 		// Log donation
 		$donation_id       = $donation_manager->log_donation(
 			array(
@@ -832,6 +880,7 @@ function npmp_ajax_log_donation() {
 				'frequency'      => $frequency,
 				'gateway'        => $gateway,
 				'transaction_id' => $transaction_id,
+				'currency'       => $currency,
 			)
 		);
 
@@ -874,6 +923,7 @@ function npmp_ajax_log_donation() {
 				'email'     => $email,
 				'name'      => $name,
 				'amount'    => $amount,
+				'currency'  => $currency,
 				'frequency' => $frequency,
 				'date'      => date_i18n( get_option( 'date_format' ) ),
 			)
@@ -928,9 +978,16 @@ function npmp_ajax_create_stripe_session() {
 		wp_send_json_error( __( 'Please provide a valid email address.', 'nonprofit-manager' ) );
 	}
 
-	if ( $amount < 1 ) {
+	// The site currency, and never anything the browser sends: the amount is
+	// charged in whatever this says.
+	$currency = npmp_currency();
+
+	// One whole unit, or Stripe's own minimum where that is higher (¥50).
+	// Stripe refuses a charge below its minimum, so catching it here gives the
+	// donor a clear message instead of a Stripe error.
+	if ( ! npmp_currency_meets_minimum( $amount, $currency ) ) {
 		npmp_payment_debug_log( 'stripe session rejected: invalid amount' );
-		wp_send_json_error( __( 'Please provide a valid donation amount (minimum $1).', 'nonprofit-manager' ) );
+		wp_send_json_error( npmp_currency_min_amount_message( 'provide', $currency ) );
 	}
 
 	$secret_key = npmp_stripe_secret_key();
@@ -949,17 +1006,17 @@ function npmp_ajax_create_stripe_session() {
 	$success_url = $return_base . $joiner . 'npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}';
 	$cancel_url  = add_query_arg( 'npmp_donation', 'cancelled', $return_base );
 
-	$endpoint     = 'https://api.stripe.com/v1/checkout/sessions';
-	// round() before casting: floats like 19.99 * 100 land on 1998.9999999999998
-	// in IEEE 754, and intval() truncates that down to 1998 (a 1-cent
-	// undercharge) instead of the correct 1999.
-	$amount_cents = (int) round( $amount * 100 ); // Convert to cents
+	$endpoint = 'https://api.stripe.com/v1/checkout/sessions';
+	// Stripe takes the smallest unit of the currency: cents for USD, whole
+	// yen for JPY. npmp_currency_to_minor() rounds before casting, so 19.99
+	// becomes 1999 and not the 1998 a bare cast of 1998.9999999999998 gives.
+	$amount_minor = npmp_currency_to_minor( $amount, $currency );
 
 	$body = array(
 		'payment_method_types[]' => 'card',
 		'customer_email'         => $email,
-		'line_items[0][price_data][currency]' => 'usd',
-		'line_items[0][price_data][unit_amount]' => $amount_cents,
+		'line_items[0][price_data][currency]' => strtolower( $currency ),
+		'line_items[0][price_data][unit_amount]' => $amount_minor,
 		'line_items[0][quantity]' => 1,
 		'success_url'            => $success_url,
 		'cancel_url'             => $cancel_url,
@@ -1045,7 +1102,7 @@ function npmp_ajax_create_stripe_session() {
  * @return void
  */
 function npmp_maybe_finalize_stripe_donation() {
-	if ( is_admin() || empty( $_GET['npmp_donation'] ) || 'success' !== $_GET['npmp_donation'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag; the session id is verified against Stripe's API below.
+	if ( is_admin() || empty( $_GET['npmp_donation'] ) || 'success' !== $_GET['npmp_donation'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only status flag. The session id is verified against Stripe's API below.
 		return;
 	}
 
@@ -1061,6 +1118,15 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 	set_transient( $lock_key, 1, 15 * MINUTE_IN_SECONDS );
+
+	// Durable guard. A recorded donation for this session means it was
+	// already finalized and the donor already thanked. Without this, a visit
+	// to the same success URL after the 15-minute lock expired (browser
+	// history, a bookmark, a flushed object cache) sent the thank-you email
+	// again, because log_donation() dedupes the record but not the email.
+	if ( class_exists( 'NPMP_Donation_Manager' ) && NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
+		return;
+	}
 
 	$secret_key = npmp_stripe_secret_key();
 	if ( empty( $secret_key ) ) {
@@ -1080,6 +1146,15 @@ function npmp_maybe_finalize_stripe_donation() {
 
 	if ( is_wp_error( $response ) ) {
 		delete_transient( $lock_key ); // Let a refresh retry after a transient network failure.
+		return;
+	}
+
+	// A Stripe 5xx or 429 is no answer at all. This return is the only place a
+	// one-time gift gets recorded (there is no webhook for them), so holding
+	// the lock here dropped the donation for anyone whose refresh came inside
+	// the 15-minute window. Only a 200 is a definitive answer worth locking on.
+	if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		delete_transient( $lock_key );
 		return;
 	}
 
@@ -1112,7 +1187,13 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
-	$amount    = isset( $session['amount_total'] ) && is_numeric( $session['amount_total'] ) ? floatval( $session['amount_total'] ) / 100 : 0;
+	// The currency Stripe charged in, from the session itself. The setting may
+	// have changed since the donor started checkout.
+	$currency  = npmp_normalize_currency_code( $session['currency'] ?? '' );
+	if ( '' === $currency ) {
+		$currency = npmp_currency();
+	}
+	$amount    = isset( $session['amount_total'] ) && is_numeric( $session['amount_total'] ) ? npmp_currency_from_minor( $session['amount_total'], $currency ) : 0;
 	$frequency = isset( $session['metadata']['frequency'] ) ? sanitize_text_field( $session['metadata']['frequency'] ) : 'one_time';
 	$name      = isset( $session['customer_details']['name'] ) ? sanitize_text_field( $session['customer_details']['name'] ) : '';
 
@@ -1125,6 +1206,7 @@ function npmp_maybe_finalize_stripe_donation() {
 				'frequency'      => $frequency,
 				'gateway'        => 'stripe',
 				'transaction_id' => $session_id,
+				'currency'       => $currency,
 			)
 		);
 	}
@@ -1134,12 +1216,17 @@ function npmp_maybe_finalize_stripe_donation() {
 			'email'     => $email,
 			'name'      => $name,
 			'amount'    => $amount,
+			'currency'  => $currency,
 			'frequency' => $frequency,
 			'date'      => date_i18n( get_option( 'date_format' ) ),
 		)
 	);
 
 	npmp_add_donor_to_membership( $email, $name );
+
+	// Subscription sessions leave no donation record here (Pro's webhook
+	// records them), so hold the lock long enough to cover a revisit.
+	set_transient( $lock_key, 1, 30 * DAY_IN_SECONDS );
 }
 add_action( 'template_redirect', 'npmp_maybe_finalize_stripe_donation' );
 
@@ -1192,7 +1279,7 @@ function npmp_payment_debug_log( $message ) {
  * @param string     $order_id   PayPal order id from the client.
  * @param float      $amount     Claimed donation amount.
  * @param array|null $order_data Output. Set to PayPal's decoded order response when a
- *                                real API check ran and passed; left null when verification
+ *                                real API check ran and passed. Left null when verification
  *                                was skipped (no API credentials) or failed.
  * @return true|WP_Error True when verified. WP_Error when PayPal refuses or the order doesn't match.
  */
@@ -1260,9 +1347,10 @@ function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
 		return new WP_Error( 'npmp_paypal_not_completed', __( 'PayPal reports this donation as not completed.', 'nonprofit-manager' ) );
 	}
 
-	// Every form charges in USD. Without this, 100 JPY verified as a $100 gift.
+	// Every form charges in the site currency. Without this, 100 JPY verified
+	// as a $100 gift on a US-dollar site.
 	$currency = isset( $order['purchase_units'][0]['amount']['currency_code'] ) ? strtoupper( (string) $order['purchase_units'][0]['amount']['currency_code'] ) : '';
-	if ( strtoupper( (string) apply_filters( 'npmp_donation_currency', 'USD' ) ) !== $currency ) {
+	if ( strtoupper( (string) apply_filters( 'npmp_donation_currency', npmp_currency() ) ) !== $currency ) {
 		return new WP_Error( 'npmp_paypal_currency_mismatch', __( 'The PayPal payment is in a different currency.', 'nonprofit-manager' ) );
 	}
 
@@ -1363,7 +1451,7 @@ function npmp_paypal_own_merchant_id( $base, $token, $mode, $client_id ) {
 					'intent'         => 'CAPTURE',
 					'purchase_units' => array(
 						array(
-							'amount'      => array( 'currency_code' => 'USD', 'value' => '1.00' ),
+							'amount'      => array( 'currency_code' => npmp_currency(), 'value' => npmp_currency_api_amount( npmp_currency_min_donation(), npmp_currency() ) ),
 							'description' => 'Nonprofit Manager account check (never charged)',
 						),
 					),
@@ -1506,6 +1594,7 @@ function npmp_send_thank_you_email( $donation_data ) {
 	$donor_email = $donation_data['email'] ?? '';
 	$donor_name  = $donation_data['name'] ?? '';
 	$amount      = $donation_data['amount'] ?? 0;
+	$currency    = npmp_resolve_currency( $donation_data['currency'] ?? null );
 	$frequency   = $donation_data['frequency'] ?? 'one_time';
 	$date        = $donation_data['date'] ?? date_i18n( get_option( 'date_format' ) );
 
@@ -1529,7 +1618,9 @@ function npmp_send_thank_you_email( $donation_data ) {
 	$replacements = array(
 		'{donor_name}'         => $donor_name ?: $donor_email,
 		'{donor_email}'        => $donor_email,
-		'{donation_amount}'    => '$' . number_format( $amount, 2 ),
+		// In the currency this gift was taken in, which may differ from the
+		// current setting for a renewal of an older subscription.
+		'{donation_amount}'    => npmp_format_amount( $amount, $currency ),
 		'{donation_date}'      => $date,
 		'{donation_frequency}' => $frequency_labels[ $frequency ] ?? $frequency,
 		'{site_name}'          => get_bloginfo( 'name' ),

@@ -1,7 +1,7 @@
 /**
  * File path: assets/css/tour.css
  *
- * Styles for the guided product tour. Self-contained — the JS engine
+ * Styles for the guided product tour. Self-contained. The JS engine
  * mounts everything inside #npmp-tour-root so we don't fight with WP
  * admin styles. Color tokens match calendar.css so the tour looks like
  * the same product.
@@ -179,7 +179,7 @@
 	text-decoration: underline;
 }
 
-/* Tooltip arrow — placed by JS based on tooltip position relative to spotlight */
+/* Tooltip arrow: placed by JS based on tooltip position relative to spotlight */
 .npmp-tour-tooltip__arrow {
 	position: absolute;
 	width: 12px;
@@ -302,7 +302,7 @@
 	}
 }
 
-/* Responsive — narrow tooltip on phone-size admin (rare but handle) */
+/* Responsive: narrow tooltip on phone-size admin (rare but handle) */
 @media (max-width: 600px) {
 	.npmp-tour-tooltip {
 		max-width: calc(100vw - 32px);

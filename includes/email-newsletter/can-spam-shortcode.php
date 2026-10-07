@@ -38,7 +38,7 @@ if ( ! function_exists( 'npmp_can_spam_get_address' ) ) {
 	 *
 	 * CAN-SPAM requires a valid physical postal address in commercial email.
 	 * Falls back to the site admin email only when no address is configured,
-	 * which is not compliant — set one on the Newsletter Settings screen.
+	 * which is not compliant. Set one on the Newsletter Settings screen.
 	 *
 	 * @return string Escaped, ready to drop into the footer markup.
 	 */

@@ -84,8 +84,8 @@ class NPMP_Newsletter_Manager {
 
 		// Gather valid recipient rows first, then insert in batches instead of
 		// one $wpdb->insert() per recipient. A nonprofit with a few thousand
-		// subscribed members previously meant a few thousand round-trips here;
-		// batching in groups of 500 cuts that to a handful of multi-row INSERTs
+		// subscribed members previously meant a few thousand round-trips here.
+		// Batching in groups of 500 cuts that to a handful of multi-row INSERTs
 		// while inserting the exact same rows. The queue table has no unique
 		// constraint beyond its auto-increment id (see activation-hooks.php),
 		// so grouping rows into one statement can't turn an individual
@@ -287,8 +287,8 @@ class NPMP_Newsletter_Manager {
 				// was mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), but
 				// PHP 8.2 deprecated passing 'HTML-ENTITIES' to mb_convert_encoding().
 				// mb_encode_numericentity() with this convmap (every code point from
-				// U+0080 up) produces the same effect — every non-ASCII character
-				// becomes a numeric HTML entity — without the deprecation.
+				// U+0080 up) produces the same effect (every non-ASCII character
+				// becomes a numeric HTML entity) without the deprecation.
 				$convmap                = array( 0x80, 0x10FFFF, 0, 0x1FFFFF );
 				$libxml_previous_state  = libxml_use_internal_errors( true );
 				$dom->loadHTML( mb_encode_numericentity( $content, $convmap, 'UTF-8' ) );

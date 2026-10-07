@@ -72,7 +72,7 @@ function npmp_render_main_plugin_page() {
 				<span class="npmp-pro-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 			<?php endif; ?>
 			<?php
-			// "Re-run setup tour" link (onboarding module); guarded so the
+			// "Re-run setup tour" link (onboarding module). Guarded so the
 			// header survives a build that excludes onboarding.
 			if ( class_exists( 'NPMP_Tour' ) ) {
 				echo ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_main&npmp_tour_restart=1' ) ) . '" class="page-title-action" style="margin-left:8px;">' . esc_html__( 'Re-run setup tour', 'nonprofit-manager' ) . '</a>';
@@ -361,20 +361,20 @@ function npmp_render_main_plugin_page() {
 					<table class="npmp-summary-table">
 						<?php
 						// Year-to-date donations
-						$ytd_total = npmp_get_ytd_donation_total();
+						$ytd_totals = npmp_get_ytd_donation_totals_by_currency();
 						?>
 						<tr>
 							<th><?php esc_html_e( 'Year-to-Date Donations', 'nonprofit-manager' ); ?></th>
-							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_currency( $ytd_total ) ); ?></td>
+							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $ytd_totals ) ); ?></td>
 						</tr>
 
 						<?php
 						// Annual recurring donations
-						$recurring_total = npmp_get_annual_recurring_total();
+						$recurring_totals = npmp_get_annual_recurring_totals_by_currency();
 						?>
 						<tr>
 							<th><?php esc_html_e( 'Annual Recurring Donations', 'nonprofit-manager' ); ?></th>
-							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_currency( $recurring_total ) ); ?></td>
+							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $recurring_totals ) ); ?></td>
 						</tr>
 					</table>
 					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_donations_group' ) ); ?>" class="button"><?php esc_html_e( 'View Donations Dashboard', 'nonprofit-manager' ); ?></a></p>

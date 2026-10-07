@@ -11,7 +11,7 @@
  * Architecture:
  *
  *   - Step definitions live in `tour-data.php` (free) and Pro's
- *     `includes/onboarding/pro-tour-data.php` — both go through the
+ *     `includes/onboarding/pro-tour-data.php`. Both go through the
  *     `npmp_tour_steps` filter so Pro can append.
  *   - Per-user state lives in user-meta `npmp_tour_progress` (a JSON
  *     blob: step, dismissed, completed, started_at).
@@ -19,7 +19,8 @@
  *     matching the current admin screen, and renders. Step navigation
  *     between admin pages uses `window.location` with a continuation
  *     param so the next page picks up where we left off.
- *   - A modal triggers on the first admin pageview after activation; a
+ *   - A modal triggers on the first NPM admin pageview (never on the
+ *     setup wizards, and not while a wizard redirect is pending). A
  *     dismissible banner shows on every NPM admin screen until the user
  *     completes or explicitly dismisses the tour.
  *
@@ -38,7 +39,7 @@ class NPMP_Tour {
 	const REST_NAMESPACE  = 'npmp/v1';
 
 	/**
-	 * Boot the controller. Idempotent — safe to call multiple times.
+	 * Boot the controller. Idempotent, safe to call multiple times.
 	 */
 	public static function init() {
 		static $booted = false;
@@ -106,7 +107,7 @@ class NPMP_Tour {
 		$current = self::get_progress();
 		$merged  = wp_parse_args( $progress, $current );
 
-		// Defensive type coercion — never trust client JSON values.
+		// Defensive type coercion: never trust client JSON values.
 		$merged['step']       = max( 0, (int) $merged['step'] );
 		$merged['dismissed']  = (bool) $merged['dismissed'];
 		$merged['completed']  = (bool) $merged['completed'];
@@ -124,6 +125,10 @@ class NPMP_Tour {
 	 */
 	public static function should_show_modal() {
 		if ( ! self::is_npmp_admin_screen() ) {
+			return false;
+		}
+		// One onboarding surface at a time: a setup wizard goes first.
+		if ( self::setup_wizard_pending() ) {
 			return false;
 		}
 		$p = self::get_progress();
@@ -153,6 +158,16 @@ class NPMP_Tour {
 	}
 
 	/**
+	 * The tour walks through settings screens, so it's for administrators.
+	 * A Membership Manager would be sent to pages they can't open.
+	 *
+	 * @return bool
+	 */
+	public static function user_can_take_tour() {
+		return current_user_can( 'manage_options' );
+	}
+
+	/**
 	 * Test whether the current admin screen is one of ours.
 	 *
 	 * @return bool
@@ -163,13 +178,52 @@ class NPMP_Tour {
 			return false;
 		}
 		$id = (string) $screen->id;
+		if ( self::is_setup_wizard_screen_id( $id ) ) {
+			// The wizards are ours, but the tour has nothing to say there.
+			return false;
+		}
 		return ( false !== strpos( $id, 'npmp' ) ) || ( false !== strpos( $id, 'npmp-' ) );
+	}
+
+	/**
+	 * Whether a screen ID is the free or Pro setup wizard. Both are hidden
+	 * pages, so their screen IDs are admin_page_<slug>.
+	 *
+	 * @param string $id Screen ID.
+	 * @return bool
+	 */
+	public static function is_setup_wizard_screen_id( $id ) {
+		$id = (string) $id;
+		foreach ( array( 'npmp_setup_wizard', 'npmp_pro_setup_wizard' ) as $slug ) {
+			if ( substr( $id, -strlen( '_page_' . $slug ) ) === '_page_' . $slug ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Whether a setup wizard redirect (free or Pro) is still waiting to
+	 * happen. The tour holds its modal until the wizard is finished or
+	 * skipped.
+	 *
+	 * @return bool
+	 */
+	public static function setup_wizard_pending() {
+		if ( function_exists( 'npmp_setup_wizard_redirect_pending' ) && npmp_setup_wizard_redirect_pending() ) {
+			return true;
+		}
+		// Pro's flag only counts while Pro's redirect is loaded (Pro active,
+		// licensed, and new enough), or an idle flag would hold the tour back.
+		return function_exists( 'npmp_pro_maybe_redirect_to_setup_wizard' )
+			&& get_option( 'npmp_pro_setup_wizard_redirect', false )
+			&& ! get_option( 'npmp_pro_setup_completed', false );
 	}
 
 	/**
 	 * Compiled list of tour steps for the current user (Free + Pro merged
 	 * via filter). Each step gets a `_resolved_skip` flag set if its
-	 * `skip_if` predicate already returns true — the JS engine skips
+	 * `skip_if` predicate already returns true. The JS engine skips
 	 * those without ever rendering them.
 	 *
 	 * @return array[]
@@ -178,7 +232,7 @@ class NPMP_Tour {
 		$steps = npmp_tour_get_free_steps();
 		/**
 		 * Filter the tour step list. Pro hooks this to append its own
-		 * steps; themes can hook it to inject custom steps too.
+		 * steps. Themes can hook it to inject custom steps too.
 		 *
 		 * @param array $steps Ordered step array.
 		 */
@@ -234,18 +288,13 @@ class NPMP_Tour {
 	 * Enqueue the engine JS + CSS on every NPM admin screen.
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
+		if ( ! self::user_can_take_tour() ) {
+			return;
+		}
+
 		// Don't waste bytes on non-NPM admin pages.
 		if ( ! self::is_npmp_admin_screen() ) {
-			// Exception: enqueue on the WP plugins screen too so the
-			// post-activation modal fires (the redirect lands first on a
-			// non-npmp screen sometimes).
-			if ( 'plugins.php' !== $hook_suffix ) {
-				return;
-			}
-			$p = self::get_progress();
-			if ( $p['completed'] || $p['dismissed'] || $p['started_at'] ) {
-				return;
-			}
+			return;
 		}
 
 		$plugin_file = dirname( __DIR__, 2 ) . '/nonprofit-manager.php';
@@ -312,7 +361,7 @@ class NPMP_Tour {
 	 * until the user completes or explicitly dismisses.
 	 */
 	public static function render_banner() {
-		if ( ! self::should_show_banner() ) {
+		if ( ! self::user_can_take_tour() || ! self::should_show_banner() ) {
 			return;
 		}
 		?>
@@ -332,6 +381,9 @@ class NPMP_Tour {
 	 * Empty container the JS mounts the modal + overlay into.
 	 */
 	public static function render_modal_container() {
+		if ( ! self::user_can_take_tour() ) {
+			return;
+		}
 		if ( ! self::is_npmp_admin_screen() && ! self::should_show_modal() ) {
 			return;
 		}

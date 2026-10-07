@@ -91,7 +91,7 @@ class NPMP_Newsletter_Tracker {
 		global $wpdb;
 		$table = $wpdb->prefix . 'npmp_newsletter_opens';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table; the wp_cache_set() below covers repeat requests.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table. The wp_cache_set() below covers repeat requests.
 		$wpdb->query(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, values are all placeholders.
@@ -255,7 +255,7 @@ class NPMP_Newsletter_Tracker {
 				// this exact destination and has just been verified against it,
 				// and $url has been through esc_url_raw(), so leaving the site is
 				// safe here.
-				wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is bound into the verified HMAC and esc_url_raw()'d above; see comment.
+				wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is bound into the verified HMAC and esc_url_raw()'d above. See comment.
 			} else {
 				// Legacy token: verified, but it authorizes no specific
 				// destination, so an attacker could pair it with any url=.

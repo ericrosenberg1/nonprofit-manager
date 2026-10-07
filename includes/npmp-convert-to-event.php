@@ -220,7 +220,7 @@ function npmp_ajax_convert_to_event() {
 		wp_send_json_error( __( 'Event start date is required.', 'nonprofit-manager' ) );
 	}
 
-	// strtotime() returns false for a malformed value; gmdate() would then
+	// strtotime() returns false for a malformed value, and gmdate() would then
 	// silently coerce that to 0 and create the event dated 1970-01-01
 	// instead of reporting the problem.
 	$start_time = strtotime( $start );
