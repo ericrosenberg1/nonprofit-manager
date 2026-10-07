@@ -36,7 +36,7 @@ class WP_Error {
 }
 function is_wp_error( $v ) { return $v instanceof WP_Error; }
 function sanitize_email( $v ) { return trim( (string) $v ); }
-function apply_filters( $tag, $value ) { return $value; }
+function apply_filters( $tag, $value, ...$args ) { return $value; }
 function wp_json_encode( $v ) { return json_encode( $v ); }
 
 $GLOBALS['t_options']    = array();
@@ -110,6 +110,9 @@ function created_order( $merchant = 'OURMERCHANT1' ) {
 		),
 	);
 }
+
+// The order currency is checked against the site currency.
+require_once __DIR__ . '/../includes/npmp-currency.php';
 
 // Take the three functions out of a file that needs WordPress to load.
 $src = file_get_contents( __DIR__ . '/../includes/payments/npmp-payment-gateways.php' );
