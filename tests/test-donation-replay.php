@@ -34,6 +34,7 @@ $GLOBALS['t_members']    = 0;
 $GLOBALS['t_http']       = 0;
 $GLOBALS['t_verified']   = 0;
 $GLOBALS['t_audit_rows'] = 0;
+$GLOBALS['t_mode']       = 'payment';
 
 function is_admin() { return false; }
 function sanitize_text_field( $v ) { return trim( (string) $v ); }
@@ -42,9 +43,10 @@ function is_email( $v ) { return false !== filter_var( $v, FILTER_VALIDATE_EMAIL
 function wp_unslash( $v ) { return $v; }
 function wp_verify_nonce( $nonce, $action ) { return 'good' === $nonce; }
 function get_option( $key, $default = false ) { return $default; }
+function apply_filters( $tag, $value, ...$args ) { return $value; }
 function date_i18n( $format ) { return '2026-09-18'; }
 function get_transient( $key ) { return $GLOBALS['t_transients'][ $key ] ?? false; }
-function set_transient( $key, $value, $ttl ) { $GLOBALS['t_transients'][ $key ] = $value; return true; }
+function set_transient( $key, $value, $ttl ) { $GLOBALS['t_transients'][ $key ] = $value; $GLOBALS['t_ttls'][ $key ] = $ttl; return true; }
 function delete_transient( $key ) { unset( $GLOBALS['t_transients'][ $key ] ); return true; }
 function is_wp_error( $v ) { return false; }
 function wp_remote_get( $url, $args ) {
@@ -54,10 +56,11 @@ function wp_remote_get( $url, $args ) {
 		'body'     => json_encode(
 			array(
 				'payment_status'   => 'paid',
-				'mode'             => 'payment',
+				'mode'             => $GLOBALS['t_mode'],
 				'amount_total'     => 2500,
+				'currency'         => 'usd',
 				'customer_details' => array( 'email' => 'donor@example.com', 'name' => 'Dana Donor' ),
-				'metadata'         => array( 'frequency' => 'one_time' ),
+				'metadata'         => array( 'frequency' => 'one_time', 'gateway' => 'stripe' ),
 			)
 		),
 	);
@@ -96,6 +99,8 @@ class NPMP_Donation_Manager {
 		$GLOBALS['t_audit_rows']++;
 	}
 }
+
+require_once __DIR__ . '/../includes/npmp-currency.php';
 
 // Take the two handlers out of a file that needs WordPress to load.
 $src = file_get_contents( __DIR__ . '/../includes/payments/npmp-payment-gateways.php' );
@@ -147,6 +152,17 @@ stripe_return( 'cs_test_two' );
 check( 'a different session is still thanked', 2, $GLOBALS['t_emails'] );
 check( 'bad session id ignored', null, stripe_return( 'not-a-session' ) );
 check( 'bad session id sends nothing', 2, $GLOBALS['t_emails'] );
+
+// A subscription session leaves no donation record here (Pro's webhook
+// records each invoice), so only the lock stands between a revisit and a
+// second thank-you. It has to outlast the 15-minute refresh window.
+$GLOBALS['t_mode'] = 'subscription';
+stripe_return( 'cs_test_sub' );
+check( 'subscription return thanks the donor', 3, $GLOBALS['t_emails'] );
+stripe_return( 'cs_test_sub' );
+check( 'subscription revisit does not re-thank', 3, $GLOBALS['t_emails'] );
+check( 'subscription lock outlasts the refresh window', true, ( $GLOBALS['t_ttls'][ 'npmp_stripe_fin_' . md5( 'cs_test_sub' ) ] ?? 0 ) > DAY_IN_SECONDS );
+$GLOBALS['t_mode'] = 'payment';
 
 echo "\n== 2. PayPal AJAX logger ==\n";
 $GLOBALS['t_emails'] = 0;

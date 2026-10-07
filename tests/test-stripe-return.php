@@ -23,6 +23,9 @@ require_once __DIR__ . '/bootstrap.php';
 if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 	define( 'MINUTE_IN_SECONDS', 60 );
 }
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+	define( 'DAY_IN_SECONDS', 86400 );
+}
 
 $GLOBALS['npmp_test_options']    = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
 $GLOBALS['npmp_test_transients'] = array();
