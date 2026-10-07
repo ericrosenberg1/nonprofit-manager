@@ -91,7 +91,7 @@ class NPMP_Newsletter_Tracker {
 		global $wpdb;
 		$table = $wpdb->prefix . 'npmp_newsletter_opens';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table; the wp_cache_set() below covers repeat requests.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated tracking table. The wp_cache_set() below covers repeat requests.
 		$wpdb->query(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, values are all placeholders.
@@ -217,8 +217,21 @@ class NPMP_Newsletter_Tracker {
 		//     durable open redirect on an unauthenticated endpoint.
 		//
 		// Track which one verified, because the redirect below depends on it.
-		$url_is_signed = self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $decoded_url );
-		$valid         = $url_is_signed
+		//
+		// create_tracked_url() encodes the destination once and PHP decodes
+		// $_GET once, so $raw_url is already the exact string that was signed.
+		// Decoding it a second time broke every link carrying a percent escape
+		// (utm values with %20, encoded map links): the signature failed and
+		// the click landed on the home page. Check the raw value first and keep
+		// the old decoded check so nothing that verified before stops working.
+		$url_is_signed = false;
+		if ( $raw_url && self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $raw_url ) ) {
+			$url_is_signed = true;
+			$url           = esc_url_raw( $raw_url );
+		} elseif ( self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id, $decoded_url ) ) {
+			$url_is_signed = true;
+		}
+		$valid = $url_is_signed
 			|| self::verify_hmac( $nonce, 'click', $newsletter_id, $user_id );
 
 		if ( ! $valid ) {
@@ -242,7 +255,7 @@ class NPMP_Newsletter_Tracker {
 				// this exact destination and has just been verified against it,
 				// and $url has been through esc_url_raw(), so leaving the site is
 				// safe here.
-				wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is bound into the verified HMAC and esc_url_raw()'d above; see comment.
+				wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- destination is bound into the verified HMAC and esc_url_raw()'d above. See comment.
 			} else {
 				// Legacy token: verified, but it authorizes no specific
 				// destination, so an attacker could pair it with any url=.

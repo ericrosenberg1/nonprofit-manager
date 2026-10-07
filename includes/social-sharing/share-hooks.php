@@ -138,7 +138,25 @@ function npmp_social_handle_manual_share( $post_id ) {
 		return;
 	}
 
+	// save_post also fires for the revision WordPress saves alongside the
+	// post, which would share twice with a revision URL.
+	if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+		return;
+	}
+
 	if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		return;
+	}
+
+	// Only published posts go out, and only from someone who may publish
+	// them. The button is hidden on drafts, but the request can still be
+	// forged, and a Contributor could otherwise post a draft to the
+	// organization's social accounts.
+	if ( 'publish' !== get_post_status( $post_id ) ) {
+		return;
+	}
+	$type_object = get_post_type_object( get_post_type( $post_id ) );
+	if ( ! $type_object || ! current_user_can( $type_object->cap->publish_posts ) ) {
 		return;
 	}
 

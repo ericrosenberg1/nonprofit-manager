@@ -111,11 +111,6 @@ function npmp_render_email_settings_page() {
 				update_option( 'npmp_postmark_api_key', $postmark_key );
 			}
 
-			// SparkPost API key
-			$sparkpost_key = isset( $_POST['npmp_sparkpost_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_sparkpost_api_key'] ) ) : '';
-			if ( '' !== $sparkpost_key ) {
-				update_option( 'npmp_sparkpost_api_key', $sparkpost_key );
-			}
 		}
 
 		$region = sanitize_key( wp_unslash( $_POST['npmp_aws_region'] ?? $new_settings['aws']['region'] ?? 'us-east-1' ) );
@@ -177,93 +172,6 @@ function npmp_render_email_settings_page() {
 				'type'    => 'error',
 				'message' => implode( '<br>', array_map( 'esc_html', $errors ) ),
 			);
-		}
-	}
-
-	// Handle provider credential tests
-	if ( $is_pro ) {
-		// AWS SES test
-		if (
-			isset( $_POST['npmp_test_aws_ses_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_aws_ses_nonce'] ) ), 'npmp_test_aws_ses' )
-		) {
-			$result = function_exists( 'npmp_pro_test_aws_ses' ) ? npmp_pro_test_aws_ses() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Amazon SES' ) );
-			}
-			exit;
-		}
-
-		// Brevo test
-		if (
-			isset( $_POST['npmp_test_brevo_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_brevo_nonce'] ) ), 'npmp_test_brevo' )
-		) {
-			$result = function_exists( 'npmp_pro_test_brevo' ) ? npmp_pro_test_brevo() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Brevo' ) );
-			}
-			exit;
-		}
-
-		// SendGrid test
-		if (
-			isset( $_POST['npmp_test_sendgrid_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sendgrid_nonce'] ) ), 'npmp_test_sendgrid' )
-		) {
-			$result = function_exists( 'npmp_pro_test_sendgrid' ) ? npmp_pro_test_sendgrid() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SendGrid' ) );
-			}
-			exit;
-		}
-
-		// Mailgun test
-		if (
-			isset( $_POST['npmp_test_mailgun_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_mailgun_nonce'] ) ), 'npmp_test_mailgun' )
-		) {
-			$result = function_exists( 'npmp_pro_test_mailgun' ) ? npmp_pro_test_mailgun() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Mailgun' ) );
-			}
-			exit;
-		}
-
-		// Postmark test
-		if (
-			isset( $_POST['npmp_test_postmark_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_postmark_nonce'] ) ), 'npmp_test_postmark' )
-		) {
-			$result = function_exists( 'npmp_pro_test_postmark' ) ? npmp_pro_test_postmark() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Postmark' ) );
-			}
-			exit;
-		}
-
-		// SparkPost test
-		if (
-			isset( $_POST['npmp_test_sparkpost_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sparkpost_nonce'] ) ), 'npmp_test_sparkpost' )
-		) {
-			$result = function_exists( 'npmp_pro_test_sparkpost' ) ? npmp_pro_test_sparkpost() : false;
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SparkPost' ) );
-			}
-			exit;
 		}
 	}
 
@@ -685,34 +593,6 @@ function npmp_render_email_settings_page() {
 						</table>
 </div>
 
-					<!-- SparkPost -->
-					<div class="npmp-provider-block npmp-provider-sparkpost" <?php echo 'sparkpost' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
-						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'SparkPost API Configuration', 'nonprofit-manager' ); ?></h3>
-						<?php
-						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
-							$help_url = npmp_pro_get_provider_help( 'sparkpost' );
-							if ( ! empty( $help_url ) ) {
-								?>
-								<div class="npmp-provider-help">
-									<p style="margin: 0;">
-										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
-									</p>
-								</div>
-								<?php
-							}
-						}
-						?>
-						<table class="form-table" style="margin-top: 15px;">
-							<tr>
-								<th><label for="npmp_sparkpost_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
-								<td>
-									<input type="password" id="npmp_sparkpost_api_key" name="npmp_sparkpost_api_key" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_sparkpost_api_key', '' ) ? '••••••••' : ''; ?>">
-									<p class="description"><?php esc_html_e( 'Enter your SparkPost API key with Transmissions permission. Leave blank to keep existing key.', 'nonprofit-manager' ); ?></p>
-								</td>
-							</tr>
-						</table>
-</div>
 				<?php endif; ?>
 
 				<?php submit_button( __( 'Save Email Settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
@@ -810,6 +690,13 @@ class NPMP_Member_Manager {
 			'last_donation_at' => 'npmp_last_donation_at',
 			'donation_count'   => 'npmp_donation_count',
 			'donation_total'   => 'npmp_donation_total',
+			// Currency donation_total is in. Absent on donors recorded before
+			// currency support, whose totals are US dollars.
+			'donation_currency' => 'npmp_donation_currency',
+			// Per-currency totals, stored only for a donor who has given in
+			// more than one currency. Amounts in different currencies are never
+			// added together.
+			'donation_totals'  => 'npmp_donation_totals',
 		);
 	}
 
@@ -839,6 +726,8 @@ class NPMP_Member_Manager {
 			'last_donation_at',
 			'donation_count',
 			'donation_total',
+			'donation_currency',
+			'donation_totals',
 		);
 	}
 
@@ -936,12 +825,27 @@ class NPMP_Member_Manager {
 				case 'donation_total':
 					$value = floatval( $value );
 					break;
+				case 'donation_currency':
+					$value = npmp_normalize_currency_code( $value );
+					break;
+				case 'donation_totals':
+					$totals = array();
+					foreach ( is_array( $value ) ? $value : array() as $code => $total ) {
+						$code = npmp_normalize_currency_code( $code );
+						if ( '' !== $code ) {
+							$totals[ $code ] = (float) $total;
+						}
+					}
+					// One currency (or none) needs no breakdown: donation_total
+					// and donation_currency already say it all.
+					$value = count( $totals ) > 1 ? $totals : null;
+					break;
 				case 'donation_count':
 					$value = intval( $value );
 					break;
 				case 'last_contacted':
 				case 'last_donation_at':
-					// strtotime() returns false for a string it can't parse; guard it
+					// strtotime() returns false for a string it can't parse. Guard it
 					// so an unparsable value clears the field instead of silently
 					// storing the Unix epoch (1970-01-01), which gmdate( …, false )
 					// would otherwise coerce to and save as if it were real data.
@@ -1000,6 +904,8 @@ class NPMP_Member_Manager {
 			'last_donation_at' => isset( $meta['last_donation_at'] ) ? $meta['last_donation_at'] : '',
 			'donation_count'   => isset( $meta['donation_count'] ) ? (int) $meta['donation_count'] : 0,
 			'donation_total'   => isset( $meta['donation_total'] ) ? (float) $meta['donation_total'] : 0.0,
+			'donation_currency' => npmp_record_currency( $meta['donation_currency'] ?? '' ),
+			'donation_totals'  => ! empty( $meta['donation_totals'] ) && is_array( $meta['donation_totals'] ) ? $meta['donation_totals'] : array(),
 			'created_at'       => $post->post_date,
 			'updated_at'       => $post->post_modified,
 		);
@@ -1388,27 +1294,6 @@ class NPMP_Member_Manager {
 	}
 
 	/**
-	 * Upsert a member record using the email address.
-	 *
-	 * @param array $data Member data.
-	 * @return int|WP_Error
-	 */
-	public function upsert_member( $data ) {
-		$email = sanitize_email( $data['email'] ?? '' );
-		if ( ! $email ) {
-			return new WP_Error( 'npmp_missing_email', __( 'An email address is required.', 'nonprofit-manager' ) );
-		}
-
-		$existing = $this->get_member_by_email( $email );
-		if ( $existing ) {
-			$result = $this->update_member( $existing->id, $data );
-			return is_wp_error( $result ) ? $result : $existing->id;
-		}
-
-		return $this->add_member( $data );
-	}
-
-	/**
 	 * Delete a member permanently.
 	 *
 	 * @param int $id Member ID.
@@ -1442,15 +1327,6 @@ class NPMP_Member_Manager {
 			$deleted += (int) $this->delete_member( $id );
 		}
 		return $deleted;
-	}
-
-	/**
-	 * Return all members.
-	 *
-	 * @return array
-	 */
-	public function get_all_members() {
-		return $this->get_members( array( 'per_page' => -1 ) );
 	}
 
 	/**
@@ -1649,32 +1525,22 @@ class NPMP_Member_Manager {
 	}
 
 	/**
-	 * Update the last contacted timestamp.
-	 *
-	 * @param int         $member_id Member ID.
-	 * @param string|null $timestamp Timestamp.
-	 * @return void
-	 */
-	public function set_last_contacted( $member_id, $timestamp = null ) {
-		$timestamp = $timestamp ? gmdate( 'Y-m-d H:i:s', strtotime( $timestamp ) ) : current_time( 'mysql' );
-		$this->update_member(
-			$member_id,
-			array(
-				'last_contacted' => $timestamp,
-			)
-		);
-	}
-
-	/**
 	 * Retrieve high-level financial metrics from the donations table.
+	 *
+	 * Amounts are summed per currency. total_amount and thirty_day_amount are
+	 * the site currency's figures (on a site that only ever took one currency,
+	 * that is everything), and total_by_currency and thirty_day_by_currency carry
+	 * each currency on its own.
 	 *
 	 * @return array
 	 */
 	public function get_financial_overview() {
 		$empty = array(
-			'total_amount'       => 0.0,
-			'total_transactions' => 0,
-			'thirty_day_amount'  => 0.0,
+			'total_amount'           => 0.0,
+			'total_transactions'     => 0,
+			'thirty_day_amount'      => 0.0,
+			'total_by_currency'      => array(),
+			'thirty_day_by_currency' => array(),
 		);
 
 		if ( ! class_exists( 'NPMP_Donation_Manager' ) ) {
@@ -1684,29 +1550,34 @@ class NPMP_Member_Manager {
 		global $wpdb;
 
 		/*
-		 * Three totals in one aggregate query. The old version pulled every published
-		 * donation post into memory and summed the amounts in PHP, which grows with
-		 * the whole donation history every time the members screen loads.
+		 * Totals in one aggregate query, a row per currency. The old version pulled
+		 * every published donation post into memory and summed the amounts in PHP,
+		 * which grows with the whole donation history every time the members screen
+		 * loads.
 		 *
 		 * post_date_gmt is compared against a GMT string built here rather than with
 		 * MySQL's FROM_UNIXTIME(), which would read the database session timezone.
 		 */
 		$cutoff = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
 
-		$row = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 			$wpdb->prepare(
-				"SELECT COUNT(*) AS total_transactions,
+				"SELECT COALESCE( c.meta_value, '' ) AS currency,
+				        COUNT(*) AS total_transactions,
 				        COALESCE( SUM( CAST( pm.meta_value AS DECIMAL(20,4) ) ), 0 ) AS total_amount,
 				        COALESCE( SUM( CASE WHEN p.post_date_gmt >= %s
 				                            THEN CAST( pm.meta_value AS DECIMAL(20,4) )
 				                            ELSE 0 END ), 0 ) AS thirty_day_amount
 				 FROM {$wpdb->postmeta} pm
 				 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
 				 WHERE pm.meta_key = %s
 				   AND p.post_type = %s
 				   AND p.post_status = %s
-				   AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0",
+				   AND CAST( pm.meta_value AS DECIMAL(20,4) ) > 0
+				 GROUP BY COALESCE( c.meta_value, '' )",
 				$cutoff,
+				NPMP_Donation_Manager::META_CURRENCY,
 				NPMP_Donation_Manager::META_AMOUNT,
 				NPMP_Donation_Manager::POST_TYPE,
 				'publish'
@@ -1714,14 +1585,25 @@ class NPMP_Member_Manager {
 			ARRAY_A
 		);
 
-		if ( ! $row ) {
+		if ( ! $rows ) {
 			return $empty;
 		}
 
+		$transactions = 0;
+		foreach ( $rows as $row ) {
+			$transactions += (int) $row['total_transactions'];
+		}
+
+		$totals = npmp_group_totals_by_currency( $rows, 'total_amount' );
+		$recent = npmp_group_totals_by_currency( $rows, 'thirty_day_amount' );
+		$site   = npmp_currency();
+
 		return array(
-			'total_amount'       => (float) $row['total_amount'],
-			'total_transactions' => (int) $row['total_transactions'],
-			'thirty_day_amount'  => (float) $row['thirty_day_amount'],
+			'total_amount'           => (float) ( $totals[ $site ] ?? ( 1 === count( $totals ) ? reset( $totals ) : 0.0 ) ),
+			'total_transactions'     => $transactions,
+			'thirty_day_amount'      => (float) ( $recent[ $site ] ?? ( 1 === count( $recent ) ? reset( $recent ) : 0.0 ) ),
+			'total_by_currency'      => $totals,
+			'thirty_day_by_currency' => $recent,
 		);
 	}
 
@@ -1868,9 +1750,11 @@ class NPMP_Member_Manager {
 		$this->update_member(
 			$member_id,
 			array(
-				'donation_count'   => (int) $totals['count'],
-				'donation_total'   => (float) $totals['total'],
-				'last_donation_at' => $totals['last'] ? gmdate( 'Y-m-d H:i:s', strtotime( $totals['last'] ) ) : $latest,
+				'donation_count'    => (int) $totals['count'],
+				'donation_total'    => (float) $totals['total'],
+				'donation_currency' => (string) $totals['currency'],
+				'donation_totals'   => (array) $totals['totals'],
+				'last_donation_at'  => $totals['last'] ? gmdate( 'Y-m-d H:i:s', strtotime( $totals['last'] ) ) : $latest,
 			)
 		);
 	}
@@ -1912,6 +1796,7 @@ class NPMP_Member_Manager {
 				'amount'    => (float) get_post_meta( $post->ID, NPMP_Donation_Manager::META_AMOUNT, true ),
 				'frequency' => get_post_meta( $post->ID, NPMP_Donation_Manager::META_FREQUENCY, true ),
 				'gateway'   => get_post_meta( $post->ID, NPMP_Donation_Manager::META_GATEWAY, true ),
+				'currency'  => npmp_record_currency( get_post_meta( $post->ID, NPMP_Donation_Manager::META_CURRENCY, true ) ),
 				'created_at'=> get_post_time( 'Y-m-d H:i:s', true, $post ),
 			);
 		}
@@ -1944,3 +1829,119 @@ function npmp_member_cache_invalidate( $post_id ) {
 add_action( 'save_post_npmp_contact', 'npmp_member_cache_invalidate' );
 add_action( 'deleted_post', 'npmp_member_cache_invalidate' );
 add_action( 'trashed_post', 'npmp_member_cache_invalidate' );
+
+/*
+ * Sites that chose SparkPost before it was removed (2026.09.20) get their
+ * email sent through WordPress's default mail. Say so on our screens until an
+ * admin picks another service, instead of switching them silently.
+ */
+add_action(
+	'admin_notices',
+	static function () {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$raw = get_option( 'npmp_email_settings' );
+		if ( ! is_array( $raw ) || 'sparkpost' !== ( $raw['provider'] ?? '' ) ) {
+			return;
+		}
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
+			return;
+		}
+		$message = sprintf(
+			/* translators: %s: URL of the Email Settings screen. */
+			__( 'SparkPost is no longer offered, so Nonprofit Manager is sending your email through WordPress\'s default mail. Choose another sending service in <a href="%s">Email Settings</a>.', 'nonprofit-manager' ),
+			esc_url( admin_url( 'admin.php?page=npmp_email_settings' ) )
+		);
+		echo '<div class="notice notice-warning"><p>' . wp_kses_post( $message ) . '</p></div>';
+	}
+);
+
+/**
+ * Provider credential tests (Pro). They redirect back with the result, so they
+ * run on admin_init, before any admin markup is sent. Inside the page render
+ * the redirect came after the header and the screen half-drew.
+ *
+ * @return void
+ */
+function npmp_handle_email_provider_tests() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only. Each test verifies its own nonce.
+	if ( ! isset( $_GET['page'] ) || 'npmp_email_settings' !== sanitize_key( wp_unslash( $_GET['page'] ) ) ) {
+		return;
+	}
+	if ( empty( $_POST ) || ! current_user_can( 'manage_options' ) || ! npmp_is_pro() ) {
+		return;
+	}
+
+	// AWS SES test
+	if (
+		isset( $_POST['npmp_test_aws_ses_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_aws_ses_nonce'] ) ), 'npmp_test_aws_ses' )
+	) {
+		$result = function_exists( 'npmp_pro_test_aws_ses' ) ? npmp_pro_test_aws_ses() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Amazon SES' ) );
+		}
+		exit;
+	}
+
+	// Brevo test
+	if (
+		isset( $_POST['npmp_test_brevo_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_brevo_nonce'] ) ), 'npmp_test_brevo' )
+	) {
+		$result = function_exists( 'npmp_pro_test_brevo' ) ? npmp_pro_test_brevo() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Brevo' ) );
+		}
+		exit;
+	}
+
+	// SendGrid test
+	if (
+		isset( $_POST['npmp_test_sendgrid_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_sendgrid_nonce'] ) ), 'npmp_test_sendgrid' )
+	) {
+		$result = function_exists( 'npmp_pro_test_sendgrid' ) ? npmp_pro_test_sendgrid() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=SendGrid' ) );
+		}
+		exit;
+	}
+
+	// Mailgun test
+	if (
+		isset( $_POST['npmp_test_mailgun_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_mailgun_nonce'] ) ), 'npmp_test_mailgun' )
+	) {
+		$result = function_exists( 'npmp_pro_test_mailgun' ) ? npmp_pro_test_mailgun() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Mailgun' ) );
+		}
+		exit;
+	}
+
+	// Postmark test
+	if (
+		isset( $_POST['npmp_test_postmark_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_postmark_nonce'] ) ), 'npmp_test_postmark' )
+	) {
+		$result = function_exists( 'npmp_pro_test_postmark' ) ? npmp_pro_test_postmark() : false;
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=error&provider_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_email_settings&provider_test=success&provider_name=Postmark' ) );
+		}
+		exit;
+	}
+}
+add_action( 'admin_init', 'npmp_handle_email_provider_tests' );

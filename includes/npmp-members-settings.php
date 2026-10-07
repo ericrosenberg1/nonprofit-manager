@@ -151,9 +151,13 @@ add_action( 'plugins_loaded', 'npmp_maybe_migrate_legacy_members', 30 );
  *====================================================================*/
 function npmp_render_membership_dashboard() {
 
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
+
+	// Tiers feed the public signup forms and Pro's dues pricing, so adding or
+	// removing one is a settings change: administrators only.
+	$can_edit_tiers = current_user_can( 'manage_options' );
 
 	$member_manager   = NPMP_Member_Manager::get_instance();
 	$total_contacts   = $member_manager->count_members();
@@ -163,13 +167,11 @@ function npmp_render_membership_dashboard() {
 	$recent_donors    = $member_manager->get_recent_donors();
 	$available_status = $member_manager->get_statuses();
 	$levels_option    = 'npmp_membership_levels';
-	$levels           = get_option( $levels_option, array() );
+	$levels           = npmp_get_membership_levels_array(); // Handles the old newline-string format.
 
-	$total_donations = isset( $financial['total_amount'] ) ? floatval( $financial['total_amount'] ) : 0.0;
-	$recent_amount   = isset( $financial['thirty_day_amount'] ) ? floatval( $financial['thirty_day_amount'] ) : 0.0;
 	$total_activity  = isset( $financial['total_transactions'] ) ? intval( $financial['total_transactions'] ) : 0;
 
-	if ( ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
+	if ( $can_edit_tiers && ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$new = sanitize_text_field( wp_unslash( $_POST['new_level'] ) );
 		if ( $new && ! in_array( $new, $levels, true ) ) {
 			$levels[] = $new;
@@ -178,7 +180,7 @@ function npmp_render_membership_dashboard() {
 		}
 	}
 
-	if ( ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
+	if ( $can_edit_tiers && ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$slug   = sanitize_text_field( wp_unslash( $_POST['level_slug'] ) );
 		$levels = array_diff( $levels, array( $slug ) );
 		update_option( $levels_option, $levels );
@@ -198,7 +200,10 @@ function npmp_render_membership_dashboard() {
 	echo '<p>' . esc_html__( 'Track and manage your members, donors, and contacts in one centralized location.', 'nonprofit-manager' ) . '</p>';
 
 	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=npmp_members' ) ) . '">' . esc_html__( 'View All Members', 'nonprofit-manager' ) . '</a> ';
-	echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ) . '">' . esc_html__( 'Membership Settings', 'nonprofit-manager' ) . '</a></p>';
+	if ( $can_edit_tiers ) {
+		echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ) . '">' . esc_html__( 'Membership Settings', 'nonprofit-manager' ) . '</a>';
+	}
+	echo '</p>';
 
 	// Membership Overview Card
 	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
@@ -246,8 +251,8 @@ function npmp_render_membership_dashboard() {
 	echo '<table class="widefat striped">';
 	echo '<thead><tr><th>' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th style="text-align:right">' . esc_html__( 'Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
 	echo '<tr><td>' . esc_html__( 'Lifetime Donations Recorded', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( number_format_i18n( $total_activity ) ) . '</td></tr>';
-	echo '<tr><td>' . esc_html__( 'Lifetime Donation Value', 'nonprofit-manager' ) . '</td><td style="text-align:right"><strong>' . esc_html( npmp_crm_format_currency( $total_donations ) ) . '</strong></td></tr>';
-	echo '<tr><td>' . esc_html__( 'Donations in Last 30 Days', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( npmp_crm_format_currency( $recent_amount ) ) . '</td></tr>';
+	echo '<tr><td>' . esc_html__( 'Lifetime Donation Value', 'nonprofit-manager' ) . '</td><td style="text-align:right"><strong>' . esc_html( npmp_crm_format_totals( $financial['total_by_currency'] ?? array() ) ) . '</strong></td></tr>';
+	echo '<tr><td>' . esc_html__( 'Donations in Last 30 Days', 'nonprofit-manager' ) . '</td><td style="text-align:right">' . esc_html( npmp_crm_format_totals( $financial['thirty_day_by_currency'] ?? array() ) ) . '</td></tr>';
 	echo '</tbody></table>';
 	echo '</div>';
 
@@ -270,13 +275,18 @@ function npmp_render_membership_dashboard() {
 			echo '<tr><td><a href="' . esc_url( $view_url ) . '">' . esc_html( $donor->name ?: $donor->email ) . '</a></td>';
 			echo '<td>' . esc_html( $donor->email ) . '</td>';
 			echo '<td>' . esc_html( $last_donation ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( npmp_crm_format_currency( (float) $donor->donation_total ) ) . '</td></tr>';
+			echo '<td style="text-align:right">' . esc_html( npmp_member_lifetime_value( $donor ) ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
 	} else {
 		echo '<p>' . esc_html__( 'No donations recorded yet.', 'nonprofit-manager' ) . '</p>';
 	}
 	echo '</div>';
+
+	if ( ! $can_edit_tiers ) {
+		echo '</div>';
+		return;
+	}
 
 	// Membership Tiers/Levels Management Card
 	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
@@ -321,23 +331,26 @@ function npmp_render_membership_dashboard() {
 /*=====================================================================
  * 2. Member List / Edit page  (submenu "Member List")
  *====================================================================*/
-function npmp_render_members_page() {
-
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
+/**
+ * Create, update and delete contacts from the Member List screen.
+ *
+ * Runs on admin_init, before any admin markup is sent. It used to run inside
+ * the page callback, after the admin header had already been printed, so
+ * every wp_safe_redirect() here failed with "headers already sent" and the
+ * user was left on a half-drawn page after saving a contact.
+ *
+ * @return void
+ */
+function npmp_handle_member_list_actions() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only. Each action below verifies its own nonce.
+	if ( ! isset( $_GET['page'] ) || 'npmp_members' !== $_GET['page'] ) {
+		return;
+	}
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		return;
 	}
 
 	$member_manager = NPMP_Member_Manager::get_instance();
-	$statuses       = $member_manager->get_statuses();
-	$levels         = array_filter( array_map( 'sanitize_text_field', (array) get_option( 'npmp_membership_levels', array() ) ) );
-	sort( $levels );
-	$tags           = $member_manager->get_tags_list();
-	$list_url       = add_query_arg(
-		array(
-			'page' => 'npmp_members',
-		),
-		admin_url( 'admin.php' )
-	);
 
 	/* -----------------------------------------------------------------
 	 * Handle POST actions (create/update/bulk delete)
@@ -476,7 +489,7 @@ function npmp_render_members_page() {
 	/* -----------------------------------------------------------------
 	 * Handle single delete action
 	 * ----------------------------------------------------------------- */
-	$action    = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
+	$action    = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 	$member_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 
 	if ( 'delete' === $action && $member_id ) {
@@ -494,9 +507,39 @@ function npmp_render_members_page() {
 		);
 		exit;
 	}
+}
+add_action( 'admin_init', 'npmp_handle_member_list_actions' );
 
+/**
+ * Render the Member List screen (list, view, edit, new).
+ *
+ * @return void
+ */
+function npmp_render_members_page() {
+
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
+	}
+
+	$member_manager = NPMP_Member_Manager::get_instance();
+	$statuses       = $member_manager->get_statuses();
+	$levels         = array_filter( array_map( 'sanitize_text_field', (array) get_option( 'npmp_membership_levels', array() ) ) );
+	sort( $levels );
+	$tags           = $member_manager->get_tags_list();
+	$list_url       = add_query_arg(
+		array(
+			'page' => 'npmp_members',
+		),
+		admin_url( 'admin.php' )
+	);
+
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only view routing and status flags. Writes go through npmp_handle_member_list_actions().
+	$action       = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : 'list';
+	$member_id    = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 	$message_code = isset( $_GET['message'] ) ? sanitize_key( wp_unslash( $_GET['message'] ) ) : '';
 	$error_text   = isset( $_GET['error_message'] ) ? sanitize_text_field( wp_unslash( $_GET['error_message'] ) ) : '';
+	$deleted      = isset( $_GET['deleted'] ) ? absint( $_GET['deleted'] ) : 0;
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 	echo '<div class="wrap">';
 	echo '<h1 class="wp-heading-inline">' . esc_html__( 'Contacts & Members', 'nonprofit-manager' ) . '</h1>';
@@ -524,7 +567,7 @@ function npmp_render_members_page() {
 				break;
 			case 'bulk_deleted':
 				$classes[] = 'notice-success';
-				$count     = isset( $_GET['deleted'] ) ? absint( $_GET['deleted'] ) : 0;
+				$count     = $deleted;
 				$text      = 0 === $count
 					? __( 'No contacts were removed.', 'nonprofit-manager' )
 					: sprintf(
@@ -567,6 +610,8 @@ function npmp_render_members_page() {
 			'list_url'       => $list_url,
 		)
 	);
+
+	npmp_render_staff_access_panel();
 
 	echo '</div>';
 }
@@ -749,7 +794,7 @@ function npmp_render_member_list_table( $context ) {
 				$tag_display[] = '<span class="tag">' . esc_html( trim( $single ) ) . '</span>';
 			}
 
-			$donation_label = $member->donation_total ? npmp_crm_format_currency( $member->donation_total ) : '&mdash;';
+			$donation_label = $member->donation_total || ! empty( $member->donation_totals ) ? npmp_member_lifetime_value( $member ) : '&mdash;';
 			$last_donation  = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : '—';
 			$created_at     = $member->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) : '—';
 
@@ -997,7 +1042,7 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 	echo '<table class="widefat striped" style="max-width:600px;margin-bottom:20px;">';
 	echo '<tbody>';
 	echo '<tr><th>' . esc_html__( 'Total donations', 'nonprofit-manager' ) . '</th><td>' . esc_html( $member->donation_count ) . '</td></tr>';
-	echo '<tr><th>' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_crm_format_currency( (float) $member->donation_total ) ) . '</td></tr>';
+	echo '<tr><th>' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_member_lifetime_value( $member ) ) . '</td></tr>';
 	$last_donation = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : __( 'Not yet recorded', 'nonprofit-manager' );
 	echo '<tr><th>' . esc_html__( 'Most recent donation', 'nonprofit-manager' ) . '</th><td>' . esc_html( $last_donation ) . '</td></tr>';
 	echo '<tr><th>' . esc_html__( 'First added', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) ) . '</td></tr>';
@@ -1013,7 +1058,7 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 			$date = $donation->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $donation->created_at ) ) : '—';
 			echo '<tr>';
 			echo '<td>' . esc_html( $date ) . '</td>';
-			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount, $donation->currency ?? 'USD' ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $donation->frequency ?? 'one_time' ) ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( $donation->gateway ?? 'donation' ) ) . '</td>';
 			echo '</tr>';

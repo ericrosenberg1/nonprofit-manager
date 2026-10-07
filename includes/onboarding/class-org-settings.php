@@ -7,7 +7,7 @@
  * "About" widget, and the iCal feed organizer details.
  *
  * Stored under the `npmp_org_settings` option as a flat associative
- * array. Keep the schema small and predictable — third-party themes /
+ * array. Keep the schema small and predictable. Third-party themes /
  * helpers can read this directly via get_option().
  *
  * @package NonprofitManager
@@ -88,7 +88,7 @@ class NPMP_Org_Settings {
 		$clean = array(
 			'name'           => sanitize_text_field( $incoming['name'] ?? '' ),
 			'type'           => in_array( ( $incoming['type'] ?? '' ), $types, true ) ? $incoming['type'] : '',
-			// Strip non-digits and dashes for EIN; allow empty.
+			// Strip non-digits and dashes for EIN. Allow empty.
 			'ein'            => preg_replace( '/[^0-9-]/', '', (string) ( $incoming['ein'] ?? '' ) ),
 			'address_line1'  => sanitize_text_field( $incoming['address_line1'] ?? '' ),
 			'address_line2'  => sanitize_text_field( $incoming['address_line2'] ?? '' ),
@@ -142,7 +142,7 @@ class NPMP_Org_Settings {
 					<th scope="row"><label for="npmp_org_ein"><?php esc_html_e( 'EIN (Federal Tax ID)', 'nonprofit-manager' ); ?></label></th>
 					<td>
 						<input type="text" id="npmp_org_ein" name="npmp_org_settings[ein]" value="<?php echo esc_attr( $org['ein'] ); ?>" class="regular-text" placeholder="XX-XXXXXXX" pattern="[0-9-]*">
-						<p class="description"><?php esc_html_e( 'Optional — required on donation receipts if you\'re a 501(c)(3).', 'nonprofit-manager' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Optional. Many charities print it on donation receipts, although the IRS doesn\'t require it there.', 'nonprofit-manager' ); ?></p>
 					</td>
 				</tr>
 				<tr>

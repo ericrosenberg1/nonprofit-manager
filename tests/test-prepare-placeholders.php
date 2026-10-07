@@ -3,7 +3,7 @@
  * $wpdb->prepare() reads % as the start of a placeholder. A SQL format string
  * such as DATE_FORMAT(d, '%Y-%m-%d') therefore has its %d eaten as an integer
  * placeholder, the remaining arguments shift by one, and the query silently
- * returns nothing rather than erroring. That shipped once in summary() and the
+ * returns nothing rather than erroring. That shipped once in the donation summary query (since removed) and the
  * only reason it was caught is that the result was compared against the old
  * implementation on real data.
  *
@@ -109,7 +109,7 @@ file_put_contents(
 );
 $caught = scan_for_bare_percents( $tmp );
 unlink( $tmp );
-// %Y and %m are bare; %d is worse still because prepare consumes it.
+// %Y and %m are bare. %d is worse still because prepare consumes it.
 check( 'flags a bare %Y/%m format string', true, count( $caught ) >= 2 );
 
 $tmp2 = sys_get_temp_dir() . '/npmp-prepare-ok.php';

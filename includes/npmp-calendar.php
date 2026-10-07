@@ -175,7 +175,7 @@ function npmp_render_events_dashboard() {
 		array(
 			'post_type'      => 'npmp_event',
 			// Overview widget: cap the upcoming list. Unbounded -1 grew without
-			// limit over time; the full list lives in the Events admin screen.
+			// limit over time. The full list lives in the Events admin screen.
 			'posts_per_page' => 50,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
@@ -251,7 +251,7 @@ function npmp_render_events_dashboard() {
 		while ( $upcoming_query->have_posts() ) {
 			$upcoming_query->the_post();
 			// npmp_get_event_details() already fetches location meta into
-			// $details['location']; re-fetching it separately was redundant.
+			// $details['location']. Re-fetching it separately was redundant.
 			$details  = npmp_get_event_details( get_the_ID() );
 			$location = $details['location'];
 
@@ -285,7 +285,7 @@ function npmp_render_events_dashboard() {
 		while ( $past_query->have_posts() ) {
 			$past_query->the_post();
 			// npmp_get_event_details() already fetches location meta into
-			// $details['location']; re-fetching it separately was redundant.
+			// $details['location']. Re-fetching it separately was redundant.
 			$details  = npmp_get_event_details( get_the_ID() );
 			$location = $details['location'];
 
@@ -472,14 +472,14 @@ function npmp_get_event_details( $post_id ) {
 
 /**
  * Convert a stored "Y-m-d H:i:s" event date/time (entered by the admin as a
- * local wall-clock value in the site's configured WordPress timezone — see
+ * local wall-clock value in the site's configured WordPress timezone, see
  * npmp_save_event_meta()) into a true Unix timestamp.
  *
  * WordPress forces PHP's default timezone to UTC on every request (see
  * wp-settings.php), so a bare strtotime() on this naive string always parses
  * it as UTC rather than as the site's real timezone. Formatting that result
  * with wp_date()/$timezone then shifts the displayed time by the site's UTC
- * offset — e.g. an event entered as "10:00" on a UTC-7 site would display as
+ * offset, e.g. an event entered as "10:00" on a UTC-7 site would display as
  * "3:00". Parsing explicitly against wp_timezone() avoids that shift.
  *
  * @param string $mysql_datetime Stored "Y-m-d H:i:s" value.
@@ -543,7 +543,7 @@ function npmp_format_event_datetime( $details ) {
  * or an upcoming-events list, with a toolbar to switch views and move between
  * periods. The view and anchor date come from the URL (npmp_view / npmp_date),
  * then the shortcode attributes, then the admin default. Navigation links are
- * read-only and shareable, so no nonce is used; all values are validated.
+ * read-only and shareable, so no nonce is used. All values are validated.
  *
  * @param array $atts Shortcode attributes.
  * @return string
@@ -566,7 +566,7 @@ function npmp_calendar_shortcode( $atts ) {
 
 	// Resolve the view: URL param > shortcode attribute > admin default > month.
 	$view = '';
-	if ( isset( $_GET['npmp_view'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display switch; value allowlisted below.
+	if ( isset( $_GET['npmp_view'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display switch. Value allowlisted below.
 		$maybe = sanitize_key( wp_unslash( $_GET['npmp_view'] ) );
 		if ( in_array( $maybe, $allowed, true ) ) {
 			$view = $maybe;
@@ -580,7 +580,7 @@ function npmp_calendar_shortcode( $atts ) {
 		$view    = in_array( $default, $allowed, true ) ? $default : 'month';
 	}
 
-	// Resolve the anchor date (strictly validated; npmp_date preferred, npmp_month legacy).
+	// Resolve the anchor date (strictly validated, npmp_date preferred, npmp_month legacy).
 	$anchor = new DateTimeImmutable( 'today', $timezone );
 	if ( isset( $_GET['npmp_date'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only date navigation, validated below.
 		$raw = sanitize_text_field( wp_unslash( $_GET['npmp_date'] ) );
@@ -724,7 +724,7 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 			// day, comparing calendar-day keys rather than full timestamps.
 			// Comparing timestamps instead (as this used to) drops a
 			// multi-day event's last day whenever its end time-of-day is
-			// earlier than its start time-of-day — e.g. a Friday 6pm to
+			// earlier than its start time-of-day, e.g. a Friday 6pm to
 			// Sunday 2pm event would stop at Saturday, since "start + 2
 			// days" (Sunday 6pm) already falls after the Sunday 2pm end.
 			$loop_date = ( new DateTimeImmutable( '@' . $start_ts ) )->setTimezone( $timezone );
@@ -1253,7 +1253,10 @@ function npmp_maybe_render_ical_feed() {
 
 	$output = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Nonprofit Manager//EN\r\n";
 
-	$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+	// The site's own host, not the request's: the feed is cached for everyone,
+	// so a Host header baked into the UIDs changed them between cache fills
+	// and calendar apps showed every event twice.
+	$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 	$host = preg_replace( '/[^A-Za-z0-9\.\-]/', '', $host );
 
 	foreach ( $events as $event ) {
@@ -1281,7 +1284,7 @@ function npmp_maybe_render_ical_feed() {
 
 	$output .= "END:VCALENDAR\r\n";
 
-	// Cache for 15 minutes; saving any event clears it immediately.
+	// Cache for 15 minutes. Saving any event clears it immediately.
 	set_transient( 'npmp_ical_feed', $output, 15 * MINUTE_IN_SECONDS );
 echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	exit;
@@ -1343,7 +1346,7 @@ function npmp_render_event_settings_page() {
 			);
 		}
 
-		// Display options (saved on every settings submit; nonce verified above).
+		// Display options (saved on every settings submit, nonce verified above).
 		$view_choice = isset( $_POST['npmp_calendar_default_view'] ) ? sanitize_key( wp_unslash( $_POST['npmp_calendar_default_view'] ) ) : 'month';
 		update_option( 'npmp_calendar_default_view', in_array( $view_choice, array( 'month', 'week', 'list' ), true ) ? $view_choice : 'month' );
 		update_option( 'npmp_calendar_show_times', empty( $_POST['npmp_calendar_show_times'] ) ? 0 : 1 );
@@ -1603,7 +1606,7 @@ function npmp_auto_inject_calendar_page( $content ) {
 
 	// By this priority $content has already run through do_shortcode, so the
 	// literal "[npmp_calendar]" is gone and a strpos on $content would never
-	// match — that double-rendered the calendar on pages that include the
+	// match. That double-rendered the calendar on pages that include the
 	// shortcode. Check the raw stored content instead.
 	$raw = (string) get_post_field( 'post_content', $page_id );
 	if ( has_shortcode( $raw, 'npmp_calendar' ) || has_shortcode( $raw, 'npmp_events' ) ) {

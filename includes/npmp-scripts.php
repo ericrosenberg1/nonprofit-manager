@@ -66,7 +66,7 @@ function npmp_register_frontend_scripts() {
 	if ( $paypal_enabled && 'sdk' === $paypal_method ) {
 		$mode      = get_option( 'npmp_paypal_mode', 'live' );
 		$client_id = rawurlencode( (string) ( 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' ) ) );
-		$sdk_url   = 'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=USD';
+		$sdk_url   = 'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=' . rawurlencode( npmp_currency() );
 
 		if ( 'sandbox' === $mode ) {
 			$sdk_url .= '&debug=true';

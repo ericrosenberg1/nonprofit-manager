@@ -22,8 +22,8 @@ add_action('init', function () {
         'show_in_menu' => false, // We'll manually register the menu
         'supports' => ['title', 'editor'],
         'show_in_rest' => true, // Enable Gutenberg
-        'capability_type' => 'post',
-        'capabilities' => ['create_posts' => 'edit_posts'],
+        // Same capability type as newsletters, see npmp_register_newsletter_cpt().
+        'capability_type' => ['npmp_newsletter', 'npmp_newsletters'],
         'map_meta_cap' => true,
     ]);
 });
@@ -144,7 +144,7 @@ add_action('save_post_npmp_nl_template', function ($post_id) {
  * Render the Template Manager page under submenu
  */
 function npmp_render_newsletter_templates() {
-    npmp_verify_admin_access('edit_posts');
+    npmp_verify_admin_access('edit_npmp_newsletters');
 
     npmp_admin_page_header(
         __('Newsletter Templates', 'nonprofit-manager'),

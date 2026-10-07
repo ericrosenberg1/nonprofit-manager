@@ -91,6 +91,31 @@ if [ -f "$VER_TS" ]; then
     fi
   fi
 
+  # Pro 2026.09.22+ installs an update only when the manifest carries a
+  # sha256 and an Ed25519 signature from the release key over the version and
+  # that sha256. An unsigned or mis-signed release would be refused by every
+  # updated site, so check the pair against Pro's own SIGNING_KEY here.
+  UPD="$PRO_DIR/includes/license/class-plugin-updater.php"
+  site_sha=$(sed -n "s/^const CURRENT_ZIP_SHA256 = '\([^']*\)'.*/\1/p" "$VER_TS")
+  site_sig=$(sed -n "s/^const CURRENT_ZIP_SIGNATURE = '\([^']*\)'.*/\1/p" "$VER_TS")
+  pubkey=""
+  [ -f "$UPD" ] && pubkey=$(sed -n "s/.*const SIGNING_KEY = '\([^']*\)'.*/\1/p" "$UPD" | head -1)
+  if [ -n "$site_sig" ] || { [ -n "$pubkey" ] && [ "$(printf '%s\n%s\n' "2026.09.22" "$site_ver" | sort -V | head -1)" = "2026.09.22" ]; }; then
+    if [ -z "$pubkey" ]; then
+      note "skip: Pro updater not found, can't check the release signature"
+    elif [ -z "$site_sig" ] || [ -z "$site_sha" ]; then
+      bad "licence server advertises $site_ver with no CURRENT_ZIP_SHA256/CURRENT_ZIP_SIGNATURE, updated sites would refuse it (run release.sh --dry-run on the tag to get them)"
+    elif php -r '
+        $pk = base64_decode( $argv[1], true ); $sig = base64_decode( $argv[2], true );
+        $msg = "nonprofit-manager-release-v1\nnonprofit-manager-pro\n" . $argv[3] . "\n" . $argv[4];
+        exit( ( $pk && $sig && 32 === strlen( $pk ) && 64 === strlen( $sig ) && sodium_crypto_sign_verify_detached( $sig, $msg, $pk ) ) ? 0 : 1 );
+      ' "$pubkey" "$site_sig" "$site_ver" "$site_sha"; then
+      ok "release signature verifies for $site_ver"
+    else
+      bad "release signature for $site_ver does not verify against Pro's SIGNING_KEY"
+    fi
+  fi
+
   # An interpolated heading retitles the last entry on every bump.
   if grep -q '<h4>${CURRENT_VERSION}</h4>' "$VER_TS"; then
     bad 'changelog heading interpolates ${CURRENT_VERSION}, use a literal version'

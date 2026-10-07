@@ -15,10 +15,15 @@ register_deactivation_hook( $npmp_main_file, 'npmp_clear_newsletter_cron' );
 /**
  * Perform setup tasks on activation.
  *
+ * @param bool $network_wide Network-wide activation on multisite.
  * @return void
  */
-function npmp_run_plugin_activation_tasks() {
+function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 	ob_start();
+
+	// First, before the tasks below write the options it checks for: queue
+	// the one-time setup wizard redirect on a fresh install only.
+	npmp_queue_setup_wizard_on_activation( $network_wide );
 
 	npmp_create_members_table();
 	npmp_create_donations_table();
@@ -31,9 +36,7 @@ function npmp_run_plugin_activation_tasks() {
 	npmp_initialize_default_newsletter_settings();
 	npmp_maybe_create_unsubscribe_page();
 	npmp_schedule_newsletter_cron();
-
-	// Set transient to trigger setup wizard redirect
-	set_transient( 'npmp_activation_redirect', true, 30 );
+	npmp_install_roles();
 
 	$features = get_option(
 		'npmp_enabled_features',
@@ -133,6 +136,9 @@ function npmp_maybe_migrate_legacy_donations() {
 				'gateway'    => sanitize_text_field( $row->gateway ),
 				'created_at' => $row->created_at,
 				'legacy_id'  => (int) $row->id,
+				// The legacy table predates currency support: every row is USD,
+				// whatever the site's currency is now.
+				'currency'   => 'USD',
 			)
 		);
 	}
@@ -220,12 +226,12 @@ function npmp_maybe_migrate_newsletter_events() {
 		$event_time    = $row->event_time ? $row->event_time : current_time( 'mysql' );
 
 		if ( ! $newsletter_id || ! $user_id ) {
-			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row. Drop it, nothing to carry over.
 			continue;
 		}
 
 		if ( NPMP_Newsletter_Manager::ACTION_OPEN === $row->event_type ) {
-			$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration; IGNORE relies on the destination table's unique key for dedup.
+			$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time bulk migration. IGNORE relies on the destination table's unique key for dedup.
 				$wpdb->prepare(
 					"INSERT IGNORE INTO {$opens_table} (user_id, newsletter_id, opened_at) VALUES (%d, %d, %s)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
 					$user_id,
@@ -364,7 +370,7 @@ function npmp_maybe_migrate_newsletter_queue() {
 		$email         = sanitize_email( (string) $row->email );
 
 		if ( ! $newsletter_id || ! $email ) {
-			$migrated_ids[] = (int) $row->ID; // Malformed legacy row; drop it, nothing to carry over.
+			$migrated_ids[] = (int) $row->ID; // Malformed legacy row. Drop it, nothing to carry over.
 			continue;
 		}
 
@@ -396,7 +402,7 @@ function npmp_maybe_migrate_newsletter_queue() {
 		$wpdb->query( "DELETE FROM {$wpdb->postmeta} WHERE post_id IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
 		$wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$id_list})" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are absint()-sanitized above, not raw user input.
 
-		// Raw SQL deletes don't clear WordPress's post object cache; harmless
+		// Raw SQL deletes don't clear WordPress's post object cache. Harmless
 		// on the default per-request cache, but a persistent object cache
 		// (Redis/Memcached) would keep serving the deleted post otherwise.
 		foreach ( $migrated_ids as $migrated_id ) {

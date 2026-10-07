@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 // =====================================================================
 
 // Priority 11 so the membership module (default priority 10) has registered
-// its menu first; we read the menu globals to choose our parent.
+// its menu first. We read the menu globals to choose our parent.
 add_action( 'admin_menu', 'npmp_import_register_menu', 11 );
 
 /**
@@ -31,10 +31,27 @@ function npmp_import_register_menu() {
 		$parent,
 		__( 'Import Members', 'nonprofit-manager' ),
 		__( 'Import', 'nonprofit-manager' ),
-		'manage_options',
+		npmp_staff_cap(),
 		'npmp_import',
 		'npmp_import_render_page'
 	);
+}
+
+/**
+ * Can the current user import from this source?
+ *
+ * File and published-sheet imports are plain contact imports, open to the
+ * staff capability. Mailchimp and Constant Contact imports take a third-party
+ * API key or access token, so they stay with administrators.
+ *
+ * @param string $source Import source key.
+ * @return bool
+ */
+function npmp_import_user_can_source( $source ) {
+	if ( in_array( $source, array( 'csv', 'xlsx', 'google_sheet' ), true ) ) {
+		return current_user_can( npmp_staff_cap() );
+	}
+	return current_user_can( 'manage_options' );
 }
 
 /**
@@ -81,11 +98,11 @@ add_action( 'wp_ajax_npmp_import_cc_lists', 'npmp_import_ajax_cc_lists' );
 function npmp_import_ajax_preview() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
+
+	if ( ! npmp_import_user_can_source( $source ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
-
-	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 	$import = NPMP_Import_Manager::get_instance();
 
 	switch ( $source ) {
@@ -110,7 +127,14 @@ function npmp_import_ajax_preview() {
 				wp_send_json_error( $uploaded['error'] );
 			}
 
-			$file_path = $uploaded['file'];
+			// wp_handle_upload() leaves the file at a public, guessable URL
+			// (/wp-content/uploads/YYYY/MM/members.csv) holding the whole
+			// contact list. Move it somewhere private under a random name.
+			$file_path = npmp_import_privatize_upload( $uploaded['file'] );
+			if ( is_wp_error( $file_path ) ) {
+				wp_delete_file( $uploaded['file'] );
+				wp_send_json_error( $file_path->get_error_message() );
+			}
 
 			// Store path in transient for the execute step.
 			$token = wp_generate_password( 16, false );
@@ -137,8 +161,8 @@ function npmp_import_ajax_preview() {
 			}
 
 			// Constrain to docs.google.com host before any network call. The user
-			// types this URL; without a host check we'd happily fetch arbitrary
-			// internal endpoints (SSRF — server-side request forgery). The Google
+			// types this URL. Without a host check we'd happily fetch arbitrary
+			// internal endpoints (SSRF: server-side request forgery). The Google
 			// Sheets "publish to web" URL is always under docs.google.com.
 			$parsed_host = wp_parse_url( $url, PHP_URL_HOST );
 			if ( ! $parsed_host || 'docs.google.com' !== strtolower( $parsed_host ) ) {
@@ -160,7 +184,7 @@ function npmp_import_ajax_preview() {
 				array(
 					'timeout'     => 60,
 					'reject_unsafe_urls' => true,
-					'limit_response_size' => 10 * MB_IN_BYTES, // cap at 10 MB; a 50k-row CSV is ~3-5 MB.
+					'limit_response_size' => 10 * MB_IN_BYTES, // cap at 10 MB. A 50k-row CSV is ~3-5 MB.
 				)
 			);
 			if ( is_wp_error( $response ) ) {
@@ -242,7 +266,7 @@ function npmp_import_ajax_preview() {
 				foreach ( $merge_fields as $mf ) {
 					$tag = $mf['tag'];
 					$val = isset( $m['merge_fields'][ $tag ] ) ? $m['merge_fields'][ $tag ] : '';
-					// Mailchimp returns ADDRESS as a structured value; flatten to "street, city, state zip"
+					// Mailchimp returns ADDRESS as a structured value. Flatten to "street, city, state zip"
 					// for the preview. The actual import handler unpacks the structure into NPM address fields.
 					if ( is_array( $val ) ) {
 						$parts = array_filter(
@@ -317,7 +341,7 @@ function npmp_import_ajax_preview() {
 
 			$preview_contacts = array_slice( $result['contacts'], 0, 5 );
 			foreach ( $preview_contacts as $c ) {
-				$email = ! empty( $c['email_addresses'] ) ? $c['email_addresses'][0]['address'] : '';
+				$email = npmp_cc_contact_email( $c );
 				$phone = ! empty( $c['phone_numbers'] ) ? $c['phone_numbers'][0]['phone_number'] : '';
 				$rows[] = array(
 					$email,
@@ -357,11 +381,12 @@ function npmp_import_ajax_preview() {
 function npmp_import_ajax_execute() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	$source = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
+
+	if ( ! npmp_import_user_can_source( $source ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
 
-	$source     = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 	$file_token = isset( $_POST['file_token'] ) ? sanitize_text_field( wp_unslash( $_POST['file_token'] ) ) : '';
 	// Cast to array before array_map(): the client is expected to send mapping[]
 	// as an array, but a malformed or hand-crafted request could send a plain
@@ -467,7 +492,7 @@ function npmp_import_ajax_execute() {
 function npmp_import_ajax_step() {
 	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
 
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
 		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
 	}
 
@@ -482,7 +507,7 @@ function npmp_import_ajax_step() {
 	// Best-effort mutex via a short-TTL transient. If a second request for the
 	// same job_token arrives while the first is still mid-page (double-click,
 	// two tabs, slow handler, JS retry race), it sees the lock and bails with
-	// 409. The lock is auto-released at the end of this handler; the 90-second
+	// 409. The lock is auto-released at the end of this handler. The 90-second
 	// TTL is a safety net in case PHP dies. Real consistency comes from D1-style
 	// locks, not transients, but this catches 99% of the practical race.
 	if ( false !== get_transient( $lock_key ) ) {
@@ -531,6 +556,13 @@ function npmp_import_ajax_step() {
 		);
 	}
 
+	// The job's source, not this request's, decides who may run a chunk: a
+	// Membership Manager can't drive a Mailchimp job an administrator started.
+	if ( ! npmp_import_user_can_source( $state['source'] ) ) {
+		delete_transient( $lock_key );
+		wp_send_json_error( __( 'You do not have permission to import members.', 'nonprofit-manager' ) );
+	}
+
 	$import = NPMP_Import_Manager::get_instance();
 
 	if ( 'mailchimp' === $state['source'] ) {
@@ -571,7 +603,7 @@ function npmp_import_ajax_step() {
 					array(
 						'done'         => true,
 						'progress'     => $cursor,
-						'total'        => $cursor, // we don't actually know more; cap is the ceiling for UI math.
+						'total'        => $cursor, // we don't actually know more. Cap is the ceiling for UI math.
 						'stats'        => $state['totals'],
 						'cap_reached'  => true,
 						'cap_max_rows' => $max_rows,
@@ -631,7 +663,7 @@ function npmp_import_ajax_step() {
 			);
 		}
 
-		// More pages remain; persist state and report progress.
+		// More pages remain. Persist state and report progress.
 		set_transient( $state_key, $state, HOUR_IN_SECONDS );
 		wp_send_json_success(
 			array(
@@ -810,7 +842,7 @@ function npmp_import_ajax_step() {
 			array(
 				'done'          => false,
 				'progress'      => $state['cursor'],
-				'total'         => 0, // Unknown until the last page; JS shows an indeterminate bar.
+				'total'         => 0, // Unknown until the last page. JS shows an indeterminate bar.
 				'partial_stats' => $state['totals'],
 			)
 		);
@@ -874,6 +906,8 @@ function npmp_import_ajax_cc_lists() {
  * Render the import wizard page.
  */
 function npmp_import_render_page() {
+	npmp_verify_admin_access( npmp_staff_cap() );
+
 	$import        = NPMP_Import_Manager::get_instance();
 	$field_labels  = $import->get_field_labels();
 	$member_mgr    = NPMP_Member_Manager::get_instance();
@@ -911,6 +945,7 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Paste a published Google Sheet URL.', 'nonprofit-manager' ); ?></span>
 				</label>
 
+				<?php if ( current_user_can( 'manage_options' ) ) : // API imports take a third-party key, see npmp_import_user_can_source(). ?>
 				<label class="npmp-import-source-card">
 					<input type="radio" name="import_source" value="mailchimp">
 					<span class="npmp-import-source-icon dashicons dashicons-email-alt"></span>
@@ -924,6 +959,7 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-title"><?php esc_html_e( 'Constant Contact', 'nonprofit-manager' ); ?></span>
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Connect to Constant Contact and import a list.', 'nonprofit-manager' ); ?></span>
 				</label>
+				<?php endif; ?>
 			</div>
 
 			<!-- Source-specific inputs -->
@@ -1325,7 +1361,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			previewData = null;
 
 		// -------------------------------------------------------
-		// Step 1: Source selection — show/hide panels
+		// Step 1: Source selection · show/hide panels
 		// -------------------------------------------------------
 		$('input[name="import_source"]').on('change', function() {
 			var val = $(this).val();
@@ -1381,7 +1417,7 @@ function npmp_import_render_scripts( $field_labels ) {
 				if (!resp.success) { showError('#npmp-step1-error', resp.data); return; }
 				var sel = $('#npmp-cc-list-select').empty();
 				$.each(resp.data, function(i, l) {
-					// Same DOM-safe construction as the Mailchimp branch —
+					// Same DOM-safe construction as the Mailchimp branch,
 					// see comment above for the threat model.
 					var count = parseInt(l.member_count, 10);
 					if (isNaN(count)) { count = 0; }
@@ -1675,3 +1711,72 @@ function npmp_import_render_scripts( $field_labels ) {
 	</script>
 	<?php
 }
+
+/**
+ * Private folder for uploaded import files: under uploads, with deny rules for
+ * Apache and an empty index, and files named at random so nothing is
+ * guessable on servers (nginx) that ignore .htaccess.
+ *
+ * @return string|WP_Error Directory path with trailing slash.
+ */
+function npmp_import_private_dir() {
+	$uploads = wp_upload_dir();
+	if ( ! empty( $uploads['error'] ) ) {
+		return new WP_Error( 'npmp_import_dir', $uploads['error'] );
+	}
+	$dir = trailingslashit( $uploads['basedir'] ) . 'npmp-private/';
+	if ( ! wp_mkdir_p( $dir ) ) {
+		return new WP_Error( 'npmp_import_dir', __( 'Could not create a private folder for the import file.', 'nonprofit-manager' ) );
+	}
+	if ( ! file_exists( $dir . 'index.php' ) ) {
+		file_put_contents( $dir . 'index.php', "<?php\n// Silence is golden.\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	if ( ! file_exists( $dir . '.htaccess' ) ) {
+		file_put_contents( $dir . '.htaccess', "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	return $dir;
+}
+
+/**
+ * Move a just-uploaded import file into the private folder and schedule its
+ * deletion, so an abandoned preview doesn't leave the list on disk.
+ *
+ * @param string $path Path wp_handle_upload() returned.
+ * @return string|WP_Error New path.
+ */
+function npmp_import_privatize_upload( $path ) {
+	$dir = npmp_import_private_dir();
+	if ( is_wp_error( $dir ) ) {
+		return $dir;
+	}
+	$ext    = strtolower( (string) pathinfo( $path, PATHINFO_EXTENSION ) );
+	$target = $dir . 'import-' . wp_generate_password( 32, false ) . ( $ext ? '.' . $ext : '' );
+	if ( ! @rename( $path, $target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rename_rename
+		return new WP_Error( 'npmp_import_move', __( 'Could not store the import file privately.', 'nonprofit-manager' ) );
+	}
+	// Longer than the one-hour transient that points at it, so a slow chunked
+	// import isn't cut off, but it doesn't sit there for good.
+	wp_schedule_single_event( time() + 3 * HOUR_IN_SECONDS, 'npmp_delete_import_file', array( $target ) );
+	return $target;
+}
+
+add_action( 'npmp_delete_import_file', 'npmp_delete_import_file' );
+
+/**
+ * Delete an import file, only ever inside the private import folder.
+ *
+ * @param string $path File path.
+ * @return void
+ */
+function npmp_delete_import_file( $path ) {
+	$dir = npmp_import_private_dir();
+	if ( is_wp_error( $dir ) || ! is_string( $path ) ) {
+		return;
+	}
+	$real_dir  = realpath( $dir );
+	$real_file = realpath( $path );
+	if ( $real_dir && $real_file && 0 === strpos( $real_file, trailingslashit( $real_dir ) ) && is_file( $real_file ) ) {
+		wp_delete_file( $real_file );
+	}
+}
+

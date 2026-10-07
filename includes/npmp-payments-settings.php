@@ -14,8 +14,8 @@ require_once plugin_dir_path( __FILE__ ) . 'payments/npmp-payment-gateways.php';
  * Donations Summary Dashboard
  * ============================================================= */
 function npmp_render_donations_dashboard() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'nonprofit-manager' ) );
+	if ( ! current_user_can( npmp_staff_cap() ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
 
 	$dm = NPMP_Donation_Manager::get_instance();
@@ -36,8 +36,21 @@ function npmp_render_donations_dashboard() {
 		}
 	}
 
-	$years   = $dm->years_with_donations();
-	$summary = $dm->summary( $current_year, $current_month ?: null );
+	// A per-period donation summary used to be computed here and never shown.
+	// Dropping it saved a grouped query on every page load, and the method
+	// itself was removed once nothing called it.
+	$years = $dm->years_with_donations();
+
+	// Label the amount column with the currency when every donation is in
+	// one. A site that has taken more than one shows each amount with its own.
+	$currencies   = npmp_donation_currencies() ?: array( npmp_currency() );
+	$amount_label = __( 'Amount', 'nonprofit-manager' );
+	if ( 1 === count( $currencies ) ) {
+		$amount_label = 'USD' === $currencies[0]
+			? __( 'Amount (USD)', 'nonprofit-manager' )
+			/* translators: %s: ISO currency code, e.g. GBP. */
+			: sprintf( __( 'Amount (%s)', 'nonprofit-manager' ), $currencies[0] );
+	}
 
 	echo '<div class="wrap"><h1>' . esc_html__( 'Donations Summary', 'nonprofit-manager' ) . '</h1>';
 
@@ -101,7 +114,7 @@ function npmp_render_donations_dashboard() {
 	echo '<thead><tr>';
 	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html__( 'Amount (USD)', 'nonprofit-manager' ) . '</th>';
+	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
@@ -122,7 +135,7 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">$' . esc_html( number_format_i18n( $amount, 2 ) ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
 			echo '</tr>';
@@ -138,7 +151,7 @@ function npmp_render_donations_dashboard() {
 	echo '<thead><tr>';
 	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html__( 'Amount (USD)', 'nonprofit-manager' ) . '</th>';
+	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
 	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
@@ -161,7 +174,7 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">$' . esc_html( number_format_i18n( $amount, 2 ) ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $frequency ) ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
 			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
@@ -355,8 +368,9 @@ function npmp_render_payment_settings_page() {
 
 		// Validate each gateway selection
 		foreach ( $posted_gateways as $gateway ) {
-			// Free users can only enable free-tier gateways
-			if ( ! $is_pro && ! in_array( $gateway, array( 'paypal_link', 'venmo_link' ), true ) ) {
+			// Free sites take one-time gifts through the PayPal link, the
+			// Venmo link and Stripe. The PayPal API gateway needs Pro.
+			if ( ! in_array( $gateway, npmp_allowed_gateways( $is_pro ), true ) ) {
 				continue;
 			}
 			$enabled_gateways[] = $gateway;
@@ -364,6 +378,31 @@ function npmp_render_payment_settings_page() {
 
 		// Save enabled gateways as array
 		update_option( 'npmp_enabled_payment_gateways', $enabled_gateways );
+
+		// Site currency, limited to the codes both Stripe and PayPal accept.
+		if ( isset( $_POST['npmp_currency'] ) ) {
+			$previous_currency = npmp_currency();
+			$new_currency      = npmp_sanitize_currency( sanitize_text_field( wp_unslash( $_POST['npmp_currency'] ) ) );
+			update_option( 'npmp_currency', $new_currency );
+
+			$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
+			if ( $new_currency !== $previous_currency && $active_subscriptions > 0 ) {
+				echo '<div class="notice notice-warning"><p>' . esc_html(
+					sprintf(
+						/* translators: 1: number of subscriptions, 2: old currency code, 3: new currency code. */
+						_n(
+							'Currency changed from %2$s to %3$s. %1$d active subscription keeps billing in the currency it started in. New gifts and dues use %3$s.',
+							'Currency changed from %2$s to %3$s. %1$d active subscriptions keep billing in the currency they started in. New gifts and dues use %3$s.',
+							$active_subscriptions,
+							'nonprofit-manager'
+						),
+						$active_subscriptions,
+						$previous_currency,
+						$new_currency
+					)
+				) . '</p></div>';
+			}
+		}
 
 		// Save gateway-specific settings (these are saved regardless of whether gateway is enabled)
 		// PayPal Link
@@ -401,36 +440,37 @@ function npmp_render_payment_settings_page() {
 			if ( ! empty( $_POST['npmp_paypal_sandbox_secret'] ) ) {
 				update_option( 'npmp_paypal_sandbox_secret', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_sandbox_secret'] ) ) );
 			}
+		}
 
-			// Stripe (Pro only)
-			// Save Stripe mode
-			if ( isset( $_POST['npmp_stripe_mode'] ) ) {
-				update_option( 'npmp_stripe_mode', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_mode'] ) ) );
-			}
+		// Stripe keys save on every site: one-time Stripe gifts are part of
+		// the free plugin. Recurring gifts and dues (the webhook) need Pro.
+		// Save Stripe mode
+		if ( isset( $_POST['npmp_stripe_mode'] ) ) {
+			update_option( 'npmp_stripe_mode', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_mode'] ) ) );
+		}
 
-			// Save Stripe Live keys
-			if ( isset( $_POST['npmp_stripe_live_publishable_key'] ) ) {
-				update_option( 'npmp_stripe_live_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_publishable_key'] ) ) );
-			}
-			if ( ! empty( $_POST['npmp_stripe_live_secret_key'] ) ) {
-				update_option( 'npmp_stripe_live_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_secret_key'] ) ) );
-			}
+		// Save Stripe Live keys
+		if ( isset( $_POST['npmp_stripe_live_publishable_key'] ) ) {
+			update_option( 'npmp_stripe_live_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_publishable_key'] ) ) );
+		}
+		if ( ! empty( $_POST['npmp_stripe_live_secret_key'] ) ) {
+			update_option( 'npmp_stripe_live_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_live_secret_key'] ) ) );
+		}
 
-			// Save Stripe Test keys
-			if ( isset( $_POST['npmp_stripe_test_publishable_key'] ) ) {
-				update_option( 'npmp_stripe_test_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_publishable_key'] ) ) );
-			}
-			if ( ! empty( $_POST['npmp_stripe_test_secret_key'] ) ) {
-				update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
-			}
+		// Save Stripe Test keys
+		if ( isset( $_POST['npmp_stripe_test_publishable_key'] ) ) {
+			update_option( 'npmp_stripe_test_publishable_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_publishable_key'] ) ) );
+		}
+		if ( ! empty( $_POST['npmp_stripe_test_secret_key'] ) ) {
+			update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
+		}
 
-			// Stripe webhook signing secret (whsec_...). Used by the Pro
-			// recurring/dues webhook to verify Stripe signatures. This option
-			// was consumed by the webhook handler but had no admin field
-			// anywhere, so it could only be set with update_option() by hand.
-			if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
-				update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
-			}
+		// Stripe webhook signing secret (whsec_...). Used by the Pro
+		// recurring/dues webhook to verify Stripe signatures. This option
+		// was consumed by the webhook handler but had no admin field
+		// anywhere, so it could only be set with update_option() by hand.
+		if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
+			update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
 		}
 
 		// Always enable one-time for free users
@@ -469,6 +509,9 @@ function npmp_render_payment_settings_page() {
 	// For backward compatibility with UI that still uses $current_gateway
 	$current_gateway = ! empty( $enabled_gateways ) ? $enabled_gateways[0] : 'none';
 
+	$site_currency        = npmp_currency();
+	$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
+
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Payment Gateway Settings', 'nonprofit-manager' ); ?></h1>
@@ -476,6 +519,39 @@ function npmp_render_payment_settings_page() {
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_payment_gateway', 'npmp_payment_gateway_nonce' ); ?>
+
+			<h2><?php esc_html_e( 'Currency', 'nonprofit-manager' ); ?></h2>
+			<table class="form-table">
+				<tr>
+					<th><label for="npmp_currency"><?php esc_html_e( 'Donation Currency', 'nonprofit-manager' ); ?></label></th>
+					<td>
+						<select id="npmp_currency" name="npmp_currency">
+							<?php foreach ( npmp_supported_currencies() as $code => $currency_name ) : ?>
+								<option value="<?php echo esc_attr( $code ); ?>" <?php selected( $site_currency, $code ); ?>><?php echo esc_html( $code . ' · ' . $currency_name . ' (' . npmp_currency_symbol( $code ) . ')' ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description"><?php esc_html_e( 'Every donation form, membership dues price and recurring gift uses this currency. Gifts already recorded keep the currency they were made in.', 'nonprofit-manager' ); ?></p>
+						<?php if ( $active_subscriptions > 0 ) : ?>
+							<p class="description" style="color:#996800;">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %d: number of active recurring subscriptions. */
+										_n(
+											'You have %d active recurring subscription. Changing the currency does not touch it: it keeps billing in the currency it started in. Only new gifts and dues use the new currency.',
+											'You have %d active recurring subscriptions. Changing the currency does not touch them: they keep billing in the currency they started in. Only new gifts and dues use the new currency.',
+											$active_subscriptions,
+											'nonprofit-manager'
+										),
+										$active_subscriptions
+									)
+								);
+								?>
+							</p>
+						<?php endif; ?>
+					</td>
+				</tr>
+			</table>
 
 			<h2><?php esc_html_e( 'Choose Payment Gateways', 'nonprofit-manager' ); ?></h2>
 			<p><?php esc_html_e( 'Select one or more payment gateways to accept donations. You can enable multiple payment methods.', 'nonprofit-manager' ); ?></p>
@@ -488,6 +564,19 @@ function npmp_render_payment_settings_page() {
 						<label><input type="checkbox" name="npmp_gateways[]" value="paypal_link" <?php checked( in_array( 'paypal_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="paypal_link"> <?php esc_html_e( 'PayPal (Link)', 'nonprofit-manager' ); ?></label><br>
 
 						<label><input type="checkbox" name="npmp_gateways[]" value="venmo_link" <?php checked( in_array( 'venmo_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="venmo_link"> <?php esc_html_e( 'Venmo (Link)', 'nonprofit-manager' ); ?></label><br>
+						<?php if ( ! npmp_venmo_available( $site_currency ) && in_array( 'venmo_link', $enabled_gateways, true ) ) : ?>
+							<p class="description" style="color:#b32d2e;">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: %s: ISO currency code, e.g. GBP. */
+										__( 'Venmo only takes US dollars from US accounts, so the Venmo button is hidden while your currency is %s.', 'nonprofit-manager' ),
+										$site_currency
+									)
+								);
+								?>
+							</p>
+						<?php endif; ?>
 
 						<!-- Pro Options -->
 						<label>
@@ -502,14 +591,8 @@ function npmp_render_payment_settings_page() {
 						</label><br>
 
 						<label>
-							<input type="checkbox" name="npmp_gateways[]" value="stripe" <?php checked( in_array( 'stripe', $enabled_gateways, true ) ); ?> <?php disabled( ! $is_pro ); ?> class="npmp-gateway-checkbox" data-gateway="stripe">
-							<?php
-							if ( $is_pro ) {
-								esc_html_e( 'Stripe', 'nonprofit-manager' );
-							} else {
-								esc_html_e( 'Stripe (Pro Upgrade Required)', 'nonprofit-manager' );
-							}
-							?>
+							<input type="checkbox" name="npmp_gateways[]" value="stripe" <?php checked( in_array( 'stripe', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="stripe">
+							<?php esc_html_e( 'Stripe (card payments)', 'nonprofit-manager' ); ?>
 						</label><br>
 
 						<?php if ( ! $is_pro ) : ?>
@@ -517,7 +600,7 @@ function npmp_render_payment_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( 'Want to use PayPal API or Stripe? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( 'Want monthly giving or the PayPal API? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 									esc_url( npmp_get_upgrade_url() )
 								);
 								?>
@@ -631,6 +714,8 @@ function npmp_render_payment_settings_page() {
 					<p class="description"><?php esc_html_e( 'PayPal API supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 				</div>
 
+			<?php endif; ?>
+
 				<!-- Stripe Settings -->
 				<div class="npmp-gateway-settings npmp-gateway-stripe" style="<?php echo ! in_array( 'stripe', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 					<hr>
@@ -692,6 +777,7 @@ function npmp_render_payment_settings_page() {
 						</tr>
 					</table>
 
+					<?php if ( $is_pro ) : ?>
 					<h4><?php esc_html_e( 'Webhook Signing Secret', 'nonprofit-manager' ); ?></h4>
 					<table class="form-table">
 						<tr>
@@ -714,8 +800,18 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_stripe_enable_quarterly" value="1" <?php checked( get_option( 'npmp_stripe_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
+					<?php else : ?>
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %s: URL to upgrade page */
+							wp_kses_post( __( 'Stripe takes one-time gifts on the free plugin, and no webhook is needed for them. Monthly giving and membership dues billing through Stripe come with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+							esc_url( npmp_get_upgrade_url() )
+						);
+						?>
+					</p>
+					<?php endif; ?>
 				</div>
-			<?php endif; ?>
 
 			<?php submit_button( __( 'Save Payment Settings', 'nonprofit-manager' ) ); ?>
 		</form>
@@ -770,6 +866,9 @@ function npmp_render_donation_form() {
 		}
 	}
 
+	// Venmo only moves US dollars, so it drops out on any other currency.
+	$enabled_gateways = npmp_filter_gateways_for_currency( $enabled_gateways );
+
 	// If no gateways are enabled, show message
 	if ( empty( $enabled_gateways ) ) {
 		return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Online donations are not configured yet. Please contact the site administrator.', 'nonprofit-manager' ) . '</p></div>';
@@ -790,7 +889,7 @@ function npmp_render_donation_form() {
 
 /**
  * "Powered by Nonprofit Manager" attribution appended below the donation form.
- * Free always shows it. Pro can remove it via the npmp_show_powered_by filter.
+ * Empty unless the site owner opted in (npmp-powered-by.php).
  *
  * @return string
  */
@@ -803,6 +902,12 @@ function npmp_donation_form_attribution() {
  * ============================================================= */
 add_filter( 'the_content', function ( $content ) {
 	if ( is_page() && get_the_ID() === absint( get_option( 'npmp_donation_page_id' ) ) ) {
+		// The page may already carry the form as a shortcode or block. A second
+		// copy duplicated element IDs, and its script bound to the first form.
+		$raw = (string) get_post_field( 'post_content', get_the_ID() );
+		if ( has_shortcode( $raw, 'npmp_donation_form' ) || false !== strpos( $raw, 'wp:nonprofit-manager/donation' ) || false !== strpos( $content, 'npmp-donation-form' ) ) {
+			return $content;
+		}
 		return $content . do_shortcode( '[npmp_donation_form]' );
 	}
 	return $content;

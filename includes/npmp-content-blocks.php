@@ -14,7 +14,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /* =========================================================================
- * New shortcode 1: [npmp_social_share] — share-this-page buttons
+ * New shortcode 1: [npmp_social_share] · share-this-page buttons
  * ====================================================================== */
 
 /**
@@ -111,12 +111,12 @@ function npmp_social_share_shortcode( $atts ) {
 add_shortcode( 'npmp_social_share', 'npmp_social_share_shortcode' );
 
 /* =========================================================================
- * New shortcode 2: [npmp_contact_form] — general contact form
+ * New shortcode 2: [npmp_contact_form] · general contact form
  * ====================================================================== */
 
 /**
  * Recipient for contact-form messages. Never read from the request (that would
- * make the form an open relay); defaults to the site admin and can be overridden
+ * make the form an open relay). Defaults to the site admin and can be overridden
  * server-side with the npmp_contact_form_recipient filter.
  *
  * @return string
@@ -339,7 +339,7 @@ function npmp_content_register_blocks() {
 		)
 	);
 
-	// Wrapper blocks — only where the underlying feature (and its shortcode) is loaded.
+	// Wrapper blocks: only where the underlying feature (and its shortcode) is loaded.
 	if ( function_exists( 'npmp_email_signup_shortcode' ) ) {
 		register_block_type( 'nonprofit-manager/email-signup', array_merge( $common, array( 'render_callback' => 'npmp_email_signup_block_render' ) ) );
 	}

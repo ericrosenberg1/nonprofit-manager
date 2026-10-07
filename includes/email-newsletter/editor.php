@@ -17,8 +17,12 @@ function npmp_register_newsletter_cpt() {
         'menu_position' => 56,
         'supports' => ['title', 'editor'],
         'show_in_rest' => true, // enables Gutenberg
-        'capability_type' => 'post',
-        'capabilities' => ['create_posts' => 'edit_posts'], // allow Editor+ roles
+        // Own capability type so the Membership Manager role can write
+        // newsletters without edit_posts. npmp_filter_staff_caps() grants
+        // each newsletter capability to anyone holding the matching post
+        // capability, so Editors, Authors and Contributors keep exactly the
+        // access they had.
+        'capability_type' => ['npmp_newsletter', 'npmp_newsletters'],
         'map_meta_cap' => true,
     ]);
 }
@@ -45,15 +49,67 @@ function npmp_register_newsletter_taxonomy() {
             'show_in_rest' => true,
             'rewrite' => false,
             'hierarchical' => false,
+            // Tagging a newsletter follows newsletter editing rights, so a
+            // Membership Manager can file issues by topic. Renaming or
+            // deleting topics stays with manage_categories, as before.
+            'capabilities' => [
+                'manage_terms' => 'manage_categories',
+                'edit_terms'   => 'manage_categories',
+                'delete_terms' => 'manage_categories',
+                'assign_terms' => 'edit_npmp_newsletters',
+            ],
         ]
     );
 }
 
 /**
+ * Let users who edit newsletters without edit_posts (Membership Managers)
+ * open the newsletter list and the block editor's "add new" screen.
+ *
+ * Both post types stay out of the menu (show_in_menu false), so WordPress
+ * resolves edit.php / post-new.php for them against the Posts menu, which a
+ * user without edit_posts can't open, and refuses the screen. Registering
+ * the screens under Email Newsletters gives WordPress the right parent.
+ * npmp_newsletter_hide_editor_screens() takes them back out of the rendered
+ * menu, so nobody sees extra items.
+ *
+ * @return void
+ */
+function npmp_newsletter_register_editor_screens() {
+    if (current_user_can('edit_posts') || !current_user_can('edit_npmp_newsletters')) {
+        return;
+    }
+    foreach (['npmp_newsletter', 'npmp_nl_template'] as $type) {
+        add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'edit.php?post_type=' . $type);
+        add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'post-new.php?post_type=' . $type);
+    }
+}
+add_action('admin_menu', 'npmp_newsletter_register_editor_screens', 20);
+
+/**
+ * Remove the entries added by npmp_newsletter_register_editor_screens() from
+ * the menu before it renders. WordPress has already checked access by then.
+ *
+ * @return void
+ */
+function npmp_newsletter_hide_editor_screens() {
+    global $submenu;
+    if (empty($submenu['npmp-newsletters'])) {
+        return;
+    }
+    foreach ($submenu['npmp-newsletters'] as $index => $item) {
+        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template)$#', $item[2])) {
+            unset($submenu['npmp-newsletters'][$index]);
+        }
+    }
+}
+add_action('admin_head', 'npmp_newsletter_hide_editor_screens');
+
+/**
  * Render New Newsletter Page
  */
 function npmp_render_newsletter_editor() {
-    npmp_verify_admin_access('edit_posts');
+    npmp_verify_admin_access('edit_npmp_newsletters');
     echo '<div class="wrap"><h1>' . esc_html__('New Newsletter', 'nonprofit-manager') . '</h1>';
     echo '<p>' . esc_html__('Use the editor below to create a newsletter. You can send a test email or queue it for delivery.', 'nonprofit-manager') . '</p>';
     echo '<a href="' . esc_url(admin_url('post-new.php?post_type=npmp_newsletter')) . '" class="button button-primary">' . esc_html__('Create New Newsletter', 'nonprofit-manager') . '</a>';
@@ -84,7 +140,7 @@ function npmp_render_newsletter_editor() {
  * Render the Newsletter Archive admin page.
  */
 function npmp_render_newsletter_archive() {
-    npmp_verify_admin_access('edit_posts');
+    npmp_verify_admin_access('edit_npmp_newsletters');
 
     $per_page       = 20;
     // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only query parameters drive archive filtering and are sanitized.
@@ -347,6 +403,10 @@ function npmp_newsletter_send_controls_html($post) {
     echo '</ul>';
 
     echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '" data-default="' . esc_attr__('Send Test Email', 'nonprofit-manager') . '" data-working="' . esc_attr__('Sending…', 'nonprofit-manager') . '">' . esc_html__('Send Test Email', 'nonprofit-manager') . '</button></p>';
+    if (!current_user_can(npmp_newsletter_send_capability())) {
+        echo '<p class="description">' . esc_html__('An editor, administrator or Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
+        return;
+    }
     echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';
 }
 
@@ -391,6 +451,20 @@ add_action('wp_ajax_npmp_send_test_newsletter', function () {
 });
 
 /**
+ * Capability needed to send a newsletter to the list. Editing a newsletter only
+ * takes edit_npmp_newsletters (an Author or Contributor's edit_posts), so
+ * without this a Contributor could email every member from the organization's
+ * address. Editors, administrators and Membership Managers can send:
+ * edit_others_npmp_newsletters follows edit_others_posts or the staff
+ * capability (see npmp_filter_staff_caps()).
+ *
+ * @return string
+ */
+function npmp_newsletter_send_capability() {
+    return (string) apply_filters('npmp_newsletter_send_capability', 'edit_others_npmp_newsletters');
+}
+
+/**
      * AJAX: Queue Newsletter for Delivery
      */
 add_action('wp_ajax_npmp_send_newsletter_now', function () {
@@ -400,6 +474,7 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
     if (
         empty($post_id) ||
         !current_user_can('edit_post', $post_id) ||
+        !current_user_can(npmp_newsletter_send_capability()) ||
         !wp_verify_nonce($nonce, 'npmp_send_newsletter_' . $post_id)
     ) {
         wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
@@ -445,7 +520,7 @@ function npmp_newsletter_get_audience_label($post_id) {
 function npmp_newsletter_normalize_levels($levels) {
     $levels = array_map('sanitize_text_field', (array) $levels);
     // The "All Members" checkbox posts value="__all__" (see the meta box markup
-    // above and newsletter-editor.js's gatherAudience()); '__npmp_all__' is only
+    // above and newsletter-editor.js's gatherAudience()). '__npmp_all__' is only
     // JS's fallback for the edge case where every checkbox is unchecked. Both
     // must collapse to [] here, otherwise a saved "__all__" stays in the stored
     // levels array, which makes $all_checked = empty($selected_levels) evaluate
@@ -602,3 +677,22 @@ function npmp_handle_duplicate_newsletter() {
     exit;
 }
 add_action('admin_action_npmp_duplicate_newsletter', 'npmp_handle_duplicate_newsletter');
+
+/**
+ * Keep newsletters and newsletter templates out of the public REST API.
+ *
+ * Both types are private (public => false) but need show_in_rest for the
+ * block editor, which also let logged-out visitors list every published
+ * newsletter at /wp-json/wp/v2/npmp_newsletter, members-only issues included.
+ * Only users who can edit newsletters get these routes.
+ */
+add_filter('rest_pre_dispatch', function ($result, $server, $request) {
+    if (null !== $result) {
+        return $result;
+    }
+    $route = (string) $request->get_route();
+    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic)(/|$)#', $route) && !current_user_can('edit_npmp_newsletters')) {
+        return new WP_Error('rest_forbidden', __('Sorry, you are not allowed to do that.', 'nonprofit-manager'), array('status' => rest_authorization_required_code()));
+    }
+    return $result;
+}, 10, 3);

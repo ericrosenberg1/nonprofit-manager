@@ -171,7 +171,7 @@ class NPMP_Social_Share_Manager {
 	 * Build a post-data array suitable for sharing.
 	 *
 	 * @param int $post_id Post ID.
-	 * @return array|false Array with title, excerpt, url, image_url; false on failure.
+	 * @return array|false Array with title, excerpt, url, image_url. False on failure.
 	 */
 	public function get_post_data( $post_id ) {
 		$post = get_post( $post_id );
@@ -302,7 +302,7 @@ class NPMP_Social_Share_Manager {
 			 *
 			 * Each network file hooks into this filter to perform the API call.
 			 *
-			 * @param null|true|WP_Error $result      Null by default; handler returns true or WP_Error.
+			 * @param null|true|WP_Error $result      Null by default. Handler returns true or WP_Error.
 			 * @param array              $share_data  Merged post data including formatted text.
 			 * @param array              $credentials Stored credentials for this network.
 			 */
