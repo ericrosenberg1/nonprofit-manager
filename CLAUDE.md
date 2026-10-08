@@ -70,6 +70,17 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
+## Pending changelog
+
+Changes merged to main since the last release, one line each in the house style. Changelog
+entries are written at the bump, never as a version block ahead of it. At the next bump, move the
+free lines into that version's `readme.txt` entry and the Pro lines into the licence server's
+`version.ts` entry, then empty both lists.
+
+Free (`readme.txt`):
+- Fixed a PayPal error on some donate pages.
+- Removed unused code from the Payment Settings screen.
+
 ## Releasing: three systems, always in this order
 
 Free and Pro always ship the same `YYYY.MM.N` version (memory `feedback_npm_version_policy`). Free
@@ -77,7 +88,8 @@ shipping alone breaks lockstep, and Pro shipped inside wp.org's hold once put CA
 versions. Commit and tag all three repos first, because the pre-push gate compares all three.
 
 1. **Bump.** Free: `Version:` in `nonprofit-manager.php`, `Stable tag:` and a changelog entry in
-   `readme.txt` (one short bullet per change, no why, memory `feedback_wporg_changelog_brief`).
+   `readme.txt` (one short bullet per change, no why, memory `feedback_wporg_changelog_brief`),
+   starting from the Pending changelog lines above, then empty that list.
    Pro: `Version:` and `NPMP_PRO_VERSION` in `nonprofit-manager-pro.php`. Site:
    `CURRENT_VERSION` and a changelog entry with a literal version heading in
    `src/pages/api/license/version.ts`.
