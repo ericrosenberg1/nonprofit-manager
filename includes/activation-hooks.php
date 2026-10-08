@@ -25,6 +25,10 @@ function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 	// the one-time setup wizard redirect on a fresh install only.
 	npmp_queue_setup_wizard_on_activation( $network_wide );
 
+	// When the plugin first ran here. add_option so a reactivation keeps the
+	// original date. The review nudge's tenure milestone reads it.
+	add_option( 'npmp_activated_at', time(), '', false );
+
 	npmp_create_members_table();
 	npmp_create_donations_table();
 	npmp_create_contacts_table();
