@@ -513,8 +513,8 @@ function npmp_render_setup_wizard() {
 					<div class="notice notice-info inline" style="margin: 30px 0;">
 						<p>
 							<strong><?php esc_html_e( 'Want more features?', 'nonprofit-manager' ); ?></strong>
-							<?php esc_html_e( 'Upgrade to Nonprofit Manager Pro for advanced reporting, recurring donations, custom fields, and more.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url() ); ?>" target="_blank">
+							<?php esc_html_e( 'Nonprofit Manager Pro adds recurring donations, dues billing, email automations, custom fields and segments.', 'nonprofit-manager' ); ?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'setup_wizard' ) ); ?>" target="_blank">
 								<?php esc_html_e( 'Learn more', 'nonprofit-manager' ); ?>
 							</a>
 						</p>

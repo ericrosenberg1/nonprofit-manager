@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.4
+Stable tag: 2026.10.5
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -128,16 +128,21 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 
 == Screenshots ==
 
-1. Dashboard overview showing membership and donation statistics
-2. Member management interface with filtering and bulk actions
-3. Email newsletter editor with Gutenberg blocks
-4. Newsletter template builder with header/footer support
-5. Donation form with PayPal, Venmo, and Stripe options
-6. Event calendar management interface
-7. Payment gateway settings for accepting donations
-8. Subscriber notification preference management
+1. Overview with membership and donation totals
+2. Contacts and members with filters, tags and lifetime value
+3. Donation form with PayPal, Venmo and Stripe
+4. Newsletter editor with audience selection
+5. Events overview with upcoming and past events
+6. Setup wizard on first activation
+7. Membership Manager view: members, donations and newsletters, no settings
+8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.10.5 =
+* Added a review reminder for event and member sites.
+* Added upgrade links where Pro features appear.
+* Added Automations, Custom Fields and Segments previews.
 
 = 2026.10.4 =
 * Fixed: a one-time Stripe donation is recorded even when Stripe has a brief outage as the donor returns to your site.

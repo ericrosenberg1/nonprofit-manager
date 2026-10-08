@@ -337,8 +337,8 @@ function npmp_render_email_settings_page() {
 									<?php
 									printf(
 										/* translators: %s: URL to upgrade page */
-										wp_kses_post( __( 'Want to use a custom email service? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a> to use any email provider.', 'nonprofit-manager' ) ),
-										esc_url( npmp_get_upgrade_url() )
+										wp_kses_post( __( 'Want to send through Amazon SES, Brevo, SendGrid, Mailgun, Postmark or your own SMTP server? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+										esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 									);
 									?>
 								</p>
@@ -358,7 +358,7 @@ function npmp_render_email_settings_page() {
 								printf(
 									/* translators: %s: URL to upgrade page */
 									wp_kses_post( __( ' Upgrading to <a href="%s" target="_blank">Nonprofit Manager Pro</a> allows you to use a custom SMTP server or link directly to popular email services.', 'nonprofit-manager' ) ),
-									esc_url( npmp_get_upgrade_url() )
+									esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 								);
 								?>
 							<?php endif; ?>

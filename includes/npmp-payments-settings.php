@@ -185,6 +185,16 @@ function npmp_render_donations_dashboard() {
 	}
 	echo '</tbody></table>';
 
+	if ( ! npmp_is_pro() ) {
+		echo '<p class="description" style="margin-top:.75em;">';
+		printf(
+			/* translators: %s: URL to upgrade page */
+			wp_kses_post( __( 'Monthly, quarterly and annual giving through Stripe or the PayPal API comes with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+			esc_url( npmp_get_upgrade_url( 'recurring_donations' ) )
+		);
+		echo '</p>';
+	}
+
 	echo '</div>';
 }
 
@@ -329,7 +339,7 @@ function npmp_render_donation_settings_page() {
 					</ul>
 
 					<p style="margin-top: 15px;">
-						<a href="<?php echo esc_url( npmp_get_upgrade_url() ); ?>" class="button button-primary" target="_blank">
+						<a href="<?php echo esc_url( npmp_get_upgrade_url( 'thank_you_email' ) ); ?>" class="button button-primary" target="_blank">
 							<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
 						</a>
 					</p>
@@ -600,8 +610,8 @@ function npmp_render_payment_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( 'Want monthly giving or the PayPal API? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
-									esc_url( npmp_get_upgrade_url() )
+									wp_kses_post( __( 'Want monthly giving or the PayPal API gateway? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+									esc_url( npmp_get_upgrade_url( 'payment_gateways' ) )
 								);
 								?>
 							</p>
@@ -801,12 +811,19 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 					<?php else : ?>
+					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
+					<p><?php esc_html_e( 'One-time gifts are always on, and they need no webhook.', 'nonprofit-manager' ); ?></p>
+					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
 					<p class="description">
 						<?php
 						printf(
 							/* translators: %s: URL to upgrade page */
-							wp_kses_post( __( 'Stripe takes one-time gifts on the free plugin, and no webhook is needed for them. Monthly giving and membership dues billing through Stripe come with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
-							esc_url( npmp_get_upgrade_url() )
+							wp_kses_post( __( 'Recurring gifts and membership dues billing through Stripe come with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+							esc_url( npmp_get_upgrade_url( 'stripe_recurring' ) )
 						);
 						?>
 					</p>

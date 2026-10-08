@@ -265,8 +265,8 @@ function npmp_render_social_sharing_page() {
 
 					<?php if ( ! $is_available ) : ?>
 						<p>
-							<?php esc_html_e( 'This network is available with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url() ); ?>" target="_blank">
+							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
 								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
 							</a>
 						</p>
@@ -311,6 +311,39 @@ function npmp_render_social_sharing_page() {
 					<?php endif; ?>
 				</div>
 			<?php endforeach; ?>
+
+			<?php
+			// The networks Pro adds, shown greyed on a free site so the menu
+			// item and this screen say what the upgrade buys. Pro registers
+			// the real cards through npmp_social_networks, so these never
+			// double up with a connected network.
+			if ( ! $is_pro ) :
+				$pro_networks = array(
+					'bluesky'  => __( 'Bluesky', 'nonprofit-manager' ),
+					'threads'  => __( 'Threads', 'nonprofit-manager' ),
+					'mastodon' => __( 'Mastodon', 'nonprofit-manager' ),
+					'nextdoor' => __( 'Nextdoor', 'nonprofit-manager' ),
+					'reddit'   => __( 'Reddit', 'nonprofit-manager' ),
+				);
+				foreach ( $pro_networks as $slug => $label ) :
+					if ( isset( $networks[ $slug ] ) ) {
+						continue;
+					}
+					?>
+					<div class="npmp-social-card" style="opacity:.75;">
+						<h3>
+							<?php echo esc_html( $label ); ?>
+							<span class="npmp-social-badge npmp-social-badge--pro"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
+						</h3>
+						<p>
+							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
+								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
+							</a>
+						</p>
+					</div>
+				<?php endforeach; ?>
+			<?php endif; ?>
 		</div>
 	</div>
 	<?php

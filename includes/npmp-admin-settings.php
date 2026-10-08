@@ -407,7 +407,7 @@ function npmp_render_main_plugin_page() {
 						<li><?php esc_html_e( 'Advanced email list segmentation', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Priority support', 'nonprofit-manager' ); ?></li>
 					</ul>
-					<a href="<?php echo esc_url( npmp_get_upgrade_url() ); ?>" class="button button-primary" target="_blank">
+					<a href="<?php echo esc_url( npmp_get_upgrade_url( 'overview' ) ); ?>" class="button button-primary" target="_blank">
 						<?php esc_html_e( 'Learn More and Upgrade', 'nonprofit-manager' ); ?>
 					</a>
 				</div>

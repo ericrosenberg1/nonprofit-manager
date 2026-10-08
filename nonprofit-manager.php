@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.10.4
+ * Version: 2026.10.5
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -30,6 +30,9 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-powered-by.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-marketing-optin.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-review-nudge.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-credit-ask.php';
+// Menu previews of the Pro screens (Automations, Custom Fields, Segments)
+// for sites without Pro. Its hooks step aside when Pro is active.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-pro-feature-pages.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/payments/npmp-gateway-rules.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-setup-wizard.php';
 // Guided product tour + the org-identity data model it walks through. Loaded
@@ -120,7 +123,7 @@ add_filter(
 
 		// Upgrade to Pro link
 		if ( ! npmp_is_pro() ) {
-			$custom_links[] = '<a href="' . esc_url( npmp_get_upgrade_url() ) . '" target="_blank">' . esc_html__( 'Upgrade to Pro', 'nonprofit-manager' ) . '</a>';
+			$custom_links[] = '<a href="' . esc_url( npmp_get_upgrade_url( 'plugins_list' ) ) . '" target="_blank">' . esc_html__( 'Upgrade to Pro', 'nonprofit-manager' ) . '</a>';
 		}
 
 		// Support link
