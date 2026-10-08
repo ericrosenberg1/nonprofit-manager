@@ -23,59 +23,12 @@ function npmp_get_asset_version( $relative_path ) {
 	return '1.0.0';
 }
 
-/**
- * Decide if the donation form assets should load on the current request.
- *
- * @return bool
- */
-function npmp_should_enqueue_donation_script() {
-	if ( is_page( (int) get_option( 'npmp_donation_page_id' ) ) ) {
-		return true;
-	}
-
-	if ( is_singular() ) {
-		$post = get_post();
-		if ( $post && has_shortcode( $post->post_content, 'npmp_donation_form' ) ) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-/**
- * Register and enqueue front-end assets.
- *
- * @return void
- */
-function npmp_register_frontend_scripts() {
-	// The legacy assets/js/donation-form.js bundle is gone. It targeted
-	// element ids no current form renders, read a JS global that was never
-	// localized under that name, posted to an AJAX action with no handler,
-	// and redirected to a success URL before any payment happened. On the
-	// PayPal form it also bound a second, always-failing set of buttons into
-	// the same container the working inline script uses. Each donation form
-	// carries its own inline script now, so only the PayPal SDK still needs
-	// conditional enqueueing here.
-	if ( ! npmp_should_enqueue_donation_script() ) {
-		return;
-	}
-
-	$paypal_enabled = (int) get_option( 'npmp_enable_paypal', 0 );
-	$paypal_method  = get_option( 'npmp_paypal_method', 'sdk' );
-	if ( $paypal_enabled && 'sdk' === $paypal_method ) {
-		$mode      = get_option( 'npmp_paypal_mode', 'live' );
-		$client_id = rawurlencode( (string) ( 'sandbox' === $mode ? get_option( 'npmp_paypal_sandbox_client_id', '' ) : get_option( 'npmp_paypal_live_client_id', '' ) ) );
-		$sdk_url   = 'https://www.paypal.com/sdk/js?client-id=' . $client_id . '&currency=' . rawurlencode( npmp_currency() );
-
-		if ( 'sandbox' === $mode ) {
-			$sdk_url .= '&debug=true';
-		}
-
-		wp_enqueue_script( 'npmp-paypal-sdk', $sdk_url, array(), '1.0.0', true );
-	}
-}
-add_action( 'wp_enqueue_scripts', 'npmp_register_frontend_scripts' );
+// No front-end donation script is enqueued from here. Each donation form
+// carries its own inline script, and the PayPal forms enqueue the PayPal SDK
+// themselves with a real client id. The v1 options this file once read
+// (npmp_enable_paypal, npmp_paypal_method) have had no writer since 2026-06-29,
+// and on sites that still carry them it loaded sdk/js with an empty client id.
+// tests/test-legacy-paypal-sdk.php pins this.
 
 /**
  * Decide whether the default front-end form styles should load on this request.
