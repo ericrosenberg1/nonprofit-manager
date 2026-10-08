@@ -7,7 +7,7 @@
  * empty database, zero, negative, missing, non-numeric and padded amounts,
  * draft, pending, trashed and private posts, another post type carrying the
  * same meta keys, a zeroed post_date_gmt, an empty 30-day period, case and
- * accent variants of a tag, and 4,000 seeded rows (~/Code/MASTER-HANDOFF.md 3.17).
+ * accent variants of a tag, and 4,000 seeded rows (CLAUDE.md, "Testing beyond unit tests").
  *
  * What is tested here is what stayed in PHP, and the shape of the SQL that the
  * verification depends on: turning the grouped tag strings into one sorted

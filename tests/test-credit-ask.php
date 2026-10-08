@@ -9,7 +9,7 @@
  * are that nothing but "Save" with the box ticked turns the link on, that the
  * ask never shows before a donation exists, and that it stops for good once
  * answered. The rendered notice and the POST round trip are checked on a real
- * WordPress install before release (~/Code/MASTER-HANDOFF.md 3.17.7).
+ * WordPress install before release (CLAUDE.md, "Testing beyond unit tests").
  *
  * Run: php tests/test-credit-ask.php
  */
