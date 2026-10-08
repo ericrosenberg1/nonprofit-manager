@@ -312,12 +312,10 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 									return false;
 								}
 
+								var npmpOrderValue = amount.toFixed(<?php echo (int) $decimals; ?>);
 								return actions.order.create({
 									intent: 'CAPTURE',
-									purchase_units: [{
-										amount: { value: amount.toFixed(<?php echo (int) $decimals; ?>), currency_code: '<?php echo esc_js( $currency ); ?>' },
-										description: 'Donation'
-									}]
+									purchase_units: [<?php echo npmp_paypal_purchase_unit_js( 'npmpOrderValue', $currency ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode() output around a validated variable name. ?>]
 								});
 							},
 							onApprove: function(data, actions) {
@@ -515,6 +513,64 @@ function npmp_render_venmo_link_form() {
  * ============================================================= */
 
 /**
+ * The purchase unit a PayPal API order carries for one gift.
+ *
+ * By default the order holds an amount and a description, nothing more.
+ * Pro's npmp_paypal_donation_item filter adds a single item with category
+ * DONATION, the Orders v2 field PayPal reads to treat the payment as a
+ * donation. PayPal accepts that item only on accounts it has enabled for
+ * donations and refuses the order otherwise
+ * (PERMISSION_DENIED_FOR_DONATION_ITEMS), so it stays off unless the site
+ * owner turns it on. An item needs amount.breakdown.item_total equal to its
+ * unit_amount times quantity, and here both equal the gift.
+ *
+ * @param string $value    Order amount as PayPal expects it, e.g. '25.00'.
+ * @param string $currency ISO 4217 code.
+ * @return array
+ */
+function npmp_paypal_purchase_unit( $value, $currency ) {
+	$money = array(
+		'value'         => (string) $value,
+		'currency_code' => (string) $currency,
+	);
+	$unit  = array(
+		'amount'      => $money,
+		'description' => 'Donation',
+	);
+
+	if ( apply_filters( 'npmp_paypal_donation_item', false ) ) {
+		$unit['amount']['breakdown'] = array( 'item_total' => $money );
+		$unit['items']               = array(
+			array(
+				'name'        => 'Donation',
+				'quantity'    => '1',
+				'unit_amount' => $money,
+				'category'    => 'DONATION',
+			),
+		);
+	}
+
+	return $unit;
+}
+
+/**
+ * npmp_paypal_purchase_unit() as a JavaScript object literal for the Smart
+ * Buttons createOrder callback, where the amount is only known in the
+ * browser. Every value slot holds the named JavaScript variable.
+ *
+ * @param string $value_var JavaScript variable holding the amount string.
+ * @param string $currency  ISO 4217 code.
+ * @return string
+ */
+function npmp_paypal_purchase_unit_js( $value_var, $currency ) {
+	if ( ! preg_match( '/^[A-Za-z_$][A-Za-z0-9_$]*$/', $value_var ) ) {
+		$value_var = 'undefined';
+	}
+	$slot = '__npmp_paypal_value__';
+	return str_replace( '"' . $slot . '"', $value_var, wp_json_encode( npmp_paypal_purchase_unit( $slot, $currency ) ) );
+}
+
+/**
  * Render PayPal API donation form with Smart Buttons
  *
  * @return string
@@ -607,15 +663,10 @@ function npmp_render_paypal_api_form() {
 
 			errorEl.style.display = 'none';
 
+			var npmpOrderValue = <?php echo 2 === $decimals ? 'amount' : 'Number(amount).toFixed(' . (int) $decimals . ')'; ?>;
 			return actions.order.create({
 				intent: 'CAPTURE',
-				purchase_units: [{
-					amount: {
-						value: <?php echo 2 === $decimals ? 'amount' : 'Number(amount).toFixed(' . (int) $decimals . ')'; ?>,
-						currency_code: '<?php echo esc_js( $currency ); ?>'
-					},
-					description: 'Donation'
-				}]
+				purchase_units: [<?php echo npmp_paypal_purchase_unit_js( 'npmpOrderValue', $currency ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode() output around a validated variable name. ?>]
 			});
 		},
 		onApprove: function(data, actions) {

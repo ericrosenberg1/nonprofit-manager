@@ -450,6 +450,12 @@ function npmp_render_payment_settings_page() {
 			if ( ! empty( $_POST['npmp_paypal_sandbox_secret'] ) ) {
 				update_option( 'npmp_paypal_sandbox_secret', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_sandbox_secret'] ) ) );
 			}
+
+			/**
+			 * Save Pro's own PayPal API settings. Fires only after this form's
+			 * nonce and the manage_options check have passed.
+			 */
+			do_action( 'npmp_paypal_api_settings_save' );
 		}
 
 		// Stripe keys save on every site: one-time Stripe gifts are part of
@@ -713,6 +719,11 @@ function npmp_render_payment_settings_page() {
 							</td>
 						</tr>
 					</table>
+
+					<?php
+					/** Pro's own PayPal API settings render here, inside the same form. */
+					do_action( 'npmp_paypal_api_settings_fields' );
+					?>
 
 					<h4><?php esc_html_e( 'PayPal Donation Frequencies', 'nonprofit-manager' ); ?></h4>
 					<p><?php esc_html_e( 'Select which donation frequencies are available for PayPal donations. One-time donations are always enabled.', 'nonprofit-manager' ); ?></p>
