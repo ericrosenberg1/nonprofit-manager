@@ -202,12 +202,27 @@ function npmp_lockstep_health_test() {
 }
 
 /**
- * Get upgrade URL
+ * The pricing page, tagged with the screen that sent the visitor.
  *
- * @return string URL to upgrade page
+ * Every "Upgrade to Pro" link in the plugin goes through here so GA4 can say
+ * which screen sells: utm_source and utm_medium are fixed, utm_campaign names
+ * the screen (payment_gateways, membership_dues, automations, ...). Callers
+ * that pass nothing land in the "general" campaign, so older call sites keep
+ * working.
+ *
+ * @param string $campaign Screen or gate the link sits on, lowercase letters,
+ *                         digits, underscores and hyphens. Anything else is
+ *                         stripped, and an empty result falls back to general.
+ * @return string URL to the pricing page.
  */
-function npmp_get_upgrade_url() {
-	return 'https://nonprofitmanager.app/pricing';
+function npmp_get_upgrade_url( $campaign = 'general' ) {
+	$campaign = strtolower( trim( (string) $campaign ) );
+	$campaign = (string) preg_replace( '/[^a-z0-9_-]/', '', $campaign );
+	if ( '' === $campaign ) {
+		$campaign = 'general';
+	}
+
+	return 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=upsell&utm_campaign=' . rawurlencode( $campaign );
 }
 
 /**

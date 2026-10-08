@@ -399,7 +399,7 @@ function npmp_render_general_settings_page() {
 									printf(
 										/* translators: %s: URL to upgrade page */
 										wp_kses_post( __( 'Want to use Google reCAPTCHA? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
-										esc_url( npmp_get_upgrade_url() )
+										esc_url( npmp_get_upgrade_url( 'captcha' ) )
 									);
 									?>
 								<?php endif; ?>

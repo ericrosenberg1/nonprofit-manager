@@ -338,6 +338,18 @@ function npmp_render_membership_forms_page() {
 			<p><em><?php esc_html_e( 'No membership levels defined yet.', 'nonprofit-manager' ); ?></em></p>
 		<?php endif; ?>
 
+		<?php if ( ! npmp_is_pro() ) : ?>
+			<p class="description">
+				<?php
+				printf(
+					/* translators: %s: URL to upgrade page */
+					wp_kses_post( __( 'Want to charge dues for a level and bill them automatically through Stripe? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+					esc_url( npmp_get_upgrade_url( 'membership_dues' ) )
+				);
+				?>
+			</p>
+		<?php endif; ?>
+
 		<!-- Add New Level Form -->
 		<form method="post" class="npmp-add-level-form">
 			<?php wp_nonce_field( 'npmp_add_membership_level', 'npmp_add_level_nonce' ); ?>
