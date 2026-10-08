@@ -143,6 +143,7 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Added a review reminder for event and member sites.
 * Added upgrade links where Pro features appear.
 * Added Automations, Custom Fields and Segments previews.
+* Fixed duplicate donor thank-you emails.
 
 = 2026.10.4 =
 * Fixed: a one-time Stripe donation is recorded even when Stripe has a brief outage as the donor returns to your site.
