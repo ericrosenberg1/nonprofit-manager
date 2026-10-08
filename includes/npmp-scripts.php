@@ -128,42 +128,6 @@ function npmp_register_admin_scripts( $hook ) {
 		);
 	}
 
-	if ( false !== strpos( (string) $hook, 'npmp_payment_settings' ) ) {
-		wp_enqueue_script( 'jquery' );
-
-		$inline  = "jQuery(function () {\n";
-		$inline .= "\tvar doc = document;\n";
-		$inline .= "\tvar paypalSection = doc.getElementById('npmp-paypal-settings');\n";
-		$inline .= "\tif (!paypalSection) {\n";
-		$inline .= "\t\treturn;\n";
-		$inline .= "\t}\n\n";
-		$inline .= "\tvar methodRows = paypalSection.querySelectorAll('[data-method]');\n\n";
-		$inline .= "\tfunction toggleGatewaySection() {\n";
-		$inline .= "\t\tvar selectedGateway = doc.querySelector(\"input[name='npmp_gateway']:checked\");\n";
-		$inline .= "\t\tpaypalSection.style.display = selectedGateway && selectedGateway.value === 'paypal' ? '' : 'none';\n";
-		$inline .= "\t}\n\n";
-		$inline .= "\tfunction toggleMethodFields() {\n";
-		$inline .= "\t\tvar selected = paypalSection.querySelector(\"input[name='npmp_paypal_method']:checked\");\n";
-		$inline .= "\t\tvar current = selected ? selected.value : '';\n";
-		$inline .= "\t\tmethodRows.forEach(function (row) {\n";
-		$inline .= "\t\t\trow.style.display = row.getAttribute('data-method') === current ? '' : 'none';\n";
-		$inline .= "\t\t});\n";
-		$inline .= "\t}\n\n";
-		$inline .= "\tdoc.addEventListener('change', function (event) {\n";
-		$inline .= "\t\tif (event.target.name === 'npmp_gateway') {\n";
-		$inline .= "\t\t\ttoggleGatewaySection();\n";
-		$inline .= "\t\t}\n";
-		$inline .= "\t\tif (event.target.name === 'npmp_paypal_method') {\n";
-		$inline .= "\t\t\ttoggleMethodFields();\n";
-		$inline .= "\t\t}\n";
-		$inline .= "\t});\n\n";
-		$inline .= "\ttoggleGatewaySection();\n";
-		$inline .= "\ttoggleMethodFields();\n";
-		$inline .= "});\n";
-
-		wp_add_inline_script( 'jquery', $inline );
-	}
-
 	if ( false !== strpos( (string) $hook, 'npmp_email_settings' ) ) {
 		wp_enqueue_script( 'jquery' );
 

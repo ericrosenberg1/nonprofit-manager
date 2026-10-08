@@ -13,7 +13,9 @@
  *
  * The PayPal forms that work today enqueue their own SDK with a real client id
  * (npmp_render_paypal_api_form() and the multi-gateway form), so this file
- * should never load one. Pinned here with CACC's exact option set.
+ * should never load one. Pinned here with CACC's exact option set. The
+ * Payment Settings screen's inline toggle for the same v1 block (a
+ * #npmp-paypal-settings element no screen renders) is checked gone as well.
  *
  * Run: php tests/test-legacy-paypal-sdk.php
  */
@@ -94,6 +96,18 @@ $paypal = array_filter(
 );
 check( 'no PayPal SDK is enqueued by npmp-scripts.php', array(), $paypal );
 check( 'no SDK URL with an empty client id', false, (bool) preg_grep( '/client-id=(&|$)/', $GLOBALS['npmp_test_scripts'] ) );
+
+echo "\nAdmin, Payment Settings screen\n";
+foreach ( $GLOBALS['npmp_test_actions']['admin_enqueue_scripts'] ?? array() as $callback ) {
+	call_user_func( $callback, 'nonprofit-manager_page_npmp_payment_settings' );
+}
+$stale = array_filter(
+	$GLOBALS['npmp_test_inline'],
+	function ( $js ) {
+		return false !== strpos( $js, 'npmp-paypal-settings' ) || false !== strpos( $js, 'npmp_paypal_method' );
+	}
+);
+check( 'no inline script for the removed v1 PayPal settings block', array(), $stale );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
