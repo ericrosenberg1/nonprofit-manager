@@ -1249,7 +1249,7 @@ function npmp_maybe_finalize_stripe_donation() {
 	$name      = isset( $session['customer_details']['name'] ) ? sanitize_text_field( $session['customer_details']['name'] ) : '';
 
 	if ( 'subscription' !== ( $session['mode'] ?? '' ) && $amount > 0 && class_exists( 'NPMP_Donation_Manager' ) ) {
-		NPMP_Donation_Manager::get_instance()->log_donation(
+		$recorded = NPMP_Donation_Manager::get_instance()->log_donation(
 			array(
 				'email'          => $email,
 				'name'           => $name,
@@ -1260,6 +1260,17 @@ function npmp_maybe_finalize_stripe_donation() {
 				'currency'       => $currency,
 			)
 		);
+
+		// The write failed (wp_insert_post() returned an error, say the
+		// database went away mid-request). Stripe has the money and this
+		// return is the only place the gift is ever recorded, so thanking the
+		// donor and then holding the 30-day lock below lost it for good.
+		// Release the lock and stop, so the donor's refresh tries again.
+		if ( ! $recorded ) {
+			delete_transient( $lock_key );
+			npmp_payment_debug_log( 'stripe return: donation insert failed, lock released for retry' );
+			return;
+		}
 	}
 
 	npmp_send_thank_you_email(
