@@ -83,6 +83,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 Free (`readme.txt`):
 - Fixed a PayPal error on some donate pages.
 - Removed unused code from the Payment Settings screen.
+- Fixed a Stripe gift going unrecorded when the site couldn't save it on the donor's return.
 
 Pro (licence server changelog):
 - Added an option to mark PayPal gifts as donations.
