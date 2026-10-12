@@ -81,11 +81,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed a PayPal error on some donate pages.
-- Removed unused code from the Payment Settings screen.
+- (none)
 
 Pro (licence server changelog):
-- Added an option to mark PayPal gifts as donations.
+- (none)
 
 ## Releasing: three systems, always in this order
 
