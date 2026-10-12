@@ -24,20 +24,20 @@ client the host site has already configured.
 - Adds tag `plugin = nonprofit-manager` to every event so the host can
   filter NPMP errors in their Sentry dashboard.
 - Adds context block `nonprofit_manager` with `version` and `features`.
-- Exports `npmp_sentry_capture( $msg_or_exception, $level, $extra )` for
-  NPMP code paths to send explicit events without worrying about whether
-  WP-Sentry is loaded.
 
-## Usage in NPMP code
+There is no capture helper. An earlier version of this file described an
+`npmp_sentry_capture()` function that was never written, so NPMP code reports
+nothing on its own. Uncaught errors still reach Sentry through WP-Sentry's own
+error handler, tagged as above.
 
-```php
-try {
-    npmp_send_donation_receipt( $donor_id );
-} catch ( \Throwable $e ) {
-    npmp_sentry_capture( $e, 'error', [ 'donor_id' => $donor_id ] );
-    // ...handle the failure gracefully
-}
-```
+## Is anything reporting?
+
+No, as of 2026-10-09. The `nonprofit-manager-wp` project has never had an
+issue, and Sentry's stats_v2 shows zero accepted, filtered or discarded events over
+90 days. Neither the cloudpanel test site nor CACC runs WP-Sentry-Integration
+or defines `WP_SENTRY_PHP_DSN`. An empty issue list here means no install is
+wired to report, not that the plugin is error free. Install WP-Sentry on CACC
+with the DSN below to change that.
 
 ## For Eric's own NPMP-using sites
 
