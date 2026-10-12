@@ -81,7 +81,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed a Stripe gift going unrecorded when the site couldn't save it on the donor's return.
+- (none)
 
 Pro (licence server changelog):
 - (none)

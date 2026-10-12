@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.6
+Stable tag: 2026.10.7
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -138,6 +138,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.10.7 =
+* Fixed unrecorded Stripe gifts after a failed save.
 
 = 2026.10.6 =
 * Fixed a PayPal error on some donate pages.
@@ -402,6 +405,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.10.7 =
+Fixes a rare case where Stripe charged a donor but the site didn't record the gift. Recommended for every site that takes Stripe gifts.
 
 = 2026.10.2 =
 Fixes donate buttons that did nothing on block themes such as Twenty Twenty-Five, and adds a currency setting for donations outside the US. Recommended for every site.
