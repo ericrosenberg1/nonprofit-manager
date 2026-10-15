@@ -70,6 +70,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - PayPal orders on a site with no API secret saved can't be verified, and
   `npmp_paypal_verify_order()` accepts them on purpose (failing closed would drop paid gifts). An
   admin notice asks for the secret.
+- **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
+  mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
+  `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and
+  Amazon SES carry every message on the site either way. Before 2026.10.8 the transport called
+  `setFrom()` on all site mail. Send plugin mail through `npmp_send_mail()`, never bare `wp_mail()`
+  (`tests/test-mail-from-scope.php`, real-WordPress rig `tests/rig/mail-from-scope.php` with
+  `tests/rig/smtp-sink.py`). `force_from` and `set_return_path` have no checkbox, so every settings
+  save writes 0 to both.
+- Amazon SES (provider `aws_ses`) sends over SMTP with the access key ID as login and the SMTP
+  password derived from the IAM secret (`npmp_email_ses_smtp_password()`, AWS's SigV4 recipe),
+  ports 587, 2587, 465, 2465. Before 2026.10.8 it fell back to PHP `mail()` without a word.
+  DigitalOcean blocks 587 and 465, so SES users there need 2587.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

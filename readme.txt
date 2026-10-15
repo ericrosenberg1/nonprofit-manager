@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.7
+Stable tag: 2026.10.8
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -48,7 +48,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * One-click unsubscribe with RFC 8058 List-Unsubscribe headers, which Gmail and Yahoo now expect
 * Tell subscribers about new posts and events instantly or in an automatic weekly digest, and let them pick their own preferences
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
-* Send through AWS SES, Brevo, SendGrid, Mailgun, or Postmark*
+* Send through Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or any SMTP server*
 
 **Events**
 
@@ -110,6 +110,10 @@ PayPal, Venmo, and Stripe for one-time donations, all in the free plugin. Recurr
 
 Yes. You write newsletters in the Gutenberg editor, reuse templates, headers, and footers, and see who opened and clicked. One-click unsubscribe and a CAN-SPAM footer are built in.
 
+= Which email service should I use? =
+
+We recommend Amazon SES. It costs $0.10 per 1,000 emails, and you can connect it in Nonprofit Manager Pro with an IAM access key or with SES SMTP credentials. If your host blocks ports 587 and 465, as DigitalOcean does, use SES port 2587. Your From address goes on Nonprofit Manager's own email only, so WordPress notices and other plugins keep their own unless you turn on "Send all site email from this address."
+
 = Does it work with my theme? =
 
 Yes. Nonprofit Manager works with any properly coded WordPress theme, and its forms and shortcodes pick up your theme's styling automatically.
@@ -138,6 +142,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.10.8 =
+* Fixed the From address on WordPress and plugin emails.
+* Added a setting to send all site email from one address.
+* Fixed Amazon SES delivery.
+* Added Amazon SES port 2587.
 
 = 2026.10.7 =
 * Fixed unrecorded Stripe gifts after a failed save.
@@ -405,6 +415,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.10.8 =
+Your From address now goes on Nonprofit Manager's own email only, so WordPress notices and other plugins keep their own. If your mail provider accepts only one sender, turn on "Send all site email from this address" under Email Settings.
 
 = 2026.10.7 =
 Fixes a rare case where Stripe charged a donor but the site didn't record the gift. Recommended for every site that takes Stripe gifts.

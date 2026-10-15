@@ -16,29 +16,15 @@ defined( 'ABSPATH' ) || exit;
 function npmp_email_apply_transport( $phpmailer ) {
 	$settings = npmp_email_get_settings();
 	$provider = $settings['provider'];
+	$smtp     = npmp_email_get_transport_smtp( $settings );
 
-	if ( ! npmp_email_provider_requires_smtp( $settings ) ) {
+	if ( null === $smtp ) {
 		return;
 	}
 
-	$smtp = $settings['smtp'];
-
-	if ( 'aws_ses' === $provider ) {
-		$region = $settings['aws']['region'] ?? 'us-east-1';
-		if ( empty( $smtp['host'] ) ) {
-			$smtp['host'] = npmp_email_get_aws_smtp_host( $region );
-		}
-		if ( empty( $smtp['port'] ) ) {
-			$smtp['port'] = 587;
-		}
-		if ( empty( $smtp['encryption'] ) ) {
-			$smtp['encryption'] = 'tls';
-		}
-	}
-
-	$host     = trim( $smtp['host'] );
-	$username = trim( $smtp['username'] );
-	$password = trim( $smtp['password'] );
+	$host     = trim( (string) $smtp['host'] );
+	$username = trim( (string) $smtp['username'] );
+	$password = trim( (string) $smtp['password'] );
 	$port     = (int) $smtp['port'];
 
 	if ( '' === $host || '' === $username || '' === $password || $port <= 0 ) {
@@ -52,6 +38,8 @@ function npmp_email_apply_transport( $phpmailer ) {
 		return;
 	}
 
+	// The connection carries every message the site sends, so WordPress's
+	// own notices and other plugins' mail reach the inbox too.
 	$phpmailer->isSMTP();
 	$phpmailer->Host       = $host;
 	$phpmailer->Port       = $port;
@@ -65,6 +53,14 @@ function npmp_email_apply_transport( $phpmailer ) {
 		$phpmailer->SMTPAuth = false;
 		$phpmailer->Username = '';
 		$phpmailer->Password = '';
+	}
+
+	// The From rewrite is narrower than the connection. Only Nonprofit
+	// Manager's own mail takes the configured From, unless the site turned on
+	// "Send all site email from this address". Everything else keeps the From
+	// that wp_mail() already set (WordPress's default or the sender's own).
+	if ( ! npmp_email_from_applies( $settings ) ) {
+		return;
 	}
 
 	$from_email = $settings['from_email'];
@@ -83,22 +79,23 @@ function npmp_email_apply_transport( $phpmailer ) {
 add_action( 'phpmailer_init', 'npmp_email_apply_transport' );
 
 /**
- * Enforce From email address if configured. Only rewrites mail this plugin
- * sends via npmp_send_mail() (see includes/email/helpers.php). A plain
- * wp_mail() call from core WordPress or another plugin is left alone, even
- * when force_from is on.
+ * Enforce the configured From address. Rewrites mail this plugin sends via
+ * npmp_send_mail() (see includes/email/helpers.php) when force_from is on,
+ * and every message on the site only when the admin turned on "Send all site
+ * email from this address" (from_all_mail). A plain wp_mail() call from core
+ * WordPress or another plugin keeps its own From otherwise.
  *
  * @param string $value Original email.
  * @return string
  */
 function npmp_email_filter_from_address( $value ) {
-	if ( ! npmp_is_internal_mail_send() ) {
+	$settings = npmp_email_get_settings();
+
+	if ( ! npmp_email_from_applies( $settings ) ) {
 		return $value;
 	}
 
-	$settings = npmp_email_get_settings();
-
-	if ( empty( $settings['force_from'] ) ) {
+	if ( empty( $settings['from_all_mail'] ) && empty( $settings['force_from'] ) ) {
 		return $value;
 	}
 
@@ -108,20 +105,20 @@ function npmp_email_filter_from_address( $value ) {
 add_filter( 'wp_mail_from', 'npmp_email_filter_from_address' );
 
 /**
- * Enforce From name if configured. Same internal-send scoping as
+ * Enforce the configured From name. Same scoping as
  * npmp_email_filter_from_address() above.
  *
  * @param string $value Original name.
  * @return string
  */
 function npmp_email_filter_from_name( $value ) {
-	if ( ! npmp_is_internal_mail_send() ) {
+	$settings = npmp_email_get_settings();
+
+	if ( ! npmp_email_from_applies( $settings ) ) {
 		return $value;
 	}
 
-	$settings = npmp_email_get_settings();
-
-	if ( empty( $settings['force_from'] ) ) {
+	if ( empty( $settings['from_all_mail'] ) && empty( $settings['force_from'] ) ) {
 		return $value;
 	}
 

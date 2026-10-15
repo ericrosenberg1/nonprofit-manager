@@ -18,6 +18,9 @@ function npmp_email_default_settings() {
 		'from_email'      => get_option( 'admin_email' ) ?: 'noreply@example.com',
 		'from_name'       => get_option( 'blogname' ) ?: 'Nonprofit Manager',
 		'force_from'      => 1,
+		// Off by default: the From above rewrites only Nonprofit Manager's
+		// own mail. On, it rewrites every wp_mail() message on the site.
+		'from_all_mail'   => 0,
 		'set_return_path' => 1,
 		'smtp'            => array(
 			'host'       => '',
@@ -30,6 +33,7 @@ function npmp_email_default_settings() {
 		),
 		'aws'             => array(
 			'region' => 'us-east-1',
+			'port'   => 587,
 		),
 	);
 }
@@ -85,6 +89,7 @@ function npmp_email_get_settings() {
 		$settings['aws'] = array();
 	}
 	$settings['aws']['region'] = $settings['aws']['region'] ?? 'us-east-1';
+	$settings['aws']['port']   = in_array( (int) ( $settings['aws']['port'] ?? 587 ), npmp_email_get_aws_smtp_ports(), true ) ? (int) $settings['aws']['port'] : 587;
 
 	return $settings;
 }
@@ -124,6 +129,28 @@ function npmp_mail_send_depth( $delta = 0 ) {
  */
 function npmp_is_internal_mail_send() {
 	return npmp_mail_send_depth( 0 ) > 0;
+}
+
+/**
+ * Whether the configured From name and address belong on the message being
+ * sent right now: always for Nonprofit Manager's own mail, and for every
+ * message on the site only when the admin turned on "Send all site email from
+ * this address". Core notices and other plugins' mail keep their own From
+ * otherwise, even though the SMTP connection still carries them.
+ *
+ * @param array|null $settings Email settings, read fresh when omitted.
+ * @return bool
+ */
+function npmp_email_from_applies( $settings = null ) {
+	if ( npmp_is_internal_mail_send() ) {
+		return true;
+	}
+
+	if ( null === $settings ) {
+		$settings = npmp_email_get_settings();
+	}
+
+	return ! empty( $settings['from_all_mail'] );
 }
 
 /**
@@ -234,6 +261,85 @@ function npmp_email_get_aws_regions() {
 }
 
 /**
+ * Ports Amazon SES accepts SMTP on. 2587 (STARTTLS) and 2465 (TLS wrapper)
+ * work on hosts that block 587 and 465, DigitalOcean droplets among them.
+ *
+ * @return int[]
+ */
+function npmp_email_get_aws_smtp_ports() {
+	return array( 587, 2587, 465, 2465 );
+}
+
+/**
+ * Turn an IAM secret access key into the Amazon SES SMTP password for a
+ * region (AWS's documented SigV4 derivation, version byte 4). The SMTP
+ * username is the access key ID itself.
+ *
+ * @param string $secret_key IAM secret access key.
+ * @param string $region     SES region, e.g. us-west-2.
+ * @return string Base64 SMTP password, or '' without a key.
+ */
+function npmp_email_ses_smtp_password( $secret_key, $region ) {
+	$secret_key = trim( (string) $secret_key );
+	if ( '' === $secret_key ) {
+		return '';
+	}
+
+	$signature = hash_hmac( 'sha256', '11111111', 'AWS4' . $secret_key, true );
+	foreach ( array( (string) $region, 'ses', 'aws4_request', 'SendRawEmail' ) as $part ) {
+		$signature = hash_hmac( 'sha256', $part, $signature, true );
+	}
+
+	return base64_encode( chr( 4 ) . $signature ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- AWS's documented SMTP password format.
+}
+
+/**
+ * The SMTP connection details for the selected provider, or null when the
+ * provider doesn't send over SMTP (WordPress default, or a Pro API provider).
+ *
+ * Custom SMTP uses the SMTP settings as entered. Amazon SES builds them from
+ * the region, the chosen port and the IAM access key pair, which Pro stores
+ * (encrypted). Without Pro, or with a key this site can no longer decrypt,
+ * Amazon SES returns null and mail falls back to WordPress's default mailer.
+ *
+ * @param array $settings Email settings.
+ * @return array|null
+ */
+function npmp_email_get_transport_smtp( $settings ) {
+	$provider = $settings['provider'] ?? 'wordpress';
+
+	if ( 'smtp' === $provider ) {
+		return $settings['smtp'];
+	}
+
+	if ( 'aws_ses' !== $provider || ! npmp_is_pro() ) {
+		return null;
+	}
+
+	if ( function_exists( 'npmp_pro_secret_option_unreadable' ) && npmp_pro_secret_option_unreadable( 'npmp_aws_ses_secret_key' ) ) {
+		return null;
+	}
+
+	$region = sanitize_key( $settings['aws']['region'] ?? 'us-east-1' );
+	$port   = (int) ( $settings['aws']['port'] ?? 587 );
+	if ( ! in_array( $port, npmp_email_get_aws_smtp_ports(), true ) ) {
+		$port = 587;
+	}
+
+	return array(
+		'host'       => npmp_email_get_aws_smtp_host( $region ),
+		'port'       => $port,
+		// 465 and 2465 wrap the whole connection in TLS. 587 and 2587 start
+		// plain and upgrade with STARTTLS.
+		'encryption' => in_array( $port, array( 465, 2465 ), true ) ? 'ssl' : 'tls',
+		'auth'       => 1,
+		'username'   => trim( (string) get_option( 'npmp_aws_ses_access_key', '' ) ),
+		'password'   => npmp_email_ses_smtp_password( get_option( 'npmp_aws_ses_secret_key', '' ), $region ),
+		'auto_tls'   => 1,
+	);
+}
+
+/**
  * Generate the Amazon SES SMTP host for a region.
  *
  * @param string $region AWS region.
@@ -272,7 +378,9 @@ function npmp_email_record_result( $status, $details = array() ) {
  * @return bool
  */
 function npmp_email_provider_requires_smtp( $settings ) {
-	// Only Custom SMTP uses the SMTP configuration
+	// Only Custom SMTP uses the SMTP fields on the settings screen. Amazon SES
+	// sends over SMTP too, but npmp_email_get_transport_smtp() builds its
+	// connection from the region and the IAM key pair.
 	return 'smtp' === $settings['provider'];
 }
 
