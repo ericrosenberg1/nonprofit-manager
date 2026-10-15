@@ -79,7 +79,7 @@ To build the zip from this repo, run `./build.sh`. The script packages committed
 - Email automations such as welcome emails, donation receipts and expiry reminders.
 - Custom member fields and segments built with AND/OR conditions.
 - PayPal Smart Buttons with a verification record for every capture.
-- Sending through AWS SES, Brevo, SendGrid, Mailgun or Postmark.
+- Sending through Amazon SES (port 2587 for hosts that block 587), SendGrid, Mailgun, Postmark, Brevo or any SMTP server.
 - Imports with no 50-contact cap.
 - Auto-share to Reddit, Bluesky, Mastodon, Threads and Nextdoor.
 

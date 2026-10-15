@@ -41,6 +41,7 @@ function npmp_render_email_settings_page() {
 		$new_settings['from_name']       = sanitize_text_field( wp_unslash( $_POST['npmp_email_from_name'] ?? '' ) );
 		$new_settings['from_email']      = sanitize_email( wp_unslash( $_POST['npmp_email_from_email'] ?? '' ) );
 		$new_settings['force_from']      = isset( $_POST['npmp_email_force_from'] ) ? 1 : 0;
+		$new_settings['from_all_mail']   = isset( $_POST['npmp_email_from_all_mail'] ) ? 1 : 0;
 		$new_settings['set_return_path'] = isset( $_POST['npmp_email_return_path'] ) ? 1 : 0;
 
 		$provider = sanitize_key( wp_unslash( $_POST['npmp_email_provider'] ?? 'wordpress' ) );
@@ -118,6 +119,9 @@ function npmp_render_email_settings_page() {
 			$region = 'us-east-1';
 		}
 		$new_settings['aws']['region'] = $region;
+
+		$aws_port                    = absint( wp_unslash( $_POST['npmp_aws_port'] ?? $new_settings['aws']['port'] ?? 587 ) );
+		$new_settings['aws']['port'] = in_array( $aws_port, npmp_email_get_aws_smtp_ports(), true ) ? $aws_port : 587;
 
 		if ( empty( $new_settings['smtp']['port'] ) ) {
 			$new_settings['smtp']['port'] = ( 'ssl' === $new_settings['smtp']['encryption'] ) ? 465 : 587;
@@ -314,6 +318,16 @@ function npmp_render_email_settings_page() {
 							<p class="description"><?php esc_html_e( 'Use an email address authorized by your mail provider.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
+					<tr>
+						<th><?php esc_html_e( 'Other Site Email', 'nonprofit-manager' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="npmp_email_from_all_mail" value="1" <?php checked( ! empty( $settings['from_all_mail'] ) ); ?>>
+								<?php esc_html_e( 'Send all site email from this address', 'nonprofit-manager' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Off by default. Nonprofit Manager\'s own email always goes out from the name and address above, and WordPress and your other plugins keep their own From address. Turn this on only if your mail provider accepts no other sender. With SendGrid, Mailgun, Postmark or Brevo selected, every message goes out from the address above either way.', 'nonprofit-manager' ); ?></p>
+						</td>
+					</tr>
 				</table>
 			</div>
 
@@ -382,7 +396,7 @@ function npmp_render_email_settings_page() {
 							<th><label for="npmp_smtp_port"><?php esc_html_e( 'SMTP Port', 'nonprofit-manager' ); ?></label></th>
 							<td>
 								<input type="number" id="npmp_smtp_port" name="npmp_smtp_port" class="small-text" value="<?php echo esc_attr( $settings['smtp']['port'] ); ?>">
-								<p class="description"><?php esc_html_e( 'Common: 587 (TLS) or 465 (SSL)', 'nonprofit-manager' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Common: 587 (TLS) or 465 (SSL). Amazon SES also takes 2587 (TLS) and 2465 (SSL), which work on hosts that block 587 and 465, such as DigitalOcean.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 						<tr>
@@ -424,7 +438,8 @@ function npmp_render_email_settings_page() {
 					<!-- AWS SES -->
 					<div class="npmp-provider-block npmp-provider-aws_ses" <?php echo 'aws_ses' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Amazon SES API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Amazon SES Configuration', 'nonprofit-manager' ); ?></h3>
+						<p class="description"><?php esc_html_e( 'You connect to Amazon SES over SMTP with an IAM access key that can send email (ses:SendRawEmail). Already have SMTP credentials from the SES console? Choose Custom SMTP instead and enter them there.', 'nonprofit-manager' ); ?></p>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'aws_ses' );
@@ -451,6 +466,17 @@ function npmp_render_email_settings_page() {
 										<?php endforeach; ?>
 									</select>
 									<p class="description"><?php esc_html_e( 'Select the AWS region where your SES service is configured.', 'nonprofit-manager' ); ?></p>
+								</td>
+							</tr>
+							<tr>
+								<th><label for="npmp_aws_port"><?php esc_html_e( 'SMTP Port', 'nonprofit-manager' ); ?></label></th>
+								<td>
+									<select name="npmp_aws_port" id="npmp_aws_port">
+										<?php foreach ( npmp_email_get_aws_smtp_ports() as $aws_port_option ) : ?>
+											<option value="<?php echo esc_attr( $aws_port_option ); ?>" <?php selected( (int) $settings['aws']['port'], $aws_port_option ); ?>><?php echo esc_html( $aws_port_option ); ?></option>
+										<?php endforeach; ?>
+									</select>
+									<p class="description"><?php esc_html_e( 'Use 587 unless your host blocks it. DigitalOcean and some other hosts block 587 and 465, so pick 2587 there.', 'nonprofit-manager' ); ?></p>
 								</td>
 							</tr>
 							<tr>

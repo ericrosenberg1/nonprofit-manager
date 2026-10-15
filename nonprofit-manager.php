@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.10.7
+ * Version: 2026.10.8
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -203,8 +203,8 @@ add_action(
 // Transport selection is handled dynamically at send time by
 // includes/email/smtp.php (loaded unconditionally above), which reads
 // npmp_email_get_settings() and hooks phpmailer_init to configure SMTP for
-// whichever provider (Custom SMTP, Amazon SES, Brevo, SendGrid, Mailgun or
-// Postmark) is selected. There used to be a second,
+// Custom SMTP or Amazon SES. Pro's API providers (SendGrid, Mailgun,
+// Postmark, Brevo) send through pre_wp_mail instead. There used to be a second,
 // provider-per-file loader here keyed on a `npmp_email_delivery_settings`
 // option that nothing ever wrote, pointing at includes/email/ses.php,
 // sendgrid.php, and mailgun.php, none of which exist. It was always a
