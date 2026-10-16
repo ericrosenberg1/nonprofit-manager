@@ -281,5 +281,38 @@ check( 'the refresh records the gift', 1, count( $donations->logged ) );
 check( 'and adds the donor once', array( 'retry@example.com' ), $members->added );
 check( 'then holds the 30-day lock', 30 * DAY_IN_SECONDS, $GLOBALS['npmp_test_ttls'][ 'npmp_stripe_fin_' . md5( 'cs_test_dbfail' ) ] ?? 0 );
 
+echo "\n== 12. A 200 that isn't Checkout Session JSON releases the lock ==\n";
+foreach ( array( 'html' => '<html><body>Gateway login</body></html>', 'truncated' => substr( paid_session_json( 'cs_test_trunc' ), 0, 80 ), 'empty' => '' ) as $kind => $junk ) {
+	$donations->logged         = array();
+	$sid                       = 'cs_test_junk_' . $kind;
+	$GLOBALS['npmp_test_http'] = stripe_reply( 200, $junk );
+	land( $sid );
+	check( "$kind body: nothing logged", 0, count( $donations->logged ) );
+	check( "$kind body: lock released so a refresh can retry", false, lock_held( $sid ) );
+	$GLOBALS['npmp_test_http'] = stripe_reply( 200, paid_session_json( $sid ) );
+	land( $sid );
+	check( "$kind body: the refresh records the gift", 1, count( $donations->logged ) );
+}
+
+echo "\n== 13. A revisit after the lock lapses never calls Stripe again ==\n";
+// The gift is already on file. Drop every lock, as an expired transient or a
+// flushed object cache would.
+$GLOBALS['npmp_test_transients'] = array();
+$donations->logged               = array( array( 'transaction_id' => 'cs_test_ok' ) );
+$calls                           = $GLOBALS['npmp_test_http_calls'];
+$GLOBALS['npmp_test_http']       = stripe_reply( 200, paid_session_json( 'cs_test_ok' ) );
+land( 'cs_test_ok' );
+check( 'no Stripe call for a recorded session', $calls, $GLOBALS['npmp_test_http_calls'] );
+check( 'no second donation row', 1, count( $donations->logged ) );
+
+echo "\n== 14. No secret key for the mode means no Stripe call and nothing logged ==\n";
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$donations->logged            = array();
+$calls                        = $GLOBALS['npmp_test_http_calls'];
+land( 'cs_live_nokey' );
+check( 'no Stripe call without a live key', $calls, $GLOBALS['npmp_test_http_calls'] );
+check( 'nothing logged', 0, count( $donations->logged ) );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
