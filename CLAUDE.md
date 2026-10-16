@@ -44,7 +44,11 @@ MemPalace (wing `handoffs`). Growth work runs from `~/Code/nonprofit-manager-gro
 ## Testing beyond unit tests
 
 Don't call a static read a test. A throwaway WordPress at any version takes minutes: recipe in
-memory `reference_headless_wp_test_rig`, plus `tests/rig/` here and in Pro. Three traps:
+memory `reference_headless_wp_test_rig`, plus `tests/rig/` here and in Pro. No MySQL on this Mac?
+`tests/rig/stripe-return.php` also runs on SQLite: untar a cached core from `~/.wp-cli/cache/core/`,
+add the `sqlite-database-integration` plugin with its `db.copy` as `wp-content/db.php` (fill its two `{SQLITE_...}` placeholders), `wp core
+install`, symlink this repo into `wp-content/plugins/`, then `NPMP_RIG_WP=<wp dir> php tests/rig/...`
+(verified 2026-10-16, 20 of 20). Three traps:
 - mysqld's socket path must be under about 103 characters (`/tmp/x.sock`).
 - Never name a top-level variable `$file` in a script that requires `wp-load.php`. Core clobbers it
   and `activate_plugin()` fails with a misleading message.
@@ -93,7 +97,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed a Stripe gift going unrecorded when the return got an unreadable reply from Stripe.
 
 Pro (licence server changelog):
 - (none)

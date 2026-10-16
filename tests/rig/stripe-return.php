@@ -10,7 +10,8 @@
 // checked, not assumed.
 //
 // Covers: a paid gift recorded once with the right amount and currency, a
-// Stripe 503 that releases the lock, a failed insert that releases the lock
+// Stripe 503 that releases the lock, a 200 with a non-JSON body that releases
+// the lock too, a failed insert that releases the lock
 // instead of thanking the donor and holding it for 30 days (the gift used to
 // be lost for good), and a revisit that sends no second thank-you. Leaves no
 // donations, members or transients behind. Not run by the pre-push gate (it
@@ -102,7 +103,8 @@ $run     = wp_rand( 1000, 9999 );
 $sid_ok  = "cs_test_rigok{$run}";
 $sid_503 = "cs_test_rig503{$run}";
 $sid_db  = "cs_test_rigdb{$run}";
-$emails  = array( "rig-ok{$run}@example.org", "rig-503{$run}@example.org", "rig-db{$run}@example.org" );
+$sid_bad = "cs_test_rigbad{$run}";
+$emails  = array( "rig-ok{$run}@example.org", "rig-503{$run}@example.org", "rig-db{$run}@example.org", "rig-bad{$run}@example.org" );
 
 echo "== A paid gift is recorded once ==\n";
 $rig_reply = array( 200, rig_session_json( $sid_ok, $emails[0], 4200, 'eur' ) );
@@ -130,6 +132,15 @@ $rig_reply = array( 200, rig_session_json( $sid_503, $emails[1] ) );
 rig_land( $sid_503 );
 rig_check( 'the refresh records it', true, (bool) $dm->find_by_transaction_id( $sid_503 ) );
 
+echo "== A 200 with an HTML body, then recovery ==\n";
+$rig_reply = array( 200, '<html><body>Proxy login</body></html>' );
+rig_land( $sid_bad );
+rig_check( 'nothing recorded on an unreadable 200', false, (bool) $dm->find_by_transaction_id( $sid_bad ) );
+rig_check( 'lock released', false, get_transient( 'npmp_stripe_fin_' . md5( $sid_bad ) ) );
+$rig_reply = array( 200, rig_session_json( $sid_bad, $emails[3] ) );
+rig_land( $sid_bad );
+rig_check( 'the refresh records it', true, (bool) $dm->find_by_transaction_id( $sid_bad ) );
+
 echo "== The insert fails, then recovers ==\n";
 // wp_insert_post( ..., true ) returns WP_Error('empty_content') when this filter says so.
 add_filter( 'wp_insert_post_empty_content', $rig_block = function ( $empty, $postarr ) { return 'npmp_donation' === ( $postarr['post_type'] ?? '' ) ? true : $empty; }, 10, 2 );
@@ -146,7 +157,7 @@ rig_check( 'the refresh records it', true, (bool) $dm->find_by_transaction_id( $
 rig_check( 'and adds the member', true, (bool) $mm->get_member_by_email( $emails[2] ) );
 
 // Clean up.
-foreach ( array( $sid_ok, $sid_503, $sid_db ) as $sid ) {
+foreach ( array( $sid_ok, $sid_503, $sid_db, $sid_bad ) as $sid ) {
 	$r = $dm->find_by_transaction_id( $sid );
 	$id = is_object( $r ) ? (int) ( $r->id ?? $r->ID ?? 0 ) : (int) $r;
 	if ( $id ) {

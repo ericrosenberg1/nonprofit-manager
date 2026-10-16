@@ -1210,7 +1210,17 @@ function npmp_maybe_finalize_stripe_donation() {
 	}
 
 	$session = json_decode( wp_remote_retrieve_body( $response ), true );
-	if ( ! is_array( $session ) || empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
+
+	// A 200 whose body isn't a JSON object (a proxy or captive portal page, a
+	// truncated read) is no answer either. Holding the lock on it dropped the
+	// gift for any refresh inside the window, same as the 5xx case above.
+	if ( ! is_array( $session ) ) {
+		delete_transient( $lock_key );
+		npmp_payment_debug_log( 'stripe return: unreadable session body, lock released for retry' );
+		return;
+	}
+
+	if ( empty( $session['payment_status'] ) || 'paid' !== $session['payment_status'] ) {
 		return;
 	}
 
