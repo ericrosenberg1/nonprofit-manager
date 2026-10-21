@@ -105,10 +105,11 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added a setup choice for the kind of group.
+- Screens use words that fit your group, like Supporters.
 
 Pro (licence server changelog):
-- (none)
+- Pro menu and Recurring screen use your group's words.
 
 ## Releasing: three systems, always in this order
 
