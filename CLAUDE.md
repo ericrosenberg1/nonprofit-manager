@@ -110,6 +110,10 @@ Free (`readme.txt`):
 
 Pro (licence server changelog):
 - Pro menu and Recurring screen use your group's words.
+- Staging and development sites now need a license.
+- Added a notice asking staging sites to activate.
+- Every license now covers a staging site.
+- Fixed the expired license message about features.
 
 ## Releasing: three systems, always in this order
 
