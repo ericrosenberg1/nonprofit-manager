@@ -109,16 +109,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added a setup choice for the kind of group.
-- Screens use words that fit your group, like Supporters.
-- Fixed unrecorded Stripe gifts after an unreadable reply.
+- (none)
 
 Pro (licence server changelog):
-- Pro menu and Recurring screen use your group's words.
-- Staging and development sites now need a license.
-- Added a notice asking staging sites to activate.
-- Every license now covers a staging site.
-- Fixed the expired license message about features.
+- (none)
 
 ## Releasing: three systems, always in this order
 
