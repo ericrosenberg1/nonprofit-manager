@@ -26,8 +26,8 @@ function npmp_register_internal_post_types() {
 		'npmp_donation',
 		array(
 			'labels' => array(
-				'name'          => __( 'Donations', 'nonprofit-manager' ),
-				'singular_name' => __( 'Donation', 'nonprofit-manager' ),
+				'name'          => npmp_label( 'donations' ),
+				'singular_name' => npmp_label( 'donation' ),
 			),
 			'public'             => false,
 			'show_ui'            => false,
