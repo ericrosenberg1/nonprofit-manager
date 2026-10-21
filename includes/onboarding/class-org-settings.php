@@ -121,6 +121,19 @@ class NPMP_Org_Settings {
 			<?php wp_nonce_field( 'npmp_save_org_settings', 'npmp_org_settings_nonce' ); ?>
 
 			<table class="form-table" role="presentation">
+				<?php if ( function_exists( 'npmp_org_types' ) ) : ?>
+				<tr>
+					<th scope="row"><label for="npmp_group_kind"><?php esc_html_e( 'What kind of group is this?', 'nonprofit-manager' ); ?></label></th>
+					<td>
+						<select id="npmp_group_kind" name="npmp_org_type">
+							<?php foreach ( npmp_org_types() as $kind_slug => $kind_label ) : ?>
+								<option value="<?php echo esc_attr( $kind_slug ); ?>" <?php selected( npmp_get_org_type(), $kind_slug ); ?>><?php echo esc_html( $kind_label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description"><?php esc_html_e( 'Pick one and you\'ll see words that fit your group across the plugin, like Supporters instead of Donors or Dues Levels instead of Membership Levels.', 'nonprofit-manager' ); ?></p>
+					</td>
+				</tr>
+				<?php endif; ?>
 				<tr>
 					<th scope="row"><label for="npmp_org_name"><?php esc_html_e( 'Organization name', 'nonprofit-manager' ); ?> <span style="color:#dc2626;">*</span></label></th>
 					<td>
@@ -128,7 +141,7 @@ class NPMP_Org_Settings {
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="npmp_org_type"><?php esc_html_e( 'Type', 'nonprofit-manager' ); ?></label></th>
+					<th scope="row"><label for="npmp_org_type"><?php esc_html_e( 'Legal type', 'nonprofit-manager' ); ?></label></th>
 					<td>
 						<select id="npmp_org_type" name="npmp_org_settings[type]">
 							<option value=""><?php esc_html_e( '— Select —', 'nonprofit-manager' ); ?></option>
@@ -191,12 +204,20 @@ class NPMP_Org_Settings {
 		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_org_settings_nonce'] ) ), 'npmp_save_org_settings' ) ) {
 			return;
 		}
+		if ( isset( $_POST['npmp_org_type'] ) && function_exists( 'npmp_set_org_type' ) ) {
+			npmp_set_org_type( sanitize_key( wp_unslash( $_POST['npmp_org_type'] ) ) );
+		}
 		if ( empty( $_POST['npmp_org_settings'] ) || ! is_array( $_POST['npmp_org_settings'] ) ) {
 			return;
 		}
 		// Per-key sanitisation happens inside save(). Pass through unslashed.
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		self::save( wp_unslash( $_POST['npmp_org_settings'] ) );
+
+		// WordPress builds the admin menu before admin_init, so this request's
+		// menu still carries the old kind of group's words. Reload the page.
+		wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
+		exit;
 	}
 }
 

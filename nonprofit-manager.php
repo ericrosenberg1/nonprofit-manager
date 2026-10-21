@@ -20,6 +20,8 @@ defined( 'ABSPATH' ) || exit;
  * Core components (always loaded)
  * ---------------------------------------------------------------------- */
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-version.php';
+// Kind of group (nonprofit, club, team...) and the words each one sees.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-org-type.php';
 // Site currency: formatting, gateway minor units, minimums. Pro calls these too.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-currency.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
@@ -142,55 +144,63 @@ add_action(
 
 		/* Main hub */
 		add_menu_page(
-			'Nonprofit Manager',
-			'Nonprofit Manager',
+			npmp_label( 'app_name' ),
+			npmp_label( 'app_name' ),
 			'manage_options',
 			'npmp_main',
 			'npmp_render_main_plugin_page',
 			'dashicons-groups',
 			3.0
 		);
+		npmp_pin_menu_hook( 'npmp_main', 'nonprofit-manager' );
 
-		add_submenu_page( 'npmp_main', 'Overview', 'Overview', 'manage_options', 'npmp_main', 'npmp_render_main_plugin_page' );
+		add_submenu_page( 'npmp_main', __( 'Overview', 'nonprofit-manager' ), __( 'Overview', 'nonprofit-manager' ), 'manage_options', 'npmp_main', 'npmp_render_main_plugin_page' );
 
 		/* General Settings - Always available */
-		add_submenu_page( 'npmp_main', 'General Settings', 'General Settings', 'manage_options', 'npmp_general_settings', 'npmp_render_general_settings_page' );
+		add_submenu_page( 'npmp_main', __( 'General Settings', 'nonprofit-manager' ), __( 'General Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_general_settings', 'npmp_render_general_settings_page' );
 
 		/* Membership */
 		if ( ! empty( $npmp_features['members'] ) ) {
 
 			add_menu_page(
-				'Membership',
-				'Membership',
+				__( 'Membership', 'nonprofit-manager' ),
+				__( 'Membership', 'nonprofit-manager' ),
 				npmp_staff_cap(),
 				'npmp_membership',
 				'npmp_render_membership_dashboard',
 				'dashicons-admin-users',
 				3.05
 			);
+			npmp_pin_menu_hook( 'npmp_membership', 'membership' );
 
-			add_submenu_page( 'npmp_membership', 'Member List',       'Member List',       npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
-			add_submenu_page( 'npmp_membership', 'Membership Settings',  'Membership Settings',  'manage_options', 'npmp_membership_forms',   'npmp_render_membership_forms_page' );
-			add_submenu_page( 'npmp_main',       'Email Settings',    'Email Settings',    'manage_options', 'npmp_email_settings',     'npmp_render_email_settings_page' );
+			/* translators: %s: singular word for a member, such as Member. */
+			$npmp_member_list = sprintf( __( '%s List', 'nonprofit-manager' ), npmp_label( 'member' ) );
+			add_submenu_page( 'npmp_membership', $npmp_member_list, $npmp_member_list, npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
+			add_submenu_page( 'npmp_membership', __( 'Membership Settings', 'nonprofit-manager' ), __( 'Membership Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_membership_forms',   'npmp_render_membership_forms_page' );
+			add_submenu_page( 'npmp_main',       __( 'Email Settings', 'nonprofit-manager' ), __( 'Email Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_email_settings',     'npmp_render_email_settings_page' );
 		}
 
 		/* Newsletters */
 		if ( ! empty( $npmp_features['newsletters'] ) ) {
 			// phpcs:disable WordPress.WP.Capabilities.Unknown -- edit_npmp_newsletters is the newsletter post types' own capability, resolved in npmp_filter_staff_caps().
-			add_menu_page( 'Email Newsletters', 'Email Newsletters', 'edit_npmp_newsletters', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
-			add_submenu_page( 'npmp-newsletters', 'New Newsletter',       'New Newsletter',       'edit_npmp_newsletters', 'npmp-newsletters',          'npmp_render_newsletter_editor' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Templates', 'Newsletter Templates', 'edit_npmp_newsletters', 'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Archive',   'Newsletter Archive',   'edit_npmp_newsletters', 'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Reports',   'Newsletter Reports',   'edit_npmp_newsletters', 'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
-			add_submenu_page( 'npmp-newsletters', 'Newsletter Settings',  'Newsletter Settings',  'manage_options','npmp_newsletter_settings',  'npmp_render_newsletter_settings' );
+			add_menu_page( __( 'Email Newsletters', 'nonprofit-manager' ), __( 'Email Newsletters', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
+			npmp_pin_menu_hook( 'npmp-newsletters', 'email-newsletters' );
+			add_submenu_page( 'npmp-newsletters', __( 'New Newsletter', 'nonprofit-manager' ), __( 'New Newsletter', 'nonprofit-manager' ),       'edit_npmp_newsletters', 'npmp-newsletters',          'npmp_render_newsletter_editor' );
+			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Templates', 'nonprofit-manager' ), __( 'Newsletter Templates', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
+			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Archive', 'nonprofit-manager' ), __( 'Newsletter Archive', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
+			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Reports', 'nonprofit-manager' ), __( 'Newsletter Reports', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
+			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Settings', 'nonprofit-manager' ), __( 'Newsletter Settings', 'nonprofit-manager' ),  'manage_options','npmp_newsletter_settings',  'npmp_render_newsletter_settings' );
 			// phpcs:enable WordPress.WP.Capabilities.Unknown
 		}
 
 		/* Donations */
 		if ( ! empty( $npmp_features['donations'] ) ) {
-			add_menu_page( 'Donations', 'Donations', npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
-			add_submenu_page( 'npmp_donations_group', 'Donation Settings', 'Donation Settings', 'manage_options', 'npmp_donation_settings', 'npmp_render_donation_settings_page' );
-			add_submenu_page( 'npmp_donations_group', 'Payment Settings', 'Payment Settings', 'manage_options', 'npmp_payment_settings', 'npmp_render_payment_settings_page' );
+			add_menu_page( npmp_label( 'donations' ), npmp_label( 'donations' ), npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
+			npmp_pin_menu_hook( 'npmp_donations_group', 'donations' );
+			/* translators: %s: singular word for a donation, such as Donation or Contribution. */
+			$npmp_donation_settings = sprintf( __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) );
+			add_submenu_page( 'npmp_donations_group', $npmp_donation_settings, $npmp_donation_settings, 'manage_options', 'npmp_donation_settings', 'npmp_render_donation_settings_page' );
+			add_submenu_page( 'npmp_donations_group', __( 'Payment Settings', 'nonprofit-manager' ), __( 'Payment Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_payment_settings', 'npmp_render_payment_settings_page' );
 		}
 
 		/* Calendar menus are fully registered inside npmp-calendar.php */

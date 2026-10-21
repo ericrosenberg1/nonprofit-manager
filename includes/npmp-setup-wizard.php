@@ -326,6 +326,11 @@ add_action(
 			}
 
 			if ( 'complete' === $step ) {
+				// Kind of group: decides the words every screen shows
+				// (npmp-org-type.php). A missing or unknown value saves
+				// nonprofit, the labels the plugin has always used.
+				npmp_set_org_type( isset( $_POST['npmp_org_type'] ) ? sanitize_key( wp_unslash( $_POST['npmp_org_type'] ) ) : '' );
+
 				// Save selected features
 				$enabled = array(
 					'members'     => isset( $_POST['npmp_feature_members'] ),
@@ -453,7 +458,7 @@ function npmp_render_setup_wizard() {
 			<p class="subtitle">
 				<?php
 				if ( 'pro' === $version ) {
-					esc_html_e( 'Thank you for upgrading to Pro! Let\'s set up your nonprofit management system.', 'nonprofit-manager' );
+					esc_html_e( 'Thank you for upgrading to Pro! Let\'s set up your site.', 'nonprofit-manager' );
 				} else {
 					esc_html_e( 'Let\'s get started by choosing which features you need.', 'nonprofit-manager' );
 				}
@@ -463,6 +468,39 @@ function npmp_render_setup_wizard() {
 			<form method="post" id="npmp-setup-form">
 				<?php wp_nonce_field( 'npmp_setup_wizard', 'npmp_setup_nonce' ); ?>
 				<input type="hidden" name="npmp_setup_step" value="complete">
+
+				<h2><?php esc_html_e( 'What kind of group is this?', 'nonprofit-manager' ); ?></h2>
+				<p><?php esc_html_e( 'Pick the closest match, and you\'ll see words that fit your group, like Supporters instead of Donors. You can change it later in General Settings.', 'nonprofit-manager' ); ?></p>
+
+				<div class="feature-grid npmp-org-type-grid">
+					<?php
+					$current_type = npmp_get_org_type();
+					foreach ( npmp_org_types() as $type_slug => $type_label ) :
+						$type_words = npmp_org_labels( $type_slug );
+						?>
+						<div class="feature-card<?php echo $current_type === $type_slug ? ' selected' : ''; ?>">
+							<label>
+								<h3>
+									<input type="radio" name="npmp_org_type" value="<?php echo esc_attr( $type_slug ); ?>" <?php checked( $current_type, $type_slug ); ?> onchange="npmpSelectOrgType(this)">
+									<?php echo esc_html( $type_label ); ?>
+								</h3>
+								<p>
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: 1: word for donors, 2: word for donations, 3: word for membership levels. */
+											__( '%1$s, %2$s, %3$s', 'nonprofit-manager' ),
+											$type_words['donors'],
+											$type_words['donations'],
+											$type_words['levels']
+										)
+									);
+									?>
+								</p>
+							</label>
+						</div>
+					<?php endforeach; ?>
+				</div>
 
 				<h2><?php esc_html_e( 'Select Your Features', 'nonprofit-manager' ); ?></h2>
 				<p><?php esc_html_e( 'Choose the features you want to activate. You can change these later.', 'nonprofit-manager' ); ?></p>
@@ -492,9 +530,9 @@ function npmp_render_setup_wizard() {
 						<label>
 							<h3>
 								<input type="checkbox" name="npmp_feature_donations" checked onchange="npmpToggleFeatureCard(this)">
-								<?php esc_html_e( 'Donations', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Online Payments', 'nonprofit-manager' ); ?>
 							</h3>
-							<p><?php esc_html_e( 'Accept and track donations with integrated payment processing.', 'nonprofit-manager' ); ?></p>
+							<p><?php esc_html_e( 'Take donations, gifts or contributions online and keep a record of each one.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 
@@ -552,6 +590,12 @@ function npmp_render_setup_wizard() {
 		</div>
 
 		<script>
+		function npmpSelectOrgType(radio) {
+			document.querySelectorAll('.npmp-org-type-grid .feature-card').forEach(function (card) {
+				card.classList.remove('selected');
+			});
+			radio.closest('.feature-card').classList.add('selected');
+		}
 		function npmpToggleFeatureCard(checkbox) {
 			const card = checkbox.closest('.feature-card');
 			if (checkbox.checked) {

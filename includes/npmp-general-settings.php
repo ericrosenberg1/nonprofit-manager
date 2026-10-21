@@ -186,7 +186,7 @@ function npmp_render_general_settings_page() {
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'General Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Configure membership levels and form security settings.', 'nonprofit-manager' ); ?></p>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Configure %s and form security settings.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></p>
 
 		<?php if ( $updated ) : ?>
 			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
@@ -280,8 +280,8 @@ function npmp_render_general_settings_page() {
 
 		<!-- Membership Levels Section -->
 		<div class="npmp-settings-card">
-			<h2><?php esc_html_e( 'Membership Levels', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Define membership levels for your organization. These will be available when adding or editing members.', 'nonprofit-manager' ); ?></p>
+			<h2><?php echo esc_html( npmp_label( 'levels' ) ); ?></h2>
+			<p><?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for membership levels, such as membership levels or dues levels, 2: lowercase word for the group, such as nonprofit or club, 3: lowercase plural word for members, such as members. */ __( 'Define %1$s for your %2$s. You can pick one when you add or edit %3$s.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ), npmp_label( 'org_lc' ), npmp_label( 'members_lc' ) ) ); ?></p>
 
 			<!-- Current Levels Table -->
 			<?php if ( ! empty( $membership_levels ) ) : ?>
@@ -306,7 +306,7 @@ function npmp_render_general_settings_page() {
 					</tbody>
 				</table>
 			<?php else : ?>
-				<p><em><?php esc_html_e( 'No membership levels defined yet.', 'nonprofit-manager' ); ?></em></p>
+				<p><em><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'No %s defined yet.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></em></p>
 			<?php endif; ?>
 
 			<!-- Add New Level Form -->
@@ -315,7 +315,7 @@ function npmp_render_general_settings_page() {
 				<input
 					type="text"
 					name="npmp_new_level"
-					placeholder="<?php esc_attr_e( 'Enter new membership level name', 'nonprofit-manager' ); ?>"
+					placeholder="<?php echo esc_attr( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Enter a new %s name', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?>"
 					required
 				>
 				<?php submit_button( __( 'Add Level', 'nonprofit-manager' ), 'secondary', 'submit', false ); ?>
@@ -523,7 +523,7 @@ function npmp_render_general_settings_page() {
 			$('.npmp-delete-level').on('click', function(e) {
 				e.preventDefault();
 				var level = $(this).data('level');
-				var confirmMessage = '<?php echo esc_js( __( 'Are you sure you want to delete the membership level', 'nonprofit-manager' ) ); ?> "' + level + '"?\n\n<?php echo esc_js( __( 'This action cannot be undone.', 'nonprofit-manager' ) ); ?>';
+				var confirmMessage = '<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Are you sure you want to delete the %s', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?> "' + level + '"?\n\n<?php echo esc_js( __( 'You can\'t undo this.', 'nonprofit-manager' ) ); ?>';
 
 				if (confirm(confirmMessage)) {
 					$('#npmp_level_to_remove').val(level);

@@ -124,7 +124,7 @@ function npmp_tour_get_free_steps() {
 			'page'      => 'membership_page_npmp_members',
 			'target'    => '#toplevel_page_npmp_donations_group, a[href*="page=npmp_donation_settings"]',
 			'placement' => 'right',
-			'title'     => __( 'Accept donations', 'nonprofit-manager' ),
+			'title'     => sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Accept %s', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ),
 			'body'      => __( 'The Donations menu is where you connect Stripe, PayPal or Venmo. Then add the donation block, or the [npmp_donation_form] shortcode, to any page. Each donor is linked to your member list.', 'nonprofit-manager' ),
 			'advance'   => 'next',
 		),

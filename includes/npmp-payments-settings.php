@@ -52,7 +52,7 @@ function npmp_render_donations_dashboard() {
 			: sprintf( __( 'Amount (%s)', 'nonprofit-manager' ), $currencies[0] );
 	}
 
-	echo '<div class="wrap"><h1>' . esc_html__( 'Donations Summary', 'nonprofit-manager' ) . '</h1>';
+	echo '<div class="wrap"><h1>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Summary', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h1>';
 
 	/* Filter form */
 	echo '<form method="get" style="margin-bottom:1.5em;">';
@@ -109,10 +109,10 @@ function npmp_render_donations_dashboard() {
 	}
 
 	/* One-Time Donations Table */
-	echo '<h2>' . esc_html__( 'One-Time Donations', 'nonprofit-manager' ) . '</h2>';
+	echo '<h2>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'One-Time %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h2>';
 	echo '<table class="widefat fixed striped">';
 	echo '<thead><tr>';
-	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
+	echo '<th>' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
 	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
@@ -141,15 +141,15 @@ function npmp_render_donations_dashboard() {
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="5">' . esc_html__( 'No one-time donations found for this period.', 'nonprofit-manager' ) . '</td></tr>';
+		echo '<tr><td colspan="5">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No one-time %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
 	/* Recurring Donations Table */
-	echo '<h2 style="margin-top:2em;">' . esc_html__( 'Recurring Donations', 'nonprofit-manager' ) . '</h2>';
+	echo '<h2 style="margin-top:2em;">' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Recurring %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h2>';
 	echo '<table class="widefat fixed striped">';
 	echo '<thead><tr>';
-	echo '<th>' . esc_html__( 'Donor Name', 'nonprofit-manager' ) . '</th>';
+	echo '<th>' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
 	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
 	echo '<th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
@@ -181,7 +181,7 @@ function npmp_render_donations_dashboard() {
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="6">' . esc_html__( 'No recurring donations found for this period.', 'nonprofit-manager' ) . '</td></tr>';
+		echo '<tr><td colspan="6">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No recurring %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
@@ -244,14 +244,14 @@ function npmp_render_donation_settings_page() {
 
 	?>
 	<div class="wrap">
-		<h1><?php esc_html_e( 'Donation Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Customize your public donation form and configure donation options.', 'nonprofit-manager' ); ?></p>
+		<h1><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h1>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Customize your public %1$s form and its options.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></p>
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_donation_settings', 'npmp_donation_settings_nonce' ); ?>
 
 			<!-- Donation Page -->
-			<h2><?php esc_html_e( 'Donation Page', 'nonprofit-manager' ); ?></h2>
+			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Page', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
 			<p><?php esc_html_e( 'Choose a default page (form will be auto-inserted) or use the shortcode', 'nonprofit-manager' ); ?> <code>[npmp_donation_form]</code>.</p>
 			<?php
 			wp_dropdown_pages(
@@ -264,7 +264,7 @@ function npmp_render_donation_settings_page() {
 			?>
 
 			<!-- Form Labels -->
-			<h2><?php esc_html_e( 'Customize Donation Form', 'nonprofit-manager' ); ?></h2>
+			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Customize %s Form', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
 			<table class="form-table">
 				<tr>
 					<th><?php esc_html_e( 'Form Title', 'nonprofit-manager' ); ?></th>
@@ -346,7 +346,7 @@ function npmp_render_donation_settings_page() {
 				</div>
 			<?php endif; ?>
 
-			<?php submit_button( __( 'Save Donation Settings', 'nonprofit-manager' ) ); ?>
+			<?php submit_button( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Save %s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?>
 		</form>
 	</div>
 	<?php
@@ -539,7 +539,7 @@ function npmp_render_payment_settings_page() {
 			<h2><?php esc_html_e( 'Currency', 'nonprofit-manager' ); ?></h2>
 			<table class="form-table">
 				<tr>
-					<th><label for="npmp_currency"><?php esc_html_e( 'Donation Currency', 'nonprofit-manager' ); ?></label></th>
+					<th><label for="npmp_currency"><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Currency', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></label></th>
 					<td>
 						<select id="npmp_currency" name="npmp_currency">
 							<?php foreach ( npmp_supported_currencies() as $code => $currency_name ) : ?>
@@ -874,9 +874,9 @@ function npmp_render_donation_form() {
 	if ( isset( $_GET['npmp_donation'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display flag, fixed strings only.
 		$donation_status = sanitize_key( wp_unslash( $_GET['npmp_donation'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( 'success' === $donation_status ) {
-			$status_banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html__( 'Thank you! Your donation was received.', 'nonprofit-manager' ) . '</p></div>';
+			$status_banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Thank you! We received your %s.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
 		} elseif ( 'cancelled' === $donation_status ) {
-			$status_banner = '<div class="npmp-form-banner npmp-status-error" role="status"><p>' . esc_html__( 'Your donation was cancelled and you have not been charged.', 'nonprofit-manager' ) . '</p></div>';
+			$status_banner = '<div class="npmp-form-banner npmp-status-error" role="status"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'You cancelled your %s. We didn\'t charge you.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
 		}
 		if ( $status_banner && wp_style_is( 'npmp-forms', 'registered' ) ) {
 			wp_enqueue_style( 'npmp-forms' );
@@ -899,7 +899,7 @@ function npmp_render_donation_form() {
 
 	// If no gateways are enabled, show message
 	if ( empty( $enabled_gateways ) ) {
-		return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Online donations are not configured yet. Please contact the site administrator.', 'nonprofit-manager' ) . '</p></div>';
+		return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Online %s are not set up yet. Please contact the site administrator.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</p></div>';
 	}
 
 	// If only one gateway is enabled, render it directly
@@ -912,7 +912,7 @@ function npmp_render_donation_form() {
 		return $status_banner . npmp_render_multi_gateway_donation_form( $enabled_gateways ) . npmp_donation_form_attribution();
 	}
 
-	return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Donation form is loading. Please refresh the page.', 'nonprofit-manager' ) . '</p></div>';
+	return $status_banner . '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'The %s form is loading. Please refresh the page.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
 }
 
 /**

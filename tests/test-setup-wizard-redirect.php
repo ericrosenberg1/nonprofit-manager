@@ -115,6 +115,7 @@ class Test_WPDB {
 }
 $GLOBALS['wpdb'] = new Test_WPDB();
 
+require_once dirname( __DIR__ ) . '/includes/npmp-org-type.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-setup-wizard.php';
 require_once dirname( __DIR__ ) . '/includes/onboarding/class-tour.php';
 
@@ -324,9 +325,28 @@ t_reset();
 $GLOBALS['t_options'][ $flag ] = 1;
 check( 'Complete Setup also goes to the Overview', 'http://example.org/wp-admin/admin.php?page=npmp_main&setup_complete=1', t_post_wizard( array( 'npmp_setup_nonce' => 'good-nonce', 'npmp_setup_step' => 'complete', 'npmp_feature_members' => 'on' ) ) );
 check( 'Complete Setup clears the redirect flag', false, get_option( $flag ) );
+check( 'Complete Setup with no kind of group saves nonprofit', 'nonprofit', get_option( 'npmp_org_type' ) );
+
+t_reset();
+t_post_wizard( array( 'npmp_setup_nonce' => 'good-nonce', 'npmp_setup_step' => 'complete', 'npmp_org_type' => 'club' ) );
+check( 'Complete Setup saves the chosen kind of group', 'club', get_option( 'npmp_org_type' ) );
+
+t_reset();
+t_post_wizard( array( 'npmp_setup_nonce' => 'good-nonce', 'npmp_setup_step' => 'complete', 'npmp_org_type' => 'pirates' ) );
+check( 'an unknown kind of group saves nonprofit', 'nonprofit', get_option( 'npmp_org_type' ) );
+
+t_reset();
+t_post_wizard( array( 'npmp_setup_nonce' => 'good-nonce', 'npmp_setup_step' => 'complete', 'npmp_setup_skip' => '1', 'npmp_org_type' => 'hoa' ) );
+check( 'Skip leaves the kind of group unsaved', false, get_option( 'npmp_org_type' ) );
+
+t_reset();
+$GLOBALS['t_can'] = false;
+t_post_wizard( array( 'npmp_setup_nonce' => 'good-nonce', 'npmp_setup_step' => 'complete', 'npmp_org_type' => 'hoa' ) );
+check( 'a Membership Manager cannot set the kind of group', false, get_option( 'npmp_org_type' ) );
 
 $src = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-setup-wizard.php' );
 check( 'wizard renders a Skip button', 1, preg_match( '/name="npmp_setup_skip"/', $src ) );
+check( 'wizard renders the kind-of-group choice', 1, preg_match( '/name="npmp_org_type"/', $src ) );
 
 // --- Pro waits for the free wizard ----------------------------------------
 echo "\nFree wizard first\n";

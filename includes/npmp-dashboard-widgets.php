@@ -82,7 +82,7 @@ function npmp_register_dashboard_widgets() {
 	if ( ! empty( $features['members'] ) || ! empty( $features['donations'] ) ) {
 		wp_add_dashboard_widget(
 			'npmp_summary_widget',
-			__( 'Nonprofit Manager Summary', 'nonprofit-manager' ),
+			sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( '%s Summary', 'nonprofit-manager' ), npmp_label( 'app_name' ) ),
 			'npmp_render_summary_widget'
 		);
 	}
@@ -167,7 +167,7 @@ function npmp_render_summary_widget() {
 				$total_members = npmp_count_total_members();
 				?>
 				<tr>
-					<th><?php esc_html_e( 'Total Members', 'nonprofit-manager' ); ?></th>
+					<th><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></th>
 					<td class="npmp-summary-value"><?php echo esc_html( number_format_i18n( $total_members ) ); ?></td>
 				</tr>
 				<?php
@@ -181,7 +181,7 @@ function npmp_render_summary_widget() {
 			$ytd_totals = npmp_get_ytd_donation_totals_by_currency();
 			?>
 			<tr>
-				<th><?php esc_html_e( 'Year-to-Date Donations', 'nonprofit-manager' ); ?></th>
+				<th><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Year-to-Date %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></th>
 				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $ytd_totals ) ); ?></td>
 			</tr>
 
@@ -190,7 +190,7 @@ function npmp_render_summary_widget() {
 			$recurring_totals = npmp_get_annual_recurring_totals_by_currency();
 			?>
 			<tr>
-				<th><?php esc_html_e( 'Annual Recurring Donations', 'nonprofit-manager' ); ?></th>
+				<th><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Annual Recurring %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></th>
 				<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $recurring_totals ) ); ?></td>
 			</tr>
 		<?php endif; ?>
@@ -270,7 +270,7 @@ function npmp_render_quick_add_member_widget() {
 		<label for="npmp_member_name"><?php esc_html_e( 'Name', 'nonprofit-manager' ); ?></label>
 		<input type="text" id="npmp_member_name" name="npmp_member_name">
 
-		<label for="npmp_member_level"><?php esc_html_e( 'Membership Level', 'nonprofit-manager' ); ?></label>
+		<label for="npmp_member_level"><?php echo esc_html( npmp_label( 'level' ) ); ?></label>
 		<select id="npmp_member_level" name="npmp_member_level">
 			<option value=""><?php esc_html_e( '— Select —', 'nonprofit-manager' ); ?></option>
 			<?php

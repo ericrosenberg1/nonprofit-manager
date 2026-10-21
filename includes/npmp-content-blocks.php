@@ -359,6 +359,12 @@ function npmp_content_register_blocks() {
 				'signup'      => function_exists( 'npmp_email_signup_shortcode' ),
 				'unsubscribe' => function_exists( 'npmp_email_unsubscribe_shortcode' ),
 				'donation'    => function_exists( 'npmp_render_donation_form' ),
+				// Editor titles that follow the kind of group (npmp-org-type.php).
+				'labels'      => array(
+					'donationForm'        => sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Form', 'nonprofit-manager' ), npmp_label( 'donation' ) ),
+					'donationDescription' => sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Your %s form with the payment options you have enabled.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ),
+					'donation'            => npmp_label( 'donation_lc' ),
+				),
 			)
 		) . ';',
 		'before'

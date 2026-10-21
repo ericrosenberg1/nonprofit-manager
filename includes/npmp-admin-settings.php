@@ -67,7 +67,7 @@ function npmp_render_main_plugin_page() {
 	?>
 	<div class="wrap">
 		<h1>
-			<?php esc_html_e( 'Welcome to Nonprofit Manager', 'nonprofit-manager' ); ?>
+			<?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Welcome to %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?>
 			<?php if ( $is_pro ) : ?>
 				<span class="npmp-pro-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 			<?php endif; ?>
@@ -79,10 +79,10 @@ function npmp_render_main_plugin_page() {
 			}
 			?>
 		</h1>
-		<p><?php esc_html_e( 'Manage donations, memberships, email lists, and events from a single plugin.', 'nonprofit-manager' ); ?></p>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Manage %s, memberships, email lists and events from one plugin.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
 
 		<?php if ( $setup_complete ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Setup complete! Your Nonprofit Manager is ready to use.', 'nonprofit-manager' ); ?></p></div>
+			<div class="updated notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Setup complete! %s is ready to use.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( $pro_setup_complete ) : ?>
@@ -232,7 +232,7 @@ function npmp_render_main_plugin_page() {
 
 		<div class="npmp-main-container">
 			<div class="npmp-features-card">
-				<h2><?php esc_html_e( 'Activate Nonprofit Manager Features', 'nonprofit-manager' ); ?></h2>
+				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Activate %s Features', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
 				<form method="post">
 					<?php wp_nonce_field( 'npmp_save_features', 'npmp_features_nonce' ); ?>
 
@@ -250,9 +250,9 @@ function npmp_render_main_plugin_page() {
 						</tr>
 
 						<tr>
-							<th><?php esc_html_e( 'Donations', 'nonprofit-manager' ); ?></th>
+							<th><?php echo esc_html( npmp_label( 'donations' ) ); ?></th>
 							<td><label><input type="checkbox" name="npmp_feature_donations" <?php checked( $features['donations'] ); ?>>
-								<?php esc_html_e( 'Collect donations and manage payment methods.', 'nonprofit-manager' ); ?></label></td>
+								<?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Collect %s and manage payment methods.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></label></td>
 						</tr>
 
 						<tr>
@@ -283,7 +283,7 @@ function npmp_render_main_plugin_page() {
 
 					<?php if ( ! empty( $features['members'] ) ) : ?>
 						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Membership', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp_members"><?php esc_html_e( 'Member List', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="admin.php?page=npmp_members"><?php echo esc_html( sprintf( /* translators: %s: singular word for a member, such as Member. */ __( '%s List', 'nonprofit-manager' ), npmp_label( 'member' ) ) ); ?></a></li>
 						<li><a href="admin.php?page=npmp_membership_forms"><?php esc_html_e( 'Membership Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
@@ -297,8 +297,8 @@ function npmp_render_main_plugin_page() {
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['donations'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Donations', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp_donations_group"><?php esc_html_e( 'Donations Dashboard', 'nonprofit-manager' ); ?></a></li>
+						<li style="margin-top: 15px;"><strong><?php echo esc_html( npmp_label( 'donations' ) ); ?></strong></li>
+						<li><a href="admin.php?page=npmp_donations_group"><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></a></li>
 						<li><a href="admin.php?page=npmp_payment_settings"><?php esc_html_e( 'Payment Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
@@ -343,28 +343,28 @@ function npmp_render_main_plugin_page() {
 							$total_members = npmp_count_total_members();
 							?>
 							<tr>
-								<th><?php esc_html_e( 'Total Members', 'nonprofit-manager' ); ?></th>
+								<th><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></th>
 								<td class="npmp-summary-value"><?php echo esc_html( number_format_i18n( $total_members ) ); ?></td>
 							</tr>
 							<?php
 						}
 						?>
 					</table>
-					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_members' ) ); ?>" class="button"><?php esc_html_e( 'View All Members', 'nonprofit-manager' ); ?></a></p>
+					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_members' ) ); ?>" class="button"><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'View All %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></a></p>
 				</div>
 			<?php endif; ?>
 
 			<!-- Donations Summary -->
 			<?php if ( ! empty( $features['donations'] ) && class_exists( 'NPMP_Donation_Manager' ) ) : ?>
 				<div class="npmp-summary-card">
-					<h3><?php esc_html_e( 'Donations Summary', 'nonprofit-manager' ); ?></h3>
+					<h3><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Summary', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></h3>
 					<table class="npmp-summary-table">
 						<?php
 						// Year-to-date donations
 						$ytd_totals = npmp_get_ytd_donation_totals_by_currency();
 						?>
 						<tr>
-							<th><?php esc_html_e( 'Year-to-Date Donations', 'nonprofit-manager' ); ?></th>
+							<th><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Year-to-Date %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></th>
 							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $ytd_totals ) ); ?></td>
 						</tr>
 
@@ -373,36 +373,37 @@ function npmp_render_main_plugin_page() {
 						$recurring_totals = npmp_get_annual_recurring_totals_by_currency();
 						?>
 						<tr>
-							<th><?php esc_html_e( 'Annual Recurring Donations', 'nonprofit-manager' ); ?></th>
+							<th><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Annual Recurring %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></th>
 							<td class="npmp-summary-value"><?php echo esc_html( npmp_crm_format_totals( $recurring_totals ) ); ?></td>
 						</tr>
 					</table>
-					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_donations_group' ) ); ?>" class="button"><?php esc_html_e( 'View Donations Dashboard', 'nonprofit-manager' ); ?></a></p>
+					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_donations_group' ) ); ?>" class="button"><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'View %s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></a></p>
 				</div>
 			<?php endif; ?>
 		</div>
 
 		<?php if ( ! $is_pro ) : ?>
 			<div class="npmp-upgrade-section">
-				<h2><?php esc_html_e( 'Thank You for Using Nonprofit Manager', 'nonprofit-manager' ); ?></h2>
+				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Thank You for Using %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
 				<p>
 					<?php
 					printf(
-						/* translators: %s: Pro's starting price, e.g. "$47 a year". */
-						esc_html__( 'The free edition covers what most nonprofits need. Want more features and customization? Nonprofit Manager Pro starts at %s.', 'nonprofit-manager' ),
+						/* translators: 1: lowercase plural word for groups like this one, such as nonprofits or clubs, 2: Pro's starting price, e.g. "$47 a year". */
+						esc_html__( 'The free edition covers what most %1$s need. Want more features and customization? Nonprofit Manager Pro starts at %2$s.', 'nonprofit-manager' ),
+						esc_html( npmp_label( 'orgs_lc' ) ),
 						esc_html( npmp_get_pro_starting_price() )
 					);
 					?>
 				</p>
-				<p><?php esc_html_e( 'That\'s nonprofit pricing. Under $4 a month for a CRM, donation manager, newsletter platform, and event calendar, all inside your WordPress site.', 'nonprofit-manager' ); ?></p>
+				<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'That\'s under $4 a month for a contact list, %s tracking, newsletters and an event calendar, all inside your WordPress site.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></p>
 
 				<div class="npmp-upgrade-box">
 					<h3><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro', 'nonprofit-manager' ); ?></h3>
 					<p><?php esc_html_e( 'Get access to advanced features including:', 'nonprofit-manager' ); ?></p>
 					<ul>
 						<li><?php esc_html_e( 'Advanced reporting and analytics', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Recurring donation support', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Custom fields for members and donations', 'nonprofit-manager' ); ?></li>
+						<li><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Recurring %s support', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donations, such as donations or contributions. */ __( 'Custom fields for %1$s and %2$s', 'nonprofit-manager' ), npmp_label( 'members_lc' ), npmp_label( 'donations_lc' ) ) ); ?></li>
 						<li><?php esc_html_e( 'Email automation workflows', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Advanced email list segmentation', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Priority support', 'nonprofit-manager' ); ?></li>

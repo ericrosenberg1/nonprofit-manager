@@ -60,12 +60,13 @@
 
 	/* ---- Donation form (wraps [npmp_donation_form]) -------------------- */
 	if ( avail.donation ) {
+		var words = avail.labels || {};
 		blocks.registerBlockType( 'nonprofit-manager/donation-form', {
-			title: __( 'Donation Form', 'nonprofit-manager' ),
-			description: __( 'Your donation form with the payment options you have enabled.', 'nonprofit-manager' ),
+			title: words.donationForm || __( 'Donation Form', 'nonprofit-manager' ),
+			description: words.donationDescription || __( 'Your donation form with the payment options you have enabled.', 'nonprofit-manager' ),
 			icon: 'heart',
 			category: 'widgets',
-			keywords: [ __( 'donation', 'nonprofit-manager' ), __( 'donate', 'nonprofit-manager' ), __( 'give', 'nonprofit-manager' ) ],
+			keywords: [ words.donation || __( 'donation', 'nonprofit-manager' ), __( 'donate', 'nonprofit-manager' ), __( 'give', 'nonprofit-manager' ) ],
 			supports: { html: false },
 			edit: function () { return preview( 'nonprofit-manager/donation-form' ); },
 			save: function () { return null; }

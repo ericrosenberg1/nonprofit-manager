@@ -82,6 +82,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   password derived from the IAM secret (`npmp_email_ses_smtp_password()`, AWS's SigV4 recipe),
   ports 587, 2587, 465, 2465. Before 2026.10.8 it fell back to PHP `mail()` without a word.
   DigitalOcean blocks 587 and 465, so SES users there need 2587.
+- **Words on screen follow the kind of group** (option `npmp_org_type`, `includes/npmp-org-type.php`,
+  since 2026.10.9). Ask for "Donors", "Donations", "Membership Levels" or the menu name with
+  `npmp_label( 'donors' )` and friends, wrapped in `sprintf( __( 'Recent %s' ) )` with a translators
+  comment. Never call it at file load (translations load at init). Pro goes through
+  `npmp_pro_label( $key, $fallback )` so it still runs on an older free. Internal names (tables, options,
+  post types, caps, hooks, REST routes, menu slugs) never change. `tests/test-org-type.php` fails on
+  any `npmp_label()` key missing from the map, rig `tests/rig/org-type.php` drives the wizard and
+  settings over HTTP.
+- **WordPress names submenu screens after the parent's menu title.** Renaming "Nonprofit Manager" to
+  "Club Manager" would turn `nonprofit-manager_page_npmp_general_settings` into
+  `club-manager_page_...` and break every screen check. `npmp_pin_menu_hook()` right after each
+  `add_menu_page()` keeps the old IDs. Any new top-level menu with a changing title needs it too.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

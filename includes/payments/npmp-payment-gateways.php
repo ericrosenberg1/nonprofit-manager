@@ -332,7 +332,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 									formData.append('gateway', 'paypal_api');
 									formData.append('transaction_id', details.id);
 									var done = function() {
-										alert('<?php echo esc_js( __( 'Thank you for your donation!', 'nonprofit-manager' ) ); ?>');
+										alert('<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Thank you for your %s!', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?>');
 										window.location.reload();
 									};
 									return fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
@@ -652,7 +652,7 @@ function npmp_render_paypal_api_form() {
 			var email = document.getElementById('npmp-paypal-api-email').value;
 
 			if (!amount || <?php echo (float) npmp_currency_min_donation( $currency ); ?> > amount) {
-				showPayPalError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
+				showPayPalError('<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Please enter a valid %s amount.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?>');
 				return false;
 			}
 
@@ -685,7 +685,7 @@ function npmp_render_paypal_api_form() {
 					method: 'POST',
 					body: formData
 				}).then(function() {
-					alert('<?php echo esc_js( __( 'Thank you for your donation!', 'nonprofit-manager' ) ); ?>');
+					alert('<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Thank you for your %s!', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?>');
 					window.location.reload();
 				});
 			});
@@ -790,7 +790,7 @@ function npmp_render_stripe_form() {
 		}
 
 		if (!amount || <?php echo (float) npmp_currency_min_donation( $currency ); ?> > amount) {
-			showError('<?php echo esc_js( __( 'Please enter a valid donation amount.', 'nonprofit-manager' ) ); ?>');
+			showError('<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Please enter a valid %s amount.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?>');
 			return;
 		}
 
@@ -876,7 +876,7 @@ function npmp_ajax_log_donation() {
 
 	if ( $amount <= 0 ) {
 		npmp_payment_debug_log( 'donation log rejected: invalid amount' );
-		wp_send_json_error( array( 'message' => __( 'Please provide a valid donation amount.', 'nonprofit-manager' ) ) );
+		wp_send_json_error( array( 'message' => sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Please provide a valid %s amount.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) );
 	}
 
 	// A PayPal order already recorded is a replay (a double-fired onApprove,
@@ -1090,7 +1090,7 @@ function npmp_ajax_create_stripe_session() {
 		$body['mode'] = 'subscription';
 		$body['line_items[0][price_data][recurring][interval]']       = $intervals[ $frequency ][0];
 		$body['line_items[0][price_data][recurring][interval_count]'] = $intervals[ $frequency ][1];
-		$body['line_items[0][price_data][product_data][name]']        = __( 'Recurring donation', 'nonprofit-manager' );
+		$body['line_items[0][price_data][product_data][name]']        = sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Recurring %s', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) );
 		// Pro's webhook records each invoice of a subscription only when it can
 		// tell the subscription is ours. Without this stamp it ignored every
 		// recurring gift made through this form.
@@ -1098,7 +1098,7 @@ function npmp_ajax_create_stripe_session() {
 		$body['subscription_data[metadata][frequency]']   = $frequency;
 	} else {
 		$body['mode'] = 'payment';
-		$body['line_items[0][price_data][product_data][name]'] = __( 'Donation', 'nonprofit-manager' );
+		$body['line_items[0][price_data][product_data][name]'] = npmp_label( 'donation' );
 	}
 
 	$response = wp_remote_post(
