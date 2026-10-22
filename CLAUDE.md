@@ -142,8 +142,10 @@ versions. Commit and tag all three repos first, because the pre-push gate compar
    update-check API offers it. The plugin page, info API and zip switch at once and prove nothing.
    Check with a POST to `api.wordpress.org/plugins/update-check/1.1/` with installed `Version` 0.
    A second release during the hold supersedes the first, so ship Pro for whatever update-check
-   offers. Pattern that works: a one-shot scheduled task for steps 6 to 8 (memory
-   `reference_wporg_release_cooldown`).
+   offers. Pattern that works: start Pro's `scripts/pro-leg.sh <version> <sha256>` with nohup right
+   after the SVN tag. It waits out the hold and does steps 6 to 8 with no prompts (memory
+   `reference_wporg_release_cooldown`). A scheduled Claude run parked on a permission prompt for
+   2026.10.9 and shipped nothing for three hours, so use one only to check CACC and report.
 6. **Pro to R2.** `./release.sh v<version>` in Pro. It refuses until wp.org offers the free
    version (`NPMP_SKIP_WPORG_CHECK=1` only for an emergency Pro-only fix), uploads with `--remote`
    to `nonprofit-manager-downloads/nonprofit-manager-pro-latest.zip`, and checks a live customer
