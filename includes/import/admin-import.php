@@ -1140,7 +1140,7 @@ function npmp_import_render_page() {
 				</div>
 
 				<!-- Free-cap upsell, shown when the import was truncated at the cap. -->
-				<div id="npmp-import-cap-notice" class="notice notice-info inline" style="display:none;margin-top:20px;border-left-color:#2271b1;">
+				<div id="npmp-import-cap-notice" class="notice notice-info inline" style="display:none;margin-top:20px;border-left-color:#10b981;">
 					<h3 style="margin-top:.5em;"><?php esc_html_e( 'Hit the free import limit', 'nonprofit-manager' ); ?></h3>
 					<p id="npmp-import-cap-text"></p>
 					<p>
@@ -1208,7 +1208,7 @@ function npmp_import_render_styles() {
 			background: #fff;
 		}
 		.npmp-import-source-card:hover {
-			border-color: #2271b1;
+			border-color: #0f766e;
 		}
 		.npmp-import-source-card input[type="radio"] {
 			position: absolute;
@@ -1216,21 +1216,21 @@ function npmp_import_render_styles() {
 			pointer-events: none;
 		}
 		.npmp-import-source-card:has(input:checked) {
-			border-color: #2271b1;
-			box-shadow: 0 0 0 1px #2271b1;
-			background: #f0f6fc;
+			border-color: #0f766e;
+			box-shadow: 0 0 0 1px #0f766e;
+			background: #ecfdf5;
 		}
 		/* Keyboard focus indicator. The native radio is opacity-0, so the card
 		 * needs its own visible focus ring or keyboard users land here blind. */
 		.npmp-import-source-card:has(input:focus-visible) {
-			outline: 2px solid #2271b1;
+			outline: 2px solid #0f766e;
 			outline-offset: 2px;
 		}
 		.npmp-import-source-icon {
 			font-size: 36px;
 			width: 36px;
 			height: 36px;
-			color: #2271b1;
+			color: #0f766e;
 			margin-bottom: 8px;
 		}
 		.npmp-import-source-title {
@@ -1295,7 +1295,7 @@ function npmp_import_render_styles() {
 		}
 		.npmp-import-progress-fill {
 			height: 100%;
-			background: #2271b1;
+			background: #0f766e;
 			border-radius: 12px;
 			transition: width 0.4s ease;
 		}
@@ -1327,7 +1327,7 @@ function npmp_import_render_styles() {
 			margin-top: 4px;
 		}
 		.npmp-stat-imported .npmp-stat-number { color: #00a32a; }
-		.npmp-stat-updated .npmp-stat-number  { color: #2271b1; }
+		.npmp-stat-updated .npmp-stat-number  { color: #0f766e; }
 		.npmp-stat-skipped .npmp-stat-number  { color: #dba617; }
 		.npmp-stat-errors .npmp-stat-number   { color: #d63638; }
 

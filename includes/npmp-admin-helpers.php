@@ -100,8 +100,8 @@ function npmp_admin_styles() {
 			font-size: 13px;
 		}
 		.npmp-upsell-card {
-			background-color: #f0f6fc;
-			border-left: 4px solid #0073aa;
+			background-color: #ecfdf5;
+			border-left: 4px solid #10b981;
 		}
 		.npmp-upsell-card ul {
 			list-style: disc;

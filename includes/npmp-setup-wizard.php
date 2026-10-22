@@ -408,11 +408,11 @@ function npmp_render_setup_wizard() {
 				transition: all 0.2s;
 			}
 			.npmp-setup-wizard .feature-card:hover {
-				border-color: #2271b1;
+				border-color: #0f766e;
 			}
 			.npmp-setup-wizard .feature-card.selected {
-				border-color: #2271b1;
-				background-color: #f0f6fc;
+				border-color: #0f766e;
+				background-color: #ecfdf5;
 			}
 			.npmp-setup-wizard .feature-card input[type="checkbox"] {
 				margin-right: 10px;
@@ -438,7 +438,7 @@ function npmp_render_setup_wizard() {
 			}
 			.npmp-version-badge {
 				display: inline-block;
-				background: #2271b1;
+				background: #0f766e;
 				color: #fff;
 				padding: 4px 12px;
 				border-radius: 12px;

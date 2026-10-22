@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.10
+Stable tag: 2026.10.11
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -142,6 +142,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.10.11 =
+* Admin screens, forms and the tour use the Nonprofit Manager colors.
+* Existing calendars keep their current highlight color.
 
 = 2026.10.10 =
 * Version lockstep with Nonprofit Manager Pro.

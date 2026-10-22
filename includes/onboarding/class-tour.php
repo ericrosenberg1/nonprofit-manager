@@ -365,7 +365,7 @@ class NPMP_Tour {
 			return;
 		}
 		?>
-		<div class="notice notice-info npmp-tour-banner" style="border-left-color:#2563eb;display:flex;align-items:center;gap:12px;padding:12px 16px;">
+		<div class="notice notice-info npmp-tour-banner" style="border-left-color:#10b981;display:flex;align-items:center;gap:12px;padding:12px 16px;">
 			<span style="font-size:22px;">🎯</span>
 			<div style="flex:1;">
 				<p style="margin:0 0 4px;font-size:14px;"><strong><?php esc_html_e( 'Set up Nonprofit Manager', 'nonprofit-manager' ); ?></strong></p>

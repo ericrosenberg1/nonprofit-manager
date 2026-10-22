@@ -6,6 +6,10 @@
  * off entirely with:
  *
  *   add_filter( 'npmp_enable_default_form_styles', '__return_false' );
+ *
+ * Buttons and focus rings use the Nonprofit Manager brand teal (#0f766e,
+ * 5.5:1 on white). A theme can swap in its own color by setting
+ * --npmp-accent and --npmp-accent-dark on any parent element.
  */
 
 .npmp-email-signup,
@@ -45,15 +49,15 @@
 	font-size: 1rem;
 	line-height: 1.4;
 	border: 1px solid #c3c4c7;
-	border-radius: 6px;
+	border-radius: 8px;
 	background: #fff;
 	color: inherit;
 }
 
 .npmp-email-signup input:focus,
 .npmp-email-unsubscribe input:focus {
-	border-color: #2271b1;
-	outline: 2px solid #2271b1;
+	border-color: var(--npmp-accent, #0f766e);
+	outline: 2px solid var(--npmp-accent, #0f766e);
 	outline-offset: 1px;
 }
 
@@ -66,9 +70,9 @@
 	font-weight: 600;
 	line-height: 1.2;
 	color: #fff;
-	background: #2271b1;
-	border: 1px solid #2271b1;
-	border-radius: 6px;
+	background: var(--npmp-accent, #0f766e);
+	border: 1px solid var(--npmp-accent, #0f766e);
+	border-radius: 8px;
 	cursor: pointer;
 	transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
@@ -76,14 +80,14 @@
 .npmp-email-signup button:hover,
 .npmp-email-unsubscribe button:hover,
 .npmp-manage-preferences button:hover {
-	background: #135e96;
-	border-color: #135e96;
+	background: var(--npmp-accent-dark, #115e59);
+	border-color: var(--npmp-accent-dark, #115e59);
 }
 
 .npmp-email-signup button:focus-visible,
 .npmp-email-unsubscribe button:focus-visible,
 .npmp-manage-preferences button:focus-visible {
-	outline: 2px solid #135e96;
+	outline: 2px solid var(--npmp-accent-dark, #115e59);
 	outline-offset: 2px;
 }
 
@@ -109,7 +113,7 @@
 	margin: 0 0 1.25rem;
 	padding: 0.75rem 1rem;
 	border: 1px solid #dcdcde;
-	border-radius: 6px;
+	border-radius: 8px;
 }
 
 .npmp-join-levels legend {
@@ -152,14 +156,14 @@
 	font-size: 1rem;
 	line-height: 1.4;
 	border: 1px solid #c3c4c7;
-	border-radius: 6px;
+	border-radius: 8px;
 	background: #fff;
 	color: inherit;
 }
 
 .npmp-join-form input:focus {
-	border-color: #2271b1;
-	outline: 2px solid #2271b1;
+	border-color: var(--npmp-accent, #0f766e);
+	outline: 2px solid var(--npmp-accent, #0f766e);
 	outline-offset: 1px;
 }
 
@@ -171,20 +175,20 @@
 	font-weight: 600;
 	line-height: 1.2;
 	color: #fff;
-	background: #2271b1;
-	border: 1px solid #2271b1;
-	border-radius: 6px;
+	background: var(--npmp-accent, #0f766e);
+	border: 1px solid var(--npmp-accent, #0f766e);
+	border-radius: 8px;
 	cursor: pointer;
 	transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
 .npmp-join-submit:hover:not(:disabled) {
-	background: #135e96;
-	border-color: #135e96;
+	background: var(--npmp-accent-dark, #115e59);
+	border-color: var(--npmp-accent-dark, #115e59);
 }
 
 .npmp-join-submit:focus-visible {
-	outline: 2px solid #135e96;
+	outline: 2px solid var(--npmp-accent-dark, #115e59);
 	outline-offset: 2px;
 }
 
@@ -224,7 +228,7 @@
 	margin: 0.75rem 0;
 	padding: 0.75rem 1rem;
 	border: 1px solid #dcdcde;
-	border-radius: 6px;
+	border-radius: 8px;
 }
 
 .npmp-notification-prefs legend {

@@ -275,8 +275,8 @@ function npmp_render_email_settings_page() {
 				border-top: 1px solid #e0e0e0;
 			}
 			.npmp-provider-help {
-				background: #f0f6fc;
-				border-left: 3px solid #2271b1;
+				background: #ecfdf5;
+				border-left: 3px solid #10b981;
 				padding: 12px 15px;
 				margin-top: 15px;
 			}

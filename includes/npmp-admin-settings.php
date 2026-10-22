@@ -154,7 +154,7 @@ function npmp_render_main_plugin_page() {
 			}
 			.npmp-summary-value {
 				font-weight: 600;
-				color: #2271b1;
+				color: #0f766e;
 			}
 			.npmp-features-card h2 {
 				margin-top: 0;
@@ -194,22 +194,22 @@ function npmp_render_main_plugin_page() {
 				margin-top: 0;
 			}
 			.npmp-upgrade-box {
-				background: #f0f6fc;
-				border: 1px solid #2271b1;
+				background: #ecfdf5;
+				border: 1px solid #0f766e;
 				border-radius: 4px;
 				padding: 20px;
 				margin-top: 15px;
 			}
 			.npmp-upgrade-box h3 {
 				margin-top: 0;
-				color: #2271b1;
+				color: #0f766e;
 			}
 			.npmp-upgrade-box .button-primary {
 				margin-top: 10px;
 			}
 			.npmp-pro-badge {
 				display: inline-block;
-				background: #2271b1;
+				background: #0f766e;
 				color: #fff;
 				padding: 4px 12px;
 				border-radius: 12px;

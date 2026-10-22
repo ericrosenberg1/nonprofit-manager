@@ -609,7 +609,7 @@ function npmp_calendar_shortcode( $atts ) {
 		}
 	}
 
-	$accent = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#2271b1' ) );
+	$accent = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#0f766e' ) );
 	$style  = $accent ? ' style="--npmp-cal-accent:' . esc_attr( $accent ) . '"' : '';
 
 	$out  = '<div class="npmp-calendar-wrapper" data-view="' . esc_attr( $view ) . '"' . $style . '>';
@@ -1351,7 +1351,7 @@ function npmp_render_event_settings_page() {
 		update_option( 'npmp_calendar_default_view', in_array( $view_choice, array( 'month', 'week', 'list' ), true ) ? $view_choice : 'month' );
 		update_option( 'npmp_calendar_show_times', empty( $_POST['npmp_calendar_show_times'] ) ? 0 : 1 );
 		$accent_choice = isset( $_POST['npmp_calendar_accent'] ) ? sanitize_hex_color( wp_unslash( $_POST['npmp_calendar_accent'] ) ) : '';
-		update_option( 'npmp_calendar_accent', $accent_choice ? $accent_choice : '#2271b1' );
+		update_option( 'npmp_calendar_accent', $accent_choice ? $accent_choice : '#0f766e' );
 		update_option( 'npmp_calendar_list_limit', max( 1, absint( wp_unslash( $_POST['npmp_calendar_list_limit'] ?? 10 ) ) ) );
 		update_option( 'npmp_calendar_list_show_past', empty( $_POST['npmp_calendar_list_show_past'] ) ? 0 : 1 );
 	}
@@ -1447,8 +1447,8 @@ function npmp_render_event_settings_page() {
 	// --- Display options ---
 	$opt_view    = get_option( 'npmp_calendar_default_view', 'month' );
 	$opt_times   = (int) get_option( 'npmp_calendar_show_times', 1 );
-	$opt_accent  = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#2271b1' ) );
-	$opt_accent  = $opt_accent ? $opt_accent : '#2271b1';
+	$opt_accent  = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#0f766e' ) );
+	$opt_accent  = $opt_accent ? $opt_accent : '#0f766e';
 	$opt_limit   = (int) get_option( 'npmp_calendar_list_limit', 10 );
 	$opt_past    = (int) get_option( 'npmp_calendar_list_show_past', 0 );
 	$view_labels = array(

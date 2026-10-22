@@ -30,6 +30,21 @@ MemPalace (wing `handoffs`). Growth work runs from `~/Code/nonprofit-manager-gro
 - `NPMP_PRO_MIN_FREE_VERSION` was deliberately not raised for currencies. Pro falls back to USD on an
   older free.
 
+## Brand tokens
+
+One look on every Nonprofit Manager surface (site, plugin admin, front-end forms, tour, mailer pages,
+emails). The source of truth is the site's Perdita tokens,
+`nonprofit-manager-site/wordpress/child-theme/perdita.json`: primary #10B981, accent #34D399,
+secondary #0f766e, link hover #059669, heading #111827, text #1f2937, Playfair Display headings,
+Inter body, radius 8. White text on #10B981 fails WCAG AA (2.5:1), so filled buttons, links and focus
+rings in the plugin use #0f766e (5.5:1), hover #115e59, tint #ecfdf5, tint border #a7f3d0, and
+#10B981 stays decorative (notice borders, glows). Leave WordPress's own `.button-primary` on the
+admin color scheme. Front-end forms read `--npmp-accent` and `--npmp-accent-dark` so a theme can
+override them. The calendar's unsaved highlight falls back to #0f766e, and
+`npmp_maybe_pin_legacy_calendar_accent()` saves the old blue once on sites that upgraded from
+before 2026.10.11 so their public calendars don't change. Change a color here and on the site,
+Pro and `~/Code/nonprofit-mailer/edge/src/index.js` in the same pass.
+
 ## Commands
 
 - All gates: `scripts/ci-gates.sh` (php -l, every `tests/test-*.php`, release lockstep). The

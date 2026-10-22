@@ -326,7 +326,7 @@ function npmp_render_donation_settings_page() {
 				</table>
 			<?php else : ?>
 				<!-- Free: Upsell for Pro -->
-				<div style="background: #f0f6fc; border: 1px solid #2271b1; border-radius: 4px; padding: 20px; margin-top: 10px;">
+				<div style="background: #ecfdf5; border: 1px solid #0f766e; border-radius: 4px; padding: 20px; margin-top: 10px;">
 					<p><strong><?php esc_html_e( 'Automated Thank You Emails are a Pro Feature', 'nonprofit-manager' ); ?></strong></p>
 					<p><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro to automatically send personalized thank you emails to donors after they complete a donation.', 'nonprofit-manager' ); ?></p>
 

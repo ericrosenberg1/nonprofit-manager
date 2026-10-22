@@ -13,6 +13,30 @@ register_activation_hook( $npmp_main_file, 'npmp_run_plugin_activation_tasks' );
 register_deactivation_hook( $npmp_main_file, 'npmp_clear_newsletter_cron' );
 
 /**
+ * Keep the calendar highlight color an existing site already shows.
+ *
+ * Before 2026.10.11 a calendar with no saved highlight fell back to WordPress
+ * blue #2271b1. The fallback is now the brand teal, so an upgraded site that
+ * never picked a color gets blue saved once and its public calendar doesn't
+ * change. A fresh install keeps the teal. Runs once, from activation (before
+ * activation writes any of the options that mark a configured site) and on
+ * the first load after an update.
+ *
+ * @return void
+ */
+function npmp_maybe_pin_legacy_calendar_accent() {
+	if ( get_option( 'npmp_calendar_accent_checked', false ) ) {
+		return;
+	}
+	if ( npmp_site_was_configured_before() ) {
+		// add_option leaves a color the admin already saved alone.
+		add_option( 'npmp_calendar_accent', '#2271b1' );
+	}
+	update_option( 'npmp_calendar_accent_checked', 1 );
+}
+add_action( 'plugins_loaded', 'npmp_maybe_pin_legacy_calendar_accent', 20 );
+
+/**
  * Perform setup tasks on activation.
  *
  * @param bool $network_wide Network-wide activation on multisite.
@@ -24,6 +48,7 @@ function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 	// First, before the tasks below write the options it checks for: queue
 	// the one-time setup wizard redirect on a fresh install only.
 	npmp_queue_setup_wizard_on_activation( $network_wide );
+	npmp_maybe_pin_legacy_calendar_accent();
 
 	// When the plugin first ran here. add_option so a reactivation keeps the
 	// original date. The review nudge's tenure milestone reads it.

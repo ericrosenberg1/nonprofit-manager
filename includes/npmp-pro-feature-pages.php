@@ -146,7 +146,7 @@ add_action(
 			#adminmenu .wp-submenu .current a[href="admin.php?page=npmp_automations"],
 			#adminmenu .wp-submenu .current a[href="admin.php?page=npmp_custom_fields"],
 			#adminmenu .wp-submenu .current a[href="admin.php?page=npmp_segments"] { opacity: 1; }
-			.npmp-pro-badge { display:inline-block; font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:3px 5px; border-radius:3px; background:#2271b1; color:#fff; vertical-align:middle; }
+			.npmp-pro-badge { display:inline-block; font-size:10px; line-height:1; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:3px 5px; border-radius:3px; background:#0f766e; color:#fff; vertical-align:middle; }
 			#adminmenu .npmp-pro-badge { background:rgba(240,246,252,.22); color:#f0f6fc; }
 			#adminmenu .wp-has-current-submenu .npmp-pro-badge { background:rgba(255,255,255,.25); }
 		</style>

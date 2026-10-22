@@ -144,7 +144,7 @@ function npmp_render_summary_widget() {
 		}
 		.npmp-summary-value {
 			font-weight: 600;
-			color: #2271b1;
+			color: #0f766e;
 		}
 	</style>
 	<table class="npmp-summary-table">

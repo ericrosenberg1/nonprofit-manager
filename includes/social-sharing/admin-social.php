@@ -203,7 +203,7 @@ function npmp_render_social_sharing_page() {
 			.npmp-social-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
 			.npmp-social-badge--connected { background: #d4edda; color: #155724; }
 			.npmp-social-badge--disconnected { background: #f8d7da; color: #721c24; }
-			.npmp-social-badge--pro { background: #e8f0fe; color: #2271b1; }
+			.npmp-social-badge--pro { background: #ecfdf5; color: #0f766e; }
 			.npmp-social-settings { background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0,0,0,.04); padding: 20px; margin-top: 20px; }
 			.npmp-social-settings h2 { margin-top: 0; }
 			.npmp-social-card .form-table th { width: 160px; padding: 6px 10px 6px 0; }
