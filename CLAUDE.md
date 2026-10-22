@@ -112,7 +112,8 @@ Free (`readme.txt`):
 - (none)
 
 Pro (licence server changelog):
-- (none)
+- Removed the early-access setting that skipped licensing.
+- Fixed the tour steps on the License page.
 
 ## Releasing: three systems, always in this order
 
