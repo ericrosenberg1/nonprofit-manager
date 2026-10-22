@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.9
+Stable tag: 2026.10.10
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -142,6 +142,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.10.10 =
+* Version lockstep with Nonprofit Manager Pro.
 
 = 2026.10.9 =
 * Added a setup choice for the kind of group.
@@ -420,6 +423,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.10.10 =
+No change to the free plugin. Lockstep with Nonprofit Manager Pro 2026.10.10.
 
 = 2026.10.9 =
 You can now tell Nonprofit Manager what kind of group you run (club, school group, team, faith community or HOA) under General Settings and see words that fit it, like Supporters instead of Donors. We also fixed a rare case where a Stripe gift went unrecorded.
