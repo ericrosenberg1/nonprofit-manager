@@ -436,6 +436,44 @@ function npmp_render_setup_wizard() {
 				text-align: center;
 				margin: 16px 0 0;
 			}
+			/*
+			 * The Pro note. It used to be an inline notice whose only link was
+			 * the word "Learn more" in body text, and GA4 recorded no click on
+			 * the setup_wizard campaign. Brand tint, own heading, and the link
+			 * is a filled button (#0f766e, 5.5:1 on white). It deliberately
+			 * stays a secondary .button so it does not compete with Complete
+			 * Setup, which .npmp-setup-wizard .button-primary centers below.
+			 */
+			.npmp-setup-wizard .npmp-pro-note {
+				margin: 30px 0;
+				padding: 20px 24px;
+				background: #ecfdf5;
+				border: 1px solid #a7f3d0;
+				border-left: 4px solid #10B981;
+				border-radius: 8px;
+			}
+			.npmp-setup-wizard .npmp-pro-note h3 {
+				margin: 0 0 8px;
+				font-size: 16px;
+				color: #111827;
+			}
+			.npmp-setup-wizard .npmp-pro-note p {
+				margin: 0 0 16px;
+				color: #1f2937;
+			}
+			.npmp-setup-wizard a.npmp-pro-note-link,
+			.npmp-setup-wizard a.npmp-pro-note-link:visited {
+				background: #0f766e;
+				border-color: #0f766e;
+				color: #fff;
+				text-decoration: none;
+			}
+			.npmp-setup-wizard a.npmp-pro-note-link:hover,
+			.npmp-setup-wizard a.npmp-pro-note-link:focus {
+				background: #115e59;
+				border-color: #115e59;
+				color: #fff;
+			}
 			.npmp-version-badge {
 				display: inline-block;
 				background: #0f766e;
@@ -548,14 +586,11 @@ function npmp_render_setup_wizard() {
 				</div>
 
 				<?php if ( 'free' === $version ) : ?>
-					<div class="notice notice-info inline" style="margin: 30px 0;">
-						<p>
-							<strong><?php esc_html_e( 'Want more features?', 'nonprofit-manager' ); ?></strong>
-							<?php esc_html_e( 'Nonprofit Manager Pro adds recurring donations, dues billing, email automations, custom fields and segments.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'setup_wizard' ) ); ?>" target="_blank">
-								<?php esc_html_e( 'Learn more', 'nonprofit-manager' ); ?>
-							</a>
-						</p>
+					<?php /* The only Pro offer a new install meets. Its link is the setup_wizard campaign in GA4. */ ?>
+					<div class="npmp-pro-note">
+						<h3><?php esc_html_e( 'Want more features?', 'nonprofit-manager' ); ?></h3>
+						<p><?php esc_html_e( 'Nonprofit Manager Pro adds recurring donations, dues billing, email automations, custom fields and segments.', 'nonprofit-manager' ); ?></p>
+						<a class="button npmp-pro-note-link" href="<?php echo esc_url( npmp_get_upgrade_url( 'setup_wizard' ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'See what Pro adds', 'nonprofit-manager' ); ?></a>
 					</div>
 				<?php endif; ?>
 
