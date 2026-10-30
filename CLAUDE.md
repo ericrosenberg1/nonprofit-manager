@@ -124,7 +124,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- The Pro note in the setup wizard is easier to see.
 
 Pro (licence server changelog):
 - (none)
