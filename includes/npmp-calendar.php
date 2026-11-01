@@ -529,9 +529,13 @@ function npmp_format_event_datetime( $details ) {
 
 	if ( $end ) {
 		$formatted .= ' &ndash; ';
-		$formatted .= wp_date( $date_format, $end, $timezone );
+		// A same-day event repeats only the time: "Sept 25, 2024 7:00 pm – 9:00 pm".
+		$same_day = wp_date( 'Y-m-d', $start, $timezone ) === wp_date( 'Y-m-d', $end, $timezone );
+		if ( ! $same_day || ! $time_format ) {
+			$formatted .= wp_date( $date_format, $end, $timezone );
+		}
 		if ( $time_format ) {
-			$formatted .= ' ' . wp_date( $time_format, $end, $timezone );
+			$formatted .= ( $same_day ? '' : ' ' ) . wp_date( $time_format, $end, $timezone );
 		}
 	}
 
@@ -1037,6 +1041,10 @@ function npmp_calendar_render_list_view( $category ) {
 			'category' => $category,
 			'limit'    => $limit,
 			'past'     => $past,
+			// The calendar's own list view stays a plain list in date order.
+			'layout'   => 'list',
+			'order'    => 'asc',
+			'image'    => 'no',
 		)
 	);
 }
@@ -1050,84 +1058,26 @@ function npmp_calendar_render_list_view( $category ) {
 function npmp_events_shortcode( $atts ) {
 	$atts = shortcode_atts(
 		array(
-			'category' => '',
-			'limit'    => -1,
-			'past'     => 'false',
+			'category'       => '',
+			'limit'          => -1,
+			'past'           => 'false',
+			// Display options. Blank means "use the saved Events setting".
+			'layout'         => '',
+			'columns'        => '',
+			'order'          => '',
+			'ratio'          => '',
+			'image'          => '',
+			'excerpt'        => '',
+			'excerpt_length' => '',
+			'date'           => '',
+			'location'       => '',
+			'readmore'       => '',
 		),
 		$atts,
 		'npmp_events'
 	);
 
-	$query_args = array(
-		'post_type'      => 'npmp_event',
-		'posts_per_page' => intval( $atts['limit'] ),
-		'orderby'        => 'meta_value',
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event listings are sorted by a meta key.
-		'meta_key'       => '_npmp_event_start',
-		'order'          => 'ASC',
-		'post_status'    => 'publish',
-	);
-
-	$now = current_time( 'mysql' );
-	if ( 'true' !== strtolower( $atts['past'] ) ) {
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Upcoming event filtering requires meta comparisons.
-		$query_args['meta_query'] = array(
-			array(
-				'key'     => '_npmp_event_start',
-				'value'   => $now,
-				'compare' => '>=',
-				'type'    => 'DATETIME',
-			),
-		);
-	}
-
-	if ( ! empty( $atts['category'] ) ) {
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Event categories rely on taxonomy queries.
-		$query_args['tax_query'] = array(
-			array(
-				'taxonomy' => 'npmp_event_category',
-				'field'    => 'slug',
-				'terms'    => array_map( 'sanitize_title', explode( ',', $atts['category'] ) ),
-			),
-		);
-	}
-
-	$events = new WP_Query( $query_args );
-
-	if ( ! $events->have_posts() ) {
-		return '<div class="npmp-events-list npmp-events-empty">' . esc_html__( 'No events found.', 'nonprofit-manager' ) . '</div>';
-	}
-
-	ob_start();
-
-	echo '<div class="npmp-events-list">';
-
-	while ( $events->have_posts() ) {
-		$events->the_post();
-		$details    = npmp_get_event_details( get_the_ID() );
-		$date_label = npmp_format_event_datetime( $details );
-
-		echo '<article class="npmp-event">';
-		echo '<h3 class="npmp-event-title"><a href="' . esc_url( get_permalink() ) . '">' . esc_html( get_the_title() ) . '</a></h3>';
-
-		if ( $date_label ) {
-			echo '<p class="npmp-event-date">' . wp_kses_post( $date_label ) . '</p>';
-		}
-
-		$location = $details['location'] ?? '';
-		if ( $location ) {
-			echo '<p class="npmp-event-location">' . esc_html( $location ) . '</p>';
-		}
-
-		echo '<div class="npmp-event-excerpt">' . wp_kses_post( wpautop( get_the_excerpt() ) ) . '</div>';
-		echo '</article>';
-	}
-
-	wp_reset_postdata();
-
-	echo '</div>';
-
-	return ob_get_clean();
+	return npmp_events_loop_render( $atts );
 }
 add_shortcode( 'npmp_events', 'npmp_events_shortcode' );
 add_shortcode( 'npmp_calendar', 'npmp_calendar_shortcode' );
@@ -1354,6 +1304,7 @@ function npmp_render_event_settings_page() {
 		update_option( 'npmp_calendar_accent', $accent_choice ? $accent_choice : '#0f766e' );
 		update_option( 'npmp_calendar_list_limit', max( 1, absint( wp_unslash( $_POST['npmp_calendar_list_limit'] ?? 10 ) ) ) );
 		update_option( 'npmp_calendar_list_show_past', empty( $_POST['npmp_calendar_list_show_past'] ) ? 0 : 1 );
+		npmp_events_loop_save_from_post();
 	}
 
 	if (
@@ -1487,6 +1438,8 @@ function npmp_render_event_settings_page() {
 	echo '<th scope="row">' . esc_html__( 'Past events', 'nonprofit-manager' ) . '</th>';
 	echo '<td><label><input type="checkbox" name="npmp_calendar_list_show_past" value="1"' . checked( $opt_past, 1, false ) . '> ' . esc_html__( 'Include past events in the list view', 'nonprofit-manager' ) . '</label></td>';
 	echo '</tr>';
+
+	npmp_events_loop_render_settings_rows();
 
 	$wp_days       = array( __( 'Sunday' ), __( 'Monday' ), __( 'Tuesday' ), __( 'Wednesday' ), __( 'Thursday' ), __( 'Friday' ), __( 'Saturday' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Reusing WordPress core weekday translations.
 	$start_of_week = (int) get_option( 'start_of_week', 0 );

@@ -113,6 +113,12 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   "Club Manager" would turn `nonprofit-manager_page_npmp_general_settings` into
   `club-manager_page_...` and break every screen check. `npmp_pin_menu_hook()` right after each
   `add_menu_page()` keeps the old IDs. Any new top-level menu with a changing title needs it too.
+- **Event lists render in one place.** `npmp_events_loop_render()` in `includes/npmp-events-loop.php`
+  serves `[npmp_events]`, the Events block and the calendar's list view. Layout, order, image and
+  excerpt come from option `npmp_events_loop`, then shortcode attributes or block attributes. The block
+  skips its wrapper attributes inside a REST request, because the editor already puts the block
+  supports on its own wrapper. Core writes block gap only for blocks with a layout, so the loop
+  writes `gap` itself (`npmp_events_loop_gap_css()`). Real-WordPress check: `tests/rig/events-loop.php`.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

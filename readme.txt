@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.11
+Stable tag: 2026.11.1
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -52,7 +52,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 
 **Events**
 
-* Event calendar with Month, Week, and List views, plus Calendar and Upcoming Events blocks for any page
+* Event calendar with Month, Week, and List views, plus Calendar and Events blocks for any page, with list, grid, cards, and mosaic layouts
 * iCal feed, quick-add from the dashboard, and one-click convert of any post or page into an event
 
 **Sharing and outreach**
@@ -142,6 +142,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.1 =
+* Events lists can show as a list, grid, cards, or mosaic, with featured images and excerpts.
+* Past events sort newest first.
+* The Events block follows the editor's color, type, spacing, and border settings.
+* Same-day events show the date once.
 
 = 2026.10.11 =
 * Admin screens, forms and the tour use the Nonprofit Manager colors.

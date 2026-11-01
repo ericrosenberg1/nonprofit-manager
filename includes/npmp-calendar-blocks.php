@@ -78,18 +78,88 @@ function npmp_calendar_register_blocks() {
 			'editor_script'   => $handle,
 			'style'           => $style,
 			'render_callback' => 'npmp_events_block_render',
+			// These hook the block into the native appearance tools: the block
+			// sidebar's Styles tab, and Appearance > Editor > Styles > Blocks on
+			// block themes (theme.json styles.blocks["nonprofit-manager/events"]).
+			'supports'        => array(
+				'html'       => false,
+				'align'      => array( 'wide', 'full' ),
+				'anchor'     => true,
+				'color'      => array(
+					'background' => true,
+					'text'       => true,
+					'link'       => true,
+				),
+				'typography' => array(
+					'fontSize'   => true,
+					'lineHeight' => true,
+				),
+				'spacing'    => array(
+					'margin'   => true,
+					'padding'  => true,
+					'blockGap' => true,
+				),
+				'__experimentalBorder' => array(
+					'color'  => true,
+					'radius' => true,
+					'style'  => true,
+					'width'  => true,
+				),
+				'shadow'     => true,
+			),
 			'attributes'      => array(
-				'limit'    => array(
+				'limit'          => array(
 					'type'    => 'number',
 					'default' => 10,
 				),
-				'category' => array(
+				'category'       => array(
 					'type'    => 'string',
 					'default' => '',
 				),
-				'past'     => array(
+				'past'           => array(
 					'type'    => 'boolean',
 					'default' => false,
+				),
+				// Display options. An empty value means "use the Events setting".
+				'layout'         => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'columns'        => array(
+					'type'    => 'number',
+					'default' => 0,
+				),
+				'order'          => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'ratio'          => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'image'          => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'excerpt'        => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'excerptLength'  => array(
+					'type'    => 'number',
+					'default' => 0,
+				),
+				'date'           => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'location'       => array(
+					'type'    => 'string',
+					'default' => '',
+				),
+				'readmore'       => array(
+					'type'    => 'string',
+					'default' => '',
 				),
 			),
 		)
@@ -121,26 +191,38 @@ function npmp_calendar_block_render( $attributes ) {
 }
 
 /**
- * Render the upcoming-events block via the [npmp_events] shortcode.
+ * Render the events block. It shares its renderer with [npmp_events], so the
+ * block and the shortcode always agree.
  *
  * @param array $attributes Block attributes.
  * @return string
  */
 function npmp_events_block_render( $attributes ) {
-	if ( ! function_exists( 'npmp_events_shortcode' ) ) {
+	if ( ! function_exists( 'npmp_events_loop_render' ) ) {
 		return '';
 	}
 
+	// 0 shows every event, otherwise 1 to 200.
 	$limit = isset( $attributes['limit'] ) ? (int) $attributes['limit'] : 10;
-	$limit = max( 1, min( 50, $limit ) );
+	$limit = $limit < 1 ? -1 : min( 200, $limit );
 
 	$atts = array(
-		'limit' => $limit,
-		'past'  => empty( $attributes['past'] ) ? 'false' : 'true',
+		'limit'    => $limit,
+		'past'     => empty( $attributes['past'] ) ? 'false' : 'true',
+		'category' => ! empty( $attributes['category'] ) ? sanitize_text_field( $attributes['category'] ) : '',
 	);
-	if ( ! empty( $attributes['category'] ) ) {
-		$atts['category'] = sanitize_text_field( $attributes['category'] );
+
+	foreach ( array( 'layout', 'columns', 'order', 'ratio', 'image', 'excerpt', 'date', 'location', 'readmore' ) as $key ) {
+		if ( isset( $attributes[ $key ] ) && '' !== $attributes[ $key ] && 0 !== $attributes[ $key ] ) {
+			$atts[ $key ] = $attributes[ $key ];
+		}
+	}
+	if ( isset( $attributes['style']['spacing']['blockGap'] ) ) {
+		$atts['gap'] = $attributes['style']['spacing']['blockGap'];
+	}
+	if ( ! empty( $attributes['excerptLength'] ) ) {
+		$atts['excerpt_length'] = $attributes['excerptLength'];
 	}
 
-	return npmp_events_shortcode( $atts );
+	return npmp_events_loop_render( $atts, true );
 }

@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.10.11
+ * Version: 2026.11.1
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -96,6 +96,7 @@ if ( ! empty( $npmp_features['newsletters'] ) ) {
 
 if ( ! empty( $npmp_features['calendar'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-events-loop.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-convert-to-event.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar-blocks.php';
 }
