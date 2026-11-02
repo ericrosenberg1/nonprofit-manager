@@ -164,7 +164,7 @@ versions. Commit and tag all three repos first, because the pre-push gate compar
    Check with a POST to `api.wordpress.org/plugins/update-check/1.1/` with installed `Version` 0.
    A second release during the hold supersedes the first, so ship Pro for whatever update-check
    offers. Pattern that works: start Pro's `scripts/pro-leg.sh <version> <sha256>` with nohup right
-   after the SVN tag. It waits out the hold and does steps 6 to 8 with no prompts (memory
+   after the SVN tag. Never under launchd with KeepAlive: on 11-01 it restarted the script every 10 seconds after a rate-limited download (496 runs, 496 R2 uploads) and used up the comp key's hourly quota, which then 429'd CACC's Pro update. It waits out the hold and does steps 6 to 8 with no prompts (memory
    `reference_wporg_release_cooldown`). A scheduled Claude run parked on a permission prompt for
    2026.10.9 and shipped nothing for three hours, so use one only to check CACC and report.
 6. **Pro to R2.** `./release.sh v<version>` in Pro. It refuses until wp.org offers the free
@@ -173,7 +173,7 @@ versions. Commit and tag all three repos first, because the pre-push gate compar
    download's SHA-256.
 7. **Licence server.** Steps in the site repo's CLAUDE.md (build, drop `dist/server/.dev.vars`,
    deploy with the fleet token).
-8. **Verify.** `./release.sh --verify` in Pro (uses download slots, 5 an hour per IP),
+8. **Verify.** `./release.sh --verify` in Pro (uses download slots: 40 an hour per licence key and 120 per IP, and CACC shares the comp key, so a loop here also blocks CACC's Pro update),
    `scripts/check-lockstep.sh`, `/pricing` 200, then on CACC `wp plugin list --skip-update-check`.
    A briefly stale version right after deploy is edge propagation, retry once.
 
