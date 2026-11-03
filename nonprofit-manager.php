@@ -92,6 +92,8 @@ if ( ! empty( $npmp_features['donations'] ) ) {
 if ( ! empty( $npmp_features['newsletters'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-email-newsletter.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-subscription-preferences.php';
+	// Scheduled emails: one email per event and "Send later" newsletters (Pro adds more).
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scheduled-emails.php';
 }
 
 if ( ! empty( $npmp_features['calendar'] ) ) {
@@ -109,6 +111,9 @@ if ( ! empty( $npmp_features['social'] ) ) {
 // share, contact form). Always loaded so the two new shortcodes are available.
 // Each wrapper block registers only when its feature module was loaded above.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
+
+// Importer for sites switching from The Events Calendar, plus 301s from its old event URLs.
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-importer.php';
 
 /* -------------------------------------------------------------------------
  * Plugin action links
