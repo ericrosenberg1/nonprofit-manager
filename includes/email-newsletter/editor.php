@@ -375,6 +375,20 @@ function npmp_newsletter_send_controls_html($post) {
         ) . '</p>';
     }
 
+    // Inputs printed in this wrapper also ride the Send, Send test, and
+    // Send later requests (newsletter-editor.js and npmp-scheduled-emails.js
+    // serialize it), so an add-on's audience picker saves either way.
+    echo '<div class="npmp-newsletter-audience-extra">';
+    /**
+     * Fires inside the newsletter's Audience box, after the level checkboxes.
+     * Pro renders its Groups picker here, and free shows a greyed one. Read
+     * your inputs back on `npmp_newsletter_audience_saved`.
+     *
+     * @param WP_Post $post The newsletter being edited.
+     */
+    do_action('npmp_newsletter_audience_fields', $post);
+    echo '</div>';
+
     echo '</fieldset>';
 
     /**
@@ -561,6 +575,20 @@ function npmp_newsletter_store_meta($post_id, $levels = null, $preheader = null)
         $normalized = npmp_newsletter_normalize_levels($levels);
         update_post_meta($post_id, '_npmp_newsletter_levels', $normalized);
         update_post_meta($post_id, '_npmp_newsletter_audience_label', NPMP_Newsletter_Manager::describe_audience($normalized));
+
+        /**
+         * Fires after a newsletter's audience saves: on post save, and on the
+         * Send, Send test, and Send later requests (each checks its own nonce
+         * and capability first). Pro saves its Groups picker
+         * (`_npmp_newsletter_groups`) from the request here. The request
+         * carries whatever the `npmp_newsletter_audience_fields` inputs
+         * posted.
+         *
+         * @param int   $post_id The newsletter ID.
+         * @param array $levels  The saved levels (`__all__`, `__none__`, or names).
+         * @param array $request The whole unslashed POST. Sanitize what you read.
+         */
+        do_action('npmp_newsletter_audience_saved', (int) $post_id, $normalized, wp_unslash($_POST)); // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Every caller verifies its nonce first. Listeners sanitize what they read.
     }
 
     if (null !== $preheader) {

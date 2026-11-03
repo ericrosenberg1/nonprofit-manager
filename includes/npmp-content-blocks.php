@@ -375,10 +375,23 @@ add_action( 'init', 'npmp_content_register_blocks' );
 /**
  * Render the email-signup block via its shortcode.
  *
+ * @param array $attributes Block attributes.
  * @return string
  */
-function npmp_email_signup_block_render() {
-	return function_exists( 'npmp_email_signup_shortcode' ) ? npmp_email_signup_shortcode() : '';
+function npmp_email_signup_block_render( $attributes = array() ) {
+	if ( ! function_exists( 'npmp_email_signup_shortcode' ) ) {
+		return '';
+	}
+	/**
+	 * Filter the shortcode attributes the Email Signup block hands to
+	 * [npmp_email_signup]. Pro registers a `groups` block attribute (through
+	 * core's `register_block_type_args`) and copies it across here.
+	 *
+	 * @param array $atts       Attributes for npmp_email_signup_shortcode() (none in free).
+	 * @param array $attributes The block's own attributes.
+	 */
+	$atts = apply_filters( 'npmp_email_signup_block_atts', array(), is_array( $attributes ) ? $attributes : array() );
+	return npmp_email_signup_shortcode( is_array( $atts ) ? $atts : array() );
 }
 
 /**

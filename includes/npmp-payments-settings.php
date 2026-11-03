@@ -75,6 +75,16 @@ function npmp_render_donations_dashboard() {
 	submit_button( esc_html__( 'Filter', 'nonprofit-manager' ), 'secondary', '', false );
 	echo '</form>';
 
+	/** This action is documented in includes/npmp-pro-feature-pages.php. */
+	do_action(
+		'npmp_admin_table_toolbar',
+		'donations',
+		array(
+			'year'  => $current_year,
+			'month' => $current_month,
+		)
+	);
+
 	/* Get detailed donations */
 	$args = array(
 		'post_type'      => NPMP_Donation_Manager::POST_TYPE,

@@ -217,9 +217,12 @@ function npmp_events_loop_excerpt( $post, $words ) {
  *
  * @param array $atts     Normalised attributes (category, limit, past).
  * @param array $settings Resolved settings.
+ * @param array $context  Query context for npmp_events_query_args (source,
+ *                        view, category, atts, block). Defaults to an
+ *                        [npmp_events] list.
  * @return array
  */
-function npmp_events_loop_query_args( $atts, $settings ) {
+function npmp_events_loop_query_args( $atts, $settings, $context = array() ) {
 	$past = 'true' === strtolower( (string) $atts['past'] );
 
 	$args = array(
@@ -252,6 +255,22 @@ function npmp_events_loop_query_args( $atts, $settings ) {
 				'field'    => 'slug',
 				'terms'    => array_map( 'sanitize_title', explode( ',', $atts['category'] ) ),
 			),
+		);
+	}
+
+	if ( function_exists( 'npmp_events_filter_query_args' ) ) {
+		$args = npmp_events_filter_query_args(
+			$args,
+			array_merge(
+				array(
+					'source'   => 'events',
+					'view'     => 'list',
+					'category' => (string) ( $atts['category'] ?? '' ),
+					'atts'     => $atts,
+					'block'    => false,
+				),
+				(array) $context
+			)
 		);
 	}
 
@@ -356,11 +375,13 @@ function npmp_events_loop_last_range( $set = null ) {
  *                         color, type, spacing and border supports reach the root element.
  * @param bool  $embedded  True inside the calendar's list view, which carries its
  *                         own print button and header.
+ * @param array $context   Query context for npmp_events_query_args. The
+ *                         calendar's list view passes its own.
  * @return string
  */
-function npmp_events_loop_render( $atts, $for_block = false, $embedded = false ) {
+function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, $context = array() ) {
 	$settings = npmp_events_loop_settings( $atts );
-	$events   = new WP_Query( npmp_events_loop_query_args( $atts, $settings ) );
+	$events   = new WP_Query( npmp_events_loop_query_args( $atts, $settings, array_merge( array( 'block' => (bool) $for_block ), (array) $context ) ) );
 
 	npmp_events_loop_last_range( array( 0, 0 ) );
 

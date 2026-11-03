@@ -996,6 +996,9 @@ class NPMP_Member_Manager {
 				'order'    => 'DESC',
 				'paged'    => 1,
 				'per_page' => 20,
+				// Free stores no groups. Pro reads this (a term ID or slug) in
+				// the npmp_members_query_args filter below.
+				'group'    => '',
 			)
 		);
 
@@ -1105,7 +1108,18 @@ class NPMP_Member_Manager {
 
 		$query['order'] = $order;
 
-		return $query;
+		/**
+		 * Filter the WP_Query arguments behind get_members() and
+		 * count_members(). Pro answers "members in group X": when
+		 * `$args['group']` holds a term ID or slug it adds a tax_query on
+		 * its `npmp_group` taxonomy.
+		 *
+		 * @param array $query WP_Query arguments for npmp_contact posts.
+		 * @param array $args  The caller's arguments after defaults (status,
+		 *                     level, tag, search, orderby, order, paged,
+		 *                     per_page, group, and anything else passed).
+		 */
+		return (array) apply_filters( 'npmp_members_query_args', $query, $args );
 	}
 
 	/**

@@ -120,6 +120,9 @@ function npmp_render_newsletter_reports() {
         return;
     }
 
+    /** This action is documented in includes/npmp-pro-feature-pages.php. */
+    do_action('npmp_admin_table_toolbar', 'newsletter_reports', array('limit' => 10));
+
     echo '<table class="widefat fixed striped">';
     echo '<thead>
             <tr>

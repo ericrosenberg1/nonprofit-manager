@@ -2270,7 +2270,8 @@ function npmp_render_scheduled_emails_page() {
 	echo '</ul>';
 
 	echo '<h2>' . esc_html__( 'Upcoming and recent', 'nonprofit-manager' ) . '</h2>';
-	do_action( 'npmp_admin_table_toolbar', 'scheduled_emails' );
+	/** This action is documented in includes/npmp-pro-feature-pages.php. */
+	do_action( 'npmp_admin_table_toolbar', 'scheduled_emails', array() );
 	$rows = npmp_scheduled_emails_table_rows();
 	if ( ! $rows ) {
 		echo '<p>' . esc_html__( 'Nothing scheduled yet.', 'nonprofit-manager' ) . '</p></div>';

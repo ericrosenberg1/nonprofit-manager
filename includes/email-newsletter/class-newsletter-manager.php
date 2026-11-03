@@ -60,9 +60,9 @@ class NPMP_Newsletter_Manager {
 	 * Test email
 	 * =================================================================== */
 	public static function send_test_email( $newsletter_id, $user_email ) {
-		$content = self::get_newsletter_content( $newsletter_id, true );
+		$content = self::get_newsletter_content( $newsletter_id, true, null, $user_email );
 		$subject = get_the_title( $newsletter_id );
-		return self::send_email( $user_email, $subject, $content );
+		return self::send_email( $user_email, $subject, $content, $newsletter_id );
 	}
 
 	/* ===================================================================
@@ -187,9 +187,9 @@ class NPMP_Newsletter_Manager {
 				continue;
 			}
 
-			$content = self::get_newsletter_content( $newsletter_id, false, $user_id );
+			$content = self::get_newsletter_content( $newsletter_id, false, $user_id, $email );
 			$subject = get_the_title( $newsletter_id );
-			$sent    = self::send_email( $email, $subject, $content );
+			$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
 
 			$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
 				$table,
@@ -237,7 +237,16 @@ class NPMP_Newsletter_Manager {
 	/* ===================================================================
 	 * Build newsletter HTML
 	 * =================================================================== */
-	public static function get_newsletter_content( $newsletter_id, $is_test = false, $user_id = null ) {
+	/**
+	 * The finished HTML of one newsletter for one recipient.
+	 *
+	 * @param int         $newsletter_id Newsletter ID.
+	 * @param bool        $is_test       True for "Send test" (no tracking).
+	 * @param int|null    $user_id       Recipient contact ID, for tracking.
+	 * @param string      $email         Recipient address, for the footer links.
+	 * @return string
+	 */
+	public static function get_newsletter_content( $newsletter_id, $is_test = false, $user_id = null, $email = '' ) {
 		$post = get_post( $newsletter_id );
 		if ( ! $post || 'npmp_newsletter' !== $post->post_type ) {
 			return '';
@@ -309,19 +318,50 @@ class NPMP_Newsletter_Manager {
 			}
 		}
 
-		$content .= do_shortcode( '[npmp_can_spam]' );
+		$content .= function_exists( 'npmp_can_spam_shortcode' )
+			? npmp_can_spam_shortcode(
+				array(
+					'newsletter_id' => (int) $newsletter_id,
+					'email'         => (string) $email,
+				)
+			)
+			: do_shortcode( '[npmp_can_spam]' );
 		return $content;
 	}
 
 	/* ===================================================================
 	 * Email send wrapper
 	 * =================================================================== */
-	public static function send_email( $to, $subject, $content ) {
+	/**
+	 * Send one newsletter message through npmp_send_mail().
+	 *
+	 * @param string $to            Recipient address.
+	 * @param string $subject       Subject line.
+	 * @param string $content       HTML body.
+	 * @param int    $newsletter_id Newsletter ID, or 0 for a one-off (an event email test).
+	 * @return bool
+	 */
+	public static function send_email( $to, $subject, $content, $newsletter_id = 0 ) {
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 
 		// Add one-click List-Unsubscribe headers (Gmail/Yahoo bulk-sender rules).
 		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {
 			$headers = array_merge( $headers, npmp_get_list_unsubscribe_headers( $to ) );
+		}
+
+		/**
+		 * Filter the headers of one newsletter message. Pro adds a group's
+		 * sender name (`From: Art Group <site-from@example.org>`, keeping the
+		 * site's From address for SPF and DKIM) and its `Reply-To`. Keep
+		 * List-Unsubscribe as it is, since Gmail and Yahoo treat it as global.
+		 *
+		 * @param string[] $headers       Header lines.
+		 * @param int      $newsletter_id Newsletter ID (0 for a one-off test).
+		 * @param string   $email         Recipient address.
+		 */
+		$filtered = apply_filters( 'npmp_newsletter_mail_headers', $headers, (int) $newsletter_id, (string) $to );
+		if ( is_array( $filtered ) ) {
+			$headers = $filtered;
 		}
 
 		return npmp_send_mail( $to, $subject, $content, $headers );

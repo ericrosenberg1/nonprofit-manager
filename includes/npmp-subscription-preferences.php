@@ -184,6 +184,16 @@ function npmp_manage_preferences_shortcode() {
 			'notify_events' => ! empty( $_POST['npmp_notify_events'] ),
 			'weekly_digest' => ! empty( $_POST['npmp_weekly_digest'] ),
 		) );
+		/**
+		 * Fires after a member saves the preferences page (signed link and
+		 * nonce already checked). Pro saves the member's group choices here:
+		 * it joins checked groups and records an opt-out for unchecked ones.
+		 *
+		 * @param int    $contact_id Contact post ID.
+		 * @param array  $request    The whole unslashed POST. Sanitize what you read.
+		 * @param string $email      The member's address from the signed link.
+		 */
+		do_action( 'npmp_preferences_saved', (int) $contact_id, wp_unslash( $_POST ), $email ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read.
 		return '<div style="background:#d4edda;border:1px solid #c3e6cb;padding:12px;border-radius:4px;margin-bottom:16px;"><p style="color:#155724;margin:0;">' . esc_html__( 'Preferences saved!', 'nonprofit-manager' ) . '</p></div>';
 	}
 
@@ -209,6 +219,18 @@ function npmp_manage_preferences_shortcode() {
 		<?php if ( $show_digest ) : ?>
 		<label style="display:block;margin:12px 0;"><input type="checkbox" name="npmp_weekly_digest" value="1" <?php checked( $prefs['weekly_digest'] ); ?> /> <?php esc_html_e( 'Send me a weekly digest instead of individual emails', 'nonprofit-manager' ); ?></label>
 		<?php endif; ?>
+
+		<?php
+		/**
+		 * Fires inside the preferences form, after the notification
+		 * checkboxes and before Save. Echo your fields. Pro prints a checkbox
+		 * for each group the member can join or leave.
+		 *
+		 * @param int    $contact_id Contact post ID.
+		 * @param string $email      The member's address from the signed link.
+		 */
+		do_action( 'npmp_preferences_form_fields', (int) $contact_id, $email );
+		?>
 
 		<?php wp_nonce_field( 'npmp_manage_prefs_' . $contact_id ); ?>
 		<p><button type="submit" name="npmp_save_preferences" class="button"><?php esc_html_e( 'Save Preferences', 'nonprofit-manager' ); ?></button></p>

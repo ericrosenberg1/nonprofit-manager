@@ -522,7 +522,78 @@ function npmp_get_banner_html( $type, $settings ) {
 }
 
 /* ------------ Signup shortcode ------------ */
-function npmp_email_signup_shortcode() {
+
+/**
+ * Default [npmp_email_signup] attributes, extended by add-ons.
+ *
+ * @return array
+ */
+function npmp_signup_form_default_atts() {
+	/**
+	 * Filter the attributes [npmp_email_signup] and the Email Signup block
+	 * accept (free has none). Pro adds `'groups' => ''`, so
+	 * `[npmp_email_signup groups="art,history"]` puts each new member in
+	 * those groups. The form signs the non-empty values into a hidden field,
+	 * so a visitor can't change them, and `npmp_after_email_signup` gets them
+	 * back as `$atts`.
+	 *
+	 * @param array $defaults Attribute => default value.
+	 */
+	$defaults = apply_filters( 'npmp_signup_form_default_atts', array() );
+	return is_array( $defaults ) ? $defaults : array();
+}
+
+/**
+ * Sign a signup form's attributes for its hidden field.
+ *
+ * @param array $atts Attributes (only non-empty scalars are kept).
+ * @return string payload.signature, or '' when there's nothing to carry.
+ */
+function npmp_signup_atts_token( $atts ) {
+	$keep = array();
+	foreach ( (array) $atts as $key => $value ) {
+		if ( is_scalar( $value ) && '' !== (string) $value ) {
+			$keep[ sanitize_key( (string) $key ) ] = (string) $value;
+		}
+	}
+	if ( ! $keep ) {
+		return '';
+	}
+	ksort( $keep );
+	$payload = rtrim( strtr( base64_encode( (string) wp_json_encode( $keep ) ), '+/', '-_' ), '=' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- URL-safe transport of signed form attributes, not obfuscation.
+	return $payload . '.' . hash_hmac( 'sha256', $payload, wp_salt( 'nonce' ) );
+}
+
+/**
+ * Read back a signup form's signed attributes. A missing or tampered field
+ * gives the defaults.
+ *
+ * @param string $token Value of the hidden npmp_signup_atts field.
+ * @return array
+ */
+function npmp_signup_atts_from_token( $token ) {
+	$defaults = npmp_signup_form_default_atts();
+	$parts    = explode( '.', (string) $token );
+	if ( 2 !== count( $parts ) || ! hash_equals( hash_hmac( 'sha256', $parts[0], wp_salt( 'nonce' ) ), $parts[1] ) ) {
+		return $defaults;
+	}
+	$json    = base64_decode( strtr( $parts[0], '-_', '+/' ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Reverses npmp_signup_atts_token().
+	$decoded = is_string( $json ) ? json_decode( $json, true ) : null;
+	if ( ! is_array( $decoded ) ) {
+		return $defaults;
+	}
+	// Only attributes an add-on still accepts come back.
+	return array_merge( $defaults, array_intersect_key( $decoded, $defaults ) );
+}
+
+/**
+ * Render the email signup form.
+ *
+ * @param array|string $atts Shortcode attributes.
+ * @return string
+ */
+function npmp_email_signup_shortcode( $atts = array() ) {
+	$atts = shortcode_atts( npmp_signup_form_default_atts(), is_array( $atts ) ? $atts : array(), 'npmp_email_signup' );
 	$s    = npmp_get_membership_form_settings();
 	$html = npmp_get_banner_html( 'npmp_signup', $s );
 
@@ -536,11 +607,16 @@ function npmp_email_signup_shortcode() {
 	 * The subscriber notification preferences feature (post/event/digest
 	 * checkboxes) renders through this filter. The admin screen promised
 	 * those checkboxes "appear on the signup form" but nothing applied the
-	 * filter, so they never did.
+	 * filter, so they never did. Pro adds a group's checkboxes here when the
+	 * form names more than one group.
 	 *
 	 * @param string $fields Form field HTML so far.
+	 * @param array  $atts   The form's attributes, after defaults.
 	 */
-	$fields = apply_filters( 'npmp_signup_form_after_fields', $fields );
+	$fields = apply_filters( 'npmp_signup_form_after_fields', $fields, $atts );
+
+	$atts_token = npmp_signup_atts_token( $atts );
+	$atts_field = '' !== $atts_token ? '<input type="hidden" name="npmp_signup_atts" value="' . esc_attr( $atts_token ) . '">' : '';
 
 	$html .= '
 	<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" class="npmp-email-signup">
@@ -552,6 +628,7 @@ function npmp_email_signup_shortcode() {
 		' . wp_nonce_field( 'npmp_email_signup', 'npmp_email_signup_nonce', true, false ) . '
 		<input type="hidden" name="npmp_action" value="email_signup">
 		<input type="hidden" name="action" value="npmp_handle_form">
+		' . $atts_field . '
 		<p><button type="submit">' . esc_html( $s['signup_button'] ) . '</button></p>
 	</form>';
 	return $html;
@@ -709,10 +786,17 @@ function npmp_handle_membership_form() {
 			 * chosen checkboxes here. It was hooked but never fired, so
 			 * signup preferences were silently discarded.
 			 *
+			 * Pro adds the new or returning member to the form's groups
+			 * from `$atts['groups']` (and any group checkboxes it printed).
+			 *
 			 * @param int   $contact_id Contact post ID.
 			 * @param array $post_data  Submitted form data.
+			 * @param array $atts       The form's attributes, read back from its
+			 *                          signed hidden field (defaults when missing).
+			 * @param bool  $is_new     True when this signup created the contact.
 			 */
-			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
+			$signup_atts = npmp_signup_atts_from_token( sanitize_text_field( wp_unslash( $_POST['npmp_signup_atts'] ?? '' ) ) );
+			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ), $signup_atts, ! $existing ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
 		}
 
 		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $result ) );

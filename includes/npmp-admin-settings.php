@@ -319,6 +319,10 @@ function npmp_render_main_plugin_page() {
 		</div>
 
 		<!-- Summary Tables -->
+		<?php
+		/** This action is documented in includes/npmp-pro-feature-pages.php. */
+		do_action( 'npmp_admin_table_toolbar', 'overview', array( 'features' => $features ) );
+		?>
 		<div class="npmp-summary-container">
 			<!-- Membership Summary -->
 			<?php if ( ! empty( $features['members'] ) ) : ?>

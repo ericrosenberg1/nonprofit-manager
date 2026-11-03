@@ -75,8 +75,10 @@ jQuery(function ($) {
             post_id: $later.data('postid'),
             nonce: $later.data('nonce')
         }, audience(), extra);
+        // Add-on audience inputs (Pro's Groups picker) ride along.
+        var more = $('.npmp-newsletter-audience-extra :input').serialize();
         $button.prop('disabled', true).text(cfg.working || label);
-        return $.post(cfg.ajaxUrl, payload).done(function (res) {
+        return $.post(cfg.ajaxUrl, $.param(payload) + (more ? '&' + more : '')).done(function (res) {
             var data = (res && res.data) || {};
             $status.text(data.message || cfg.failed || '');
         }).fail(function () {
