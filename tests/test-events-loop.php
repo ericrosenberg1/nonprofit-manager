@@ -90,6 +90,7 @@ check( 'category slug', array( 'meetings' ), $q['tax_query'][0]['terms'] );
 $q = npmp_events_loop_query_args( array( 'category' => '', 'limit' => 5, 'past' => 'false' ), npmp_events_loop_settings() );
 check( 'upcoming sorts ASC', 'ASC', $q['order'] );
 check( 'upcoming filters from now', '2026-11-01 12:00:00', $q['meta_query'][0]['value'] );
+check( 'no row count for a list with no pager', true, $q['no_found_rows'] );
 check( 'no category, no tax query', false, isset( $q['tax_query'] ) );
 
 echo "Root element\n";

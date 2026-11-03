@@ -228,6 +228,8 @@ function npmp_events_loop_query_args( $atts, $settings, $context = array() ) {
 	$args = array(
 		'post_type'      => 'npmp_event',
 		'posts_per_page' => intval( $atts['limit'] ),
+		// One page of events and no pager, so skip counting every match.
+		'no_found_rows'  => true,
 		'orderby'        => 'meta_value',
 		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event listings are sorted by a meta key.
 		'meta_key'       => '_npmp_event_start',
@@ -517,7 +519,7 @@ function npmp_events_loop_render_settings_rows() {
 	$choices = npmp_events_loop_choices();
 
 	echo '<tr><th scope="row" colspan="2"><h2 style="margin:1.5em 0 0;">' . esc_html__( 'Event lists and archives', 'nonprofit-manager' ) . '</h2>';
-	echo '<p class="description" style="font-weight:400;">' . esc_html__( 'How the Events block and the [npmp_events] shortcode look by default. Each block can override these in the editor sidebar, where you also set colors, type, spacing and borders. On block themes, Appearance → Editor → Styles → Blocks styles every Events block at once.', 'nonprofit-manager' ) . '</p></th></tr>';
+	echo '<p class="description" style="font-weight:400;">' . esc_html__( 'How the Events block and the [npmp_events] shortcode look by default. You can override these for one block in the editor sidebar, where you also set colors, type, spacing, and borders. On a block theme, you can style every Events block at once under Appearance → Editor → Styles → Blocks.', 'nonprofit-manager' ) . '</p></th></tr>';
 
 	$select = static function ( $key, $id, $label ) use ( $s, $choices ) {
 		echo '<tr><th scope="row"><label for="' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label></th><td>';
@@ -535,7 +537,7 @@ function npmp_events_loop_render_settings_rows() {
 	foreach ( array( 2, 3, 4 ) as $n ) {
 		echo '<option value="' . esc_attr( $n ) . '"' . selected( (int) $s['columns'], $n, false ) . '>' . esc_html( (string) $n ) . '</option>';
 	}
-	echo '</select><p class="description">' . esc_html__( 'For grid, cards and mosaic. They drop to fewer columns on tablets and one on phones.', 'nonprofit-manager' ) . '</p></td></tr>';
+	echo '</select><p class="description">' . esc_html__( 'For grid, cards, and mosaic. They drop to fewer columns on tablets and one on phones.', 'nonprofit-manager' ) . '</p></td></tr>';
 
 	$select( 'order', 'npmp_events_loop_order', __( 'Order', 'nonprofit-manager' ) );
 

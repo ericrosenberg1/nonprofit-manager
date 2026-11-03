@@ -179,6 +179,7 @@ function npmp_render_events_dashboard() {
 			// Overview widget: cap the upcoming list. Unbounded -1 grew without
 			// limit over time. The full list lives in the Events admin screen.
 			'posts_per_page' => 50,
+			'no_found_rows'  => true,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
 			'order'          => 'ASC',
@@ -200,6 +201,7 @@ function npmp_render_events_dashboard() {
 		array(
 			'post_type'      => 'npmp_event',
 			'posts_per_page' => 10,
+			'no_found_rows'  => true,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
 			'order'          => 'DESC',
@@ -235,7 +237,7 @@ function npmp_render_events_dashboard() {
 			esc_url( $calendar_link )
 		) . '</p>';
 	} else {
-		echo '<p>' . esc_html__( 'Tip: Assign a default calendar page so visitors can always find your schedule.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html__( 'Tip: Pick a calendar page so visitors can always find your schedule.', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_event_settings' ) ) . '">' . esc_html__( 'Choose one in Settings', 'nonprofit-manager' ) . '</a></p>';
 	}
 
 	/** This action is documented in includes/npmp-pro-feature-pages.php. */
@@ -447,6 +449,12 @@ function npmp_save_event_meta( $post_id ) {
 		$start      = $start_date . ' ' . $start_time . ':00';
 	}
 
+	// An end time with no end date (the usual way to enter a same-day
+	// event) ends on the start day. It used to be dropped without a word.
+	if ( ! $end_date && $end_time && $start_date ) {
+		$end_date = $start_date;
+	}
+
 	$end = '';
 	if ( $end_date ) {
 		$end_time = $end_time ?: '23:59';
@@ -582,7 +590,9 @@ function npmp_format_event_datetime( $details ) {
 		$formatted .= ' ' . wp_date( $time_format, $start, $timezone );
 	}
 
-	if ( $end ) {
+	// An end at or before the start (imports often save the start twice)
+	// would print "7:00 pm – 7:00 pm", so the start stands alone.
+	if ( $end && $end > $start ) {
 		$formatted .= ' &ndash; ';
 		// A same-day event repeats only the time: "Sept 25, 2024 7:00 pm – 9:00 pm".
 		$same_day = wp_date( 'Y-m-d', $start, $timezone ) === wp_date( 'Y-m-d', $end, $timezone );
@@ -969,7 +979,7 @@ function npmp_calendar_day_events_html( $day_events, $day_key, $timezone ) {
 		if ( $time_label ) {
 			$html .= '<span class="npmp-calendar-event-time">' . esc_html( $time_label ) . '</span> ';
 		}
-		$html .= esc_html( $event['title'] );
+		$html .= '<span class="npmp-calendar-event-title">' . esc_html( $event['title'] ) . '</span>';
 		// Off screen, on paper: the grid has no room for it, a printout does.
 		if ( ! empty( $event['location'] ) ) {
 			$html .= '<span class="npmp-calendar-event-location" hidden>' . esc_html( $event['location'] ) . '</span>';
@@ -1027,6 +1037,33 @@ function npmp_calendar_weekday_labels() {
 		__( 'Friday', 'nonprofit-manager' ),
 		__( 'Saturday', 'nonprofit-manager' ),
 	);
+}
+
+/**
+ * One weekday column heading for the month and week grids.
+ *
+ * Phones show the short name ("Wed"), since a full "Wednesday" can't fit a
+ * seventh of a 375px screen and ran into the next column. Screen readers
+ * always hear the full name.
+ *
+ * @param int $index 0 (Sunday) - 6 (Saturday).
+ * @return string
+ */
+function npmp_calendar_weekday_heading( $index ) {
+	global $wp_locale;
+
+	$index  = ( (int) $index % 7 + 7 ) % 7;
+	$labels = npmp_calendar_weekday_labels();
+	$full   = $labels[ $index ];
+	$short  = ( $wp_locale instanceof WP_Locale ) ? $wp_locale->get_weekday_abbrev( $wp_locale->get_weekday( $index ) ) : '';
+	if ( '' === (string) $short ) {
+		$short = function_exists( 'mb_substr' ) ? mb_substr( $full, 0, 3 ) : substr( $full, 0, 3 );
+	}
+
+	return '<th scope="col" abbr="' . esc_attr( $full ) . '">'
+		. '<span class="npmp-calendar-weekday-full">' . esc_html( $full ) . '</span>'
+		. '<span class="npmp-calendar-weekday-short" aria-hidden="true">' . esc_html( $short ) . '</span>'
+		. '</th>';
 }
 
 /**
@@ -1115,17 +1152,12 @@ function npmp_calendar_render_month_view( $anchor, $timezone, $category, $contex
 	$start_of_week = (int) get_option( 'start_of_week', 0 );
 	$days_in_month = (int) $anchor->format( 't' );
 	$month_key     = $anchor->format( 'Y-m' );
-	$labels        = npmp_calendar_weekday_labels();
 
-	$offset   = ( 7 + (int) $first->format( 'w' ) - $start_of_week ) % 7;
-	$headings = array();
-	for ( $i = 0; $i < 7; $i++ ) {
-		$headings[] = $labels[ ( $start_of_week + $i ) % 7 ];
-	}
+	$offset = ( 7 + (int) $first->format( 'w' ) - $start_of_week ) % 7;
 
 	$html = '<table class="npmp-calendar-table"><thead><tr>';
-	foreach ( $headings as $heading ) {
-		$html .= '<th scope="col">' . esc_html( $heading ) . '</th>';
+	for ( $i = 0; $i < 7; $i++ ) {
+		$html .= npmp_calendar_weekday_heading( $start_of_week + $i );
 	}
 	$html .= '</tr></thead><tbody><tr>';
 
@@ -1182,11 +1214,10 @@ function npmp_calendar_render_week_view( $anchor, $timezone, $category, $context
 	$events_by_day = npmp_calendar_query_events_by_day( $week_start, $week_end, $category, $timezone, array_merge( (array) $context, array( 'view' => 'week' ) ) );
 
 	$today_key = wp_date( 'Y-m-d', time(), $timezone );
-	$labels    = npmp_calendar_weekday_labels();
 
 	$html = '<table class="npmp-calendar-table"><thead><tr>';
 	for ( $i = 0; $i < 7; $i++ ) {
-		$html .= '<th scope="col">' . esc_html( $labels[ ( $start_of_week + $i ) % 7 ] ) . '</th>';
+		$html .= npmp_calendar_weekday_heading( $start_of_week + $i );
 	}
 	$html .= '</tr></thead><tbody><tr>';
 
@@ -1484,7 +1515,10 @@ function npmp_maybe_render_ical_feed() {
 
 		$output .= "BEGIN:VEVENT\r\n";
 		$output .= 'UID:' . absint( $event->ID ) . '@' . $host . "\r\n";
-		$output .= 'DTSTAMP:' . gmdate( 'Ymd\THis\Z', $start ) . "\r\n";
+		// DTSTAMP is when this entry last changed. Calendar apps compare it to
+		// spot an edited event, and the start date never moves on an edit.
+		$stamp   = 0 === strpos( (string) $event->post_modified_gmt, '0000' ) ? 0 : strtotime( $event->post_modified_gmt . ' UTC' );
+		$output .= 'DTSTAMP:' . gmdate( 'Ymd\THis\Z', $stamp ? $stamp : $start ) . "\r\n";
 		$output .= 'DTSTART:' . gmdate( 'Ymd\THis\Z', $start ) . "\r\n";
 		if ( $end ) {
 			$output .= 'DTEND:' . gmdate( 'Ymd\THis\Z', $end ) . "\r\n";
@@ -1500,7 +1534,7 @@ function npmp_maybe_render_ical_feed() {
 
 	// Cache for 15 minutes. Saving any event clears it immediately.
 	set_transient( $cache_key, $output, 15 * MINUTE_IN_SECONDS );
-echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	exit;
 }
 add_action( 'init', 'npmp_maybe_render_ical_feed' );
@@ -1650,7 +1684,7 @@ function npmp_render_event_settings_page() {
 		if ( $calendar_url ) {
 			echo '<p class="description">' . sprintf(
 				/* translators: %s: Calendar page URL */
-				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank">%s</a>', 'nonprofit-manager' ) ),
+				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank" rel="noopener">%s</a>', 'nonprofit-manager' ) ),
 				esc_url( $calendar_url ),
 				esc_url( $calendar_url )
 			) . '</p>';
@@ -1855,9 +1889,9 @@ add_filter( 'the_content', 'npmp_auto_inject_calendar_page', 12 );
  */
 function npmp_ics_escape_text( $text ) {
 	$text = wp_strip_all_tags( (string) $text );
-	$text = str_replace( array( "\r\n", "\r", "\n" ), '\n', $text );
-
-	return strtr(
+	// Backslashes first. Escaping them after the newlines turned every
+	// line break into a literal "\\n" in calendar apps.
+	$text = strtr(
 		$text,
 		array(
 			'\\' => '\\\\',
@@ -1865,6 +1899,8 @@ function npmp_ics_escape_text( $text ) {
 			';'  => '\;',
 		)
 	);
+
+	return str_replace( array( "\r\n", "\r", "\n" ), '\n', $text );
 }
 
 /**

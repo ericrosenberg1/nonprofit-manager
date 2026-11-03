@@ -1146,11 +1146,10 @@ function npmp_import_render_page() {
 
 				<!-- Free-cap upsell, shown when the import was truncated at the cap. -->
 				<div id="npmp-import-cap-notice" class="notice notice-info inline" style="display:none;margin-top:20px;border-left-color:#10b981;">
-					<h3 style="margin-top:.5em;"><?php esc_html_e( 'Hit the free import limit', 'nonprofit-manager' ); ?></h3>
+					<h3 style="margin-top:.5em;"><?php esc_html_e( 'You reached the free import limit', 'nonprofit-manager' ); ?></h3>
 					<p id="npmp-import-cap-text"></p>
 					<p>
 						<a href="<?php echo esc_url( npmp_get_upgrade_url( 'import_cap' ) ); ?>" target="_blank" rel="noopener" class="button button-primary"><?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?></a>
-						<a href="https://nonprofitmanager.app/" target="_blank" rel="noopener" style="margin-left:8px;"><?php esc_html_e( 'Learn more', 'nonprofit-manager' ); ?></a>
 					</p>
 				</div>
 

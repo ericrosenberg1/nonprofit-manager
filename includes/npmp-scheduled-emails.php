@@ -725,7 +725,16 @@ function npmp_scheduled_emails_sync_event( $event_id ) {
 
 		$fields['status'] = 'pending';
 		$fields['note']   = '';
-		if ( npmp_scheduled_emails_utc_to_ts( $send_at ) <= $now ) {
+		// A pending row that's already due (the sweep hasn't reached it yet,
+		// the late rule sent it, or an admin asked for an update) stays on its
+		// way. Judging it again by the late rule skipped it whenever someone
+		// saved the event in the minutes before the next cron run. The sweep
+		// still never sends after the start or in the last hour.
+		$already_due = $row && 'pending' === $row->status && npmp_scheduled_emails_utc_to_ts( $row->send_at ) <= $now;
+		if ( $already_due && npmp_scheduled_emails_utc_to_ts( $send_at ) <= $now ) {
+			$fields['send_at'] = $row->send_at;
+			$fields['note']    = (string) $row->note;
+		} elseif ( npmp_scheduled_emails_utc_to_ts( $send_at ) <= $now ) {
 			if ( 'send' === npmp_scheduled_emails_late_decision( $defaults['late_mode'], $defaults['late_min_hours'], $start_ts, $now ) ) {
 				$fields['send_at'] = gmdate( 'Y-m-d H:i:s', $now );
 				$fields['note']    = __( 'Someone saved the event after its send time, so the late rule sends this email right away.', 'nonprofit-manager' );
@@ -829,14 +838,22 @@ add_action( 'untrashed_post', 'npmp_scheduled_emails_on_trash_change' );
  * A deleted event or newsletter cancels its pending rows. The rows stay as
  * a record of what went out.
  *
- * @param int $post_id Post ID.
+ * @param int          $post_id Post ID.
+ * @param WP_Post|null $post    The deleted post (WordPress 5.5 and later).
  * @return void
  */
-function npmp_scheduled_emails_on_delete( $post_id ) {
-	npmp_scheduled_emails_cancel_target( 'event', $post_id, __( 'Someone deleted the event.', 'nonprofit-manager' ) );
-	npmp_scheduled_emails_cancel_target( 'list', $post_id, __( 'Someone deleted the newsletter.', 'nonprofit-manager' ) );
+function npmp_scheduled_emails_on_delete( $post_id, $post = null ) {
+	// Every deleted post and revision fires this, so skip the two UPDATEs
+	// for anything that can't have a row.
+	$type = $post instanceof WP_Post ? $post->post_type : '';
+	if ( '' === $type || 'npmp_event' === $type ) {
+		npmp_scheduled_emails_cancel_target( 'event', $post_id, __( 'Someone deleted the event.', 'nonprofit-manager' ) );
+	}
+	if ( '' === $type || 'npmp_newsletter' === $type ) {
+		npmp_scheduled_emails_cancel_target( 'list', $post_id, __( 'Someone deleted the newsletter.', 'nonprofit-manager' ) );
+	}
 }
-add_action( 'deleted_post', 'npmp_scheduled_emails_on_delete' );
+add_action( 'deleted_post', 'npmp_scheduled_emails_on_delete', 10, 2 );
 
 /**
  * A start date changed outside the editor (an import, a script): sync that
@@ -1267,26 +1284,55 @@ function npmp_scheduled_emails_sweep() {
 
 	npmp_scheduled_emails_recover_stuck( $now );
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated table, read fresh by a per-minute cron.
-	$due = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT * FROM {$table} WHERE status = 'pending' AND send_at <= %s ORDER BY send_at ASC, id ASC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
-			gmdate( 'Y-m-d H:i:s', $now )
-		)
-	);
+	$per_run   = (int) apply_filters( 'npmp_scheduled_emails_per_run', 10 );
+	$now_sql   = gmdate( 'Y-m-d H:i:s', $now );
+	$after_at  = '';
+	$after_id  = 0;
+	$looked_at = 0;
+	$sent      = 0;
 
-	$sent = 0;
-	foreach ( (array) $due as $row ) {
-		if ( $sent >= (int) apply_filters( 'npmp_scheduled_emails_per_run', 10 ) ) {
-			break;
+	// Rows that can't go yet (a group email while Pro is off) go back to
+	// pending and stay due. Page past them in send-time order, so 50 of them
+	// can't hold back every email behind them.
+	do {
+		if ( '' === $after_at ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated table, read fresh by a per-minute cron.
+			$due = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE status = 'pending' AND send_at <= %s ORDER BY send_at ASC, id ASC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+					$now_sql
+				)
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated table, read fresh by a per-minute cron.
+			$due = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE status = 'pending' AND send_at <= %s AND ( send_at > %s OR ( send_at = %s AND id > %d ) ) ORDER BY send_at ASC, id ASC LIMIT 50", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+					$now_sql,
+					$after_at,
+					$after_at,
+					$after_id
+				)
+			);
 		}
-		if ( ! npmp_scheduled_emails_claim( $row->id ) ) {
-			continue;
+		$due = (array) $due;
+
+		foreach ( $due as $row ) {
+			$after_at = (string) $row->send_at;
+			$after_id = (int) $row->id;
+			++$looked_at;
+			if ( $sent >= $per_run ) {
+				break 2;
+			}
+			if ( ! npmp_scheduled_emails_claim( $row->id ) ) {
+				continue;
+			}
+			if ( 'sent' === npmp_scheduled_emails_process_row( $row, $now ) ) {
+				++$sent;
+			}
 		}
-		if ( 'sent' === npmp_scheduled_emails_process_row( $row, $now ) ) {
-			++$sent;
-		}
-	}
+	} while ( 50 === count( $due ) && $looked_at < 500 );
+
 	return $sent;
 }
 add_action( 'npmp_scheduled_emails_sweep', 'npmp_scheduled_emails_sweep' );
@@ -1328,7 +1374,20 @@ function npmp_scheduled_emails_recover_stuck( $now ) {
 			continue;
 		}
 		if ( '' === (string) get_post_meta( $row->newsletter_id, '_npmp_newsletter_status', true ) ) {
-			$count = NPMP_Newsletter_Manager::queue_newsletter( $row->newsletter_id );
+			// A run that died partway through queue_newsletter() may have
+			// left rows the mail queue already sent from. Queuing again
+			// deletes and re-adds them, which mails those members twice, so
+			// count what's there and let the mail queue finish it.
+			$queue_table = $wpdb->prefix . 'npmp_newsletter_queue';
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dedicated queue table, fixed name.
+			$queued = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$queue_table} WHERE newsletter_id = %d", $row->newsletter_id ) );
+			if ( $queued ) {
+				$count = $queued;
+				update_post_meta( $row->newsletter_id, '_npmp_newsletter_status', 'queued' );
+				update_post_meta( $row->newsletter_id, '_npmp_newsletter_recipient_total', $queued );
+			} else {
+				$count = NPMP_Newsletter_Manager::queue_newsletter( $row->newsletter_id );
+			}
 		} else {
 			$count = (int) get_post_meta( $row->newsletter_id, '_npmp_newsletter_recipient_total', true );
 		}
@@ -2024,7 +2083,7 @@ function npmp_scheduled_emails_event_op( $event_id, $row, $key, $op ) {
 		$details  = npmp_scheduled_emails_event_details( $event_id );
 		$start_ts = $details['start'] ? npmp_scheduled_emails_local_to_ts( $details['start'] ) : 0;
 		if ( ! $start_ts || '' !== npmp_scheduled_emails_window_block( $start_ts, npmp_scheduled_emails_now() ) ) {
-			return new WP_Error( 'npmp_sched', __( 'The event starts within the hour, so an update can\'t go out now.', 'nonprofit-manager' ) );
+			return new WP_Error( 'npmp_sched', __( 'The event has started or starts within the hour, so an update can\'t go out now.', 'nonprofit-manager' ) );
 		}
 		$updates = get_post_meta( $event_id, '_npmp_sched_email_updates', true );
 		$updates = is_array( $updates ) ? $updates : array();
@@ -2327,6 +2386,8 @@ function npmp_render_scheduled_emails_page() {
 		echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 	}
 	echo '</tr></thead><tbody>';
+	// One query for every row's event or newsletter, not one per row.
+	_prime_post_caches( array_unique( array_map( 'intval', wp_list_pluck( $rows, 'target_id' ) ) ), false, false );
 	foreach ( $rows as $row ) {
 		$title = get_post_field( 'post_title', (int) $row->target_id, 'raw' );
 		$title = '' !== (string) $title ? $title : __( '(deleted)', 'nonprofit-manager' );

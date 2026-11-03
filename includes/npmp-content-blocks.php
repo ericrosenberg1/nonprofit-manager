@@ -153,7 +153,7 @@ function npmp_contact_form_shortcode( $atts ) {
 		$status = sanitize_key( wp_unslash( $_GET['npmp_contact'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$reason = isset( $_GET['npmp_contact_reason'] ) ? sanitize_key( wp_unslash( $_GET['npmp_contact_reason'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( 'success' === $status ) {
-			$banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html__( 'Thanks. Your message has been sent.', 'nonprofit-manager' ) . '</p></div>';
+			$banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html__( 'Thanks. We got your message.', 'nonprofit-manager' ) . '</p></div>';
 		} elseif ( 'error' === $status ) {
 			// Tell the sender what actually went wrong instead of one
 			// generic failure line for every cause.
@@ -161,9 +161,9 @@ function npmp_contact_form_shortcode( $atts ) {
 				'captcha' => __( 'Please complete the spam protection check and send your message again.', 'nonprofit-manager' ),
 				'email'   => __( 'Please enter a valid email address and try again.', 'nonprofit-manager' ),
 				'fields'  => __( 'Please fill in your name, email, and message, then try again.', 'nonprofit-manager' ),
-				'send'    => __( 'Your message could not be delivered. Please try again in a few minutes or email us directly.', 'nonprofit-manager' ),
+				'send'    => __( 'We couldn\'t send your message. Please try again in a few minutes or email us directly.', 'nonprofit-manager' ),
 			);
-			$text   = isset( $messages[ $reason ] ) ? $messages[ $reason ] : __( 'Sorry, your message could not be sent. Please check the fields and try again.', 'nonprofit-manager' );
+			$text   = isset( $messages[ $reason ] ) ? $messages[ $reason ] : __( 'We couldn\'t send your message. Please check the fields and try again.', 'nonprofit-manager' );
 			$banner = '<div class="npmp-form-banner npmp-status-error" role="alert"><p>' . esc_html( $text ) . '</p></div>';
 		}
 	}
@@ -196,6 +196,21 @@ function npmp_contact_form_shortcode( $atts ) {
 	return $html;
 }
 add_shortcode( 'npmp_contact_form', 'npmp_contact_form_shortcode' );
+
+/**
+ * The Reply-To header for a contact message. wp_mail() splits Reply-To on
+ * every comma, quoted or not, so a name like "Smith, Jo" turned into two
+ * broken addresses. The name keeps only characters that can't split or
+ * break the header.
+ *
+ * @param string $name  Sender name, already sanitized.
+ * @param string $email Sender email, already validated.
+ * @return string
+ */
+function npmp_contact_form_reply_to( $name, $email ) {
+	$name = trim( (string) preg_replace( '/\s+/', ' ', str_replace( array( ',', ';', '"', '<', '>', '\\' ), ' ', (string) $name ) ) );
+	return 'Reply-To: ' . ( '' !== $name ? $name . ' ' : '' ) . '<' . $email . '>';
+}
 
 /**
  * Handle a contact-form submission, then redirect back with a status flag.
@@ -254,7 +269,7 @@ function npmp_contact_form_handle() {
 		__( 'Email', 'nonprofit-manager' ),
 		$email
 	);
-	$headers = array( 'Reply-To: ' . $name . ' <' . $email . '>' );
+	$headers = array( npmp_contact_form_reply_to( $name, $email ) );
 
 	$sent = npmp_send_mail( $recipient, '[' . $site . '] ' . $headline, $body, $headers );
 

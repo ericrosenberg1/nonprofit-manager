@@ -256,6 +256,94 @@ $ok( 'pending before delete', 'pending' === $row( $h )->status );
 wp_delete_post( $h, true );
 $ok( 'deleted event cancels its row', 'cancelled' === $row( $h )->status );
 
+echo "A save never skips an email that's already due\n";
+$set_defaults( array( 'minutes_before' => 1440, 'late_mode' => 'send_if' ) );
+$k = $make( 'Due, cron is behind', $now + 20 * HOUR_IN_SECONDS );
+$rk = $row( $k );
+$ok( 'made 20 hours out: the late rule skips it', $rk && 'skipped' === $rk->status );
+$due_at = gmdate( 'Y-m-d H:i:s', $now - 120 );
+$wpdb->update( $table, array( 'status' => 'pending', 'send_at' => $due_at, 'note' => '' ), array( 'id' => $rk->id ) );
+wp_update_post( array( 'ID' => $k, 'post_title' => 'Due, cron is behind (fixed typo)' ) );
+$rk = $row( $k );
+$ok( 'a due row stays pending through a save', $rk && 'pending' === $rk->status );
+$ok( 'and keeps its send time', $rk && $due_at === $rk->send_at );
+update_post_meta( $k, '_npmp_event_start', $local( $now + 30 * DAY_IN_SECONDS ) );
+wp_update_post( array( 'ID' => $k ) );
+$rk = $row( $k );
+$ok( 'moving it a month out reschedules it', $rk && 'pending' === $rk->status && npmp_scheduled_emails_utc_to_ts( $rk->send_at ) > $now + 28 * DAY_IN_SECONDS );
+$wpdb->update( $table, array( 'status' => 'sent' ), array( 'id' => $rk->id ) );
+update_post_meta( $k, '_npmp_event_start', $local( $now + 20 * HOUR_IN_SECONDS ) );
+npmp_scheduled_emails_flush_dirty();
+npmp_scheduled_emails_event_op( $k, $row( $k ), npmp_scheduled_emails_row_key( 'default', 'all', 0 ), 'update' );
+wp_update_post( array( 'ID' => $k ) );
+$ok( 'a requested update survives a save', 'pending' === $row( $k )->status );
+wp_delete_post( $k, true );
+
+echo "Rows that can't go yet don't hold up the rest\n";
+$wpdb->query( "UPDATE {$table} SET status = 'cancelled' WHERE status = 'pending'" );
+$m = wp_insert_post( array( 'post_type' => 'npmp_newsletter', 'post_status' => 'publish', 'post_title' => 'Group news', 'post_content' => '<p>Hi</p>' ) );
+for ( $rig_i = 0; $rig_i < 55; $rig_i++ ) {
+	npmp_scheduled_emails_insert_row(
+		array(
+			'target_type'   => 'list',
+			'target_id'     => $m,
+			'rule_key'      => 'g' . $rig_i,
+			'audience_type' => 'group',
+			'audience_id'   => 7,
+			'send_at'       => gmdate( 'Y-m-d H:i:s', $now - 3600 ),
+		)
+	);
+}
+$o = wp_insert_post( array( 'post_type' => 'npmp_newsletter', 'post_status' => 'publish', 'post_title' => 'Everyone news', 'post_content' => '<p>Hi</p>' ) );
+npmp_scheduled_emails_insert_row(
+	array(
+		'target_type' => 'list',
+		'target_id'   => $o,
+		'rule_key'    => 'send_later',
+		'send_at'     => gmdate( 'Y-m-d H:i:s', $now - 60 ),
+	)
+);
+do_action( 'npmp_scheduled_emails_sweep' );
+$ok( 'an email behind 55 waiting group rows still goes out', 'sent' === $row( $o, 'send_later', 'list' )->status );
+$ok( 'the group rows still wait', 55 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE target_type = 'list' AND target_id = %d AND status = 'pending'", $m ) ) );
+$wpdb->delete( $table, array( 'target_type' => 'list', 'target_id' => $m ) );
+
+echo "A run that died mid-queue never mails anyone twice\n";
+$q = wp_insert_post( array( 'post_type' => 'npmp_newsletter', 'post_status' => 'publish', 'post_title' => 'Half queued', 'post_content' => '<p>Hi</p>' ) );
+update_post_meta( $q, '_npmp_newsletter_levels', array( '__all__' ) );
+$wpdb->insert( $queue, array( 'newsletter_id' => $q, 'user_id' => 0, 'email' => 'ann@example.org', 'status' => 'sent', 'queued_at' => current_time( 'mysql' ) ) );
+$wpdb->insert( $queue, array( 'newsletter_id' => $q, 'user_id' => 0, 'email' => 'bob@example.org', 'status' => 'pending', 'queued_at' => current_time( 'mysql' ) ) );
+$stuck_id = npmp_scheduled_emails_insert_row(
+	array(
+		'target_type'   => 'list',
+		'target_id'     => $q,
+		'rule_key'      => 'send_later',
+		'status'        => 'sending',
+		'newsletter_id' => $q,
+		'send_at'       => gmdate( 'Y-m-d H:i:s', $now - 3600 ),
+	)
+);
+$wpdb->update( $table, array( 'updated_at' => gmdate( 'Y-m-d H:i:s', $now - 20 * MINUTE_IN_SECONDS ) ), array( 'id' => $stuck_id ) );
+do_action( 'npmp_scheduled_emails_sweep' );
+$rq = npmp_scheduled_emails_get_row( $stuck_id );
+$ok( 'the stuck row counts as sent', $rq && 'sent' === $rq->status && 2 === (int) $rq->recipient_count );
+$ok( 'the queue keeps its two rows', 2 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$queue} WHERE newsletter_id = %d", $q ) ) );
+$ok( 'and Ann stays sent', 'sent' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$queue} WHERE newsletter_id = %d AND email = %s", $q, 'ann@example.org' ) ) );
+
+echo "Deleting another post leaves the rows alone\n";
+$plain   = wp_insert_post( array( 'post_type' => 'post', 'post_status' => 'draft', 'post_title' => 'Plain post' ) );
+$plain_r = npmp_scheduled_emails_insert_row(
+	array(
+		'target_type' => 'event',
+		'target_id'   => $plain,
+		'rule_key'    => 'stray',
+		'send_at'     => gmdate( 'Y-m-d H:i:s', $now + DAY_IN_SECONDS ),
+	)
+);
+wp_delete_post( $plain, true );
+$ok( 'a deleted blog post cancels nothing', 'pending' === npmp_scheduled_emails_get_row( $plain_r )->status );
+$wpdb->delete( $table, array( 'id' => $plain_r ) );
+
 echo "Bodies stay out of the newsletter lists\n";
 $seeded = get_option( 'npmp_scheduled_email_bodies' );
 $ok( 'two bodies seeded', is_array( $seeded ) && 2 === count( array_filter( $seeded ) ) );

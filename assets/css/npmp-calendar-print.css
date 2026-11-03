@@ -151,6 +151,20 @@
 		break-inside: avoid;
 	}
 
+	/* Paper has room for the full weekday name, even printed from a phone. */
+	.npmp-calendar-weekday-full {
+		position: static !important;
+		width: auto !important;
+		height: auto !important;
+		margin: 0 !important;
+		overflow: visible !important;
+		clip: auto !important;
+	}
+
+	.npmp-calendar-weekday-short {
+		display: none !important;
+	}
+
 	.npmp-calendar-table th {
 		padding: 1mm;
 		font-size: 8pt;

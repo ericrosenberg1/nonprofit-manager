@@ -232,6 +232,12 @@
 	color: #fff;
 }
 
+/* Weekday headings carry the full and the short name. Phones show the
+ * short one, since "Wednesday" ran into the next column at 375px. */
+.npmp-calendar-weekday-short {
+	display: none;
+}
+
 /* Week view: taller cells, weekday + date in the header */
 .npmp-calendar-wrapper[data-view="week"] .npmp-calendar-day {
 	height: 11rem;
@@ -667,13 +673,53 @@
 	}
 
 	.npmp-calendar-table th {
-		font-size: 0.65rem;
-		padding: 0.4rem 0.15rem;
+		font-size: 0.7rem;
+		padding: 0.4rem 0.1rem;
+		letter-spacing: 0;
+		overflow: hidden;
 	}
 
+	/* Off screen but still read aloud: the short name is aria-hidden. */
+	.npmp-calendar-weekday-full {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.npmp-calendar-weekday-short {
+		display: inline;
+	}
+
+	/* A seventh of a phone fits a few letters a line. The time gets its own
+	 * line and long titles wrap mid-word instead of trailing off after one
+	 * letter. */
 	.npmp-calendar-events a {
-		font-size: 0.75rem;
+		padding: 0.15rem 0.2rem;
+		font-size: 0.7rem;
+		line-height: 1.2;
 		white-space: normal;
+		text-overflow: clip;
+		overflow-wrap: anywhere;
+		border-left-width: 2px;
+	}
+
+	.npmp-calendar-event-time {
+		display: block;
+		overflow-wrap: normal;
+	}
+
+	.npmp-calendar-event-title {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 	}
 
 	/* Week view stacks into a readable day-by-day list on phones. */
