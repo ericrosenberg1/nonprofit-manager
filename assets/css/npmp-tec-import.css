@@ -1,0 +1,114 @@
+/* The Events Calendar importer screen (includes/import/tec-importer.php). */
+
+.npmp-tec-wrap {
+	max-width: 1100px;
+}
+
+.npmp-tec-progress-line {
+	font-size: 14px;
+	font-weight: 600;
+	color: #0f766e;
+	margin: 8px 0 4px;
+}
+
+.npmp-tec-steps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 20px;
+	list-style: decimal inside;
+	margin: 0 0 20px;
+	padding: 0;
+	color: #646970;
+}
+
+.npmp-tec-steps li {
+	margin: 0;
+}
+
+.npmp-tec-steps .is-current {
+	color: #111827;
+	font-weight: 600;
+}
+
+.npmp-tec-steps .is-done {
+	color: #0f766e;
+}
+
+.npmp-tec-bar {
+	max-width: 520px;
+	height: 14px;
+	background: #ecfdf5;
+	border: 1px solid #a7f3d0;
+	border-radius: 8px;
+	overflow: hidden;
+	margin: 16px 0 6px;
+}
+
+.npmp-tec-bar-fill {
+	width: 0;
+	height: 100%;
+	background: #0f766e;
+	transition: width 0.2s ease;
+}
+
+.npmp-tec-bar-text.is-error {
+	color: #b32d2e;
+}
+
+.npmp-tec-table-wrap {
+	max-height: 60vh;
+	overflow: auto;
+	border: 1px solid #c3c4c7;
+}
+
+.npmp-tec-table-wrap .widefat {
+	border: 0;
+}
+
+.npmp-tec-table .check-column {
+	width: 2.2em;
+	padding-left: 10px;
+}
+
+.npmp-tec-imported td {
+	color: #646970;
+}
+
+.npmp-tec-badge,
+.npmp-tec-status {
+	display: inline-block;
+	padding: 0 8px;
+	border-radius: 8px;
+	font-size: 12px;
+	line-height: 20px;
+	white-space: nowrap;
+}
+
+.npmp-tec-badge {
+	background: #ecfdf5;
+	border: 1px solid #a7f3d0;
+	color: #0f766e;
+	text-decoration: none;
+}
+
+.npmp-tec-status {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.npmp-tec-left {
+	margin: 12px 0;
+}
+
+.npmp-tec-reset {
+	margin-top: 32px;
+	padding-top: 12px;
+	border-top: 1px solid #dcdcde;
+}
+
+@media (max-width: 600px) {
+	.npmp-tec-table th:nth-child(4),
+	.npmp-tec-table td:nth-child(4) {
+		display: none;
+	}
+}

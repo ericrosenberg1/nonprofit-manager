@@ -916,6 +916,11 @@ function npmp_import_render_page() {
 		<h1><?php esc_html_e( 'Import Members', 'nonprofit-manager' ); ?></h1>
 		<p class="description"><?php esc_html_e( 'Import your members or email subscribers from a file or another service.', 'nonprofit-manager' ); ?></p>
 
+		<?php
+		/** Other importers add an entry point here, such as The Events Calendar's (includes/import/tec-importer.php). */
+		do_action( 'npmp_import_page_notices' );
+		?>
+
 		<?php wp_nonce_field( 'npmp_import_nonce', 'npmp_import_nonce' ); ?>
 
 		<!-- ========== STEP 1: Choose Source ========== -->
