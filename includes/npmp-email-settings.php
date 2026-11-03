@@ -979,6 +979,28 @@ class NPMP_Member_Manager {
 	}
 
 	/**
+	 * Contact IDs whose name, notes, email, or tags contain the search text.
+	 *
+	 * @param string $search Search text.
+	 * @return int[] Never empty, so WP_Query matches nothing on no hits.
+	 */
+	private function search_member_ids( $search ) {
+		global $wpdb;
+		$like = '%' . $wpdb->esc_like( (string) $search ) . '%';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One search query per list load.
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT p.ID FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key IN ( 'npmp_email', 'npmp_tags' ) WHERE p.post_type = 'npmp_contact' AND ( p.post_title LIKE %s OR p.post_content LIKE %s OR m.meta_value LIKE %s )",
+				$like,
+				$like,
+				$like
+			)
+		);
+		$ids = array_map( 'intval', (array) $ids );
+		return $ids ? $ids : array( 0 );
+	}
+
+	/**
 	 * Build WP_Query arguments for member lookups.
 	 *
 	 * @param array $args Raw arguments.
@@ -1048,20 +1070,9 @@ class NPMP_Member_Manager {
 		}
 
 		if ( $args['search'] ) {
-			$query['s'] = $args['search'];
-			$meta_query[] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => 'npmp_email',
-					'value'   => $args['search'],
-					'compare' => 'LIKE',
-				),
-				array(
-					'key'     => 'npmp_tags',
-					'value'   => $args['search'],
-					'compare' => 'LIKE',
-				),
-			);
+			// Match the name, notes, email, or tags. WordPress's 's' ANDs with a
+			// meta_query, so "Smith" used to miss Jane Smith at jane.doe@.
+			$query['post__in'] = $this->search_member_ids( $args['search'] );
 		}
 
 		if ( count( $meta_query ) > 1 ) {
