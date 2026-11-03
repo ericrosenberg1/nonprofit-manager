@@ -53,7 +53,7 @@ function npmp_recaptcha_enqueue_script() {
 	if ( ! wp_script_is( $handle, 'registered' ) ) {
 		wp_register_script(
 			$handle,
-			'https://www.google.com/recaptcha/api.js?render=' . $site_key,
+			'https://www.google.com/recaptcha/api.js?render=' . rawurlencode( $site_key ),
 			array(),
 			null,
 			true

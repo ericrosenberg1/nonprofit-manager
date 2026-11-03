@@ -301,14 +301,31 @@ function npmp_render_quick_add_event_widget() {
 		$location = sanitize_text_field( wp_unslash( $_POST['npmp_event_location'] ?? '' ) );
 
 		if ( ! $title ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'Event title is required.', 'nonprofit-manager' ) . '</p></div>';
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Give the event a title.', 'nonprofit-manager' ) . '</p></div>';
 		} else {
-			// Create the event post
+			// The start and location go in through meta_input so they exist
+			// before save_post fires. They used to be written afterwards, so
+			// the scheduled-email sync on save_post saw an event with no
+			// start and never queued its email.
+			$meta = array();
+			if ( $datetime ) {
+				// datetime-local sends the site's wall-clock time, which is
+				// how the Event Details box stores it too.
+				$start = date_create_immutable_from_format( 'Y-m-d\TH:i', $datetime, wp_timezone() );
+				if ( $start ) {
+					$meta['_npmp_event_start'] = $start->format( 'Y-m-d H:i:00' );
+				}
+			}
+			if ( $location ) {
+				$meta['_npmp_event_location'] = $location;
+			}
+
 			$post_id = wp_insert_post(
 				array(
 					'post_type'   => 'npmp_event',
 					'post_title'  => $title,
 					'post_status' => 'publish',
+					'meta_input'  => $meta,
 				),
 				true
 			);
@@ -316,19 +333,7 @@ function npmp_render_quick_add_event_widget() {
 			if ( is_wp_error( $post_id ) ) {
 				echo '<div class="notice notice-error"><p>' . esc_html( $post_id->get_error_message() ) . '</p></div>';
 			} else {
-				// Save event meta
-				if ( $datetime ) {
-					$timestamp = strtotime( $datetime );
-					if ( $timestamp ) {
-						update_post_meta( $post_id, '_npmp_event_start', gmdate( 'Y-m-d H:i:s', $timestamp ) );
-					}
-				}
-
-				if ( $location ) {
-					update_post_meta( $post_id, '_npmp_event_location', $location );
-				}
-
-				echo '<div class="notice notice-success"><p>' . esc_html__( 'Event created successfully!', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ) . '">' . esc_html__( 'Edit event', 'nonprofit-manager' ) . '</a></p></div>';
+				echo '<div class="notice notice-success"><p>' . esc_html__( 'Event created.', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ) . '">' . esc_html__( 'Edit event', 'nonprofit-manager' ) . '</a></p></div>';
 			}
 		}
 	}
@@ -494,7 +499,9 @@ function npmp_get_ytd_donation_totals_by_currency() {
 
 	global $wpdb;
 
-	$current_year = (int) gmdate( 'Y' );
+	// post_date is the site's local time, so the year has to be too. On
+	// New Year's Eve in Los Angeles, gmdate() had already moved on.
+	$current_year = (int) wp_date( 'Y' );
 
 	// Sum in SQL rather than loading every donation ID and its meta into PHP.
 	// This runs on every wp-admin Dashboard load, and the old version returned
@@ -547,26 +554,32 @@ function npmp_get_annual_recurring_totals_by_currency() {
 
 	global $wpdb;
 
-	// Group the sum by frequency and currency in SQL and convert the handful
-	// of resulting rows in PHP, instead of loading every recurring donation
-	// ever recorded and its meta to add them one at a time on each Dashboard
-	// load.
+	// Pro records every renewal as its own donation, so summing every
+	// recurring gift ever made counted a monthly donor of two years 24
+	// times over. The figure is a run rate instead: each donor's latest
+	// gift at each frequency and currency, kept only while it's still due
+	// to renew (npmp_recurring_gift_is_current()), annualised once.
 	//
-	// The INNER JOIN on the frequency meta reproduces what the meta_query did:
-	// WordPress's "!=" compare only matches posts that actually have the key,
-	// so a donation with no frequency stored was excluded before and still is.
+	// One row per donor, frequency, and currency, with the amount of that
+	// donor's most recent gift by date (an import can add old gifts with
+	// new IDs, so the highest ID isn't always the latest). A gift with no
+	// email counts on its own.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, nothing worth caching.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT f.meta_value AS frequency, COALESCE( c.meta_value, '' ) AS currency, SUM(a.meta_value + 0) AS total
+			"SELECT f.meta_value AS frequency, COALESCE( c.meta_value, '' ) AS currency,
+				SUBSTRING_INDEX( GROUP_CONCAT( a.meta_value ORDER BY p.post_date_gmt DESC, p.ID DESC SEPARATOR '|' ), '|', 1 ) AS amount,
+				MAX( p.post_date_gmt ) AS gift_date
 			 FROM {$wpdb->posts} p
 			 INNER JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s
 			 INNER JOIN {$wpdb->postmeta} a ON a.post_id = p.ID AND a.meta_key = %s
+			 LEFT JOIN {$wpdb->postmeta} e ON e.post_id = p.ID AND e.meta_key = %s
 			 LEFT JOIN {$wpdb->postmeta} c ON c.post_id = p.ID AND c.meta_key = %s
 			 WHERE p.post_type = %s AND p.post_status = 'publish' AND f.meta_value != %s
-			 GROUP BY f.meta_value, COALESCE( c.meta_value, '' )",
+			 GROUP BY COALESCE( NULLIF( LOWER( e.meta_value ), '' ), CONCAT( '#', p.ID ) ), f.meta_value, COALESCE( c.meta_value, '' )",
 			NPMP_Donation_Manager::META_FREQUENCY,
 			NPMP_Donation_Manager::META_AMOUNT,
+			NPMP_Donation_Manager::META_EMAIL,
 			NPMP_Donation_Manager::META_CURRENCY,
 			NPMP_Donation_Manager::POST_TYPE,
 			'one_time'
@@ -574,15 +587,64 @@ function npmp_get_annual_recurring_totals_by_currency() {
 		ARRAY_A
 	);
 
-	if ( ! is_array( $rows ) ) {
-		return array();
-	}
+	$totals = npmp_recurring_run_rate_totals( is_array( $rows ) ? $rows : array(), time() );
 
+	/**
+	 * Filters the Dashboard's annual recurring totals.
+	 *
+	 * @param array<string,float> $totals Currency => yearly run rate.
+	 * @param array               $rows   Each donor's latest recurring gift:
+	 *                                    frequency, currency, amount, gift_date (UTC).
+	 */
+	return (array) apply_filters( 'npmp_annual_recurring_totals', $totals, $rows );
+}
+
+/**
+ * Whether a recurring gift is recent enough that its donor is still giving.
+ *
+ * A gift counts until one billing period plus some grace has passed, so a
+ * monthly donor whose card failed last week still counts and one who
+ * cancelled in the spring doesn't.
+ *
+ * @param string $frequency Stored frequency value.
+ * @param int    $gift_ts   When the gift was recorded, Unix time.
+ * @param int    $now       Current Unix time.
+ * @return bool
+ */
+function npmp_recurring_gift_is_current( $frequency, $gift_ts, $now ) {
+	$days = array(
+		'weekly'    => 14,
+		'monthly'   => 45,
+		'quarterly' => 100,
+		'annual'    => 380,
+		'yearly'    => 380,
+	);
+	$key  = strtolower( trim( (string) $frequency ) );
+	if ( ! isset( $days[ $key ] ) || $gift_ts <= 0 ) {
+		return false;
+	}
+	return ( $now - $gift_ts ) <= $days[ $key ] * 86400;
+}
+
+/**
+ * Turn each donor's latest recurring gift into yearly totals per currency.
+ *
+ * @param array $rows Rows with frequency, currency, amount, and gift_date
+ *                    (UTC, Y-m-d H:i:s).
+ * @param int   $now  Current Unix time.
+ * @return array<string,float> Currency => yearly total.
+ */
+function npmp_recurring_run_rate_totals( array $rows, $now ) {
 	$annualised = array();
 	foreach ( $rows as $row ) {
+		$row     = (array) $row;
+		$gift_ts = isset( $row['gift_date'] ) ? strtotime( $row['gift_date'] . ' UTC' ) : false;
+		if ( ! $gift_ts || ! npmp_recurring_gift_is_current( (string) ( $row['frequency'] ?? '' ), (int) $gift_ts, (int) $now ) ) {
+			continue;
+		}
 		$annualised[] = array(
-			'currency' => $row['currency'],
-			'total'    => npmp_annualize_donation_amount( (float) $row['total'], (string) $row['frequency'] ),
+			'currency' => (string) ( $row['currency'] ?? '' ),
+			'total'    => npmp_annualize_donation_amount( (float) ( $row['amount'] ?? 0 ), (string) $row['frequency'] ),
 		);
 	}
 

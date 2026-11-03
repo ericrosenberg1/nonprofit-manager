@@ -5,10 +5,15 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 	/**
 	 * Render the CAN-SPAM footer content.
 	 *
+	 * @param array|string $atts newsletter_id and email of the message being
+	 *                           built. Blank in the [npmp_can_spam] shortcode.
 	 * @return string
 	 */
-	function npmp_can_spam_shortcode() {
-		$footer = get_option( 'npmp_newsletter_can_spam_footer' );
+	function npmp_can_spam_shortcode( $atts = array() ) {
+		$atts          = is_array( $atts ) ? $atts : array();
+		$newsletter_id = isset( $atts['newsletter_id'] ) ? absint( $atts['newsletter_id'] ) : 0;
+		$email         = isset( $atts['email'] ) ? sanitize_email( (string) $atts['email'] ) : '';
+		$footer        = get_option( 'npmp_newsletter_can_spam_footer' );
 
 		$replacements = array(
 			'[organization]'    => esc_html( get_bloginfo( 'name' ) ),
@@ -21,6 +26,20 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 			array_values( $replacements ),
 			wp_kses_post( $footer )
 		);
+
+		/**
+		 * Filter extra links that sit right after the footer's unsubscribe
+		 * line. Pro adds "Leave [group] emails" for a group newsletter.
+		 * Return HTML (it goes through wp_kses_post()).
+		 *
+		 * @param string $html          Extra footer HTML ('' in free).
+		 * @param int    $newsletter_id Newsletter ID (0 outside a send).
+		 * @param string $email         Recipient address ('' outside a send).
+		 */
+		$links = (string) apply_filters( 'npmp_newsletter_footer_links', '', $newsletter_id, $email );
+		if ( '' !== trim( $links ) ) {
+			$footer_html .= '<p class="npmp-footer-links">' . wp_kses_post( $links ) . '</p>';
+		}
 
 		// Attribution billboard. Rides the newsletter footer so every send
 		// seeds discovery. Free always shows it. Pro can remove it.

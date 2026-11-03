@@ -176,22 +176,27 @@ function npmp_render_membership_dashboard() {
 		if ( $new && ! in_array( $new, $levels, true ) ) {
 			$levels[] = $new;
 			update_option( $levels_option, $levels );
-			echo '<div class="notice notice-success"><p>' . esc_html__( 'Segment added.', 'nonprofit-manager' ) . '</p></div>';
+			echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s added.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
 		}
 	}
 
 	if ( $can_edit_tiers && ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$slug   = sanitize_text_field( wp_unslash( $_POST['level_slug'] ) );
-		$levels = array_diff( $levels, array( $slug ) );
+		$levels = array_values( array_diff( $levels, array( $slug ) ) );
 		update_option( $levels_option, $levels );
-		echo '<div class="notice notice-success"><p>' . esc_html__( 'Segment removed.', 'nonprofit-manager' ) . '</p></div>';
+		// A removed level can't stay the default for new signups.
+		if ( get_option( 'npmp_default_membership_level', '' ) === $slug ) {
+			update_option( 'npmp_default_membership_level', '' );
+		}
+		echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s removed.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
 	}
 
-	// Get tier counts
+	// Tier counts from one grouped query instead of one query per level.
 	$tier_counts = array();
 	if ( ! empty( $levels ) ) {
+		$by_level = $member_manager->count_by_level();
 		foreach ( $levels as $tier ) {
-			$tier_counts[ $tier ] = $member_manager->count_members_by_tier( $tier );
+			$tier_counts[ $tier ] = (int) ( $by_level[ $tier ] ?? 0 );
 		}
 	}
 
@@ -229,7 +234,9 @@ function npmp_render_membership_dashboard() {
 	// Status breakdown
 	foreach ( $available_status as $status_key => $label ) {
 		$total = isset( $status_counts[ $status_key ] ) ? (int) $status_counts[ $status_key ] : 0;
-		if ( $total > 0 || 'active' === $status_key ) { // Always show active, others only if > 0
+		// Always show Active (stored as 'subscribed'), others only when > 0.
+		// The check named 'active', a key that doesn't exist.
+		if ( $total > 0 || 'subscribed' === $status_key ) {
 			$url = add_query_arg(
 				array(
 					'page'   => 'npmp_members',
@@ -408,12 +415,16 @@ function npmp_handle_member_list_actions() {
 
 			/**
 			 * Fires after a contact is saved from the admin edit screen.
-			 * Pro persists custom-field inputs here.
+			 * Pro persists custom-field inputs here, and its groups feature
+			 * saves the group checkboxes from the raw request.
 			 *
 			 * @param string $entity_type Always 'member' on this screen.
 			 * @param int    $entity_id   Contact post ID.
+			 * @param array  $data        The sanitized `member[...]` fields that were saved.
+			 * @param array  $request     The whole unslashed POST (nonce and capability
+			 *                            already checked). Sanitize what you read.
 			 */
-			do_action( 'npmp_member_saved', 'member', (int) $result );
+			do_action( 'npmp_member_saved', 'member', (int) $result, $data, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read, as the docblock says.
 
 			wp_safe_redirect(
 				add_query_arg(
@@ -435,7 +446,7 @@ function npmp_handle_member_list_actions() {
 
 			if ( ! is_wp_error( $result ) ) {
 				/** This action is documented above for the create branch. */
-				do_action( 'npmp_member_saved', 'member', $member_id );
+				do_action( 'npmp_member_saved', 'member', $member_id, $data, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read.
 			}
 
 			if ( is_wp_error( $result ) ) {
@@ -461,6 +472,42 @@ function npmp_handle_member_list_actions() {
 						'action'  => 'view',
 						'id'      => $member_id,
 						'message' => 'updated',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+			exit;
+		}
+
+		// An extra bulk action from the "Bulk actions" menu (Pro's "Add to
+		// group" and "Remove from group"). The Apply button posts the same
+		// form as Delete Selected, so it's told apart by its own field.
+		if ( 'bulk_delete' === $posted_action && ! empty( $_POST['npmp_members_bulk_apply'] ) ) {
+			$bulk_action = isset( $_POST['npmp_members_bulk_action'] ) ? sanitize_key( wp_unslash( $_POST['npmp_members_bulk_action'] ) ) : '';
+			$ids         = array_values( array_filter( array_map( 'absint', (array) wp_unslash( $_POST['member_ids'] ?? array() ) ) ) );
+			$count       = 0;
+
+			if ( '' !== $bulk_action && array_key_exists( $bulk_action, npmp_members_bulk_actions() ) && $ids ) {
+				/**
+				 * Handle a bulk action added through `npmp_members_bulk_actions`.
+				 * Return the number of contacts you changed. Free then sends the
+				 * browser back to the list with a "N contacts updated" notice.
+				 *
+				 * @param int    $count   Contacts changed so far (0).
+				 * @param string $action  The bulk action key.
+				 * @param int[]  $ids     Checked contact IDs.
+				 * @param array  $request The whole unslashed POST (nonce and capability
+				 *                        already checked). Sanitize what you read.
+				 */
+				$count = (int) apply_filters( 'npmp_members_handle_bulk_action', 0, $bulk_action, $ids, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read.
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'    => 'npmp_members',
+						'message' => 'bulk_applied',
+						'deleted' => max( 0, $count ),
 					),
 					admin_url( 'admin.php' )
 				)
@@ -576,6 +623,16 @@ function npmp_render_members_page() {
 						$count
 					);
 				break;
+			case 'bulk_applied':
+				$classes[] = 'notice-success';
+				$text      = 0 === $deleted
+					? __( 'No contacts changed.', 'nonprofit-manager' )
+					: sprintf(
+						/* translators: %d is the number of contacts a bulk action changed. */
+						_n( '%d contact updated.', '%d contacts updated.', $deleted, 'nonprofit-manager' ),
+						$deleted
+					);
+				break;
 			case 'error':
 				$classes[] = 'notice-error';
 				$text      = $error_text ? $error_text : __( 'There was a problem processing your request.', 'nonprofit-manager' );
@@ -658,6 +715,17 @@ function npmp_render_member_list_table( $context ) {
 		'per_page' => $per_page,
 	);
 
+	/**
+	 * Filter the arguments the Member List passes to
+	 * NPMP_Member_Manager::get_members() and count_members(). Pro adds
+	 * `'group' => term ID or slug` from its `group` request var, and the
+	 * manager's `npmp_members_query_args` filter turns that into a tax_query.
+	 *
+	 * @param array $query_args status, level, tag, search, orderby, order, paged, per_page.
+	 * @param array $request    The unslashed GET for this screen. Sanitize what you read.
+	 */
+	$query_args = (array) apply_filters( 'npmp_members_list_query_args', $query_args, wp_unslash( $_GET ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only list filters. Listeners sanitize what they read.
+
 	$members     = $member_manager->get_members( $query_args );
 	$total_items = $member_manager->count_members( $query_args );
 	$total_pages = max( 1, (int) ceil( $total_items / $per_page ) );
@@ -682,6 +750,15 @@ function npmp_render_member_list_table( $context ) {
 		if ( $search ) {
 			$base_args['s'] = $search;
 		}
+
+		/**
+		 * Filter the query vars every sort and page link on the Member List
+		 * keeps. Pro adds its `group` var so paging through a group's
+		 * members stays in that group.
+		 *
+		 * @param array $base_args Query vars (page, status, level, tag, s).
+		 */
+		$base_args = (array) apply_filters( 'npmp_members_list_url_args', $base_args );
 
 		return add_query_arg( array_merge( $base_args, $args ), $list_url );
 	};
@@ -727,9 +804,10 @@ function npmp_render_member_list_table( $context ) {
 	}
 	echo '</select> ';
 
-	echo '<label for="npmp-member-level" style="margin-left:10px;">' . esc_html__( 'Segment', 'nonprofit-manager' ) . '</label> ';
+	// "Segment" is Pro's saved-filter feature. This menu is the level.
+	echo '<label for="npmp-member-level" style="margin-left:10px;">' . esc_html( npmp_label( 'level' ) ) . '</label> ';
 	echo '<select name="level" id="npmp-member-level">';
-	echo '<option value="">' . esc_html__( 'All segments', 'nonprofit-manager' ) . '</option>';
+	echo '<option value="">' . esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'All %s', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ) . '</option>';
 	foreach ( $levels as $segment ) {
 		echo '<option value="' . esc_attr( $segment ) . '"' . selected( $level, $segment, false ) . '>' . esc_html( $segment ) . '</option>';
 	}
@@ -743,25 +821,55 @@ function npmp_render_member_list_table( $context ) {
 	}
 	echo '</select> ';
 
+	/**
+	 * Fires in the Member List filter bar, after the Tag menu and before the
+	 * Filter button. Print labelled inputs. They submit with the GET form, so
+	 * read them back in `npmp_members_list_query_args`. Pro renders its Group
+	 * menu here, and free shows a greyed one.
+	 *
+	 * @param array $request The unslashed GET for this screen. Sanitize what you read.
+	 */
+	do_action( 'npmp_members_filter_bar', wp_unslash( $_GET ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only list filters. Listeners sanitize what they read.
+
 	submit_button( __( 'Filter', 'nonprofit-manager' ), '', '', false, array( 'style' => 'margin-left:10px;' ) );
 	echo ' <a class="button" href="' . esc_url( $list_url ) . '">' . esc_html__( 'Reset', 'nonprofit-manager' ) . '</a>';
 	echo '</form>';
+
+	/** This action is documented in includes/npmp-pro-feature-pages.php. */
+	do_action( 'npmp_admin_table_toolbar', 'members', array( 'query_args' => $query_args, 'request' => wp_unslash( $_GET ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only list filters. Listeners sanitize what they read.
+
+	/**
+	 * Filter extra Member List columns. Return `key => header label`. Each
+	 * row then fires `npmp_members_list_column` once per key. Pro adds a
+	 * Groups column.
+	 *
+	 * @param array $columns Extra columns (none in free).
+	 */
+	$extra_columns = (array) apply_filters( 'npmp_members_list_columns', array() );
 
 	echo '<form method="post">';
 	wp_nonce_field( 'npmp_manage_members', 'npmp_members_nonce' );
 	echo '<input type="hidden" name="npmp_members_action" value="bulk_delete">';
 
+	// Right-align amounts on wide screens only. At phone width the cell
+	// shows its label on the left, and right alignment pushed the label too.
+	echo '<style>@media screen and (min-width: 783px) { .npmp-col-amount { text-align: right; } }</style>';
 	echo '<table class="wp-list-table widefat fixed striped">';
 	echo '<thead><tr>';
 	echo '<td class="check-column"><input type="checkbox" id="npmp-members-select-all"></td>';
-	echo '<th>' . wp_kses_post( $sort_link( 'name', __( 'Name', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th scope="col" class="column-primary">' . wp_kses_post( $sort_link( 'name', __( 'Name', 'nonprofit-manager' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . wp_kses_post( $sort_link( 'membership_level', __( 'Segment', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th>' . wp_kses_post( $sort_link( 'membership_level', npmp_label( 'level' ) ) ) . '</th>';
 	echo '<th>' . wp_kses_post( $sort_link( 'status', __( 'Status', 'nonprofit-manager' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</th>';
 	echo '<th style="width:110px;">' . wp_kses_post( $sort_link( 'donation_total', __( 'Lifetime Value', 'nonprofit-manager' ) ) ) . '</th>';
-	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'last_donation_at', sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) ) . '</th>';
+	/* translators: %s: singular word for a donation, such as Donation or Contribution. */
+	$last_label = sprintf( __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) );
+	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'last_donation_at', $last_label ) ) . '</th>';
 	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'created_at', __( 'Added', 'nonprofit-manager' ) ) ) . '</th>';
+	foreach ( $extra_columns as $column_label ) {
+		echo '<th>' . esc_html( $column_label ) . '</th>';
+	}
 	echo '<th style="width:120px;">' . esc_html__( 'Actions', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
 
@@ -798,21 +906,35 @@ function npmp_render_member_list_table( $context ) {
 			$last_donation  = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : '—';
 			$created_at     = $member->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) : '—';
 
+			// column-primary, the toggle, and data-colname let WordPress fold
+			// the row at phone width (name first, the rest behind the arrow,
+			// each cell labelled). Without them every cell stacked unlabelled.
 			echo '<tr>';
-			echo '<th class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
-			echo '<td><strong><a href="' . esc_url( $view_url ) . '">' . esc_html( $member->name ?: $member->email ) . '</a></strong></td>';
-			echo '<td><a href="mailto:' . esc_attr( $member->email ) . '">' . esc_html( $member->email ) . '</a></td>';
-			echo '<td>' . esc_html( $member->membership_level ?: '—' ) . '</td>';
-			echo '<td>' . esc_html( $status_label ) . '</td>';
-				echo '<td>' . ( $tag_display ? wp_kses_post( implode( ' ', $tag_display ) ) : '&mdash;' ) . '</td>';
-			echo '<td style="text-align:right;">' . wp_kses_post( $donation_label ) . '</td>';
-			echo '<td>' . esc_html( $last_donation ) . '</td>';
-			echo '<td>' . esc_html( $created_at ) . '</td>';
-			echo '<td><a href="' . esc_url( $view_url ) . '">' . esc_html__( 'View', 'nonprofit-manager' ) . '</a> | <a href="' . esc_url( $delete_url ) . '" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\')">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a></td>';
+			echo '<th scope="row" class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
+			echo '<td class="column-primary"><strong><a href="' . esc_url( $view_url ) . '">' . esc_html( $member->name ?: $member->email ) . '</a></strong><button type="button" class="toggle-row"><span class="screen-reader-text">' . esc_html__( 'Show more details', 'nonprofit-manager' ) . '</span></button></td>';
+			echo '<td data-colname="' . esc_attr__( 'Email', 'nonprofit-manager' ) . '"><a href="' . esc_url( 'mailto:' . $member->email ) . '">' . esc_html( $member->email ) . '</a></td>';
+			echo '<td data-colname="' . esc_attr( npmp_label( 'level' ) ) . '">' . esc_html( $member->membership_level ?: '—' ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Status', 'nonprofit-manager' ) . '">' . esc_html( $status_label ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Tags', 'nonprofit-manager' ) . '">' . ( $tag_display ? wp_kses_post( implode( ' ', $tag_display ) ) : '&mdash;' ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Lifetime Value', 'nonprofit-manager' ) . '" class="npmp-col-amount">' . wp_kses_post( $donation_label ) . '</td>';
+			echo '<td data-colname="' . esc_attr( $last_label ) . '">' . esc_html( $last_donation ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Added', 'nonprofit-manager' ) . '">' . esc_html( $created_at ) . '</td>';
+			foreach ( $extra_columns as $column_key => $column_label ) {
+				echo '<td data-colname="' . esc_attr( $column_label ) . '">';
+				/**
+				 * Print one cell of an extra Member List column (escaped).
+				 *
+				 * @param string $column_key Key from `npmp_members_list_columns`.
+				 * @param object $member     The contact record for this row.
+				 */
+				do_action( 'npmp_members_list_column', (string) $column_key, $member );
+				echo '</td>';
+			}
+			echo '<td data-colname="' . esc_attr__( 'Actions', 'nonprofit-manager' ) . '"><a href="' . esc_url( $view_url ) . '">' . esc_html__( 'View', 'nonprofit-manager' ) . '</a> | <a href="' . esc_url( $delete_url ) . '" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\')">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a></td>';
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="10">' . esc_html__( 'No contacts found for your current filters.', 'nonprofit-manager' ) . '</td></tr>';
+		echo '<tr class="no-items"><td colspan="' . esc_attr( 10 + count( $extra_columns ) ) . '">' . esc_html__( 'No contacts match these filters. Press Reset to see everyone, or Add New to add a contact.', 'nonprofit-manager' ) . '</td></tr>';
 	}
 
 	echo '</tbody></table>';
@@ -820,6 +942,23 @@ function npmp_render_member_list_table( $context ) {
 	echo '<div class="tablenav bottom">';
 
 	submit_button( __( 'Delete Selected', 'nonprofit-manager' ), 'delete', '', false, array( 'onclick' => "return confirm('" . esc_js( __( 'Are you sure you want to remove the selected contacts?', 'nonprofit-manager' ) ) . "');" ) );
+
+	$bulk_actions = npmp_members_bulk_actions();
+	if ( $bulk_actions ) {
+		echo ' <label class="screen-reader-text" for="npmp-members-bulk-action">' . esc_html__( 'Bulk actions', 'nonprofit-manager' ) . '</label>';
+		echo '<select name="npmp_members_bulk_action" id="npmp-members-bulk-action" style="margin-left:10px;">';
+		echo '<option value="">' . esc_html__( 'Bulk actions', 'nonprofit-manager' ) . '</option>';
+		foreach ( $bulk_actions as $bulk_key => $bulk_label ) {
+			echo '<option value="' . esc_attr( $bulk_key ) . '">' . esc_html( $bulk_label ) . '</option>';
+		}
+		echo '</select> ';
+		/**
+		 * Fires next to the Bulk actions menu, inside the bulk form. Pro prints
+		 * the group menu its "Add to group" action reads.
+		 */
+		do_action( 'npmp_members_bulk_controls' );
+		echo '<button type="submit" class="button" name="npmp_members_bulk_apply" value="1">' . esc_html__( 'Apply', 'nonprofit-manager' ) . '</button>';
+	}
 
 	if ( $total_pages > 1 ) {
 		echo '<div class="tablenav-pages">';
@@ -840,6 +979,31 @@ function npmp_render_member_list_table( $context ) {
 
 	echo '</div>'; // .tablenav
 	echo '</form>';
+}
+
+/**
+ * Extra Member List bulk actions, beyond Delete Selected.
+ *
+ * @return array Action key => label.
+ */
+function npmp_members_bulk_actions() {
+	/**
+	 * Filter the Member List's extra bulk actions. Return `key => label`.
+	 * When the list isn't empty, the screen shows a Bulk actions menu and an
+	 * Apply button, and `npmp_members_handle_bulk_action` runs the one picked.
+	 * Pro adds "Add to group" and "Remove from group".
+	 *
+	 * @param array $actions Extra actions (none in free).
+	 */
+	$actions = apply_filters( 'npmp_members_bulk_actions', array() );
+	$out     = array();
+	foreach ( (array) $actions as $key => $label ) {
+		$key = sanitize_key( (string) $key );
+		if ( '' !== $key && 'bulk_delete' !== $key ) {
+			$out[ $key ] = (string) $label;
+		}
+	}
+	return $out;
 }
 
 /**
@@ -927,7 +1091,7 @@ function npmp_render_member_detail_view( $context ) {
 	echo '</tr>';
 
 	echo '<tr>';
-	echo '<th scope="row"><label for="npmp-member-segment">' . esc_html__( 'Segment', 'nonprofit-manager' ) . '</label></th>';
+	echo '<th scope="row"><label for="npmp-member-segment">' . esc_html( npmp_label( 'level' ) ) . '</label></th>';
 	echo '<td>';
 	echo '<input type="text" id="npmp-member-segment" class="regular-text" name="member[membership_level]" value="' . esc_attr( $member->membership_level ) . '" list="npmp-membership-levels">';
 	if ( $levels ) {
@@ -937,14 +1101,26 @@ function npmp_render_member_detail_view( $context ) {
 		}
 		echo '</datalist>';
 	}
-	echo '<p class="description">' . esc_html__( 'Use a predefined segment or enter a new one to categorize this contact.', 'nonprofit-manager' ) . '</p>';
+	echo '<p class="description">' . esc_html( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Pick a %s from the list or type a new one.', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ) . '</p>';
 	echo '</td>';
 	echo '</tr>';
 
 	echo '<tr>';
 	echo '<th scope="row"><label for="npmp-member-tags">' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</label></th>';
-	echo '<td><input type="text" id="npmp-member-tags" class="regular-text" name="member[tags]" value="' . esc_attr( $member->tags ) . '"><p class="description">' . esc_html__( 'Comma separated list (e.g. board,volunteer,major-donor).', 'nonprofit-manager' ) . '</p></td>';
+	echo '<td><input type="text" id="npmp-member-tags" class="regular-text" name="member[tags]" value="' . esc_attr( $member->tags ) . '"><p class="description">' . esc_html__( 'Separate tags with commas, for example board, volunteer, major-donor.', 'nonprofit-manager' ) . '</p></td>';
 	echo '</tr>';
+
+	/**
+	 * Fires inside the contact edit table, right after the Tags row. Print
+	 * whole `<tr>` rows. Pro's groups feature renders the member's group
+	 * checkboxes here, and free shows a greyed Groups row in the same spot.
+	 * Name inputs outside the `member[...]` array (for example
+	 * `npmp_groups[]`), and read them back on `npmp_member_saved`.
+	 *
+	 * @param int    $member_id Contact post ID (0 for a new contact).
+	 * @param object $member    The contact record (a blank one for a new contact).
+	 */
+	do_action( 'npmp_member_edit_rows', $is_new ? 0 : (int) $member->id, $member );
 
 	echo '<tr>';
 	echo '<th scope="row"><label for="npmp-member-source">' . esc_html__( 'Source', 'nonprofit-manager' ) . '</label></th>';
@@ -994,7 +1170,7 @@ function npmp_render_member_detail_view( $context ) {
 	$last_contacted_value = $member->last_contacted ? date_i18n( 'Y-m-d\TH:i', strtotime( $member->last_contacted ) ) : '';
 	echo '<tr>';
 	echo '<th scope="row"><label for="npmp-member-last-contact">' . esc_html__( 'Last contacted', 'nonprofit-manager' ) . '</label></th>';
-	echo '<td><input type="datetime-local" id="npmp-member-last-contact" name="member[last_contacted]" value="' . esc_attr( $last_contacted_value ) . '"><p class="description">' . esc_html__( 'Leave blank to keep the previous timestamp.', 'nonprofit-manager' ) . '</p></td>';
+	echo '<td><input type="datetime-local" id="npmp-member-last-contact" name="member[last_contacted]" value="' . esc_attr( $last_contacted_value ) . '"><p class="description">' . esc_html__( 'Clear this field to remove the date.', 'nonprofit-manager' ) . '</p></td>';
 	echo '</tr>';
 
 	echo '<tr>';

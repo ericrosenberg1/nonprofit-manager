@@ -22,6 +22,12 @@
 	var RangeControl     = components.RangeControl;
 	var ToggleControl    = components.ToggleControl;
 
+	var printChoices = [
+		{ label: __( 'Site default', 'nonprofit-manager' ), value: '' },
+		{ label: __( 'Show', 'nonprofit-manager' ), value: 'yes' },
+		{ label: __( 'Hide', 'nonprofit-manager' ), value: 'no' }
+	];
+
 	/* ---- Calendar block ------------------------------------------------ */
 	blocks.registerBlockType( 'nonprofit-manager/calendar', {
 		title: __( 'Events Calendar', 'nonprofit-manager' ),
@@ -32,7 +38,8 @@
 		supports: { html: false, align: [ 'wide', 'full' ] },
 		attributes: {
 			view: { type: 'string', default: '' },
-			category: { type: 'string', default: '' }
+			category: { type: 'string', default: '' },
+			print: { type: 'string', default: '' }
 		},
 		edit: function ( props ) {
 			var a = props.attributes;
@@ -61,6 +68,13 @@
 							help: __( 'Show only events in this category. Leave blank for all.', 'nonprofit-manager' ),
 							value: a.category,
 							onChange: function ( v ) { props.setAttributes( { category: v } ); }
+						} ),
+						el( SelectControl, {
+							label: __( 'Print or save as PDF button', 'nonprofit-manager' ),
+							help: __( 'Site default follows Calendar Settings.', 'nonprofit-manager' ),
+							value: a.print,
+							options: printChoices,
+							onChange: function ( v ) { props.setAttributes( { print: v } ); }
 						} )
 					)
 				),
@@ -102,7 +116,8 @@
 			excerptLength: { type: 'number', default: 0 },
 			date: { type: 'string', default: '' },
 			location: { type: 'string', default: '' },
-			readmore: { type: 'string', default: '' }
+			readmore: { type: 'string', default: '' },
+			print: { type: 'string', default: '' }
 		},
 		edit: function ( props ) {
 			var a = props.attributes;
@@ -207,7 +222,14 @@
 						} ),
 						el( SelectControl, { label: __( 'Date and time', 'nonprofit-manager' ), value: a.date, options: showHide, onChange: set( 'date' ) } ),
 						el( SelectControl, { label: __( 'Location', 'nonprofit-manager' ), value: a.location, options: showHide, onChange: set( 'location' ) } ),
-						el( SelectControl, { label: __( 'Read more link', 'nonprofit-manager' ), value: a.readmore, options: showHide, onChange: set( 'readmore' ) } )
+						el( SelectControl, { label: __( 'Read more link', 'nonprofit-manager' ), value: a.readmore, options: showHide, onChange: set( 'readmore' ) } ),
+						el( SelectControl, {
+							label: __( 'Print or save as PDF button', 'nonprofit-manager' ),
+							help: __( 'Site default follows Calendar Settings.', 'nonprofit-manager' ),
+							value: a.print,
+							options: printChoices,
+							onChange: set( 'print' )
+						} )
 					)
 				),
 				el(

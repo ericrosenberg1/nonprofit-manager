@@ -99,7 +99,7 @@ function npmp_convert_event_editor_button() {
 		var modal = document.createElement('div');
 		modal.style.cssText = 'background:#fff;border-radius:8px;padding:24px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto;';
 		modal.innerHTML = '<h2 style="margin:0 0 16px;"><?php echo esc_js( __( 'Convert to Event', 'nonprofit-manager' ) ); ?></h2>' +
-			'<p style="color:#666;margin:0 0 16px;"><?php echo esc_js( __( 'This will create a new event with the same title and content. The original post will not be deleted.', 'nonprofit-manager' ) ); ?></p>' +
+			'<p style="color:#666;margin:0 0 16px;"><?php echo esc_js( __( 'You get a new event with the same title and content. The original post stays unless you tick the last box.', 'nonprofit-manager' ) ); ?></p>' +
 			'<div style="margin-bottom:12px;">' +
 				'<label style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Event Start', 'nonprofit-manager' ) ); ?></label>' +
 				'<input type="datetime-local" id="npmp-convert-start" style="width:100%;" required />' +
@@ -113,7 +113,7 @@ function npmp_convert_event_editor_button() {
 				'<input type="text" id="npmp-convert-location" style="width:100%;" placeholder="<?php echo esc_attr__( 'Address, venue, or online link', 'nonprofit-manager' ); ?>" />' +
 			'</div>' +
 			'<div style="margin-bottom:12px;">' +
-				'<label><input type="checkbox" id="npmp-convert-delete" /> <?php echo esc_js( __( 'Delete the original post after conversion', 'nonprofit-manager' ) ); ?></label>' +
+				'<label><input type="checkbox" id="npmp-convert-delete" /> <?php echo esc_js( __( 'Move the original post to the Trash', 'nonprofit-manager' ) ); ?></label>' +
 			'</div>' +
 			'<div id="npmp-convert-status" style="margin-bottom:12px;display:none;"></div>' +
 			'<div style="display:flex;gap:8px;justify-content:flex-end;">' +
@@ -133,13 +133,13 @@ function npmp_convert_event_editor_button() {
 		function submitConvert(pid) {
 			var start = document.getElementById('npmp-convert-start').value;
 			if (!start) {
-				showStatus('<?php echo esc_js( __( 'Please set an event start date/time.', 'nonprofit-manager' ) ); ?>', 'error');
+				showStatus('<?php echo esc_js( __( 'Pick a start date and time for the event.', 'nonprofit-manager' ) ); ?>', 'error');
 				return;
 			}
 
 			var btn = document.getElementById('npmp-convert-submit');
 			btn.disabled = true;
-			btn.textContent = '<?php echo esc_js( __( 'Converting...', 'nonprofit-manager' ) ); ?>';
+			btn.textContent = '<?php echo esc_js( __( 'Converting…', 'nonprofit-manager' ) ); ?>';
 
 			var formData = new FormData();
 			formData.append('action', 'npmp_convert_to_event');
@@ -278,16 +278,18 @@ function npmp_ajax_convert_to_event() {
 		wp_set_object_terms( $event_id, $categories, 'npmp_event_category' );
 	}
 
-	// Optionally delete the original.
+	// Optionally move the original to the Trash. Only report it gone when
+	// it went, so the screen doesn't leave for the Events list otherwise.
+	$trashed = false;
 	if ( $delete && current_user_can( 'delete_post', $post_id ) ) {
-		wp_trash_post( $post_id );
+		$trashed = (bool) wp_trash_post( $post_id );
 	}
 
 	wp_send_json_success(
 		array(
 			'event_id'        => $event_id,
 			'edit_url'        => get_edit_post_link( $event_id, 'raw' ),
-			'delete_original' => $delete,
+			'delete_original' => $trashed,
 		)
 	);
 }

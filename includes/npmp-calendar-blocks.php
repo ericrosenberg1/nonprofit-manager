@@ -68,6 +68,11 @@ function npmp_calendar_register_blocks() {
 					'type'    => 'string',
 					'default' => '',
 				),
+				// '' follows Calendar Settings, 'yes' or 'no' overrides it.
+				'print'    => array(
+					'type'    => 'string',
+					'default' => '',
+				),
 			),
 		)
 	);
@@ -161,6 +166,10 @@ function npmp_calendar_register_blocks() {
 					'type'    => 'string',
 					'default' => '',
 				),
+				'print'          => array(
+					'type'    => 'string',
+					'default' => '',
+				),
 			),
 		)
 	);
@@ -186,6 +195,19 @@ function npmp_calendar_block_render( $attributes ) {
 	if ( ! empty( $attributes['category'] ) ) {
 		$atts['category'] = sanitize_text_field( $attributes['category'] );
 	}
+	if ( ! empty( $attributes['print'] ) ) {
+		$atts['print'] = sanitize_key( $attributes['print'] );
+	}
+
+	/**
+	 * Filter the shortcode attributes the Calendar block hands to
+	 * [npmp_calendar]. Pro registers a `group` block attribute (through
+	 * core's `register_block_type_args`) and copies it across here.
+	 *
+	 * @param array $atts       Attributes for npmp_calendar_shortcode().
+	 * @param array $attributes The block's own attributes.
+	 */
+	$atts = (array) apply_filters( 'npmp_calendar_block_atts', $atts, (array) $attributes );
 
 	return npmp_calendar_shortcode( $atts );
 }
@@ -212,7 +234,7 @@ function npmp_events_block_render( $attributes ) {
 		'category' => ! empty( $attributes['category'] ) ? sanitize_text_field( $attributes['category'] ) : '',
 	);
 
-	foreach ( array( 'layout', 'columns', 'order', 'ratio', 'image', 'excerpt', 'date', 'location', 'readmore' ) as $key ) {
+	foreach ( array( 'layout', 'columns', 'order', 'ratio', 'image', 'excerpt', 'date', 'location', 'readmore', 'print' ) as $key ) {
 		if ( isset( $attributes[ $key ] ) && '' !== $attributes[ $key ] && 0 !== $attributes[ $key ] ) {
 			$atts[ $key ] = $attributes[ $key ];
 		}
@@ -223,6 +245,15 @@ function npmp_events_block_render( $attributes ) {
 	if ( ! empty( $attributes['excerptLength'] ) ) {
 		$atts['excerpt_length'] = $attributes['excerptLength'];
 	}
+
+	/**
+	 * Filter the attributes the Events block hands to the events loop. Pro
+	 * registers a `group` block attribute and copies it across here.
+	 *
+	 * @param array $atts       Attributes for npmp_events_loop_render().
+	 * @param array $attributes The block's own attributes.
+	 */
+	$atts = (array) apply_filters( 'npmp_events_block_atts', $atts, (array) $attributes );
 
 	return npmp_events_loop_render( $atts, true );
 }

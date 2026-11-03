@@ -152,13 +152,13 @@ function npmp_manage_preferences_shortcode() {
 	$email = sanitize_email( wp_unslash( $_GET['email'] ?? '' ) );     // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 	if ( empty( $token ) || empty( $email ) ) {
-		return '<p>' . esc_html__( 'Invalid or missing preference link. Please use the link from your email.', 'nonprofit-manager' ) . '</p>';
+		return '<p>' . esc_html__( 'This page needs the link from one of our emails. Open the "Manage your email preferences" link at the bottom of any email we sent you.', 'nonprofit-manager' ) . '</p>';
 	}
 
 	// Verify HMAC token.
 	$expected = npmp_generate_preferences_token( $email );
 	if ( ! hash_equals( $expected, $token ) ) {
-		return '<p>' . esc_html__( 'Invalid preference link.', 'nonprofit-manager' ) . '</p>';
+		return '<p>' . esc_html__( 'That preferences link doesn\'t work. Open the "Manage your email preferences" link in a more recent email from us.', 'nonprofit-manager' ) . '</p>';
 	}
 
 	// Find the contact.
@@ -172,7 +172,7 @@ function npmp_manage_preferences_shortcode() {
 	) );
 
 	if ( empty( $contacts ) ) {
-		return '<p>' . esc_html__( 'Email not found in our records.', 'nonprofit-manager' ) . '</p>';
+		return '<p>' . esc_html__( 'We couldn\'t find that address on our list.', 'nonprofit-manager' ) . '</p>';
 	}
 
 	$contact_id = $contacts[0];
@@ -184,6 +184,16 @@ function npmp_manage_preferences_shortcode() {
 			'notify_events' => ! empty( $_POST['npmp_notify_events'] ),
 			'weekly_digest' => ! empty( $_POST['npmp_weekly_digest'] ),
 		) );
+		/**
+		 * Fires after a member saves the preferences page (signed link and
+		 * nonce already checked). Pro saves the member's group choices here:
+		 * it joins checked groups and records an opt-out for unchecked ones.
+		 *
+		 * @param int    $contact_id Contact post ID.
+		 * @param array  $request    The whole unslashed POST. Sanitize what you read.
+		 * @param string $email      The member's address from the signed link.
+		 */
+		do_action( 'npmp_preferences_saved', (int) $contact_id, wp_unslash( $_POST ), $email ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read.
 		return '<div style="background:#d4edda;border:1px solid #c3e6cb;padding:12px;border-radius:4px;margin-bottom:16px;"><p style="color:#155724;margin:0;">' . esc_html__( 'Preferences saved!', 'nonprofit-manager' ) . '</p></div>';
 	}
 
@@ -191,12 +201,24 @@ function npmp_manage_preferences_shortcode() {
 	$show_posts  = get_option( 'npmp_enable_post_notifications', false );
 	$show_events = get_option( 'npmp_enable_event_notifications', false );
 	$show_digest = get_option( 'npmp_enable_weekly_digest', false );
+	$has_choices = $show_posts || $show_events || $show_digest || has_action( 'npmp_preferences_form_fields' );
+	$unsub_url   = function_exists( 'npmp_get_one_click_unsubscribe_url' ) ? npmp_get_one_click_unsubscribe_url( $email ) : '';
+
+	// No checkboxes switched on: a form with only a Save button left people
+	// guessing. Say so, and keep the way off the list.
+	if ( ! $has_choices ) {
+		$html = '<div class="npmp-manage-preferences" style="max-width:500px;"><p>' . esc_html__( 'There are no email choices to set here. You get our newsletters while you stay subscribed.', 'nonprofit-manager' ) . '</p>';
+		if ( $unsub_url ) {
+			$html .= '<p><a href="' . esc_url( $unsub_url ) . '">' . esc_html__( 'Unsubscribe from all our emails', 'nonprofit-manager' ) . '</a></p>';
+		}
+		return $html . '</div>';
+	}
 
 	ob_start();
 	?>
 	<form method="post" class="npmp-manage-preferences" style="max-width:500px;">
 		<h3><?php esc_html_e( 'Email Notification Preferences', 'nonprofit-manager' ); ?></h3>
-		<p style="color:#666;"><?php echo esc_html( sprintf( __( 'Managing preferences for %s', 'nonprofit-manager' ), $email ) ); ?></p>
+		<p style="color:#666;"><?php /* translators: %s: subscriber's email address */ echo esc_html( sprintf( __( 'Choices for %s', 'nonprofit-manager' ), $email ) ); ?></p>
 
 		<?php if ( $show_posts ) : ?>
 		<label style="display:block;margin:12px 0;"><input type="checkbox" name="npmp_notify_posts" value="1" <?php checked( $prefs['notify_posts'] ); ?> /> <?php esc_html_e( 'Email me when new posts are published', 'nonprofit-manager' ); ?></label>
@@ -210,8 +232,23 @@ function npmp_manage_preferences_shortcode() {
 		<label style="display:block;margin:12px 0;"><input type="checkbox" name="npmp_weekly_digest" value="1" <?php checked( $prefs['weekly_digest'] ); ?> /> <?php esc_html_e( 'Send me a weekly digest instead of individual emails', 'nonprofit-manager' ); ?></label>
 		<?php endif; ?>
 
+		<?php
+		/**
+		 * Fires inside the preferences form, after the notification
+		 * checkboxes and before Save. Echo your fields. Pro prints a checkbox
+		 * for each group the member can join or leave.
+		 *
+		 * @param int    $contact_id Contact post ID.
+		 * @param string $email      The member's address from the signed link.
+		 */
+		do_action( 'npmp_preferences_form_fields', (int) $contact_id, $email );
+		?>
+
 		<?php wp_nonce_field( 'npmp_manage_prefs_' . $contact_id ); ?>
 		<p><button type="submit" name="npmp_save_preferences" class="button"><?php esc_html_e( 'Save Preferences', 'nonprofit-manager' ); ?></button></p>
+		<?php if ( $unsub_url ) : ?>
+		<p style="font-size:0.9em;"><a href="<?php echo esc_url( $unsub_url ); ?>"><?php esc_html_e( 'Unsubscribe from all our emails', 'nonprofit-manager' ); ?></a></p>
+		<?php endif; ?>
 	</form>
 	<?php
 	return ob_get_clean();
@@ -355,9 +392,6 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 	// Page by ascending contact ID rather than by offset. The cursor is stable:
 	// a contact added or deleted mid-run cannot shift rows past the reader, so
 	// nobody is skipped and nobody is emailed twice.
-	// Page by ascending contact ID rather than by offset. The cursor is stable:
-	// a contact added or deleted mid-run cannot shift rows past the reader, so
-	// nobody is skipped and nobody is emailed twice.
 	//
 	// The cursor is passed as a query var, not captured in the closure, and that
 	// detail matters. WordPress caches query results under a key built from the
@@ -417,15 +451,17 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 	// One meta-cache prime instead of a query per subscriber in the loop.
 	update_meta_cache( 'post', $subscribers );
 
-	$type    = 'npmp_event' === $post->post_type ? 'event' : 'post';
-	$subject = sprintf(
-		/* translators: %1$s: post type label, %2$s: post title */
-		__( 'New %1$s: %2$s', 'nonprofit-manager' ),
-		$type,
-		$post->post_title
-	);
+	// Two whole strings, so a translator never has to fit a bare English
+	// "post" or "event" into their sentence.
+	$subject = 'npmp_event' === $post->post_type
+		/* translators: %s: event title */
+		? sprintf( __( 'New event: %s', 'nonprofit-manager' ), $post->post_title )
+		/* translators: %s: post title */
+		: sprintf( __( 'New post: %s', 'nonprofit-manager' ), $post->post_title );
 
-	$excerpt = wp_trim_words( wp_strip_all_tags( $post->post_content ), 50 );
+	// strip_shortcodes() first, or a [gallery] or [npmp_calendar] in the post
+	// showed up word for word in the email.
+	$excerpt = wp_trim_words( wp_strip_all_tags( strip_shortcodes( $post->post_content ) ), 50 );
 	$url     = get_permalink( $post->ID );
 
 	foreach ( $subscribers as $contact_id ) {
@@ -434,10 +470,17 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 			continue;
 		}
 
-		$name      = get_the_title( $contact_id );
+		$name      = trim( (string) get_the_title( $contact_id ) );
 		$prefs_url = npmp_get_preferences_url( $email );
 
-		$body  = '<p>' . sprintf( esc_html__( 'Hi %s,', 'nonprofit-manager' ), esc_html( $name ) ) . '</p>';
+		// A contact saved without a name has the address as its title. "Hi
+		// there" reads better than "Hi jane@example.org" or "Hi ,".
+		$greeting = ( '' === $name || $name === $email )
+			? esc_html__( 'Hi there,', 'nonprofit-manager' )
+			/* translators: %s: subscriber's name */
+			: sprintf( esc_html__( 'Hi %s,', 'nonprofit-manager' ), esc_html( $name ) );
+
+		$body  = '<p>' . $greeting . '</p>';
 		$body .= '<h2>' . esc_html( $post->post_title ) . '</h2>';
 		$body .= '<p>' . esc_html( $excerpt ) . '</p>';
 		$body .= '<p><a href="' . esc_url( $url ) . '">' . esc_html__( 'Read more', 'nonprofit-manager' ) . '</a></p>';
@@ -566,13 +609,15 @@ function npmp_process_weekly_digest() {
 		$content .= '<h3>' . esc_html__( 'New Posts', 'nonprofit-manager' ) . '</h3><ul>';
 		foreach ( $recent_posts as $p ) {
 			$content .= '<li><a href="' . esc_url( get_permalink( $p ) ) . '">' . esc_html( $p->post_title ) . '</a>';
-			$content .= ' &mdash; ' . esc_html( wp_trim_words( wp_strip_all_tags( $p->post_content ), 20 ) ) . '</li>';
+			$content .= ': ' . esc_html( wp_trim_words( wp_strip_all_tags( strip_shortcodes( $p->post_content ) ), 20 ) ) . '</li>';
 		}
 		$content .= '</ul>';
 	}
 
 	if ( ! empty( $recent_events ) ) {
-		$content .= '<h3>' . esc_html__( 'Upcoming Events', 'nonprofit-manager' ) . '</h3><ul>';
+		// These are events added this week, not events coming up, so the
+		// heading says so.
+		$content .= '<h3>' . esc_html__( 'New Events', 'nonprofit-manager' ) . '</h3><ul>';
 		foreach ( $recent_events as $e ) {
 			$start = get_post_meta( $e->ID, '_npmp_event_start', true );
 			$content .= '<li><a href="' . esc_url( get_permalink( $e ) ) . '">' . esc_html( $e->post_title ) . '</a>';
@@ -590,7 +635,7 @@ function npmp_process_weekly_digest() {
 					$start_ts = false;
 				}
 				if ( $start_ts ) {
-					$content .= ' &mdash; ' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $start_ts ) );
+					$content .= ', ' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $start_ts ) );
 				}
 			}
 			$content .= '</li>';
@@ -630,16 +675,22 @@ function npmp_process_weekly_digest() {
 	// this week's send doesn't mix with leftover queue entries.
 	$wpdb->query( "TRUNCATE TABLE {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Fixed table name, no user input.
 
+	// 500 rows per INSERT instead of one round trip per subscriber, the same
+	// batching the newsletter queue uses.
 	$now = current_time( 'mysql' );
-	foreach ( $emails as $email ) {
-		$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
-			$table,
-			array(
-				'email'     => $email,
-				'status'    => 'pending',
-				'queued_at' => $now,
-			),
-			array( '%s', '%s', '%s' )
+	foreach ( array_chunk( array_values( array_unique( $emails ) ), 500 ) as $chunk ) {
+		$placeholders = implode( ', ', array_fill( 0, count( $chunk ), "(%s, 'pending', %s)" ) );
+		$values       = array();
+		foreach ( $chunk as $email ) {
+			$values[] = $email;
+			$values[] = $now;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO {$table} (email, status, queued_at) VALUES {$placeholders}", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name and a generated run of (%s, 'pending', %s) placeholders, one per row.
+				$values
+			)
 		);
 	}
 
@@ -660,6 +711,24 @@ add_action( 'npmp_process_digest_queue', 'npmp_process_digest_queue' );
  * @return void
  */
 function npmp_process_digest_queue() {
+	// One run at a time, so an overlapping tick can't mail the same rows twice.
+	if ( ! function_exists( 'npmp_mail_queue_lock' ) || ! npmp_mail_queue_lock( 'digest' ) ) {
+		return;
+	}
+	try {
+		npmp_drain_digest_batch();
+	} finally {
+		npmp_mail_queue_unlock( 'digest' );
+	}
+}
+
+/**
+ * Send one batch of the weekly digest queue. npmp_process_digest_queue()
+ * holds the run lock around this.
+ *
+ * @return void
+ */
+function npmp_drain_digest_batch() {
 	global $wpdb;
 	$table = $wpdb->prefix . 'npmp_digest_queue';
 
@@ -670,7 +739,7 @@ function npmp_process_digest_queue() {
 
 	$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $limit is cast to int above. Fixed table name.
 		$wpdb->prepare(
-			"SELECT id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
+			"SELECT id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
 			$limit
 		)
 	);

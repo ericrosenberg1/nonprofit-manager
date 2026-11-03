@@ -167,11 +167,102 @@ function npmp_email_from_applies( $settings = null ) {
  */
 function npmp_send_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
 	npmp_mail_send_depth( 1 );
+	npmp_mail_from_name_override( npmp_mail_header_from_name( $headers ) );
 	try {
 		return wp_mail( $to, $subject, $message, $headers, $attachments );
 	} finally {
+		npmp_mail_from_name_override( false );
 		npmp_mail_send_depth( -1 );
 	}
+}
+
+/**
+ * The sender name the npmp_send_mail() call in progress asked for, or ''.
+ *
+ * A caller that passes a "From: Art Group <hello@example.org>" header keeps
+ * that display name, while the configured From address still applies, so SPF
+ * and DKIM keep passing. Pro uses this for each group's sender name, and its
+ * API senders read it too. Calls nest, so this keeps a stack.
+ *
+ * @param string|false|null $set A name to push, false to pop, null to read.
+ * @return string
+ */
+function npmp_mail_from_name_override( $set = null ) {
+	static $stack = array();
+	if ( null === $set ) {
+		return $stack ? (string) end( $stack ) : '';
+	}
+	if ( false === $set ) {
+		array_pop( $stack );
+		return '';
+	}
+	$stack[] = (string) $set;
+	return (string) $set;
+}
+
+/**
+ * The display name in a "From: Name <address>" header, or ''.
+ *
+ * @param string|array $headers Headers as wp_mail() takes them.
+ * @return string
+ */
+function npmp_mail_header_from_name( $headers ) {
+	$lines = is_array( $headers ) ? $headers : preg_split( '/\r\n|\r|\n/', (string) $headers );
+	foreach ( (array) $lines as $line ) {
+		if ( preg_match( '/^\s*From:\s*(.*?)\s*<[^>]+>\s*$/i', (string) $line, $m ) ) {
+			$name = trim( preg_replace( '/[\r\n]+/', ' ', strip_tags( $m[1] ) ), " \t\"'" );
+			return $name;
+		}
+	}
+	return '';
+}
+
+/**
+ * Take a send queue's run lock, or say another run holds it.
+ *
+ * The newsletter and digest queues drain on a per-minute cron. WordPress's
+ * own cron lock lasts 60 seconds and a system cron running
+ * `wp cron event run --due-now` skips it, so a slow batch could overlap the
+ * next tick and both runs read the same pending rows and mailed them twice.
+ * INSERT IGNORE on the options table is atomic, so only one run gets the row.
+ * A lock older than $ttl seconds belongs to a run that died and is taken over.
+ *
+ * @param string $name Queue name, e.g. 'newsletter'.
+ * @param int    $ttl  Seconds before a held lock counts as stale.
+ * @return bool True when this run holds the lock.
+ */
+function npmp_mail_queue_lock( $name, $ttl = 300 ) {
+	global $wpdb;
+	$option = 'npmp_queue_lock_' . sanitize_key( $name );
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic lock, must skip the options cache.
+	$got = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} ( option_name, option_value, autoload ) VALUES ( %s, %s, 'no' )", $option, (string) time() ) );
+	if ( $got ) {
+		return true;
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Read the live lock, not a cached copy.
+	$since = (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option ) );
+	if ( $since && $since > time() - (int) $ttl ) {
+		return false;
+	}
+
+	// Stale. Take it over only if nobody else did in the meantime.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap on the lock row.
+	return (bool) $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", (string) time(), $option, (string) $since ) );
+}
+
+/**
+ * Release a lock taken with npmp_mail_queue_lock().
+ *
+ * @param string $name Queue name.
+ * @return void
+ */
+function npmp_mail_queue_unlock( $name ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Pairs with the direct insert above.
+	$wpdb->delete( $wpdb->options, array( 'option_name' => 'npmp_queue_lock_' . sanitize_key( $name ) ), array( '%s' ) );
+	wp_cache_delete( 'npmp_queue_lock_' . sanitize_key( $name ), 'options' );
 }
 
 /**
