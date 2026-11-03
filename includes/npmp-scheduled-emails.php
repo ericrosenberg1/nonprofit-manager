@@ -279,7 +279,7 @@ function npmp_scheduled_emails_window_block( $start_ts, $now_ts ) {
  * @return array<string,string>
  */
 function npmp_scheduled_emails_placeholder_help() {
-	return array(
+	$help = array(
 		'[event_title]'    => __( 'The event name', 'nonprofit-manager' ),
 		'[event_date]'     => __( 'The date it starts', 'nonprofit-manager' ),
 		'[event_time]'     => __( 'The time it starts', 'nonprofit-manager' ),
@@ -288,6 +288,13 @@ function npmp_scheduled_emails_placeholder_help() {
 		'[join_link]'      => __( 'The event link (a meeting link, say), or the event page', 'nonprofit-manager' ),
 		'[ical_link]'      => __( 'A calendar file members can add to their calendar', 'nonprofit-manager' ),
 	);
+	/**
+	 * Filter the placeholder list the body editor shows. Pro adds
+	 * [group_name] and [leave_group_url].
+	 *
+	 * @param array<string,string> $help '[placeholder]' => what it becomes.
+	 */
+	return (array) apply_filters( 'npmp_scheduled_email_placeholder_help', $help );
 }
 
 /**
@@ -631,6 +638,19 @@ function npmp_scheduled_emails_admin_skips( $event_id ) {
 }
 
 /**
+ * Whether an event belongs to a Pro group. Reads the term tables directly,
+ * since the group taxonomy isn't registered without Pro.
+ *
+ * @param int $event_id Event ID.
+ * @return bool
+ */
+function npmp_scheduled_emails_event_has_groups( $event_id ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One indexed lookup per event save.
+	return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM {$wpdb->term_relationships} tr INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id WHERE tr.object_id = %d AND tt.taxonomy = 'npmp_group' LIMIT 1", (int) $event_id ) );
+}
+
+/**
  * Recompute an event's scheduled emails from its rules.
  *
  * Pending rows follow the event to its new time. Sending and sent rows are
@@ -661,6 +681,15 @@ function npmp_scheduled_emails_sync_event( $event_id ) {
 		$reason = __( 'Someone cancelled the event.', 'nonprofit-manager' );
 	} elseif ( ! $start_ts ) {
 		$reason = __( 'The event has no start date.', 'nonprofit-manager' );
+	}
+
+	// A group event's emails belong to Pro. Without Pro, leave its rows as
+	// they are (group rows stay pending, and nothing goes to everyone) until
+	// Pro comes back. Trashing or cancelling still cancels them below.
+	if ( '' === $reason && npmp_scheduled_emails_event_has_groups( $event_id ) && ! apply_filters( 'npmp_scheduled_email_groups_supported', false ) ) {
+		return count( array_filter( npmp_scheduled_emails_get_rows( 'event', $event_id ), function ( $row ) {
+			return 'pending' === $row->status;
+		} ) );
 	}
 
 	$rules    = '' === $reason ? npmp_scheduled_emails_event_rules( $event_id ) : array();
@@ -2217,15 +2246,31 @@ function npmp_render_scheduled_emails_page() {
 	echo '<tr><th scope="row">' . esc_html__( 'Turn on', 'nonprofit-manager' ) . '</th><td><label><input type="checkbox" name="npmp_sched_defaults[enabled]" value="1"' . checked( $defaults['enabled'], 1, false ) . '> ' . esc_html__( 'Email members before each event', 'nonprofit-manager' ) . '</label>';
 	echo '<p class="description">' . esc_html__( 'You can still turn it on or off for one event from the event\'s Scheduled Email box.', 'nonprofit-manager' ) . '</p></td></tr>';
 
-	echo '<tr><th scope="row">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th><td>';
-	npmp_scheduled_emails_timing_fields( 'npmp_sched_defaults', $defaults['minutes_before'], false );
-	echo '<p class="description">' . esc_html__( 'Day and week offsets keep the same clock time in your site timezone, even across a clock change.', 'nonprofit-manager' ) . '</p></td></tr>';
+	/**
+	 * Whether an add-on draws its own list of emails in place of the one
+	 * email's When, Body and Subject rows. Pro returns true and prints its
+	 * rows on npmp_scheduled_email_settings_rules.
+	 *
+	 * @param bool $handled False.
+	 */
+	if ( apply_filters( 'npmp_scheduled_email_settings_rules_handled', false ) ) {
+		/**
+		 * Print the add-on's rows inside the settings form-table.
+		 *
+		 * @param array $defaults Saved defaults (npmp_scheduled_email_defaults()).
+		 */
+		do_action( 'npmp_scheduled_email_settings_rules', $defaults );
+	} else {
+		echo '<tr><th scope="row">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th><td>';
+		npmp_scheduled_emails_timing_fields( 'npmp_sched_defaults', $defaults['minutes_before'], false );
+		echo '<p class="description">' . esc_html__( 'Day and week offsets keep the same clock time in your site timezone, even across a clock change.', 'nonprofit-manager' ) . '</p></td></tr>';
 
-	echo '<tr><th scope="row">' . esc_html__( 'Body', 'nonprofit-manager' ) . '</th><td>';
-	npmp_scheduled_emails_body_select( 'npmp_sched_defaults[body_id]', (string) $defaults['body_id'], false );
-	echo '</td></tr>';
+		echo '<tr><th scope="row">' . esc_html__( 'Body', 'nonprofit-manager' ) . '</th><td>';
+		npmp_scheduled_emails_body_select( 'npmp_sched_defaults[body_id]', (string) $defaults['body_id'], false );
+		echo '</td></tr>';
 
-	echo '<tr><th scope="row"><label for="npmp-sched-default-subject">' . esc_html__( 'Subject', 'nonprofit-manager' ) . '</label></th><td><input type="text" class="regular-text" id="npmp-sched-default-subject" name="npmp_sched_defaults[subject]" value="' . esc_attr( $defaults['subject'] ) . '" placeholder="' . esc_attr__( 'Uses the body\'s subject', 'nonprofit-manager' ) . '"></td></tr>';
+		echo '<tr><th scope="row"><label for="npmp-sched-default-subject">' . esc_html__( 'Subject', 'nonprofit-manager' ) . '</label></th><td><input type="text" class="regular-text" id="npmp-sched-default-subject" name="npmp_sched_defaults[subject]" value="' . esc_attr( $defaults['subject'] ) . '" placeholder="' . esc_attr__( 'Uses the body\'s subject', 'nonprofit-manager' ) . '"></td></tr>';
+	}
 
 	echo '<tr><th scope="row">' . esc_html__( 'Saved too late', 'nonprofit-manager' ) . '</th><td><fieldset>';
 	echo '<p class="description">' . esc_html__( 'When someone saves an event after its email\'s send time has passed:', 'nonprofit-manager' ) . '</p>';
@@ -2309,20 +2354,30 @@ function npmp_scheduled_emails_save_defaults() {
 	}
 	$in = isset( $_POST['npmp_sched_defaults'] ) && is_array( $_POST['npmp_sched_defaults'] ) ? map_deep( wp_unslash( $_POST['npmp_sched_defaults'] ), 'sanitize_text_field' ) : array();
 
-	$minutes = npmp_scheduled_emails_read_timing( $in );
+	// When an add-on drew its own rows, the one email's fields weren't on
+	// the form, so keep what's saved instead of resetting it.
+	$current = npmp_scheduled_email_defaults();
+	$minutes = isset( $in['timing'] ) ? npmp_scheduled_emails_read_timing( $in ) : $current['minutes_before'];
 	update_option(
 		'npmp_scheduled_email_defaults',
 		npmp_scheduled_email_sanitize_defaults(
 			array(
 				'enabled'        => ! empty( $in['enabled'] ),
 				'minutes_before' => $minutes ? $minutes : 1440,
-				'body_id'        => absint( $in['body_id'] ?? 0 ),
-				'subject'        => (string) ( $in['subject'] ?? '' ),
+				'body_id'        => isset( $in['body_id'] ) ? absint( $in['body_id'] ) : $current['body_id'],
+				'subject'        => isset( $in['subject'] ) ? (string) $in['subject'] : $current['subject'],
 				'late_mode'      => (string) ( $in['late_mode'] ?? 'send_if' ),
 				'late_min_hours' => absint( $in['late_min_hours'] ?? 48 ),
 			)
 		)
 	);
+	/**
+	 * Save an add-on's rows from the settings form, before upcoming events
+	 * re-sync. The nonce and the send capability have been checked.
+	 *
+	 * @param array $request The whole unslashed POST. Sanitize what you read.
+	 */
+	do_action( 'npmp_scheduled_email_defaults_saved', wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Callbacks sanitize the fields they read.
 	npmp_scheduled_emails_sync_upcoming_events();
 	wp_safe_redirect( admin_url( 'admin.php?page=npmp_scheduled_emails&updated=1' ) );
 	exit;
