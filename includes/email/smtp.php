@@ -64,7 +64,7 @@ function npmp_email_apply_transport( $phpmailer ) {
 	}
 
 	$from_email = $settings['from_email'];
-	$from_name  = $settings['from_name'];
+	$from_name  = npmp_mail_from_name_override() ? npmp_mail_from_name_override() : $settings['from_name'];
 
 	if ( $from_email && $from_name ) {
 		$phpmailer->setFrom( $from_email, $from_name, false );
@@ -120,6 +120,13 @@ function npmp_email_filter_from_name( $value ) {
 
 	if ( empty( $settings['from_all_mail'] ) && empty( $settings['force_from'] ) ) {
 		return $value;
+	}
+
+	// A sender name passed to npmp_send_mail() (a group's, in Pro) wins over
+	// the configured one. The address above still follows the settings.
+	$override = npmp_mail_from_name_override();
+	if ( '' !== $override ) {
+		return $override;
 	}
 
 	$name = trim( wp_strip_all_tags( $settings['from_name'] ) );

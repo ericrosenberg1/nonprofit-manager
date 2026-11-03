@@ -132,7 +132,15 @@ class NPMP_Newsletter_Manager {
 		update_post_meta( $newsletter_id, '_npmp_newsletter_recipient_total', $queued );
 
 		$levels = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
-		update_post_meta( $newsletter_id, '_npmp_newsletter_audience_label', self::describe_audience( $levels ) );
+		/**
+		 * Filter the audience label saved with a queued newsletter (Reports
+		 * and the archive show it). Pro names the groups for a group newsletter.
+		 *
+		 * @param string $label         Label built from the levels.
+		 * @param int    $newsletter_id Newsletter ID.
+		 */
+		$label = apply_filters( 'npmp_newsletter_audience_label', self::describe_audience( $levels ), $newsletter_id );
+		update_post_meta( $newsletter_id, '_npmp_newsletter_audience_label', (string) $label );
 
 		return $queued;
 	}

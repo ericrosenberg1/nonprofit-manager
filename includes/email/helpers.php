@@ -167,11 +167,54 @@ function npmp_email_from_applies( $settings = null ) {
  */
 function npmp_send_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
 	npmp_mail_send_depth( 1 );
+	npmp_mail_from_name_override( npmp_mail_header_from_name( $headers ) );
 	try {
 		return wp_mail( $to, $subject, $message, $headers, $attachments );
 	} finally {
+		npmp_mail_from_name_override( false );
 		npmp_mail_send_depth( -1 );
 	}
+}
+
+/**
+ * The sender name the npmp_send_mail() call in progress asked for, or ''.
+ *
+ * A caller that passes a "From: Art Group <hello@example.org>" header keeps
+ * that display name, while the configured From address still applies, so SPF
+ * and DKIM keep passing. Pro uses this for each group's sender name, and its
+ * API senders read it too. Calls nest, so this keeps a stack.
+ *
+ * @param string|false|null $set A name to push, false to pop, null to read.
+ * @return string
+ */
+function npmp_mail_from_name_override( $set = null ) {
+	static $stack = array();
+	if ( null === $set ) {
+		return $stack ? (string) end( $stack ) : '';
+	}
+	if ( false === $set ) {
+		array_pop( $stack );
+		return '';
+	}
+	$stack[] = (string) $set;
+	return (string) $set;
+}
+
+/**
+ * The display name in a "From: Name <address>" header, or ''.
+ *
+ * @param string|array $headers Headers as wp_mail() takes them.
+ * @return string
+ */
+function npmp_mail_header_from_name( $headers ) {
+	$lines = is_array( $headers ) ? $headers : preg_split( '/\r\n|\r|\n/', (string) $headers );
+	foreach ( (array) $lines as $line ) {
+		if ( preg_match( '/^\s*From:\s*(.*?)\s*<[^>]+>\s*$/i', (string) $line, $m ) ) {
+			$name = trim( preg_replace( '/[\r\n]+/', ' ', strip_tags( $m[1] ) ), " \t\"'" );
+			return $name;
+		}
+	}
+	return '';
 }
 
 /**
