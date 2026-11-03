@@ -752,5 +752,14 @@ $ok( 'overview toolbar gets the enabled features', ! empty( $seen['toolbar']['ov
 $capture( 'npmp_render_scheduled_emails_page' );
 $ok( 'scheduled_emails toolbar fires with a context array', isset( $seen['toolbar']['scheduled_emails'] ) && is_array( $seen['toolbar']['scheduled_emails'] ) );
 
+echo "\nGroup-only newsletters without Pro\n";
+$group_nl = wp_insert_post( array( 'post_type' => 'npmp_newsletter', 'post_status' => 'draft', 'post_title' => 'Art group news' ) );
+update_post_meta( $group_nl, '_npmp_newsletter_groups', array( 999 ) );
+$ok( 'a group-only newsletter has no recipients when Pro can\'t resolve groups', array() === NPMP_Newsletter_Manager::get_recipient_list( $group_nl ) );
+add_filter( 'npmp_newsletter_groups_supported', '__return_true' );
+$ok( 'with group support declared, free hands Pro the subscribed list to filter', count( NPMP_Newsletter_Manager::get_recipient_list( $group_nl ) ) > 0 );
+remove_filter( 'npmp_newsletter_groups_supported', '__return_true' );
+wp_delete_post( $group_nl, true );
+
 printf( "\n%d failed\n", $fails );
 exit( $fails ? 1 : 0 );

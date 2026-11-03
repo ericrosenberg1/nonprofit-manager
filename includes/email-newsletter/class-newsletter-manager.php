@@ -421,6 +421,14 @@ class NPMP_Newsletter_Manager {
 	}
 
 	public static function get_recipient_list( $newsletter_id ) {
+		// A newsletter aimed at groups goes to no one unless Pro is here to
+		// resolve the groups. Without this, a group-only newsletter on a site
+		// that turned Pro off reads as "no levels picked" and mails everyone.
+		$groups = get_post_meta( $newsletter_id, '_npmp_newsletter_groups', true );
+		if ( ! empty( $groups ) && ! apply_filters( 'npmp_newsletter_groups_supported', false, (int) $newsletter_id ) ) {
+			return array();
+		}
+
 		$levels = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
 		if ( ! is_array( $levels ) ) {
 			$levels = array();
