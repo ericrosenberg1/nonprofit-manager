@@ -202,7 +202,7 @@ function npmp_render_email_settings_page() {
 			$success = npmp_send_mail( $to, $subject, nl2br( $message ), $headers );
 
 			if ( $success ) {
-				$test_result = '<div class="notice notice-success"><p>' . esc_html__( 'Test email sent successfully!', 'nonprofit-manager' ) . '</p></div>';
+				$test_result = '<div class="notice notice-success"><p>' . esc_html__( 'Your mail server accepted the test email. Check the inbox you sent it to, and the spam folder too.', 'nonprofit-manager' ) . '</p></div>';
 			} else {
 				$error_msg = esc_html__( 'Failed to send test email.', 'nonprofit-manager' );
 				if ( $err = get_option( 'npmp_email_last_error' ) ) {
@@ -230,7 +230,7 @@ function npmp_render_email_settings_page() {
 		if ( isset( $_GET['provider_test'] ) && 'success' === $_GET['provider_test'] && isset( $_GET['provider_name'] ) ) {
 			?>
 			<div class="notice notice-success is-dismissible">
-				<p><?php echo esc_html( sprintf( __( '%s credentials are valid and working!', 'nonprofit-manager' ), sanitize_text_field( wp_unslash( $_GET['provider_name'] ) ) ) ); ?></p>
+				<p><?php /* translators: %s: email service name, such as SendGrid */ echo esc_html( sprintf( __( '%s accepted your credentials.', 'nonprofit-manager' ), sanitize_text_field( wp_unslash( $_GET['provider_name'] ) ) ) ); ?></p>
 			</div>
 			<?php
 		}
@@ -325,7 +325,7 @@ function npmp_render_email_settings_page() {
 								<input type="checkbox" name="npmp_email_from_all_mail" value="1" <?php checked( ! empty( $settings['from_all_mail'] ) ); ?>>
 								<?php esc_html_e( 'Send all site email from this address', 'nonprofit-manager' ); ?>
 							</label>
-							<p class="description"><?php esc_html_e( 'Off by default. Nonprofit Manager\'s own email always goes out from the name and address above, and WordPress and your other plugins keep their own From address. Turn this on only if your mail provider accepts no other sender. With SendGrid, Mailgun, Postmark or Brevo selected, every message goes out from the address above either way.', 'nonprofit-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Off by default. Nonprofit Manager\'s own email always goes out from the name and address above, and WordPress and your other plugins keep their own From address. Turn this on only if your mail provider accepts no other sender. With SendGrid, Mailgun, Postmark, or Brevo selected, every message goes out from the address above either way.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -351,7 +351,7 @@ function npmp_render_email_settings_page() {
 									<?php
 									printf(
 										/* translators: %s: URL to upgrade page */
-										wp_kses_post( __( 'Want to send through Amazon SES, Brevo, SendGrid, Mailgun, Postmark or your own SMTP server? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+										wp_kses_post( __( 'Want to send through Amazon SES, Brevo, SendGrid, Mailgun, Postmark, or your own SMTP server? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 										esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 									);
 									?>
@@ -366,12 +366,12 @@ function npmp_render_email_settings_page() {
 					<div class="npmp-upgrade-notice">
 						<p style="margin: 0;">
 							<strong><?php esc_html_e( 'Using WordPress Default (wp_mail)', 'nonprofit-manager' ); ?></strong><br>
-							<?php esc_html_e( 'Emails are being sent using the default WordPress wp_mail function, which is not recommended, particularly if you\'re on a shared website hosting server, as the emails may be flagged as spam and not make it to your users.', 'nonprofit-manager' ); ?>
+							<?php esc_html_e( 'Your site sends email through WordPress\'s built-in mailer. On shared hosting, that mail often lands in spam or never arrives.', 'nonprofit-manager' ); ?>
 							<?php if ( ! $is_pro ) : ?>
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( ' Upgrading to <a href="%s" target="_blank">Nonprofit Manager Pro</a> allows you to use a custom SMTP server or link directly to popular email services.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( ' With <a href="%s" target="_blank">Nonprofit Manager Pro</a>, you can send through your own SMTP server or an email service such as Amazon SES.', 'nonprofit-manager' ) ),
 									esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 								);
 								?>
@@ -628,7 +628,7 @@ function npmp_render_email_settings_page() {
 		<!-- Test Email Section -->
 		<div class="npmp-email-card">
 			<h2><?php esc_html_e( 'Send Test Email', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Send a test email to verify your settings are working correctly.', 'nonprofit-manager' ); ?></p>
+			<p><?php esc_html_e( 'Send yourself a test email to check your settings.', 'nonprofit-manager' ); ?></p>
 
 			<?php echo wp_kses_post( $test_result ); ?>
 
@@ -650,7 +650,7 @@ function npmp_render_email_settings_page() {
 					<tr>
 						<th><label for="npmp_test_message"><?php esc_html_e( 'Message', 'nonprofit-manager' ); ?></label></th>
 						<td>
-							<textarea id="npmp_test_message" name="npmp_test_message" rows="4" class="large-text" required><?php echo esc_textarea( __( "This is a test email sent from Nonprofit Manager.\n\nIf you're receiving this, your email settings are working correctly!", 'nonprofit-manager' ) ); ?></textarea>
+							<textarea id="npmp_test_message" name="npmp_test_message" rows="4" class="large-text" required><?php echo esc_textarea( __( "This is a test email from Nonprofit Manager.\n\nIf it reached you, your email settings work.", 'nonprofit-manager' ) ); ?></textarea>
 						</td>
 					</tr>
 				</table>
@@ -1391,9 +1391,17 @@ class NPMP_Member_Manager {
 		$query      = new WP_Query( $query_args );
 		$members    = array();
 
+		// A paged list caches each contact for the screens that open it next.
+		// An unbounded read (every subscriber for a send) skips that: two
+		// object-cache writes per contact bought nothing and, on a persistent
+		// cache, cost thousands of round trips per newsletter.
+		$cache = -1 !== (int) $query_args['posts_per_page'];
+
 		foreach ( $query->posts as $post ) {
 			$member = $this->hydrate_member_from_post( $post );
-			$this->cache_member( $member );
+			if ( $cache ) {
+				$this->cache_member( $member );
+			}
 			$members[] = $member;
 		}
 
@@ -1418,26 +1426,51 @@ class NPMP_Member_Manager {
 	}
 
 	/**
-	 * Count members per segment.
+	 * Count contacts per membership level, '' for contacts with none.
 	 *
-	 * @return array
+	 * One grouped query. It used to load and hydrate every contact to read one
+	 * field, which the newsletter editor did on every load.
+	 *
+	 * @param string $status Count only contacts with this status (for example
+	 *                       'subscribed', which is who a newsletter reaches).
+	 *                       '' counts everyone, as before.
+	 * @return array Level => count.
 	 */
-	public function count_by_level() {
-		$members = $this->get_members(
-			array(
-				'per_page' => -1,
-			)
+	public function count_by_level( $status = '' ) {
+		global $wpdb;
+
+		$status_join  = '';
+		$status_where = '';
+		$params       = array( 'npmp_membership_level' );
+		if ( '' !== (string) $status ) {
+			// Same exact match get_members( array( 'status' => ... ) ) uses.
+			$status_join  = "INNER JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = %s AND s.meta_value = %s";
+			$params[]     = 'npmp_status';
+			$params[]     = $this->normalize_status( $status );
+		}
+		$params[] = 'npmp_contact';
+
+		// GROUP BY the raw bytes so "Gold" and "gold" stay two levels, the way
+		// the PHP tally kept them.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Grouped aggregate over a joined meta table. $status_join is a fixed string with placeholders.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT MIN( COALESCE( l.meta_value, '' ) ) AS level, COUNT( DISTINCT p.ID ) AS total
+				 FROM {$wpdb->posts} p
+				 LEFT JOIN {$wpdb->postmeta} l ON l.post_id = p.ID AND l.meta_key = %s
+				 {$status_join}
+				 WHERE p.post_type = %s AND p.post_status = 'publish'
+				 GROUP BY CAST( COALESCE( l.meta_value, '' ) AS BINARY )",
+				$params
+			),
+			ARRAY_A
 		);
+		// phpcs:enable
 
 		$count = array();
-
-		foreach ( $members as $member ) {
-			$level = isset( $member->membership_level ) ? $member->membership_level : '';
-			$key   = $level ? $level : '';
-			if ( ! isset( $count[ $key ] ) ) {
-				$count[ $key ] = 0;
-			}
-			$count[ $key ] ++;
+		foreach ( (array) $rows as $row ) {
+			$key           = sanitize_text_field( (string) $row['level'] );
+			$count[ $key ] = ( $count[ $key ] ?? 0 ) + (int) $row['total'];
 		}
 
 		return $count;

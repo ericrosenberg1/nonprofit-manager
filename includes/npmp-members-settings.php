@@ -176,22 +176,27 @@ function npmp_render_membership_dashboard() {
 		if ( $new && ! in_array( $new, $levels, true ) ) {
 			$levels[] = $new;
 			update_option( $levels_option, $levels );
-			echo '<div class="notice notice-success"><p>' . esc_html__( 'Segment added.', 'nonprofit-manager' ) . '</p></div>';
+			echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s added.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
 		}
 	}
 
 	if ( $can_edit_tiers && ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
 		$slug   = sanitize_text_field( wp_unslash( $_POST['level_slug'] ) );
-		$levels = array_diff( $levels, array( $slug ) );
+		$levels = array_values( array_diff( $levels, array( $slug ) ) );
 		update_option( $levels_option, $levels );
-		echo '<div class="notice notice-success"><p>' . esc_html__( 'Segment removed.', 'nonprofit-manager' ) . '</p></div>';
+		// A removed level can't stay the default for new signups.
+		if ( get_option( 'npmp_default_membership_level', '' ) === $slug ) {
+			update_option( 'npmp_default_membership_level', '' );
+		}
+		echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s removed.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
 	}
 
-	// Get tier counts
+	// Tier counts from one grouped query instead of one query per level.
 	$tier_counts = array();
 	if ( ! empty( $levels ) ) {
+		$by_level = $member_manager->count_by_level();
 		foreach ( $levels as $tier ) {
-			$tier_counts[ $tier ] = $member_manager->count_members_by_tier( $tier );
+			$tier_counts[ $tier ] = (int) ( $by_level[ $tier ] ?? 0 );
 		}
 	}
 
@@ -229,7 +234,9 @@ function npmp_render_membership_dashboard() {
 	// Status breakdown
 	foreach ( $available_status as $status_key => $label ) {
 		$total = isset( $status_counts[ $status_key ] ) ? (int) $status_counts[ $status_key ] : 0;
-		if ( $total > 0 || 'active' === $status_key ) { // Always show active, others only if > 0
+		// Always show Active (stored as 'subscribed'), others only when > 0.
+		// The check named 'active', a key that doesn't exist.
+		if ( $total > 0 || 'subscribed' === $status_key ) {
 			$url = add_query_arg(
 				array(
 					'page'   => 'npmp_members',
@@ -797,9 +804,10 @@ function npmp_render_member_list_table( $context ) {
 	}
 	echo '</select> ';
 
-	echo '<label for="npmp-member-level" style="margin-left:10px;">' . esc_html__( 'Segment', 'nonprofit-manager' ) . '</label> ';
+	// "Segment" is Pro's saved-filter feature. This menu is the level.
+	echo '<label for="npmp-member-level" style="margin-left:10px;">' . esc_html( npmp_label( 'level' ) ) . '</label> ';
 	echo '<select name="level" id="npmp-member-level">';
-	echo '<option value="">' . esc_html__( 'All segments', 'nonprofit-manager' ) . '</option>';
+	echo '<option value="">' . esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'All %s', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ) . '</option>';
 	foreach ( $levels as $segment ) {
 		echo '<option value="' . esc_attr( $segment ) . '"' . selected( $level, $segment, false ) . '>' . esc_html( $segment ) . '</option>';
 	}
@@ -843,16 +851,21 @@ function npmp_render_member_list_table( $context ) {
 	wp_nonce_field( 'npmp_manage_members', 'npmp_members_nonce' );
 	echo '<input type="hidden" name="npmp_members_action" value="bulk_delete">';
 
+	// Right-align amounts on wide screens only. At phone width the cell
+	// shows its label on the left, and right alignment pushed the label too.
+	echo '<style>@media screen and (min-width: 783px) { .npmp-col-amount { text-align: right; } }</style>';
 	echo '<table class="wp-list-table widefat fixed striped">';
 	echo '<thead><tr>';
 	echo '<td class="check-column"><input type="checkbox" id="npmp-members-select-all"></td>';
-	echo '<th>' . wp_kses_post( $sort_link( 'name', __( 'Name', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th scope="col" class="column-primary">' . wp_kses_post( $sort_link( 'name', __( 'Name', 'nonprofit-manager' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . wp_kses_post( $sort_link( 'membership_level', __( 'Segment', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th>' . wp_kses_post( $sort_link( 'membership_level', npmp_label( 'level' ) ) ) . '</th>';
 	echo '<th>' . wp_kses_post( $sort_link( 'status', __( 'Status', 'nonprofit-manager' ) ) ) . '</th>';
 	echo '<th>' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</th>';
 	echo '<th style="width:110px;">' . wp_kses_post( $sort_link( 'donation_total', __( 'Lifetime Value', 'nonprofit-manager' ) ) ) . '</th>';
-	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'last_donation_at', sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) ) . '</th>';
+	/* translators: %s: singular word for a donation, such as Donation or Contribution. */
+	$last_label = sprintf( __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) );
+	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'last_donation_at', $last_label ) ) . '</th>';
 	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'created_at', __( 'Added', 'nonprofit-manager' ) ) ) . '</th>';
 	foreach ( $extra_columns as $column_label ) {
 		echo '<th>' . esc_html( $column_label ) . '</th>';
@@ -893,18 +906,21 @@ function npmp_render_member_list_table( $context ) {
 			$last_donation  = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : '—';
 			$created_at     = $member->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) : '—';
 
+			// column-primary, the toggle, and data-colname let WordPress fold
+			// the row at phone width (name first, the rest behind the arrow,
+			// each cell labelled). Without them every cell stacked unlabelled.
 			echo '<tr>';
-			echo '<th class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
-			echo '<td><strong><a href="' . esc_url( $view_url ) . '">' . esc_html( $member->name ?: $member->email ) . '</a></strong></td>';
-			echo '<td><a href="mailto:' . esc_attr( $member->email ) . '">' . esc_html( $member->email ) . '</a></td>';
-			echo '<td>' . esc_html( $member->membership_level ?: '—' ) . '</td>';
-			echo '<td>' . esc_html( $status_label ) . '</td>';
-				echo '<td>' . ( $tag_display ? wp_kses_post( implode( ' ', $tag_display ) ) : '&mdash;' ) . '</td>';
-			echo '<td style="text-align:right;">' . wp_kses_post( $donation_label ) . '</td>';
-			echo '<td>' . esc_html( $last_donation ) . '</td>';
-			echo '<td>' . esc_html( $created_at ) . '</td>';
-			foreach ( array_keys( $extra_columns ) as $column_key ) {
-				echo '<td>';
+			echo '<th scope="row" class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
+			echo '<td class="column-primary"><strong><a href="' . esc_url( $view_url ) . '">' . esc_html( $member->name ?: $member->email ) . '</a></strong><button type="button" class="toggle-row"><span class="screen-reader-text">' . esc_html__( 'Show more details', 'nonprofit-manager' ) . '</span></button></td>';
+			echo '<td data-colname="' . esc_attr__( 'Email', 'nonprofit-manager' ) . '"><a href="' . esc_url( 'mailto:' . $member->email ) . '">' . esc_html( $member->email ) . '</a></td>';
+			echo '<td data-colname="' . esc_attr( npmp_label( 'level' ) ) . '">' . esc_html( $member->membership_level ?: '—' ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Status', 'nonprofit-manager' ) . '">' . esc_html( $status_label ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Tags', 'nonprofit-manager' ) . '">' . ( $tag_display ? wp_kses_post( implode( ' ', $tag_display ) ) : '&mdash;' ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Lifetime Value', 'nonprofit-manager' ) . '" class="npmp-col-amount">' . wp_kses_post( $donation_label ) . '</td>';
+			echo '<td data-colname="' . esc_attr( $last_label ) . '">' . esc_html( $last_donation ) . '</td>';
+			echo '<td data-colname="' . esc_attr__( 'Added', 'nonprofit-manager' ) . '">' . esc_html( $created_at ) . '</td>';
+			foreach ( $extra_columns as $column_key => $column_label ) {
+				echo '<td data-colname="' . esc_attr( $column_label ) . '">';
 				/**
 				 * Print one cell of an extra Member List column (escaped).
 				 *
@@ -914,11 +930,11 @@ function npmp_render_member_list_table( $context ) {
 				do_action( 'npmp_members_list_column', (string) $column_key, $member );
 				echo '</td>';
 			}
-			echo '<td><a href="' . esc_url( $view_url ) . '">' . esc_html__( 'View', 'nonprofit-manager' ) . '</a> | <a href="' . esc_url( $delete_url ) . '" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\')">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a></td>';
+			echo '<td data-colname="' . esc_attr__( 'Actions', 'nonprofit-manager' ) . '"><a href="' . esc_url( $view_url ) . '">' . esc_html__( 'View', 'nonprofit-manager' ) . '</a> | <a href="' . esc_url( $delete_url ) . '" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\')">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a></td>';
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="' . esc_attr( 10 + count( $extra_columns ) ) . '">' . esc_html__( 'No contacts found for your current filters.', 'nonprofit-manager' ) . '</td></tr>';
+		echo '<tr class="no-items"><td colspan="' . esc_attr( 10 + count( $extra_columns ) ) . '">' . esc_html__( 'No contacts match these filters. Press Reset to see everyone, or Add New to add a contact.', 'nonprofit-manager' ) . '</td></tr>';
 	}
 
 	echo '</tbody></table>';
@@ -1075,7 +1091,7 @@ function npmp_render_member_detail_view( $context ) {
 	echo '</tr>';
 
 	echo '<tr>';
-	echo '<th scope="row"><label for="npmp-member-segment">' . esc_html__( 'Segment', 'nonprofit-manager' ) . '</label></th>';
+	echo '<th scope="row"><label for="npmp-member-segment">' . esc_html( npmp_label( 'level' ) ) . '</label></th>';
 	echo '<td>';
 	echo '<input type="text" id="npmp-member-segment" class="regular-text" name="member[membership_level]" value="' . esc_attr( $member->membership_level ) . '" list="npmp-membership-levels">';
 	if ( $levels ) {
@@ -1085,13 +1101,13 @@ function npmp_render_member_detail_view( $context ) {
 		}
 		echo '</datalist>';
 	}
-	echo '<p class="description">' . esc_html__( 'Use a predefined segment or enter a new one to categorize this contact.', 'nonprofit-manager' ) . '</p>';
+	echo '<p class="description">' . esc_html( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Pick a %s from the list or type a new one.', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ) . '</p>';
 	echo '</td>';
 	echo '</tr>';
 
 	echo '<tr>';
 	echo '<th scope="row"><label for="npmp-member-tags">' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</label></th>';
-	echo '<td><input type="text" id="npmp-member-tags" class="regular-text" name="member[tags]" value="' . esc_attr( $member->tags ) . '"><p class="description">' . esc_html__( 'Comma separated list (e.g. board,volunteer,major-donor).', 'nonprofit-manager' ) . '</p></td>';
+	echo '<td><input type="text" id="npmp-member-tags" class="regular-text" name="member[tags]" value="' . esc_attr( $member->tags ) . '"><p class="description">' . esc_html__( 'Separate tags with commas, for example board, volunteer, major-donor.', 'nonprofit-manager' ) . '</p></td>';
 	echo '</tr>';
 
 	/**
@@ -1154,7 +1170,7 @@ function npmp_render_member_detail_view( $context ) {
 	$last_contacted_value = $member->last_contacted ? date_i18n( 'Y-m-d\TH:i', strtotime( $member->last_contacted ) ) : '';
 	echo '<tr>';
 	echo '<th scope="row"><label for="npmp-member-last-contact">' . esc_html__( 'Last contacted', 'nonprofit-manager' ) . '</label></th>';
-	echo '<td><input type="datetime-local" id="npmp-member-last-contact" name="member[last_contacted]" value="' . esc_attr( $last_contacted_value ) . '"><p class="description">' . esc_html__( 'Leave blank to keep the previous timestamp.', 'nonprofit-manager' ) . '</p></td>';
+	echo '<td><input type="datetime-local" id="npmp-member-last-contact" name="member[last_contacted]" value="' . esc_attr( $last_contacted_value ) . '"><p class="description">' . esc_html__( 'Clear this field to remove the date.', 'nonprofit-manager' ) . '</p></td>';
 	echo '</tr>';
 
 	echo '<tr>';

@@ -296,7 +296,7 @@ function npmp_render_staff_access_panel() {
 
 	echo '<div class="card npmp-staff-access" style="max-width:820px;margin-top:24px;">';
 	echo '<h2 class="title">' . esc_html__( 'Give a volunteer access', 'nonprofit-manager' ) . '</h2>';
-	echo '<p>' . esc_html__( 'Add your membership chair or treasurer as a WordPress user with the Membership Manager role. They can work with members, donations and newsletters, and can\'t reach settings, payment keys, pages, plugins or anything else in WordPress.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html__( 'Add your membership chair or treasurer as a WordPress user with the Membership Manager role. They can work with members, donations, and newsletters, and can\'t reach settings, payment keys, pages, plugins, or anything else in WordPress.', 'nonprofit-manager' ) . '</p>';
 
 	if ( current_user_can( 'create_users' ) && current_user_can( 'promote_users' ) ) {
 		$url = add_query_arg( 'npmp_role', NPMP_STAFF_ROLE, admin_url( 'user-new.php' ) );

@@ -158,7 +158,7 @@ function npmp_render_newsletter_reports() {
         echo '<tr>';
         echo '<td><a href="' . esc_url($edit_link) . '">' . esc_html($title) . '</a>' . (function_exists('npmp_newsletter_scheduled_badge') ? npmp_newsletter_scheduled_badge($newsletter_id) : '') . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The badge is escaped where it's built.
         echo '<td>' . esc_html($audience) . '</td>';
-        echo '<td>' . esc_html($sent_date ?: '-') . '</td>';
+        echo '<td>' . esc_html($sent_date ? mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $sent_date) : '-') . '</td>';
         echo '<td>' . esc_html(intval($total)) . '</td>';
         echo '<td>' . esc_html(intval($opens)) . '</td>';
         echo '<td>' . esc_html(intval($failed)) . '</td>';

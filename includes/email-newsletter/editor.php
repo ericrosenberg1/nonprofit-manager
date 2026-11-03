@@ -315,13 +315,15 @@ function npmp_newsletter_send_controls_html($post) {
     $queued_at         = get_post_meta($post->ID, '_npmp_newsletter_queued_at', true);
     $recipient_total   = get_post_meta($post->ID, '_npmp_newsletter_recipient_total', true);
     $audience_label    = npmp_newsletter_get_audience_label($post->ID);
-    $level_counts      = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_by_level() : [];
+    // Subscribed only, so each number matches who the send reaches. It
+    // counted unsubscribed and inactive contacts too.
+    $level_counts      = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_by_level('subscribed') : [];
     $count_all         = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_members(['status' => 'subscribed', 'per_page' => -1]) : 0;
 
     echo '<input type="hidden" name="npmp_newsletter_meta_nonce" value="' . esc_attr($meta_nonce) . '">';
 
     if ($queued_at) {
-        echo '<p><strong>' . esc_html__('Last queued:', 'nonprofit-manager') . '</strong> ' . esc_html($queued_at) . '</p>';
+        echo '<p><strong>' . esc_html__('Last queued:', 'nonprofit-manager') . '</strong> ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $queued_at)) . '</p>';
         if ($recipient_total) {
             echo '<p><strong>' . esc_html__('Recipients queued:', 'nonprofit-manager') . '</strong> ' . esc_html((int) $recipient_total) . '</p>';
         }
@@ -343,7 +345,8 @@ function npmp_newsletter_send_controls_html($post) {
     echo '</label>';
 
     echo '<div class="npmp-newsletter-specific-levels" style="' . ($all_checked ? 'opacity:0.5;pointer-events:none;' : '') . '">';
-    echo '<p class="description" style="margin-top:0;">' . esc_html__('Or select specific groups:', 'nonprofit-manager') . '</p>';
+    // "Groups" are a Pro feature with their own picker below, so these say levels.
+    echo '<p class="description" style="margin-top:0;">' . esc_html(sprintf(/* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __('Or pick %s:', 'nonprofit-manager'), npmp_label('levels_lc'))) . '</p>';
 
     foreach ($levels_option as $level_label) {
         $value   = $level_label;
@@ -418,7 +421,7 @@ function npmp_newsletter_send_controls_html($post) {
 
     echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '" data-default="' . esc_attr__('Send Test Email', 'nonprofit-manager') . '" data-working="' . esc_attr__('Sending…', 'nonprofit-manager') . '">' . esc_html__('Send Test Email', 'nonprofit-manager') . '</button></p>';
     if (!current_user_can(npmp_newsletter_send_capability())) {
-        echo '<p class="description">' . esc_html__('An editor, administrator or Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
+        echo '<p class="description">' . esc_html__('An editor, an administrator, or a Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
         return;
     }
     echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';

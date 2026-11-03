@@ -146,6 +146,25 @@ class NPMP_Newsletter_Manager {
 	}
 
 	public static function process_queue() {
+		// One run at a time. Two overlapping runs read the same pending rows
+		// and mailed each recipient twice.
+		if ( ! function_exists( 'npmp_mail_queue_lock' ) || ! npmp_mail_queue_lock( 'newsletter' ) ) {
+			return;
+		}
+		try {
+			self::drain_queue_batch();
+		} finally {
+			npmp_mail_queue_unlock( 'newsletter' );
+		}
+	}
+
+	/**
+	 * Send one batch of pending queue rows. Call process_queue(), which holds
+	 * the run lock around this.
+	 *
+	 * @return void
+	 */
+	private static function drain_queue_batch() {
 		global $wpdb;
 		$table = $wpdb->prefix . 'npmp_newsletter_queue';
 
@@ -171,6 +190,7 @@ class NPMP_Newsletter_Manager {
 		// newsletter_id => whether any of its rows sent successfully this run,
 		// used below to decide the completion milestone.
 		$touched = array();
+		$bodies  = array();
 
 		foreach ( $batch as $row ) {
 			$queue_id      = (int) $row->id;
@@ -195,9 +215,20 @@ class NPMP_Newsletter_Manager {
 				continue;
 			}
 
-			$content = self::get_newsletter_content( $newsletter_id, false, $user_id, $email );
-			$subject = get_the_title( $newsletter_id );
-			$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
+			// Render the shared body once per newsletter per batch. It used to
+			// run the_content filters and the template for every recipient.
+			if ( ! array_key_exists( $newsletter_id, $bodies ) ) {
+				$bodies[ $newsletter_id ] = self::render_base_content( $newsletter_id );
+			}
+			if ( null === $bodies[ $newsletter_id ] ) {
+				// The newsletter was deleted after it was queued. Mailing an
+				// empty body with only the footer helps nobody.
+				$sent = false;
+			} else {
+				$content = self::personalize_content( $bodies[ $newsletter_id ], $newsletter_id, false, $user_id, $email );
+				$subject = get_the_title( $newsletter_id );
+				$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
+			}
 
 			$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
 				$table,
@@ -255,13 +286,28 @@ class NPMP_Newsletter_Manager {
 	 * @return string
 	 */
 	public static function get_newsletter_content( $newsletter_id, $is_test = false, $user_id = null, $email = '' ) {
-		$post = get_post( $newsletter_id );
-		if ( ! $post || 'npmp_newsletter' !== $post->post_type ) {
+		$base = self::render_base_content( $newsletter_id );
+		if ( null === $base ) {
 			return '';
 		}
+		return self::personalize_content( $base, $newsletter_id, $is_test, $user_id, $email );
+	}
 
-			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Use core 'the_content' filters so newsletter blocks/shortcodes render correctly.
-			$content = apply_filters( 'the_content', $post->post_content );
+	/**
+	 * The part of a newsletter that is the same for every recipient: the
+	 * rendered content, the template, and the preheader.
+	 *
+	 * @param int $newsletter_id Newsletter ID.
+	 * @return string|null Null when the post isn't a newsletter.
+	 */
+	private static function render_base_content( $newsletter_id ) {
+		$post = get_post( $newsletter_id );
+		if ( ! $post || 'npmp_newsletter' !== $post->post_type ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Use core 'the_content' filters so newsletter blocks/shortcodes render correctly.
+		$content = apply_filters( 'the_content', $post->post_content );
 
 		// Apply newsletter template if configured
 		$selected_template = get_post_meta( $newsletter_id, '_npmp_newsletter_template', true );
@@ -280,6 +326,21 @@ class NPMP_Newsletter_Manager {
 			$hidden  = esc_html( $preheader ) . str_repeat( '&nbsp;', 10 );
 			$content = '<span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">' . $hidden . '</span>' . $content;
 		}
+
+		return $content;
+	}
+
+	/**
+	 * Add one recipient's tracking and footer links to the shared body.
+	 *
+	 * @param string   $content       Output of render_base_content().
+	 * @param int      $newsletter_id Newsletter ID.
+	 * @param bool     $is_test       True for "Send test" (no tracking).
+	 * @param int|null $user_id       Recipient contact ID, for tracking.
+	 * @param string   $email         Recipient address, for the footer links.
+	 * @return string
+	 */
+	private static function personalize_content( $content, $newsletter_id, $is_test, $user_id, $email ) {
 		$track_opens  = (bool) get_option( 'npmp_newsletter_track_opens', true );
 		$track_clicks = (bool) get_option( 'npmp_newsletter_track_clicks', false );
 
@@ -296,33 +357,7 @@ class NPMP_Newsletter_Manager {
 			}
 
 			if ( $track_clicks ) {
-				$tracker = NPMP_Newsletter_Tracker::get_instance();
-				$dom     = new DOMDocument();
-
-				// DOMDocument::loadHTML() assumes ISO-8859-1 without an explicit
-				// charset, which mangles multi-byte UTF-8 characters. The old fix
-				// was mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), but
-				// PHP 8.2 deprecated passing 'HTML-ENTITIES' to mb_convert_encoding().
-				// mb_encode_numericentity() with this convmap (every code point from
-				// U+0080 up) produces the same effect (every non-ASCII character
-				// becomes a numeric HTML entity) without the deprecation.
-				$convmap                = array( 0x80, 0x10FFFF, 0, 0x1FFFFF );
-				$libxml_previous_state  = libxml_use_internal_errors( true );
-				$dom->loadHTML( mb_encode_numericentity( $content, $convmap, 'UTF-8' ) );
-				libxml_clear_errors();
-				libxml_use_internal_errors( $libxml_previous_state );
-
-				$replacements = array();
-				foreach ( $dom->getElementsByTagName( 'a' ) as $a ) {
-					$href = $a->getAttribute( 'href' );
-					if ( $href && false === strpos( $href, 'npmp_track=' ) ) {
-						$replacements[ $href ] = $tracker->create_tracked_url( $href, $newsletter_id, $user_id );
-					}
-				}
-
-				foreach ( $replacements as $orig => $tracked ) {
-					$content = str_replace( 'href="' . $orig . '"', 'href="' . esc_url( $tracked ) . '"', $content );
-				}
+				$content = self::track_links( $content, $newsletter_id, $user_id );
 			}
 		}
 
@@ -334,6 +369,57 @@ class NPMP_Newsletter_Manager {
 				)
 			)
 			: do_shortcode( '[npmp_can_spam]' );
+		return $content;
+	}
+
+	/**
+	 * Point every web link in a body at the click tracker.
+	 *
+	 * Only http and https links are wrapped. A mailto:, tel:, or #anchor link
+	 * sent through the tracker redirect stopped working. A link whose href holds
+	 * an entity (&amp; in a query string) is matched in its written form too,
+	 * since DOMDocument hands back the decoded value.
+	 *
+	 * @param string $content       HTML body.
+	 * @param int    $newsletter_id Newsletter ID.
+	 * @param int    $user_id       Recipient contact ID.
+	 * @return string
+	 */
+	public static function track_links( $content, $newsletter_id, $user_id ) {
+		$tracker = NPMP_Newsletter_Tracker::get_instance();
+		$dom     = new DOMDocument();
+
+		// DOMDocument::loadHTML() assumes ISO-8859-1 without an explicit
+		// charset, which mangles multi-byte UTF-8 characters. The old fix
+		// was mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), but
+		// PHP 8.2 deprecated passing 'HTML-ENTITIES' to mb_convert_encoding().
+		// mb_encode_numericentity() with this convmap (every code point from
+		// U+0080 up) produces the same effect (every non-ASCII character
+		// becomes a numeric HTML entity) without the deprecation.
+		$convmap               = array( 0x80, 0x10FFFF, 0, 0x1FFFFF );
+		$libxml_previous_state = libxml_use_internal_errors( true );
+		$dom->loadHTML( mb_encode_numericentity( $content, $convmap, 'UTF-8' ) );
+		libxml_clear_errors();
+		libxml_use_internal_errors( $libxml_previous_state );
+
+		$replacements = array();
+		foreach ( $dom->getElementsByTagName( 'a' ) as $a ) {
+			$href = trim( (string) $a->getAttribute( 'href' ) );
+			if ( '' === $href || false !== strpos( $href, 'npmp_track=' ) || ! preg_match( '#^https?://#i', $href ) ) {
+				continue;
+			}
+			$replacements[ $href ] = $tracker->create_tracked_url( $href, $newsletter_id, $user_id );
+		}
+
+		foreach ( $replacements as $orig => $tracked ) {
+			$new     = 'href="' . esc_url( $tracked ) . '"';
+			$content = str_replace( 'href="' . $orig . '"', $new, $content );
+			$encoded = str_replace( '&', '&amp;', $orig );
+			if ( $encoded !== $orig ) {
+				$content = str_replace( 'href="' . $encoded . '"', $new, $content );
+			}
+		}
+
 		return $content;
 	}
 
