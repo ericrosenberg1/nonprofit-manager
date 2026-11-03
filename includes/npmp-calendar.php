@@ -169,7 +169,6 @@ function npmp_render_events_dashboard() {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
 	}
 
-	$is_pro       = npmp_is_pro();
 	$current_time = current_time( 'mysql' );
 
 	// Query upcoming events
