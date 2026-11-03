@@ -79,7 +79,7 @@ function npmp_newsletter_register_editor_screens() {
     if (current_user_can('edit_posts') || !current_user_can('edit_npmp_newsletters')) {
         return;
     }
-    foreach (['npmp_newsletter', 'npmp_nl_template'] as $type) {
+    foreach (['npmp_newsletter', 'npmp_nl_template', 'npmp_email_body'] as $type) {
         add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'edit.php?post_type=' . $type);
         add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'post-new.php?post_type=' . $type);
     }
@@ -98,7 +98,7 @@ function npmp_newsletter_hide_editor_screens() {
         return;
     }
     foreach ($submenu['npmp-newsletters'] as $index => $item) {
-        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template)$#', $item[2])) {
+        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template|email_body)$#', $item[2])) {
             unset($submenu['npmp-newsletters'][$index]);
         }
     }
@@ -255,7 +255,7 @@ function npmp_render_newsletter_archive() {
             );
 
             echo '<tr>';
-            echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a></td>';
+            echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a>' . (function_exists('npmp_newsletter_scheduled_badge') ? npmp_newsletter_scheduled_badge($post_id) : '') . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The badge is escaped where it's built.
             echo '<td>' . esc_html($topic_labels ? implode(', ', $topic_labels) : '—') . '</td>';
             echo '<td>' . esc_html($audience) . '</td>';
             echo '<td>' . esc_html($sent_at ? $sent_at : '—') . '</td>';
@@ -408,6 +408,11 @@ function npmp_newsletter_send_controls_html($post) {
         return;
     }
     echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';
+
+    // "Send later": pick a time and the scheduled emails sweep sends it then.
+    if (function_exists('npmp_scheduled_emails_render_send_later')) {
+        npmp_scheduled_emails_render_send_later($post);
+    }
 }
 
 /**
@@ -486,6 +491,11 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
     npmp_newsletter_store_meta($post_id, $levels, $preheader);
 
     $queued = NPMP_Newsletter_Manager::queue_newsletter($post_id);
+
+    // Sent by hand, so a pending "Send later" for it must not send it again.
+    if (function_exists('npmp_scheduled_emails_cancel_target')) {
+        npmp_scheduled_emails_cancel_target('list', $post_id, __('You sent it by hand first.', 'nonprofit-manager'));
+    }
 
     if ($queued > 0) {
         $message = sprintf(
@@ -691,7 +701,7 @@ add_filter('rest_pre_dispatch', function ($result, $server, $request) {
         return $result;
     }
     $route = (string) $request->get_route();
-    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic)(/|$)#', $route) && !current_user_can('edit_npmp_newsletters')) {
+    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic|npmp_email_body)(/|$)#', $route) && !current_user_can('edit_npmp_newsletters')) {
         return new WP_Error('rest_forbidden', __('Sorry, you are not allowed to do that.', 'nonprofit-manager'), array('status' => rest_authorization_required_code()));
     }
     return $result;

@@ -1,0 +1,42 @@
+/* Scheduled emails: event box, "Send later", and the Scheduled Emails screen. */
+#npmp-event-scheduled-email select,
+.npmp-send-later input[type="datetime-local"] {
+	max-width: 100%;
+}
+.npmp-sched-custom,
+.npmp-nowrap {
+	white-space: nowrap;
+}
+.npmp-sched-actions .button {
+	margin: 0 4px 6px 0;
+}
+.npmp-sched-message:empty,
+.npmp-send-later-status:empty {
+	display: none;
+}
+.npmp-sched-pro {
+	opacity: .75;
+}
+.npmp-sched-pro .button[disabled] {
+	cursor: not-allowed;
+}
+.npmp-send-later {
+	border-top: 1px solid #dcdcde;
+	margin-top: 12px;
+	padding-top: 4px;
+}
+.npmp-sched-placeholders {
+	margin: 0;
+}
+.npmp-sched-placeholders li {
+	margin-bottom: 4px;
+}
+.npmp-sched-table td {
+	vertical-align: top;
+}
+@media (max-width: 782px) {
+	.npmp-sched-table td,
+	.npmp-sched-table th {
+		word-break: break-word;
+	}
+}
