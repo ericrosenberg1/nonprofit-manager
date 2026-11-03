@@ -42,19 +42,19 @@ if ( ! function_exists( 'npmp_pro_feature_pages' ) ) {
 			'npmp_automations'   => array(
 				'menu'     => __( 'Automations', 'nonprofit-manager' ),
 				'title'    => __( 'Email Automations', 'nonprofit-manager' ),
-				'line'     => __( 'Send a welcome email on signup, a thank-you on each donation, a membership expiry reminder, a note when a recurring payment fails, and an email when a tag is added, with no one pressing Send. Email automations come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => __( 'Send a welcome email on signup, a thank-you on each donation, a membership expiry reminder, a note when a recurring payment fails, and an email when you add a tag, with no one pressing Send. Email automations come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
 				'campaign' => 'automations',
 			),
 			'npmp_custom_fields' => array(
 				'menu'     => __( 'Custom Fields', 'nonprofit-manager' ),
 				'title'    => __( 'Custom Fields', 'nonprofit-manager' ),
-				'line'     => __( 'Add your own fields to members, donations and events (a phone number, a committee, a T-shirt size) and fill them in from the edit screens and imports. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => __( 'Add your own fields to members, donations, and events (a phone number, a committee, a T-shirt size) and fill them in from the edit screens and imports. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
 				'campaign' => 'custom_fields',
 			),
 			'npmp_segments'      => array(
 				'menu'     => __( 'Segments', 'nonprofit-manager' ),
 				'title'    => __( 'Segments', 'nonprofit-manager' ),
-				'line'     => __( 'Save a list built from membership level, status, tags or last donation date, and send a newsletter to just that list. Segments come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => __( 'Save a list built from membership level, status, tags, or last donation date, and send a newsletter to that list alone. Segments come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
 				'campaign' => 'segments',
 			),
 			'npmp_groups'        => array(

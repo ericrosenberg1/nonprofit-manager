@@ -21,7 +21,8 @@ function npmp_render_donations_dashboard() {
 	$dm = NPMP_Donation_Manager::get_instance();
 
 	/* Read & validate filter params */
-	$current_year  = (int) gmdate( 'Y' );
+	// The year and month on the site's clock, the same one post_date uses.
+	$current_year  = (int) wp_date( 'Y' );
 	$current_month = 0;
 
 	if (
@@ -40,6 +41,12 @@ function npmp_render_donations_dashboard() {
 	// Dropping it saved a grouped query on every page load, and the method
 	// itself was removed once nothing called it.
 	$years = $dm->years_with_donations();
+	// A new year with no gifts yet still needs its own option, or the menu
+	// showed last year while the tables below showed this one.
+	if ( ! in_array( $current_year, $years, true ) ) {
+		$years[] = $current_year;
+		rsort( $years );
+	}
 
 	// Label the amount column with the currency when every donation is in
 	// one. A site that has taken more than one shows each amount with its own.
@@ -69,7 +76,7 @@ function npmp_render_donations_dashboard() {
 	echo '<select name="month">';
 	echo '<option value="0">' . esc_html__( 'All', 'nonprofit-manager' ) . '</option>';
 	for ( $m = 1; $m <= 12; $m ++ ) {
-		echo '<option value="' . esc_attr( $m ) . '"' . selected( $m, $current_month, false ) . '>' . esc_html( gmdate( 'F', gmmktime( 0, 0, 0, $m, 1 ) ) ) . '</option>';
+		echo '<option value="' . esc_attr( $m ) . '"' . selected( $m, $current_month, false ) . '>' . esc_html( $GLOBALS['wp_locale']->get_month( $m ) ) . '</option>';
 	}
 	echo '</select></label> ';
 	submit_button( esc_html__( 'Filter', 'nonprofit-manager' ), 'secondary', '', false );
@@ -147,7 +154,7 @@ function npmp_render_donations_dashboard() {
 			echo '<td>' . esc_html( $email ) . '</td>';
 			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_gateway_label( $gateway ) ) . '</td>';
 			echo '</tr>';
 		}
 	} else {
@@ -185,9 +192,9 @@ function npmp_render_donations_dashboard() {
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
 			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $frequency ) ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_frequency_label( $frequency ) ) . '</td>';
 			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $gateway ) ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_gateway_label( $gateway ) ) . '</td>';
 			echo '</tr>';
 		}
 	} else {
@@ -199,13 +206,51 @@ function npmp_render_donations_dashboard() {
 		echo '<p class="description" style="margin-top:.75em;">';
 		printf(
 			/* translators: %s: URL to upgrade page */
-			wp_kses_post( __( 'Monthly, quarterly and annual giving through Stripe or the PayPal API comes with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+			wp_kses_post( __( 'Weekly, monthly, quarterly, and annual giving through Stripe or the PayPal API comes with <a href="%s" target="_blank" rel="noopener">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 			esc_url( npmp_get_upgrade_url( 'recurring_donations' ) )
 		);
 		echo '</p>';
 	}
 
 	echo '</div>';
+}
+
+/**
+ * The name a person reads for a stored gateway slug.
+ *
+ * @param string $gateway Gateway slug saved with the donation.
+ * @return string
+ */
+function npmp_gateway_label( $gateway ) {
+	$labels = array(
+		'stripe'      => __( 'Stripe', 'nonprofit-manager' ),
+		'paypal_api'  => __( 'PayPal', 'nonprofit-manager' ),
+		'paypal'      => __( 'PayPal', 'nonprofit-manager' ),
+		'paypal_link' => __( 'PayPal', 'nonprofit-manager' ),
+		'venmo_link'  => __( 'Venmo', 'nonprofit-manager' ),
+		'venmo'       => __( 'Venmo', 'nonprofit-manager' ),
+	);
+	$gateway = (string) $gateway;
+	return $labels[ $gateway ] ?? ucfirst( str_replace( '_', ' ', $gateway ) );
+}
+
+/**
+ * The name a person reads for a stored donation frequency.
+ *
+ * @param string $frequency Frequency saved with the donation ('annual' and 'yearly' both occur).
+ * @return string
+ */
+function npmp_frequency_label( $frequency ) {
+	$labels = array(
+		'one_time'  => __( 'One-Time', 'nonprofit-manager' ),
+		'weekly'    => __( 'Weekly', 'nonprofit-manager' ),
+		'monthly'   => __( 'Monthly', 'nonprofit-manager' ),
+		'quarterly' => __( 'Quarterly', 'nonprofit-manager' ),
+		'annual'    => __( 'Annual', 'nonprofit-manager' ),
+		'yearly'    => __( 'Annual', 'nonprofit-manager' ),
+	);
+	$frequency = (string) $frequency;
+	return $labels[ $frequency ] ?? ucfirst( str_replace( '_', ' ', $frequency ) );
 }
 
 /* ==============================================================
@@ -251,6 +296,7 @@ function npmp_render_donation_settings_page() {
 	$thank_you_enabled = get_option( 'npmp_enable_thank_you_email', 1 );
 	$thank_you_subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
 	$thank_you_message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
+	$form_labels       = npmp_donation_form_default_labels();
 
 	?>
 	<div class="wrap">
@@ -262,7 +308,7 @@ function npmp_render_donation_settings_page() {
 
 			<!-- Donation Page -->
 			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Page', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
-			<p><?php esc_html_e( 'Choose a default page (form will be auto-inserted) or use the shortcode', 'nonprofit-manager' ); ?> <code>[npmp_donation_form]</code>.</p>
+			<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Pick a page, and you\'ll see the %s form at the bottom of that page. You can also put the form anywhere with the Donation block or this shortcode:', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?> <code>[npmp_donation_form]</code></p>
 			<?php
 			wp_dropdown_pages(
 				array(
@@ -278,36 +324,36 @@ function npmp_render_donation_settings_page() {
 			<table class="form-table">
 				<tr>
 					<th><?php esc_html_e( 'Form Title', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_form_title" value="<?php echo esc_attr( get_option( 'npmp_donation_form_title', 'Support Our Mission' ) ); ?>" class="regular-text"></td>
+					<td><input type="text" name="npmp_donation_form_title" value="<?php echo esc_attr( get_option( 'npmp_donation_form_title', $form_labels['title'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Intro Text', 'nonprofit-manager' ); ?></th>
-					<td><textarea name="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', 'Your gift supports our work.' ) ); ?></textarea></td>
+					<td><textarea name="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', $form_labels['intro'] ) ); ?></textarea></td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Amount Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_amount_label" value="<?php echo esc_attr( get_option( 'npmp_donation_amount_label', 'Donation Amount' ) ); ?>" class="regular-text"></td>
+					<td><input type="text" name="npmp_donation_amount_label" value="<?php echo esc_attr( get_option( 'npmp_donation_amount_label', $form_labels['amount_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Email Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_email_label" value="<?php echo esc_attr( get_option( 'npmp_donation_email_label', 'Your Email' ) ); ?>" class="regular-text"></td>
+					<td><input type="text" name="npmp_donation_email_label" value="<?php echo esc_attr( get_option( 'npmp_donation_email_label', $form_labels['email_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Submit Button Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_button_label" value="<?php echo esc_attr( get_option( 'npmp_donation_button_label', 'Donate Now' ) ); ?>" class="regular-text"></td>
+					<td><input type="text" name="npmp_donation_button_label" value="<?php echo esc_attr( get_option( 'npmp_donation_button_label', $form_labels['btn_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 			</table>
 
 			<!-- Thank You Email Section -->
-			<h2><?php esc_html_e( 'Automated Thank You Email', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Thank-You Email', 'nonprofit-manager' ); ?></h2>
 
 			<?php if ( $is_pro ) : ?>
 				<!-- Pro: Full functionality -->
-				<p><?php esc_html_e( 'Send an automated thank you email to donors after successful donations.', 'nonprofit-manager' ); ?></p>
+				<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donors, such as donors or supporters. */ __( 'You can send each of your %s a thank-you email every time they give.', 'nonprofit-manager' ), npmp_label( 'donors_lc' ) ) ); ?></p>
 
 				<label>
 					<input type="checkbox" name="npmp_enable_thank_you_email" value="1" <?php checked( $thank_you_enabled, 1 ); ?>>
-					<?php esc_html_e( 'Enable Thank You Emails', 'nonprofit-manager' ); ?>
+					<?php esc_html_e( 'Send thank-you emails', 'nonprofit-manager' ); ?>
 				</label>
 
 				<table class="form-table" style="margin-top: 15px;">
@@ -315,7 +361,7 @@ function npmp_render_donation_settings_page() {
 						<th><?php esc_html_e( 'Email Subject', 'nonprofit-manager' ); ?></th>
 						<td>
 							<input type="text" name="npmp_thank_you_subject" value="<?php echo esc_attr( $thank_you_subject ); ?>" class="large-text">
-							<p class="description"><?php esc_html_e( 'Subject line for the thank you email.', 'nonprofit-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'The subject line of the thank-you email.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -323,7 +369,7 @@ function npmp_render_donation_settings_page() {
 						<td>
 							<textarea name="npmp_thank_you_message" rows="8" class="large-text"><?php echo esc_textarea( $thank_you_message ); ?></textarea>
 							<p class="description">
-								<?php esc_html_e( 'Available shortcodes:', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Placeholders you can use:', 'nonprofit-manager' ); ?>
 								<code>{donor_name}</code>,
 								<code>{donor_email}</code>,
 								<code>{donation_amount}</code>,
@@ -335,25 +381,18 @@ function npmp_render_donation_settings_page() {
 					</tr>
 				</table>
 			<?php else : ?>
-				<!-- Free: Upsell for Pro -->
-				<div style="background: #ecfdf5; border: 1px solid #0f766e; border-radius: 4px; padding: 20px; margin-top: 10px;">
-					<p><strong><?php esc_html_e( 'Automated Thank You Emails are a Pro Feature', 'nonprofit-manager' ); ?></strong></p>
-					<p><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro to automatically send personalized thank you emails to donors after they complete a donation.', 'nonprofit-manager' ); ?></p>
-
-					<p><strong><?php esc_html_e( 'Pro Features Include:', 'nonprofit-manager' ); ?></strong></p>
-					<ul style="list-style: disc; margin-left: 20px;">
-						<li><?php esc_html_e( 'Automated thank you emails sent immediately after donation', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Customizable email subject and message templates', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Dynamic shortcodes for personalization (donor name, amount, date, etc.)', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Keeps donors coming back', 'nonprofit-manager' ); ?></li>
-					</ul>
-
-					<p style="margin-top: 15px;">
-						<a href="<?php echo esc_url( npmp_get_upgrade_url( 'thank_you_email' ) ); ?>" class="button button-primary" target="_blank">
-							<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
-						</a>
-					</p>
-				</div>
+				<!-- Free: one line and one upgrade link. -->
+				<p class="npmp-pro-locked">
+					<?php
+					printf(
+						/* translators: 1: lowercase plural word for donors, such as donors or supporters, 2: opening upgrade link tag, 3: closing link tag. */
+						esc_html__( 'With Pro, you can send %1$s a thank-you in your own words, with the amount and date, each time they give. %2$sSee Pro%3$s', 'nonprofit-manager' ),
+						esc_html( npmp_label( 'donors_lc' ) ),
+						'<a href="' . esc_url( npmp_get_upgrade_url( 'thank_you_email' ) ) . '" target="_blank" rel="noopener">',
+						'</a>'
+					);
+					?>
+				</p>
 			<?php endif; ?>
 
 			<?php submit_button( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Save %s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?>
@@ -439,7 +478,7 @@ function npmp_render_payment_settings_page() {
 		if ( $is_pro ) {
 			// Save PayPal mode
 			if ( isset( $_POST['npmp_paypal_mode'] ) ) {
-				update_option( 'npmp_paypal_mode', sanitize_text_field( wp_unslash( $_POST['npmp_paypal_mode'] ) ) );
+				update_option( 'npmp_paypal_mode', 'sandbox' === sanitize_key( wp_unslash( $_POST['npmp_paypal_mode'] ) ) ? 'sandbox' : 'live' );
 			}
 
 			// Save PayPal Live keys.
@@ -472,7 +511,7 @@ function npmp_render_payment_settings_page() {
 		// the free plugin. Recurring gifts and dues (the webhook) need Pro.
 		// Save Stripe mode
 		if ( isset( $_POST['npmp_stripe_mode'] ) ) {
-			update_option( 'npmp_stripe_mode', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_mode'] ) ) );
+			update_option( 'npmp_stripe_mode', 'test' === sanitize_key( wp_unslash( $_POST['npmp_stripe_mode'] ) ) ? 'test' : 'live' );
 		}
 
 		// Save Stripe Live keys
@@ -540,8 +579,14 @@ function npmp_render_payment_settings_page() {
 
 	?>
 	<div class="wrap">
-		<h1><?php esc_html_e( 'Payment Gateway Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Configure how you want to accept donations.', 'nonprofit-manager' ); ?></p>
+		<h1><?php esc_html_e( 'Payment Settings', 'nonprofit-manager' ); ?></h1>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Pick your currency and the ways people can send you %s.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
+
+		<?php
+		foreach ( npmp_payment_setup_gaps( $enabled_gateways, $is_pro ) as $gap ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html( $gap ) . '</p></div>';
+		}
+		?>
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_payment_gateway', 'npmp_payment_gateway_nonce' ); ?>
@@ -556,7 +601,7 @@ function npmp_render_payment_settings_page() {
 								<option value="<?php echo esc_attr( $code ); ?>" <?php selected( $site_currency, $code ); ?>><?php echo esc_html( $code . ' · ' . $currency_name . ' (' . npmp_currency_symbol( $code ) . ')' ); ?></option>
 							<?php endforeach; ?>
 						</select>
-						<p class="description"><?php esc_html_e( 'Every donation form, membership dues price and recurring gift uses this currency. Gifts already recorded keep the currency they were made in.', 'nonprofit-manager' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Every donation form, membership dues price, and recurring gift uses this currency. Gifts you\'ve already recorded keep their original currency.', 'nonprofit-manager' ); ?></p>
 						<?php if ( $active_subscriptions > 0 ) : ?>
 							<p class="description" style="color:#996800;">
 								<?php
@@ -579,8 +624,8 @@ function npmp_render_payment_settings_page() {
 				</tr>
 			</table>
 
-			<h2><?php esc_html_e( 'Choose Payment Gateways', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Select one or more payment gateways to accept donations. You can enable multiple payment methods.', 'nonprofit-manager' ); ?></p>
+			<h2><?php esc_html_e( 'Payment Methods', 'nonprofit-manager' ); ?></h2>
+			<p><?php esc_html_e( 'Turn on one or more. With more than one on, donors pick a button on the form.', 'nonprofit-manager' ); ?></p>
 
 			<table class="form-table">
 				<tr>
@@ -611,7 +656,7 @@ function npmp_render_payment_settings_page() {
 							if ( $is_pro ) {
 								esc_html_e( 'PayPal API', 'nonprofit-manager' );
 							} else {
-								esc_html_e( 'PayPal API (Pro Upgrade Required)', 'nonprofit-manager' );
+								esc_html_e( 'PayPal API (Pro)', 'nonprofit-manager' );
 							}
 							?>
 						</label><br>
@@ -626,7 +671,7 @@ function npmp_render_payment_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( 'Want monthly giving or the PayPal API gateway? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( 'Monthly giving and the PayPal API, which records each PayPal gift here, come with <a href="%s" target="_blank" rel="noopener">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 									esc_url( npmp_get_upgrade_url( 'payment_gateways' ) )
 								);
 								?>
@@ -640,13 +685,13 @@ function npmp_render_payment_settings_page() {
 			<div class="npmp-gateway-settings npmp-gateway-paypal_link" style="<?php echo ! in_array( 'paypal_link', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 				<hr>
 				<h3><?php esc_html_e( 'PayPal Link Configuration', 'nonprofit-manager' ); ?></h3>
-				<p><?php esc_html_e( 'When donors click the PayPal logo, they will be redirected to PayPal with a pre-filled payment form.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'The PayPal button opens PayPal in a new tab with the amount filled in, and the donor finishes there. These gifts show in your PayPal account, not in your Donations list here.', 'nonprofit-manager' ); ?></p>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_paypal_email"><?php esc_html_e( 'PayPal Email Address', 'nonprofit-manager' ); ?></label></th>
 						<td>
 							<input type="email" id="npmp_paypal_email" name="npmp_paypal_email" value="<?php echo esc_attr( get_option( 'npmp_paypal_email', '' ) ); ?>" class="regular-text">
-							<p class="description"><?php esc_html_e( 'The email address associated with your PayPal account.', 'nonprofit-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'The email address on your PayPal account.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -656,13 +701,13 @@ function npmp_render_payment_settings_page() {
 			<div class="npmp-gateway-settings npmp-gateway-venmo_link" style="<?php echo ! in_array( 'venmo_link', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 				<hr>
 				<h3><?php esc_html_e( 'Venmo Link Configuration', 'nonprofit-manager' ); ?></h3>
-				<p><?php esc_html_e( 'When donors click the Venmo logo, they will be redirected to Venmo with a pre-filled payment form.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'The Venmo button opens the Venmo app or website with the amount filled in, and the donor finishes there. These gifts show in your Venmo account, not in your Donations list here.', 'nonprofit-manager' ); ?></p>
 				<table class="form-table">
 					<tr>
-						<th><label for="npmp_venmo_handle"><?php esc_html_e( 'Venmo Username/Phone', 'nonprofit-manager' ); ?></label></th>
+						<th><label for="npmp_venmo_handle"><?php esc_html_e( 'Venmo Username', 'nonprofit-manager' ); ?></label></th>
 						<td>
-							<input type="text" id="npmp_venmo_handle" name="npmp_venmo_handle" value="<?php echo esc_attr( get_option( 'npmp_venmo_handle', '' ) ); ?>" class="regular-text" placeholder="@username or phone number">
-							<p class="description"><?php esc_html_e( 'Your Venmo username (with @) or phone number.', 'nonprofit-manager' ); ?></p>
+							<input type="text" id="npmp_venmo_handle" name="npmp_venmo_handle" value="<?php echo esc_attr( get_option( 'npmp_venmo_handle', '' ) ); ?>" class="regular-text" placeholder="<?php esc_attr_e( '@username', 'nonprofit-manager' ); ?>">
+							<p class="description"><?php esc_html_e( 'Your Venmo username, with or without the @.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -689,7 +734,7 @@ function npmp_render_payment_settings_page() {
 								<?php $paypal_mode = get_option( 'npmp_paypal_mode', 'live' ); ?>
 								<label><input type="radio" name="npmp_paypal_mode" value="live" <?php checked( $paypal_mode, 'live' ); ?>> <?php esc_html_e( 'Live', 'nonprofit-manager' ); ?></label>
 								<label><input type="radio" name="npmp_paypal_mode" value="sandbox" <?php checked( $paypal_mode, 'sandbox' ); ?>> <?php esc_html_e( 'Sandbox (Testing)', 'nonprofit-manager' ); ?></label>
-								<p class="description"><?php esc_html_e( 'Select Live for production or Sandbox for testing.', 'nonprofit-manager' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Use Sandbox with PayPal\'s test accounts, and Live to take donations.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -736,7 +781,7 @@ function npmp_render_payment_settings_page() {
 					?>
 
 					<h4><?php esc_html_e( 'PayPal Donation Frequencies', 'nonprofit-manager' ); ?></h4>
-					<p><?php esc_html_e( 'Select which donation frequencies are available for PayPal donations. One-time donations are always enabled.', 'nonprofit-manager' ); ?></p>
+					<p><?php esc_html_e( 'Pick the schedules donors can choose for PayPal gifts. One-time gifts are always on.', 'nonprofit-manager' ); ?></p>
 					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
 					<label><input type="checkbox" name="npmp_paypal_enable_weekly" value="1" <?php checked( get_option( 'npmp_paypal_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_paypal_enable_monthly" value="1" <?php checked( get_option( 'npmp_paypal_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
@@ -767,7 +812,7 @@ function npmp_render_payment_settings_page() {
 								<?php $stripe_mode = get_option( 'npmp_stripe_mode', 'live' ); ?>
 								<label><input type="radio" name="npmp_stripe_mode" value="live" <?php checked( $stripe_mode, 'live' ); ?>> <?php esc_html_e( 'Live', 'nonprofit-manager' ); ?></label>
 								<label><input type="radio" name="npmp_stripe_mode" value="test" <?php checked( $stripe_mode, 'test' ); ?>> <?php esc_html_e( 'Test', 'nonprofit-manager' ); ?></label>
-								<p class="description"><?php esc_html_e( 'Use test mode for testing with Stripe test keys. Switch to live mode for production.', 'nonprofit-manager' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Use Test with your Stripe test keys, and Live to take donations. The form uses the keys for the mode you pick.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -824,7 +869,7 @@ function npmp_render_payment_settings_page() {
 					</table>
 
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
-					<p><?php esc_html_e( 'Select which donation frequencies are available for Stripe donations. One-time donations are always enabled.', 'nonprofit-manager' ); ?></p>
+					<p><?php esc_html_e( 'Pick the schedules donors can choose for Stripe gifts. One-time gifts are always on.', 'nonprofit-manager' ); ?></p>
 					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
 					<label><input type="checkbox" name="npmp_stripe_enable_weekly" value="1" <?php checked( get_option( 'npmp_stripe_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_monthly" value="1" <?php checked( get_option( 'npmp_stripe_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
@@ -833,7 +878,7 @@ function npmp_render_payment_settings_page() {
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 					<?php else : ?>
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
-					<p><?php esc_html_e( 'One-time gifts are always on, and they need no webhook.', 'nonprofit-manager' ); ?></p>
+					<p><?php esc_html_e( 'One-time gifts are always on and need no webhook.', 'nonprofit-manager' ); ?></p>
 					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
@@ -843,7 +888,7 @@ function npmp_render_payment_settings_page() {
 						<?php
 						printf(
 							/* translators: %s: URL to upgrade page */
-							wp_kses_post( __( 'Recurring gifts and membership dues billing through Stripe come with <a href="%s" target="_blank">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+							wp_kses_post( __( 'Recurring gifts and membership dues billing through Stripe come with <a href="%s" target="_blank" rel="noopener">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 							esc_url( npmp_get_upgrade_url( 'stripe_recurring' ) )
 						);
 						?>
@@ -869,6 +914,47 @@ function npmp_render_payment_settings_page() {
 		</script>
 	</div>
 	<?php
+}
+
+/**
+ * What an enabled payment method still needs before donors can use it.
+ *
+ * A method switched on with no account details showed donors "not
+ * configured" on the live form, and nothing on this screen said so.
+ *
+ * @param string[] $enabled Enabled gateway slugs.
+ * @param bool     $is_pro  Whether Pro is active.
+ * @return string[] One message per gap.
+ */
+function npmp_payment_setup_gaps( $enabled, $is_pro ) {
+	$enabled = is_array( $enabled ) ? $enabled : array();
+	$gaps    = array();
+
+	if ( in_array( 'paypal_link', $enabled, true ) && '' === trim( (string) get_option( 'npmp_paypal_email', '' ) ) ) {
+		$gaps[] = __( 'PayPal is on, but you haven\'t saved your PayPal email address, so the PayPal button won\'t show. Add it below.', 'nonprofit-manager' );
+	}
+	if ( in_array( 'venmo_link', $enabled, true ) && '' === trim( (string) get_option( 'npmp_venmo_handle', '' ) ) ) {
+		$gaps[] = __( 'Venmo is on, but you haven\'t saved your Venmo username, so the Venmo button won\'t show. Add it below.', 'nonprofit-manager' );
+	}
+	if ( in_array( 'stripe', $enabled, true ) ) {
+		$test = 'test' === get_option( 'npmp_stripe_mode', 'live' );
+		$pk   = get_option( $test ? 'npmp_stripe_test_publishable_key' : 'npmp_stripe_live_publishable_key', '' );
+		$sk   = get_option( $test ? 'npmp_stripe_test_secret_key' : 'npmp_stripe_live_secret_key', '' );
+		if ( '' === trim( (string) $pk ) || '' === trim( (string) $sk ) ) {
+			$gaps[] = $test
+				? __( 'Stripe is on in Test mode, but you haven\'t saved both test keys, so donors can\'t give by card yet. Add your publishable and secret test keys below.', 'nonprofit-manager' )
+				: __( 'Stripe is on in Live mode, but you haven\'t saved both live keys, so donors can\'t give by card yet. Add your publishable and secret live keys below.', 'nonprofit-manager' );
+		}
+	}
+	if ( $is_pro && in_array( 'paypal_api', $enabled, true ) ) {
+		$sandbox = 'sandbox' === get_option( 'npmp_paypal_mode', 'live' );
+		$client  = get_option( $sandbox ? 'npmp_paypal_sandbox_client_id' : 'npmp_paypal_live_client_id', '' );
+		if ( '' === trim( (string) $client ) ) {
+			$gaps[] = __( 'The PayPal API is on, but you haven\'t saved a client ID for the mode you picked, so its buttons won\'t show. Add it below.', 'nonprofit-manager' );
+		}
+	}
+
+	return $gaps;
 }
 
 /* ==============================================================
