@@ -110,6 +110,71 @@
 	padding: 0 1rem;
 }
 
+/* ---- Print or save as PDF button ----------------------------------- */
+/* The bar carries `hidden` until assets/js/npmp-calendar-print.js loads.
+ * The print-only header and the month chips' locations carry it too, and
+ * assets/css/npmp-calendar-print.css shows them on paper. */
+.npmp-print-bar[hidden],
+.npmp-print-header[hidden],
+.npmp-calendar-event-location[hidden] {
+	display: none;
+}
+
+.npmp-print-bar {
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* In an events grid the bar spans every column. Mosaic rows are a fixed
+ * height, so its first row sizes to the bar instead. */
+.npmp-events-list > .npmp-print-bar {
+	grid-column: 1 / -1;
+}
+
+.npmp-events--mosaic.npmp-events--has-print {
+	grid-template-rows: auto;
+}
+
+.npmp-print-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 44px;
+	margin: 0;
+	padding: 0 1rem;
+	font: inherit;
+	font-size: 0.95rem;
+	font-weight: 600;
+	line-height: 1.2;
+	color: var(--npmp-cal-accent, #0f766e);
+	background: #fff;
+	border: 1px solid var(--npmp-cal-accent, #0f766e);
+	border-radius: var(--npmp-cal-radius, 8px);
+	cursor: pointer;
+	text-decoration: none;
+	text-transform: none;
+	letter-spacing: normal;
+	box-shadow: none;
+}
+
+.npmp-print-button:hover {
+	color: #fff;
+	background: var(--npmp-cal-accent, #0f766e);
+}
+
+.npmp-print-button:focus {
+	outline: 3px solid #0f766e;
+	outline-offset: 2px;
+}
+
+.npmp-print-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.npmp-print-icon {
+	flex: 0 0 auto;
+}
+
 /* ---- Month + week grid ----------------------------------------------- */
 .npmp-calendar-table {
 	width: 100%;
@@ -491,31 +556,31 @@
 	display: none;
 }
 
-.npmp-events--mosaic .npmp-event:nth-child(5n + 1) {
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) {
 	grid-column: span 2;
 	grid-row: span 2;
 }
 
-.npmp-events--mosaic .npmp-event:nth-child(5n + 1) .npmp-event-excerpt {
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) .npmp-event-excerpt {
 	display: block;
 }
 
-.npmp-events--mosaic .npmp-event:nth-child(5n + 1) .npmp-event-title {
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) .npmp-event-title {
 	font-size: 1.5em;
 }
 
 /* Two columns: the big tile spans the full row. */
-.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-child(5n + 1) {
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) {
 	grid-column: auto;
 	grid-row: auto;
 }
 
-.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-child(3n + 1) {
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(3n + 1) {
 	grid-column: span 2;
 	grid-row: span 2;
 }
 
-.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-child(3n + 1) .npmp-event-excerpt {
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(3n + 1) .npmp-event-excerpt {
 	display: block;
 }
 
@@ -555,8 +620,8 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.npmp-events--mosaic .npmp-event:nth-child(n),
-	.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-child(n) {
+	.npmp-events--mosaic .npmp-event:nth-of-type(n),
+	.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(n) {
 		grid-column: auto;
 		grid-row: auto;
 	}
@@ -565,11 +630,11 @@
 		grid-auto-rows: 17rem;
 	}
 
-	.npmp-events--mosaic .npmp-event:nth-child(n) .npmp-event-excerpt {
+	.npmp-events--mosaic .npmp-event:nth-of-type(n) .npmp-event-excerpt {
 		display: none;
 	}
 
-	.npmp-events--mosaic .npmp-event:nth-child(n) .npmp-event-title {
+	.npmp-events--mosaic .npmp-event:nth-of-type(n) .npmp-event-title {
 		font-size: 1.2em;
 	}
 

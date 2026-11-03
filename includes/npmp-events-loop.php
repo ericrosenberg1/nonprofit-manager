@@ -332,24 +332,55 @@ function npmp_events_loop_root( $settings, $gap = '' ) {
 }
 
 /**
+ * First and last start time (Unix) of the most recently rendered loop. The
+ * calendar's list view reads it for its printout header.
+ *
+ * @param array|null $set New range to store, or null to read.
+ * @return array { 0: first start, 1: last start }, zeros when nothing rendered.
+ */
+function npmp_events_loop_last_range( $set = null ) {
+	static $range = array( 0, 0 );
+	if ( is_array( $set ) ) {
+		$range = array( (int) ( $set[0] ?? 0 ), (int) ( $set[1] ?? 0 ) );
+	}
+	return $range;
+}
+
+/**
  * Render the events loop.
  *
  * @param array $atts      Normalised attributes: category, limit, past, plus
- *                         optional display overrides (see npmp_events_loop_sanitize())
- *                         and a block `gap`.
+ *                         optional display overrides (see npmp_events_loop_sanitize()),
+ *                         a block `gap`, and `print` (blank, yes or no).
  * @param bool  $for_block True when called from the block, so the block's
  *                         color, type, spacing and border supports reach the root element.
+ * @param bool  $embedded  True inside the calendar's list view, which carries its
+ *                         own print button and header.
  * @return string
  */
-function npmp_events_loop_render( $atts, $for_block = false ) {
+function npmp_events_loop_render( $atts, $for_block = false, $embedded = false ) {
 	$settings = npmp_events_loop_settings( $atts );
 	$events   = new WP_Query( npmp_events_loop_query_args( $atts, $settings ) );
+
+	npmp_events_loop_last_range( array( 0, 0 ) );
 
 	if ( ! $events->have_posts() ) {
 		return '<div class="npmp-events-list npmp-events-empty">' . esc_html__( 'No events found.', 'nonprofit-manager' ) . '</div>';
 	}
 
+	$has_print  = ! $embedded && function_exists( 'npmp_calendar_print_wants_button' );
+	$show_print = $has_print && npmp_calendar_print_wants_button( isset( $atts['print'] ) ? $atts['print'] : '' );
+	if ( $has_print ) {
+		npmp_calendar_print_enqueue( $show_print );
+	}
+
 	$root = npmp_events_loop_root( $settings, isset( $atts['gap'] ) ? $atts['gap'] : '' );
+	if ( $has_print ) {
+		$root['class'] .= ' npmp-print-region';
+	}
+	if ( $show_print ) {
+		$root['class'] .= ' npmp-events--has-print';
+	}
 
 	// In the editor preview (a REST request) the editor already puts the block's
 	// own styles on its wrapper, so the preview skips them to avoid doubling.
@@ -360,11 +391,11 @@ function npmp_events_loop_render( $atts, $for_block = false ) {
 		$root_attrs = 'class="' . esc_attr( $root['class'] ) . '" style="' . esc_attr( $root['style'] ) . '"';
 	}
 
-	$show_image = (bool) $settings['image'];
+	$show_image  = (bool) $settings['image'];
+	$first_start = 0;
+	$last_start  = 0;
 
 	ob_start();
-
-	echo '<div ' . $root_attrs . '>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Attributes are escaped above or built by get_block_wrapper_attributes().
 
 	while ( $events->have_posts() ) {
 		$events->the_post();
@@ -372,6 +403,11 @@ function npmp_events_loop_render( $atts, $for_block = false ) {
 		$title      = get_the_title();
 		$permalink  = get_permalink();
 		$details    = npmp_get_event_details( $post->ID );
+		$start_ts   = ! empty( $details['start'] ) ? (int) npmp_event_datetime_to_timestamp( $details['start'] ) : 0;
+		if ( $start_ts > 0 ) {
+			$first_start = $first_start ? min( $first_start, $start_ts ) : $start_ts;
+			$last_start  = max( $last_start, $start_ts );
+		}
 		$date_label = $settings['date'] ? npmp_format_event_datetime( $details ) : '';
 		$location   = $settings['location'] ? ( $details['location'] ?? '' ) : '';
 		$has_thumb  = $show_image && has_post_thumbnail( $post->ID );
@@ -423,9 +459,31 @@ function npmp_events_loop_render( $atts, $for_block = false ) {
 
 	wp_reset_postdata();
 
-	echo '</div>';
+	$items = ob_get_clean();
 
-	return ob_get_clean();
+	npmp_events_loop_last_range( array( $first_start, $last_start ) );
+
+	$print = '';
+	if ( $has_print ) {
+		$past   = 'true' === strtolower( (string) ( $atts['past'] ?? 'false' ) );
+		$print .= npmp_calendar_print_header_html(
+			$past ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' ),
+			npmp_calendar_print_range_label( $first_start, $last_start ),
+			array(
+				'source'   => 'events',
+				'view'     => 'list',
+				'category' => (string) ( $atts['category'] ?? '' ),
+				'start'    => $first_start,
+				'end'      => $last_start,
+				'atts'     => $atts,
+			)
+		);
+		if ( $show_print ) {
+			$print .= npmp_calendar_print_button_html();
+		}
+	}
+
+	return '<div ' . $root_attrs . '>' . $print . $items . '</div>';
 }
 
 /**

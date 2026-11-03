@@ -7,6 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/npmp-calendar-print.php';
+
 /**
  * Register event post type and taxonomy on init.
  *
@@ -559,6 +561,9 @@ function npmp_calendar_shortcode( $atts ) {
 			'month'    => '',
 			'year'     => '',
 			'category' => '',
+			// Blank follows the Calendar Settings checkbox, "no" hides the
+			// Print or save as PDF button here, "yes" shows it.
+			'print'    => '',
 		),
 		$atts,
 		'npmp_calendar'
@@ -616,17 +621,55 @@ function npmp_calendar_shortcode( $atts ) {
 	$accent = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#0f766e' ) );
 	$style  = $accent ? ' style="--npmp-cal-accent:' . esc_attr( $accent ) . '"' : '';
 
-	$out  = '<div class="npmp-calendar-wrapper" data-view="' . esc_attr( $view ) . '"' . $style . '>';
-	$out .= npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category );
+	$show_print = npmp_calendar_print_wants_button( $atts['print'] );
+	npmp_calendar_print_enqueue( $show_print );
+
+	$print_context = array(
+		'source'   => 'calendar',
+		'view'     => $view,
+		'category' => $category,
+		'atts'     => $atts,
+	);
 
 	if ( 'list' === $view ) {
-		$out .= npmp_calendar_render_list_view( $category );
+		$body  = npmp_calendar_render_list_view( $category );
+		$range = npmp_events_loop_last_range();
+
+		$print_context['start'] = $range[0];
+		$print_context['end']   = $range[1];
+
+		$header = npmp_calendar_print_header_html(
+			get_option( 'npmp_calendar_list_show_past', 0 ) ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' ),
+			npmp_calendar_print_range_label( $range[0], $range[1], $timezone ),
+			$print_context
+		);
 	} elseif ( 'week' === $view ) {
-		$out .= npmp_calendar_render_week_view( $anchor, $timezone, $category );
+		$week_start = npmp_calendar_week_start( $anchor, (int) get_option( 'start_of_week', 0 ) );
+		$week_end   = $week_start->modify( '+6 days' );
+
+		$print_context['start'] = $week_start->getTimestamp();
+		$print_context['end']   = $week_end->getTimestamp();
+
+		$body   = npmp_calendar_render_week_view( $anchor, $timezone, $category );
+		$header = npmp_calendar_print_header_html(
+			npmp_calendar_print_range_label( $week_start->getTimestamp(), $week_end->getTimestamp(), $timezone ),
+			'',
+			$print_context
+		);
 	} else {
-		$out .= npmp_calendar_render_month_view( $anchor, $timezone, $category );
+		$month_start = $anchor->modify( 'first day of this month' )->setTime( 0, 0, 0 );
+
+		$print_context['start'] = $month_start->getTimestamp();
+		$print_context['end']   = $anchor->modify( 'last day of this month' )->setTime( 23, 59, 59 )->getTimestamp();
+
+		$body   = npmp_calendar_render_month_view( $anchor, $timezone, $category );
+		$header = npmp_calendar_print_header_html( wp_date( 'F Y', $anchor->getTimestamp(), $timezone ), '', $print_context );
 	}
 
+	$out  = '<div class="npmp-calendar-wrapper npmp-print-region" data-view="' . esc_attr( $view ) . '"' . $style . '>';
+	$out .= npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category, $show_print );
+	$out .= $header;
+	$out .= $body;
 	$out .= '</div>';
 
 	return $out;
@@ -720,6 +763,7 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 				'start_ts'  => $start_ts,
 				'end_ts'    => $end_ts,
 				'start_key' => $event_start_key,
+				'location'  => isset( $details['location'] ) ? (string) $details['location'] : '',
 			);
 
 			// Step one calendar day at a time in the site's own timezone
@@ -789,6 +833,10 @@ function npmp_calendar_day_events_html( $day_events, $day_key, $timezone ) {
 			$html .= '<span class="npmp-calendar-event-time">' . esc_html( $time_label ) . '</span> ';
 		}
 		$html .= esc_html( $event['title'] );
+		// Off screen, on paper: the grid has no room for it, a printout does.
+		if ( ! empty( $event['location'] ) ) {
+			$html .= '<span class="npmp-calendar-event-location" hidden>' . esc_html( $event['location'] ) . '</span>';
+		}
 		$html .= '</a></li>';
 	}
 
@@ -850,10 +898,11 @@ function npmp_calendar_weekday_labels() {
  * @param string            $view     Current view.
  * @param DateTimeImmutable $anchor   Anchor date.
  * @param DateTimeZone      $timezone Site timezone.
- * @param string            $category Active category.
+ * @param string            $category   Active category.
+ * @param bool              $show_print Whether to add the Print or save as PDF button.
  * @return string
  */
-function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category ) {
+function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category, $show_print = false ) {
 	$today = new DateTimeImmutable( 'today', $timezone );
 
 	if ( 'week' === $view ) {
@@ -901,6 +950,10 @@ function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category ) {
 		$html   .= '<a href="' . esc_url( npmp_calendar_nav_url( $key, $anchor ) ) . '"' . $current . '>' . esc_html( $label ) . '</a>';
 	}
 	$html .= '</div>';
+
+	if ( $show_print ) {
+		$html .= npmp_calendar_print_button_html();
+	}
 
 	$html .= '</div>';
 
@@ -1036,7 +1089,8 @@ function npmp_calendar_render_list_view( $category ) {
 	}
 	$past = get_option( 'npmp_calendar_list_show_past', 0 ) ? 'true' : 'false';
 
-	return npmp_events_shortcode(
+	$atts = shortcode_atts(
+		npmp_events_shortcode_defaults(),
 		array(
 			'category' => $category,
 			'limit'    => $limit,
@@ -1045,7 +1099,38 @@ function npmp_calendar_render_list_view( $category ) {
 			'layout'   => 'list',
 			'order'    => 'asc',
 			'image'    => 'no',
-		)
+		),
+		'npmp_events'
+	);
+
+	// Embedded: the calendar around it carries the print button and header.
+	return npmp_events_loop_render( $atts, false, true );
+}
+
+/**
+ * Default [npmp_events] attributes.
+ *
+ * @return array
+ */
+function npmp_events_shortcode_defaults() {
+	return array(
+		'category'       => '',
+		'limit'          => -1,
+		'past'           => 'false',
+		// Display options. Blank means "use the saved Events setting".
+		'layout'         => '',
+		'columns'        => '',
+		'order'          => '',
+		'ratio'          => '',
+		'image'          => '',
+		'excerpt'        => '',
+		'excerpt_length' => '',
+		'date'           => '',
+		'location'       => '',
+		'readmore'       => '',
+		// Blank follows the Calendar Settings checkbox, "no" hides the
+		// Print or save as PDF button on this list, "yes" shows it.
+		'print'          => '',
 	);
 }
 
@@ -1056,26 +1141,7 @@ function npmp_calendar_render_list_view( $category ) {
  * @return string
  */
 function npmp_events_shortcode( $atts ) {
-	$atts = shortcode_atts(
-		array(
-			'category'       => '',
-			'limit'          => -1,
-			'past'           => 'false',
-			// Display options. Blank means "use the saved Events setting".
-			'layout'         => '',
-			'columns'        => '',
-			'order'          => '',
-			'ratio'          => '',
-			'image'          => '',
-			'excerpt'        => '',
-			'excerpt_length' => '',
-			'date'           => '',
-			'location'       => '',
-			'readmore'       => '',
-		),
-		$atts,
-		'npmp_events'
-	);
+	$atts = shortcode_atts( npmp_events_shortcode_defaults(), $atts, 'npmp_events' );
 
 	return npmp_events_loop_render( $atts );
 }
@@ -1304,6 +1370,7 @@ function npmp_render_event_settings_page() {
 		update_option( 'npmp_calendar_accent', $accent_choice ? $accent_choice : '#0f766e' );
 		update_option( 'npmp_calendar_list_limit', max( 1, absint( wp_unslash( $_POST['npmp_calendar_list_limit'] ?? 10 ) ) ) );
 		update_option( 'npmp_calendar_list_show_past', empty( $_POST['npmp_calendar_list_show_past'] ) ? 0 : 1 );
+		update_option( 'npmp_calendar_print_button', empty( $_POST['npmp_calendar_print_button'] ) ? 0 : 1 );
 		npmp_events_loop_save_from_post();
 	}
 
@@ -1402,6 +1469,7 @@ function npmp_render_event_settings_page() {
 	$opt_accent  = $opt_accent ? $opt_accent : '#0f766e';
 	$opt_limit   = (int) get_option( 'npmp_calendar_list_limit', 10 );
 	$opt_past    = (int) get_option( 'npmp_calendar_list_show_past', 0 );
+	$opt_print   = npmp_calendar_print_site_enabled() ? 1 : 0;
 	$view_labels = array(
 		'month' => __( 'Month grid', 'nonprofit-manager' ),
 		'week'  => __( 'Week', 'nonprofit-manager' ),
@@ -1437,6 +1505,12 @@ function npmp_render_event_settings_page() {
 	echo '<tr>';
 	echo '<th scope="row">' . esc_html__( 'Past events', 'nonprofit-manager' ) . '</th>';
 	echo '<td><label><input type="checkbox" name="npmp_calendar_list_show_past" value="1"' . checked( $opt_past, 1, false ) . '> ' . esc_html__( 'Include past events in the list view', 'nonprofit-manager' ) . '</label></td>';
+	echo '</tr>';
+
+	echo '<tr>';
+	echo '<th scope="row">' . esc_html__( 'Printing', 'nonprofit-manager' ) . '</th>';
+	echo '<td><label><input type="checkbox" name="npmp_calendar_print_button" value="1"' . checked( $opt_print, 1, false ) . '> ' . esc_html__( 'Show a Print or save as PDF button on calendars', 'nonprofit-manager' ) . '</label>';
+	echo '<p class="description">' . esc_html__( 'Visitors can print a calendar or event list, or save it as a PDF from the print dialog. Your theme\'s header, menus, and sidebars stay off the printout. To hide the button on one calendar, add print="no" to its shortcode.', 'nonprofit-manager' ) . '</p></td>';
 	echo '</tr>';
 
 	npmp_events_loop_render_settings_rows();
@@ -1486,6 +1560,11 @@ function npmp_render_event_settings_page() {
 	echo '<tr>';
 	echo '<td><code>[npmp_events category="fundraisers"]</code></td>';
 	echo '<td>' . esc_html__( 'Filter events by category slug (replace "fundraisers" with your category).', 'nonprofit-manager' ) . '</td>';
+	echo '</tr>';
+
+	echo '<tr>';
+	echo '<td><code>[npmp_calendar print="no"]</code></td>';
+	echo '<td>' . esc_html__( 'Hides the Print or save as PDF button on this calendar. It works on [npmp_events] too.', 'nonprofit-manager' ) . '</td>';
 	echo '</tr>';
 
 	echo '</tbody></table>';

@@ -68,6 +68,11 @@ function npmp_calendar_register_blocks() {
 					'type'    => 'string',
 					'default' => '',
 				),
+				// '' follows Calendar Settings, 'yes' or 'no' overrides it.
+				'print'    => array(
+					'type'    => 'string',
+					'default' => '',
+				),
 			),
 		)
 	);
@@ -161,6 +166,10 @@ function npmp_calendar_register_blocks() {
 					'type'    => 'string',
 					'default' => '',
 				),
+				'print'          => array(
+					'type'    => 'string',
+					'default' => '',
+				),
 			),
 		)
 	);
@@ -185,6 +194,9 @@ function npmp_calendar_block_render( $attributes ) {
 	}
 	if ( ! empty( $attributes['category'] ) ) {
 		$atts['category'] = sanitize_text_field( $attributes['category'] );
+	}
+	if ( ! empty( $attributes['print'] ) ) {
+		$atts['print'] = sanitize_key( $attributes['print'] );
 	}
 
 	return npmp_calendar_shortcode( $atts );
@@ -212,7 +224,7 @@ function npmp_events_block_render( $attributes ) {
 		'category' => ! empty( $attributes['category'] ) ? sanitize_text_field( $attributes['category'] ) : '',
 	);
 
-	foreach ( array( 'layout', 'columns', 'order', 'ratio', 'image', 'excerpt', 'date', 'location', 'readmore' ) as $key ) {
+	foreach ( array( 'layout', 'columns', 'order', 'ratio', 'image', 'excerpt', 'date', 'location', 'readmore', 'print' ) as $key ) {
 		if ( isset( $attributes[ $key ] ) && '' !== $attributes[ $key ] && 0 !== $attributes[ $key ] ) {
 			$atts[ $key ] = $attributes[ $key ];
 		}
