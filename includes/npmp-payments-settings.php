@@ -538,9 +538,6 @@ function npmp_render_payment_settings_page() {
 			update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
 		}
 
-		// Always enable one-time for free users
-		update_option( 'npmp_enable_one_time', 1 );
-
 		// Pro-only gateway-specific recurring frequencies
 		if ( $is_pro ) {
 			// PayPal API frequencies
@@ -570,9 +567,6 @@ function npmp_render_payment_settings_page() {
 		$enabled_gateways = array( $old_gateway );
 		update_option( 'npmp_enabled_payment_gateways', $enabled_gateways );
 	}
-
-	// For backward compatibility with UI that still uses $current_gateway
-	$current_gateway = ! empty( $enabled_gateways ) ? $enabled_gateways[0] : 'none';
 
 	$site_currency        = npmp_currency();
 	$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
