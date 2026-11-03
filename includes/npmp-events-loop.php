@@ -435,7 +435,8 @@ function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, 
 		$location   = $settings['location'] ? ( $details['location'] ?? '' ) : '';
 		$has_thumb  = $show_image && has_post_thumbnail( $post->ID );
 
-		echo '<article class="npmp-event' . ( $has_thumb ? ' npmp-event--has-image' : '' ) . '">';
+		$cat_class = function_exists( 'npmp_calendar_event_category_classes' ) ? npmp_calendar_event_category_classes( $post->ID ) : '';
+		echo '<article class="' . esc_attr( trim( 'npmp-event' . ( $has_thumb ? ' npmp-event--has-image' : '' ) . ' ' . $cat_class ) ) . '">';
 
 		if ( $show_image ) {
 			echo '<a class="npmp-event-media" href="' . esc_url( $permalink ) . '" tabindex="-1" aria-hidden="true">';

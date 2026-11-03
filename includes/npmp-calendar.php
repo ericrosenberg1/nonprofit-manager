@@ -910,6 +910,7 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone, 
 				'end_ts'    => $end_ts,
 				'start_key' => $event_start_key,
 				'location'  => isset( $details['location'] ) ? (string) $details['location'] : '',
+				'classes'   => npmp_calendar_event_category_classes( get_the_ID() ),
 			);
 
 			// Step one calendar day at a time in the site's own timezone
@@ -974,7 +975,8 @@ function npmp_calendar_day_events_html( $day_events, $day_key, $timezone ) {
 			$time_label = __( 'Continues', 'nonprofit-manager' );
 		}
 
-		$html .= '<li><a href="' . esc_url( $event['permalink'] ) . '">';
+		$classes = isset( $event['classes'] ) ? trim( (string) $event['classes'] ) : '';
+		$html   .= '<li' . ( '' !== $classes ? ' class="' . esc_attr( $classes ) . '"' : '' ) . '><a href="' . esc_url( $event['permalink'] ) . '">';
 		if ( $time_label ) {
 			$html .= '<span class="npmp-calendar-event-time">' . esc_html( $time_label ) . '</span> ';
 		}
@@ -989,6 +991,25 @@ function npmp_calendar_day_events_html( $day_events, $day_key, $timezone ) {
 	$html .= '</ul>';
 
 	return $html;
+}
+
+/**
+ * One npmp-cat-<slug> class per event category, so a category's accent color
+ * (Pro, or your own CSS) reaches its events.
+ *
+ * @param int $post_id Event ID.
+ * @return string Space-separated classes, or ''.
+ */
+function npmp_calendar_event_category_classes( $post_id ) {
+	$terms = get_the_terms( (int) $post_id, 'npmp_event_category' );
+	if ( ! $terms || is_wp_error( $terms ) ) {
+		return '';
+	}
+	$classes = array();
+	foreach ( $terms as $term ) {
+		$classes[] = 'npmp-cat-' . sanitize_html_class( $term->slug );
+	}
+	return implode( ' ', $classes );
 }
 
 /**

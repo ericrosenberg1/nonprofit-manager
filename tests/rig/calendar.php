@@ -76,6 +76,19 @@ $ok( 'a line break becomes \\n, not \\\\n', 'Line one\\nLine two' === npmp_ics_e
 $ok( 'a backslash doubles', 'C:\\\\path' === npmp_ics_escape_text( 'C:\\path' ) );
 $ok( 'commas and semicolons are escaped', 'Hall\\, Room 2\\; upstairs' === npmp_ics_escape_text( 'Hall, Room 2; upstairs' ) );
 
+echo "Category classes\n";
+$cat = wp_insert_term( 'Rig Workshops', 'npmp_event_category', array( 'slug' => 'rig-workshops' ) );
+$cid = wp_insert_post( array( 'post_type' => 'npmp_event', 'post_status' => 'publish', 'post_title' => 'Rig category event' ) );
+update_post_meta( $cid, '_npmp_event_start', wp_date( 'Y-m-d 18:00:00', time() + 20 * DAY_IN_SECONDS ) );
+wp_set_object_terms( $cid, array( (int) $cat['term_id'] ), 'npmp_event_category' );
+$ok( 'the helper names the category', 'npmp-cat-rig-workshops' === npmp_calendar_event_category_classes( $cid ) );
+$chip = npmp_calendar_day_events_html( array( array( 'title' => 'T', 'permalink' => 'http://x.test/', 'start_ts' => 1, 'end_ts' => 1, 'start_key' => 'k', 'location' => '', 'classes' => 'npmp-cat-rig-workshops' ) ), 'k', wp_timezone() );
+$ok( 'a grid chip carries the class', false !== strpos( $chip, '<li class="npmp-cat-rig-workshops">' ) );
+$list = do_shortcode( '[npmp_events limit="50"]' );
+$ok( 'an events list card carries the class', 1 === preg_match( '/<article class="npmp-event[^"]*npmp-cat-rig-workshops/', $list ) );
+wp_delete_post( $cid, true );
+wp_delete_term( (int) $cat['term_id'], 'npmp_event_category' );
+
 echo "Overview\n";
 $saved_page = get_option( 'npmp_calendar_page_id', 0 );
 update_option( 'npmp_calendar_page_id', 0 );
