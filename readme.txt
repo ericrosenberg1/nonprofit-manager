@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.1
+Stable tag: 2026.11.2
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,20 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.2 =
+* Added scheduled emails: one email per event, and Send later for any newsletter.
+* Added a Print or save as PDF button to calendars and event lists, with a setting to hide the button.
+* Added an importer for sites switching from The Events Calendar, with review, redirects, and a deactivate button.
+* Calendar weekday headers fit on phones, and category colors show on events.
+* The Member List search finds people by name, email, or tag, and the list fits on phones.
+* Fixed newsletters and digests that two overlapping runs could send twice.
+* Fixed click tracking on email, phone, and same-page links.
+* Fixed an event saved near its send time skipping its scheduled email.
+* Fixed the Annual Recurring Donations total counting every renewal.
+* Fixed the Turnstile and reCAPTCHA Test buttons, which only saved.
+* Fixed calendar feed line breaks and edit times, and Reply-To names with commas.
+* Clearer wording across settings, the setup wizard, and the tour.
 
 = 2026.11.1 =
 * Events lists can show as a list, grid, cards, or mosaic, with featured images and excerpts.
