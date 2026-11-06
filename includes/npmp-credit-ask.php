@@ -76,6 +76,11 @@ if ( ! function_exists( 'npmp_credit_ask_should_show' ) ) {
 		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
 			return false;
 		}
+		// Not over the setup wizard, where a brand-new owner is still
+		// picking features.
+		if ( false !== strpos( (string) $screen->id, 'npmp_setup_wizard' ) ) {
+			return false;
+		}
 		return npmp_credit_ask_first_donation_at() > 0;
 	}
 }

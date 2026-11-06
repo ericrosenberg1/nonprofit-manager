@@ -116,7 +116,7 @@ class NPMP_Org_Settings {
 		?>
 		<div class="npmp-org-settings" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:24px;margin:24px 0;max-width:760px;">
 			<h2 style="margin-top:0;"><?php esc_html_e( 'Organization identity', 'nonprofit-manager' ); ?></h2>
-			<p class="description" style="margin-top:0;"><?php esc_html_e( 'Used for donation receipts, email signatures, and the public About widget. You can leave optional fields blank.', 'nonprofit-manager' ); ?></p>
+			<p class="description" style="margin-top:0;"><?php esc_html_e( 'Your organization\'s name heads the printed calendar. You can leave the optional fields blank.', 'nonprofit-manager' ); ?></p>
 
 			<?php wp_nonce_field( 'npmp_save_org_settings', 'npmp_org_settings_nonce' ); ?>
 

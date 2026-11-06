@@ -224,7 +224,7 @@ function npmp_render_social_sharing_page() {
 						<td>
 							<label>
 								<input type="checkbox" name="npmp_auto_share" value="1" <?php checked( $settings['auto_share'] ); ?>>
-								<?php esc_html_e( 'Automatically share to connected networks when a post or event is published.', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Share to your connected networks when you publish a post or event.', 'nonprofit-manager' ); ?>
 							</label>
 						</td>
 					</tr>
@@ -233,7 +233,7 @@ function npmp_render_social_sharing_page() {
 						<td>
 							<textarea name="npmp_share_template" rows="4" cols="60" class="large-text"><?php echo esc_textarea( $settings['share_template'] ); ?></textarea>
 							<p class="description">
-								<?php esc_html_e( 'Available placeholders: {title}, {excerpt}, {url}', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Placeholders you can use: {title}, {excerpt}, and {url}.', 'nonprofit-manager' ); ?>
 							</p>
 						</td>
 					</tr>
@@ -243,7 +243,7 @@ function npmp_render_social_sharing_page() {
 		</div>
 
 		<!-- Network cards -->
-		<h2 style="margin-top: 30px;"><?php esc_html_e( 'Connected Networks', 'nonprofit-manager' ); ?></h2>
+		<h2 style="margin-top: 30px;"><?php esc_html_e( 'Networks', 'nonprofit-manager' ); ?></h2>
 		<div class="npmp-social-grid">
 			<?php foreach ( $networks as $slug => $network ) :
 				$is_free      = in_array( $slug, $free_networks, true );
@@ -266,13 +266,13 @@ function npmp_render_social_sharing_page() {
 					<?php if ( ! $is_available ) : ?>
 						<p>
 							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
-								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank" rel="noopener">
+								<?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?>
 							</a>
 						</p>
 					<?php elseif ( $connected_now ) : ?>
 						<!-- Disconnect + Test -->
-						<form method="post" style="display: inline-block; margin-right: 8px;">
+						<form method="post" style="display: inline-block; margin-right: 8px;" onsubmit="return window.confirm( '<?php echo esc_js( sprintf( /* translators: %s: social network name, such as Facebook. */ __( 'Disconnect %s? You\'ll need to enter its keys again to reconnect.', 'nonprofit-manager' ), $network['label'] ) ); ?>' );">
 							<?php wp_nonce_field( 'npmp_social_disconnect', 'npmp_social_disconnect_nonce' ); ?>
 							<input type="hidden" name="npmp_network" value="<?php echo esc_attr( $slug ); ?>">
 							<?php submit_button( __( 'Disconnect', 'nonprofit-manager' ), 'delete small', 'submit', false ); ?>
@@ -325,24 +325,32 @@ function npmp_render_social_sharing_page() {
 					'nextdoor' => __( 'Nextdoor', 'nonprofit-manager' ),
 					'reddit'   => __( 'Reddit', 'nonprofit-manager' ),
 				);
-				foreach ( $pro_networks as $slug => $label ) :
-					if ( isset( $networks[ $slug ] ) ) {
-						continue;
-					}
+				// One card for all of them: one line and one link, rather than
+				// five cards each asking for the upgrade.
+				$pro_networks = array_diff_key( $pro_networks, $networks );
+				if ( $pro_networks ) :
 					?>
 					<div class="npmp-social-card" style="opacity:.75;">
 						<h3>
-							<?php echo esc_html( $label ); ?>
+							<?php esc_html_e( 'More networks', 'nonprofit-manager' ); ?>
 							<span class="npmp-social-badge npmp-social-badge--pro"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 						</h3>
 						<p>
-							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
-								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %s: list of social networks, such as Bluesky, Threads, and Reddit. */
+									__( 'Pro also shares to %s.', 'nonprofit-manager' ),
+									wp_sprintf( '%l', array_values( $pro_networks ) )
+								)
+							);
+							?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank" rel="noopener">
+								<?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?>
 							</a>
 						</p>
 					</div>
-				<?php endforeach; ?>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 	</div>

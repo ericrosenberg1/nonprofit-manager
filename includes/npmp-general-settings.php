@@ -186,7 +186,7 @@ function npmp_render_general_settings_page() {
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'General Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Configure %s and form security settings.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></p>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Your organization details, %s, and form spam protection.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></p>
 
 		<?php if ( $updated ) : ?>
 			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
@@ -205,15 +205,15 @@ function npmp_render_general_settings_page() {
 		<?php endif; ?>
 
 		<?php if ( 'success' === $turnstile_test ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Turnstile configuration test passed! Your keys are valid.', 'nonprofit-manager' ); ?></p></div>
+			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Turnstile accepted your keys.', 'nonprofit-manager' ); ?></p></div>
 		<?php elseif ( 'error' === $turnstile_test ) : ?>
-			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( __( 'Turnstile test failed: %s', 'nonprofit-manager' ), $turnstile_message ) ); ?></p></div>
+			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'Turnstile test failed: %s', 'nonprofit-manager' ), $turnstile_message ) ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( 'success' === $recaptcha_test ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'reCAPTCHA configuration test passed! Your keys are valid.', 'nonprofit-manager' ); ?></p></div>
+			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'reCAPTCHA accepted your keys.', 'nonprofit-manager' ); ?></p></div>
 		<?php elseif ( 'error' === $recaptcha_test ) : ?>
-			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( __( 'reCAPTCHA test failed: %s', 'nonprofit-manager' ), $recaptcha_message ) ); ?></p></div>
+			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'reCAPTCHA test failed: %s', 'nonprofit-manager' ), $recaptcha_message ) ); ?></p></div>
 		<?php endif; ?>
 
 		<style>
@@ -339,7 +339,7 @@ function npmp_render_general_settings_page() {
 						</th>
 						<td>
 							<select name="npmp_default_membership_level" id="npmp_default_membership_level" class="regular-text">
-								<option value=""><?php esc_html_e( '-- Select Default Level --', 'nonprofit-manager' ); ?></option>
+								<option value=""><?php esc_html_e( 'No default level', 'nonprofit-manager' ); ?></option>
 								<?php foreach ( $membership_levels as $level ) : ?>
 									<option value="<?php echo esc_attr( $level ); ?>" <?php selected( $default_membership_level, $level ); ?>>
 										<?php echo esc_html( $level ); ?>
@@ -347,7 +347,7 @@ function npmp_render_general_settings_page() {
 								<?php endforeach; ?>
 							</select>
 							<p class="description">
-								<?php esc_html_e( 'This level will be automatically assigned to new members who sign up via email forms.', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'People who join through a signup form get this level.', 'nonprofit-manager' ); ?>
 							</p>
 							<?php submit_button( __( 'Save Default Level', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
 						</td>
@@ -359,7 +359,7 @@ function npmp_render_general_settings_page() {
 		<!-- Form Security Section -->
 		<div class="npmp-settings-card">
 			<h2><?php esc_html_e( 'Form Security (CAPTCHA)', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Protect your public signup and donation forms from spam and abuse.', 'nonprofit-manager' ); ?></p>
+			<p><?php esc_html_e( 'A CAPTCHA keeps bots off your public signup and contact forms.', 'nonprofit-manager' ); ?></p>
 
 			<form method="post">
 				<?php wp_nonce_field( 'npmp_save_captcha_settings', 'npmp_captcha_settings_nonce' ); ?>
@@ -386,19 +386,19 @@ function npmp_render_general_settings_page() {
 									if ( $is_pro ) {
 										esc_html_e( 'Google reCAPTCHA v3', 'nonprofit-manager' );
 									} else {
-										esc_html_e( 'Google reCAPTCHA v3 (Pro Upgrade Required)', 'nonprofit-manager' );
+										esc_html_e( 'Google reCAPTCHA v3 (Pro)', 'nonprofit-manager' );
 									}
 									?>
 								</option>
 							</select>
 							<p class="description">
-								<?php esc_html_e( 'Select a CAPTCHA service to protect your forms from bots.', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Cloudflare Turnstile is free and asks most visitors nothing.', 'nonprofit-manager' ); ?>
 								<?php if ( ! $is_pro ) : ?>
 									<br>
 									<?php
 									printf(
 										/* translators: %s: URL to upgrade page */
-										wp_kses_post( __( 'Want to use Google reCAPTCHA? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+										wp_kses_post( __( 'Google reCAPTCHA comes with <a href="%s" target="_blank" rel="noopener">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 										esc_url( npmp_get_upgrade_url( 'captcha' ) )
 									);
 									?>
@@ -420,7 +420,7 @@ function npmp_render_general_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to Cloudflare Turnstile */
-									wp_kses_post( __( 'Get your free Turnstile keys from <a href="%s" target="_blank">Cloudflare Turnstile</a>.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( 'Get your free Turnstile keys from <a href="%s" target="_blank" rel="noopener">Cloudflare Turnstile</a>.', 'nonprofit-manager' ) ),
 									'https://dash.cloudflare.com/?to=/:account/turnstile'
 								);
 								?>
@@ -431,15 +431,12 @@ function npmp_render_general_settings_page() {
 					<tr class="captcha-turnstile" style="<?php echo 'turnstile' !== $current_captcha_provider ? 'display:none;' : ''; ?>">
 						<th scope="row"></th>
 						<td>
-							<form method="post" style="display: inline;">
-								<?php wp_nonce_field( 'npmp_test_turnstile', 'npmp_test_turnstile_nonce' ); ?>
-								<button type="submit" class="button button-secondary">
-									<?php esc_html_e( 'Test Turnstile Configuration', 'nonprofit-manager' ); ?>
-								</button>
-								<p class="description" style="margin-top: 10px;">
-									<?php esc_html_e( 'Save your keys first, then test to verify they are working correctly.', 'nonprofit-manager' ); ?>
-								</p>
-							</form>
+							<button type="submit" form="npmp-test-turnstile-form" class="button button-secondary">
+								<?php esc_html_e( 'Test Turnstile Keys', 'nonprofit-manager' ); ?>
+							</button>
+							<p class="description" style="margin-top: 10px;">
+								<?php esc_html_e( 'Save your keys first, then click Test.', 'nonprofit-manager' ); ?>
+							</p>
 						</td>
 					</tr>
 
@@ -456,7 +453,7 @@ function npmp_render_general_settings_page() {
 								<?php
 								printf(
 									/* translators: %s: URL to Google reCAPTCHA */
-									wp_kses_post( __( 'Get your free reCAPTCHA v3 keys from <a href="%s" target="_blank">Google reCAPTCHA Admin Console</a>. Make sure to select reCAPTCHA v3.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( 'Get your free keys from the <a href="%s" target="_blank" rel="noopener">Google reCAPTCHA Admin Console</a>, and pick reCAPTCHA v3 when it asks.', 'nonprofit-manager' ) ),
 									'https://www.google.com/recaptcha/admin/create'
 								);
 								?>
@@ -467,27 +464,36 @@ function npmp_render_general_settings_page() {
 					<tr class="captcha-recaptcha" style="<?php echo 'recaptcha' !== $current_captcha_provider ? 'display:none;' : ''; ?>">
 						<th scope="row"></th>
 						<td>
-							<form method="post" style="display: inline;">
-								<?php wp_nonce_field( 'npmp_test_recaptcha', 'npmp_test_recaptcha_nonce' ); ?>
-								<button type="submit" class="button button-secondary">
-									<?php esc_html_e( 'Test reCAPTCHA Configuration', 'nonprofit-manager' ); ?>
-								</button>
-								<p class="description" style="margin-top: 10px;">
-									<?php esc_html_e( 'Save your keys first, then test to verify they are working correctly.', 'nonprofit-manager' ); ?>
-								</p>
-							</form>
+							<button type="submit" form="npmp-test-recaptcha-form" class="button button-secondary">
+								<?php esc_html_e( 'Test reCAPTCHA Keys', 'nonprofit-manager' ); ?>
+							</button>
+							<p class="description" style="margin-top: 10px;">
+								<?php esc_html_e( 'Save your keys first, then click Test.', 'nonprofit-manager' ); ?>
+							</p>
 						</td>
 					</tr>
 				</table>
 
 				<?php submit_button( __( 'Save Security Settings', 'nonprofit-manager' ), 'primary' ); ?>
 			</form>
+
+			<?php
+			// The Test buttons above submit these through their form
+			// attribute. A form can't sit inside another form, so they live
+			// out here.
+			?>
+			<form method="post" id="npmp-test-turnstile-form" hidden>
+				<?php wp_nonce_field( 'npmp_test_turnstile', 'npmp_test_turnstile_nonce' ); ?>
+			</form>
+			<form method="post" id="npmp-test-recaptcha-form" hidden>
+				<?php wp_nonce_field( 'npmp_test_recaptcha', 'npmp_test_recaptcha_nonce' ); ?>
+			</form>
 		</div>
 
 		<!-- Support / Attribution Section -->
 		<div class="npmp-settings-card">
 			<h2><?php esc_html_e( 'Support Nonprofit Manager', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Nonprofit Manager is free. If you would like to help other nonprofits find it, you can show a small "Powered by Nonprofit Manager" link on your public donation forms and newsletter emails. This is off by default and completely optional.', 'nonprofit-manager' ); ?></p>
+			<p><?php esc_html_e( 'Nonprofit Manager is free. If you\'d like to help other groups find it, you can show a small "Powered by Nonprofit Manager" link on your public donation forms and newsletter emails. It stays off unless you turn it on.', 'nonprofit-manager' ); ?></p>
 			<form method="post">
 				<?php wp_nonce_field( 'npmp_save_powered_by', 'npmp_powered_by_nonce' ); ?>
 				<table class="form-table">
@@ -498,7 +504,7 @@ function npmp_render_general_settings_page() {
 								<input type="checkbox" name="npmp_powered_by_optin" value="1" <?php checked( (bool) get_option( 'npmp_powered_by_optin', false ) ); ?>>
 								<?php esc_html_e( 'Show a "Powered by Nonprofit Manager" link on donation forms and newsletter emails', 'nonprofit-manager' ); ?>
 							</label>
-							<p class="description"><?php esc_html_e( 'Thank you. This helps a small plugin grow, and you can turn it off any time.', 'nonprofit-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'You can turn it off any time.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -523,7 +529,7 @@ function npmp_render_general_settings_page() {
 			$('.npmp-delete-level').on('click', function(e) {
 				e.preventDefault();
 				var level = $(this).data('level');
-				var confirmMessage = '<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Are you sure you want to delete the %s', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?> "' + level + '"?\n\n<?php echo esc_js( __( 'You can\'t undo this.', 'nonprofit-manager' ) ); ?>';
+				var confirmMessage = '<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Delete the %s', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?> "' + level + '"?\n\n<?php echo esc_js( __( 'People who have it keep it on their record, but you can\'t pick it for anyone new. You can\'t undo this.', 'nonprofit-manager' ) ); ?>';
 
 				if (confirm(confirmMessage)) {
 					$('#npmp_level_to_remove').val(level);

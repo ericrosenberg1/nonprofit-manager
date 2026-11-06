@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.10.11
+Stable tag: 2026.11.2
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,33 +12,35 @@ The all-in-one WordPress plugin for small nonprofits and clubs. Manage members, 
 
 == Description ==
 
-Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. It brings membership management, online donations, email newsletters, and an event calendar together in one place, so you don't have to bolt four separate plugins together to run your organization.
+Nonprofit Manager is the free, all-in-one WordPress plugin for small nonprofits, clubs, and community groups. You get membership management, online donations, email newsletters, and an event calendar in one place, so you don't have to bolt four separate plugins together to run your organization.
 
-Most tools do one job. Donation plugins only take donations. Membership plugins only track members. Nonprofit Manager keeps your members and donors in one system, right next to the newsletters you send them and the events you invite them to. You spend less time wrangling software and more time on your mission. Learn more at [nonprofitmanager.app](https://nonprofitmanager.app/).
+Most tools do one job. Donation plugins only take donations. Membership plugins only track members. You keep your members and donors in one system, next to your newsletters and your events. You spend less time wrangling software and more time on your mission. Learn more at [nonprofitmanager.app](https://nonprofitmanager.app/).
 
 = Features =
 
-Everything without an asterisk is free. Features marked with an asterisk (*) come with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) when you're ready for them.
+Everything without an asterisk is free. Features marked with an asterisk (*) come with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) when you're ready for more.
 
 **Members and donors**
 
 * Track members with membership levels, filtering, and bulk actions
 * Members and donors share one contact list, so you can see anyone's lifetime giving at a glance
-* Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA
+* Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile
+* Google reCAPTCHA v3 on your forms*
 * Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
 * Give a volunteer a Membership Manager login that sees members, donations, and newsletters, and none of your settings
 * Custom member fields with 8 field types and drag-and-drop ordering*
 * Segment members with an AND/OR condition builder*
+* Put members in one or more groups, each with its own newsletters, events, calendar, and signup form*
 
 **Donations**
 
-* Accept one-time donations through PayPal, Venmo, and Stripe
+* Accept one-time donations through PayPal, Venmo, and Stripe. Stripe gifts land in your Donations list, and PayPal and Venmo gifts show up in those accounts
 * Drop a donation form on any page as a block or shortcode, with a thank-you message on the page
-* Take gifts in US, Canadian, Australian or New Zealand dollars, pounds, euros, yen and 9 more currencies (Venmo is US dollars only)
+* Take gifts in US, Canadian, Australian, or New Zealand dollars, pounds, euros, yen, and 9 more currencies (Venmo is US dollars only)
 * Recurring donations*
 * Membership dues auto-billing*
 * Donor thank-you emails with the gift amount and date*
-* PayPal Smart Buttons, with a server-side verification record for every capture*
+* PayPal gifts recorded in your Donations list through PayPal Smart Buttons, with a server-side check of every capture*
 
 **Newsletters and email**
 
@@ -47,19 +49,24 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Send yourself a test first, let rate limiting pace large sends, and stay CAN-SPAM compliant
 * One-click unsubscribe with RFC 8058 List-Unsubscribe headers, which Gmail and Yahoo now expect
 * Tell subscribers about new posts and events instantly or in an automatic weekly digest, and let them pick their own preferences
+* Schedule one email for each event, such as a reminder the day before, and send any newsletter later from the Scheduled Emails screen
+* As many scheduled emails as you want for the whole organization, each group, and each event*
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
 * Send through Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or any SMTP server*
 
 **Events**
 
-* Event calendar with Month, Week, and List views, plus Calendar and Upcoming Events blocks for any page
+* Event calendar with Month, Week, and List views, plus Calendar and Events blocks for any page, with list, grid, cards, and mosaic layouts
 * iCal feed, quick-add from the dashboard, and one-click convert of any post or page into an event
+* A Print or save as PDF button on calendars and event lists, with a setting to turn it off
+* Move your events over from The Events Calendar, review each one, and keep redirects from the old event URLs
+* Print or save as PDF any admin list or report*
 
 **Sharing and outreach**
 
-* Auto-share new posts and events to Facebook and X, with {title}, {url}, {excerpt} placeholders
+* Auto-share new posts and events to Facebook and X, with {title}, {url}, and {excerpt} placeholders
 * Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
-* Give visitors share buttons and a contact form, each as a block or shortcode
+* Add share buttons and a contact form to any page, as blocks or shortcodes
 
 == External Services ==
 
@@ -83,7 +90,7 @@ If you turn on a captcha, form submissions are verified with Cloudflare Turnstil
 
 **List imports (only when you run one)**
 
-Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms-of-service and https://www.constantcontact.com/legal/privacy-statement
+Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms and https://www.constantcontact.com/legal/privacy-notice
 
 **Social sharing (only when you connect an account)**
 
@@ -100,15 +107,15 @@ Auto-sharing posts sends the title, link, and excerpt you configure to the netwo
 
 = Is Nonprofit Manager free? =
 
-Yes. Membership management, donations, newsletters, and events are all included in the free plugin, with no trial period or locked screens. [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) adds features like recurring donations, email automation, and unlimited imports when you need them.
+Yes. You get membership management, donations, newsletters, scheduled emails, and events in the free plugin, with no trial period. With [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing), you also get groups, recurring donations, email automation, and unlimited imports. You'll see the Pro controls greyed out in the free plugin, each with one line about what it does.
 
-= What payment gateways are supported? =
+= Which payment services can I use? =
 
-PayPal, Venmo, and Stripe for one-time donations, all in the free plugin. Recurring donations and membership dues auto-billing come with Nonprofit Manager Pro.
+PayPal, Venmo, and Stripe for one-time donations, all in the free plugin. You'll see Stripe gifts in your Donations list. PayPal and Venmo send donors to those sites, so you'll see those gifts in your PayPal or Venmo account. Recording PayPal gifts, recurring donations, and membership dues auto-billing come with Nonprofit Manager Pro.
 
 = Can I send email newsletters? =
 
-Yes. You write newsletters in the Gutenberg editor, reuse templates, headers, and footers, and see who opened and clicked. One-click unsubscribe and a CAN-SPAM footer are built in.
+Yes. You write newsletters in the Gutenberg editor, reuse templates, headers, and footers, and see who opened and clicked. You can send a newsletter now or pick a time to send it later. Every newsletter carries a one-click unsubscribe link and a CAN-SPAM footer.
 
 = Which email service should I use? =
 
@@ -117,6 +124,14 @@ We recommend Amazon SES. It costs $0.10 per 1,000 emails, and you can connect it
 = Does it work with my theme? =
 
 Yes. Nonprofit Manager works with any properly coded WordPress theme, and its forms and shortcodes pick up your theme's styling automatically.
+
+= Can I move my events from The Events Calendar? =
+
+Yes. Go to Events > Import from TEC. You can import your events, review each one, and then switch over. Anyone who follows an old event URL lands on the new event page.
+
+= Can I print my calendar? =
+
+Yes. Calendars and event lists have a Print or save as PDF button. You can turn it off for the whole site in the calendar settings, or for one calendar with `print="no"` on the shortcode.
 
 = Can I convert existing posts into events? =
 
@@ -133,8 +148,8 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 == Screenshots ==
 
 1. Overview with membership and donation totals
-2. Contacts and members with filters, tags and lifetime value
-3. Donation form with PayPal, Venmo and Stripe
+2. Contacts and members with filters, tags, and lifetime value
+3. Donation form with PayPal, Venmo, and Stripe
 4. Newsletter editor with audience selection
 5. Events overview with upcoming and past events
 6. Setup wizard on first activation
@@ -142,6 +157,26 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.2 =
+* Added scheduled emails: one email per event, and Send later for any newsletter.
+* Added a Print or save as PDF button to calendars and event lists, with a setting to hide the button.
+* Added an importer for sites switching from The Events Calendar, with review, redirects, and a deactivate button.
+* Calendar weekday headers fit on phones, and category colors show on events.
+* The Member List search finds people by name, email, or tag, and the list fits on phones.
+* Fixed newsletters and digests that two overlapping runs could send twice.
+* Fixed click tracking on email, phone, and same-page links.
+* Fixed an event saved near its send time skipping its scheduled email.
+* Fixed the Annual Recurring Donations total counting every renewal.
+* Fixed the Turnstile and reCAPTCHA Test buttons, which only saved.
+* Fixed calendar feed line breaks and edit times, and Reply-To names with commas.
+* Clearer wording across settings, the setup wizard, and the tour.
+
+= 2026.11.1 =
+* Events lists can show as a list, grid, cards, or mosaic, with featured images and excerpts.
+* Past events sort newest first.
+* The Events block follows the editor's color, type, spacing, and border settings.
+* Same-day events show the date once.
 
 = 2026.10.11 =
 * Admin screens, forms and the tour use the Nonprofit Manager colors.

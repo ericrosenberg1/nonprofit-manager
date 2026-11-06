@@ -92,11 +92,13 @@ function npmp_register_newsletter_settings() {
 
     add_settings_field(
         'npmp_newsletter_rate_limit',
-        __('Max Emails Per Second', 'nonprofit-manager'),
+        // The queue drains once a minute, so this is a per-minute figure. The
+        // label said "per second", which sent sites a 60th of what they asked.
+        __('Emails Per Minute', 'nonprofit-manager'),
         function () {
             $value = get_option('npmp_newsletter_rate_limit', 10);
             echo '<input type="number" name="npmp_newsletter_rate_limit" value="' . esc_attr($value) . '" min="1" class="small-text" />';
-            echo '<p class="description">' . esc_html__('Default is 10. Reduce this if your email provider has strict rate limits.', 'nonprofit-manager') . '</p>';
+            echo '<p class="description">' . esc_html__('Nonprofit Manager sends this many newsletter emails each minute. The default is 10, or 600 an hour. Lower it if your email provider limits how fast you can send.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main'
@@ -131,7 +133,7 @@ function npmp_register_newsletter_settings() {
         function () {
             $value = get_option('npmp_org_mailing_address', '');
             echo '<textarea name="npmp_org_mailing_address" rows="3" cols="60" placeholder="' . esc_attr__('123 Main St, Suite 100, Ventura, CA 93001', 'nonprofit-manager') . '">' . esc_textarea($value) . '</textarea>';
-            echo '<p class="description">' . esc_html__('A valid physical postal address is required in every newsletter footer under CAN-SPAM. This fills the [address] placeholder. If left blank, the site admin email is used as a fallback, which does not meet the requirement.', 'nonprofit-manager') . '</p>';
+            echo '<p class="description">' . esc_html__('CAN-SPAM requires a postal address in every newsletter footer. This fills the [address] placeholder. Until you add one, the footer shows your admin email, which doesn\'t meet the rule.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main'
@@ -143,7 +145,7 @@ function npmp_register_newsletter_settings() {
         function () {
             $value = get_option('npmp_newsletter_can_spam_footer');
             echo '<textarea name="npmp_newsletter_can_spam_footer" rows="4" cols="60">' . esc_textarea($value) . '</textarea>';
-            echo '<p class="description">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>. ' . esc_html__('The [address] value comes from the Organization Mailing Address field above, and [unsubscribe_url] points to your configured unsubscribe page.', 'nonprofit-manager') . '</p>';
+            echo '<p class="description">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>. ' . esc_html__('[address] comes from the Organization Mailing Address field above, and [unsubscribe_url] points to the unsubscribe page you picked in Membership Settings.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main'

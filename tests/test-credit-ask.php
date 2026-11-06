@@ -108,6 +108,10 @@ $GLOBALS['t_screen'] = 'dashboard';
 check( 'hidden off our screens', false, npmp_credit_ask_should_show() );
 $GLOBALS['t_screen'] = null;
 check( 'hidden with no screen', false, npmp_credit_ask_should_show() );
+$GLOBALS['t_screen'] = 'admin_page_npmp_setup_wizard';
+check( 'hidden over the setup wizard', false, npmp_credit_ask_should_show() );
+$GLOBALS['t_screen'] = 'toplevel_page_npmp_main';
+check( 'back on the Overview it shows again', true, npmp_credit_ask_should_show() );
 
 echo "\nA newsletter is not a donation\n";
 t_reset();

@@ -79,7 +79,7 @@ function npmp_newsletter_register_editor_screens() {
     if (current_user_can('edit_posts') || !current_user_can('edit_npmp_newsletters')) {
         return;
     }
-    foreach (['npmp_newsletter', 'npmp_nl_template'] as $type) {
+    foreach (['npmp_newsletter', 'npmp_nl_template', 'npmp_email_body'] as $type) {
         add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'edit.php?post_type=' . $type);
         add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'post-new.php?post_type=' . $type);
     }
@@ -98,7 +98,7 @@ function npmp_newsletter_hide_editor_screens() {
         return;
     }
     foreach ($submenu['npmp-newsletters'] as $index => $item) {
-        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template)$#', $item[2])) {
+        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template|email_body)$#', $item[2])) {
             unset($submenu['npmp-newsletters'][$index]);
         }
     }
@@ -255,7 +255,7 @@ function npmp_render_newsletter_archive() {
             );
 
             echo '<tr>';
-            echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a></td>';
+            echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a>' . (function_exists('npmp_newsletter_scheduled_badge') ? npmp_newsletter_scheduled_badge($post_id) : '') . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The badge is escaped where it's built.
             echo '<td>' . esc_html($topic_labels ? implode(', ', $topic_labels) : '—') . '</td>';
             echo '<td>' . esc_html($audience) . '</td>';
             echo '<td>' . esc_html($sent_at ? $sent_at : '—') . '</td>';
@@ -315,13 +315,15 @@ function npmp_newsletter_send_controls_html($post) {
     $queued_at         = get_post_meta($post->ID, '_npmp_newsletter_queued_at', true);
     $recipient_total   = get_post_meta($post->ID, '_npmp_newsletter_recipient_total', true);
     $audience_label    = npmp_newsletter_get_audience_label($post->ID);
-    $level_counts      = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_by_level() : [];
+    // Subscribed only, so each number matches who the send reaches. It
+    // counted unsubscribed and inactive contacts too.
+    $level_counts      = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_by_level('subscribed') : [];
     $count_all         = class_exists('NPMP_Member_Manager') ? NPMP_Member_Manager::get_instance()->count_members(['status' => 'subscribed', 'per_page' => -1]) : 0;
 
     echo '<input type="hidden" name="npmp_newsletter_meta_nonce" value="' . esc_attr($meta_nonce) . '">';
 
     if ($queued_at) {
-        echo '<p><strong>' . esc_html__('Last queued:', 'nonprofit-manager') . '</strong> ' . esc_html($queued_at) . '</p>';
+        echo '<p><strong>' . esc_html__('Last queued:', 'nonprofit-manager') . '</strong> ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $queued_at)) . '</p>';
         if ($recipient_total) {
             echo '<p><strong>' . esc_html__('Recipients queued:', 'nonprofit-manager') . '</strong> ' . esc_html((int) $recipient_total) . '</p>';
         }
@@ -343,7 +345,8 @@ function npmp_newsletter_send_controls_html($post) {
     echo '</label>';
 
     echo '<div class="npmp-newsletter-specific-levels" style="' . ($all_checked ? 'opacity:0.5;pointer-events:none;' : '') . '">';
-    echo '<p class="description" style="margin-top:0;">' . esc_html__('Or select specific groups:', 'nonprofit-manager') . '</p>';
+    // "Groups" are a Pro feature with their own picker below, so these say levels.
+    echo '<p class="description" style="margin-top:0;">' . esc_html(sprintf(/* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __('Or pick %s:', 'nonprofit-manager'), npmp_label('levels_lc'))) . '</p>';
 
     foreach ($levels_option as $level_label) {
         $value   = $level_label;
@@ -375,6 +378,20 @@ function npmp_newsletter_send_controls_html($post) {
         ) . '</p>';
     }
 
+    // Inputs printed in this wrapper also ride the Send, Send test, and
+    // Send later requests (newsletter-editor.js and npmp-scheduled-emails.js
+    // serialize it), so an add-on's audience picker saves either way.
+    echo '<div class="npmp-newsletter-audience-extra">';
+    /**
+     * Fires inside the newsletter's Audience box, after the level checkboxes.
+     * Pro renders its Groups picker here, and free shows a greyed one. Read
+     * your inputs back on `npmp_newsletter_audience_saved`.
+     *
+     * @param WP_Post $post The newsletter being edited.
+     */
+    do_action('npmp_newsletter_audience_fields', $post);
+    echo '</div>';
+
     echo '</fieldset>';
 
     /**
@@ -404,10 +421,15 @@ function npmp_newsletter_send_controls_html($post) {
 
     echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '" data-default="' . esc_attr__('Send Test Email', 'nonprofit-manager') . '" data-working="' . esc_attr__('Sending…', 'nonprofit-manager') . '">' . esc_html__('Send Test Email', 'nonprofit-manager') . '</button></p>';
     if (!current_user_can(npmp_newsletter_send_capability())) {
-        echo '<p class="description">' . esc_html__('An editor, administrator or Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
+        echo '<p class="description">' . esc_html__('An editor, an administrator, or a Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
         return;
     }
     echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';
+
+    // "Send later": pick a time and the scheduled emails sweep sends it then.
+    if (function_exists('npmp_scheduled_emails_render_send_later')) {
+        npmp_scheduled_emails_render_send_later($post);
+    }
 }
 
 /**
@@ -487,6 +509,11 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
 
     $queued = NPMP_Newsletter_Manager::queue_newsletter($post_id);
 
+    // Sent by hand, so a pending "Send later" for it must not send it again.
+    if (function_exists('npmp_scheduled_emails_cancel_target')) {
+        npmp_scheduled_emails_cancel_target('list', $post_id, __('You sent it by hand first.', 'nonprofit-manager'));
+    }
+
     if ($queued > 0) {
         $message = sprintf(
             /* translators: 1: Number of queued recipients. 2: Audience description. */
@@ -551,6 +578,20 @@ function npmp_newsletter_store_meta($post_id, $levels = null, $preheader = null)
         $normalized = npmp_newsletter_normalize_levels($levels);
         update_post_meta($post_id, '_npmp_newsletter_levels', $normalized);
         update_post_meta($post_id, '_npmp_newsletter_audience_label', NPMP_Newsletter_Manager::describe_audience($normalized));
+
+        /**
+         * Fires after a newsletter's audience saves: on post save, and on the
+         * Send, Send test, and Send later requests (each checks its own nonce
+         * and capability first). Pro saves its Groups picker
+         * (`_npmp_newsletter_groups`) from the request here. The request
+         * carries whatever the `npmp_newsletter_audience_fields` inputs
+         * posted.
+         *
+         * @param int   $post_id The newsletter ID.
+         * @param array $levels  The saved levels (`__all__`, `__none__`, or names).
+         * @param array $request The whole unslashed POST. Sanitize what you read.
+         */
+        do_action('npmp_newsletter_audience_saved', (int) $post_id, $normalized, wp_unslash($_POST)); // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Every caller verifies its nonce first. Listeners sanitize what they read.
     }
 
     if (null !== $preheader) {
@@ -691,7 +732,7 @@ add_filter('rest_pre_dispatch', function ($result, $server, $request) {
         return $result;
     }
     $route = (string) $request->get_route();
-    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic)(/|$)#', $route) && !current_user_can('edit_npmp_newsletters')) {
+    if (preg_match('#^/wp/v2/(npmp_newsletter|npmp_nl_template|npmp_newsletter_topic|npmp_email_body)(/|$)#', $route) && !current_user_can('edit_npmp_newsletters')) {
         return new WP_Error('rest_forbidden', __('Sorry, you are not allowed to do that.', 'nonprofit-manager'), array('status' => rest_authorization_required_code()));
     }
     return $result;

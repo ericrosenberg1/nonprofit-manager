@@ -236,6 +236,11 @@ if ( ! function_exists( 'npmp_review_nudge_should_show' ) ) {
 		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
 			return false;
 		}
+		// Not over the setup wizard, where a brand-new owner is still
+		// picking features.
+		if ( false !== strpos( (string) $screen->id, 'npmp_setup_wizard' ) ) {
+			return false;
+		}
 		// Donations and newsletters report themselves. Events, contacts and
 		// tenure are counted here, only while no milestone is set yet.
 		if ( ! get_option( 'npmp_first_milestone_at' ) ) {
@@ -307,13 +312,13 @@ add_action(
 
 		$msg1 = sprintf(
 			/* translators: 1: opening link tag to the review form, 2: closing link tag. */
-			__( 'Think Nonprofit Manager deserves a 5-star rating? Please take a moment to %1$srate it here%2$s. It\'s a huge help for us and doesn\'t cost you a cent!', 'nonprofit-manager' ),
+			__( 'Would you %1$sreview it on WordPress.org%2$s? Your review helps other groups find the plugin.', 'nonprofit-manager' ),
 			'<a href="' . esc_url( $review_link ) . '">',
 			'</a>'
 		);
 		$msg2 = sprintf(
 			/* translators: 1: opening link tag to the feedback channel, 2: closing link tag. */
-			__( 'Think we\'ve earned less than 5 stars? Please %1$ssend feedback here%2$s so we can earn your 5-star review.', 'nonprofit-manager' ),
+			__( 'If something is missing or broken, %1$stell us%2$s and we\'ll fix it.', 'nonprofit-manager' ),
 			'<a href="' . esc_url( $feedback_url ) . '">',
 			'</a>'
 		);
@@ -326,7 +331,7 @@ add_action(
 				<?php echo wp_kses_post( $msg1 . ' ' . $msg2 ); ?>
 			</p>
 			<p style="margin:.75em 0;">
-				<a href="<?php echo esc_url( $review_link ); ?>" class="button button-primary"><?php esc_html_e( 'Leave a 5-star review', 'nonprofit-manager' ); ?></a>
+				<a href="<?php echo esc_url( $review_link ); ?>" class="button button-primary"><?php esc_html_e( 'Leave a review', 'nonprofit-manager' ); ?></a>
 				<a href="<?php echo esc_url( $dismiss_link ); ?>" class="button-link" style="margin-left:8px;color:#64748b;"><?php esc_html_e( 'Dismiss', 'nonprofit-manager' ); ?></a>
 			</p>
 		</div>

@@ -117,7 +117,33 @@ class NPMP_Import_Manager {
 	 * @return array
 	 */
 	public function get_field_labels() {
-		return $this->field_labels;
+		/**
+		 * Filter the fields a CSV, XLSX, Mailchimp, or Constant Contact column
+		 * can map to. Return `field => label`. Pro adds `groups`. A field the
+		 * member record doesn't store passes through in the row's record,
+		 * so read it back on `npmp_import_row_imported`.
+		 *
+		 * @param array $labels Field key => label.
+		 */
+		$labels = apply_filters( 'npmp_import_field_labels', $this->field_labels );
+		return is_array( $labels ) ? $labels : $this->field_labels;
+	}
+
+	/**
+	 * Header synonyms for auto-mapping, extended by add-ons.
+	 *
+	 * @return array Field => lowercase header variants.
+	 */
+	private function header_synonyms() {
+		/**
+		 * Filter the column headers each field auto-maps from. Free maps a
+		 * "groups" header to Tags. Pro moves "group" and "groups" to its own
+		 * `groups` field.
+		 *
+		 * @param array $synonyms Field => lowercase header variants.
+		 */
+		$synonyms = apply_filters( 'npmp_import_header_synonyms', $this->header_synonyms );
+		return is_array( $synonyms ) ? $synonyms : $this->header_synonyms;
 	}
 
 	// ------------------------------------------------------------------
@@ -504,14 +530,15 @@ class NPMP_Import_Manager {
 
 		// Track which destination fields have been assigned to prevent duplicates.
 		$assigned = array();
+		$synonyms = $this->header_synonyms();
 
 		foreach ( $headers as $index => $header ) {
 			$normalised = strtolower( trim( $header ) );
 			$normalised = preg_replace( '/[^a-z0-9 _\/]/', '', $normalised );
 			$found      = '';
 
-			foreach ( $this->header_synonyms as $field => $synonyms ) {
-				if ( in_array( $normalised, $synonyms, true ) ) {
+			foreach ( $synonyms as $field => $variants ) {
+				if ( in_array( $normalised, (array) $variants, true ) ) {
 					$found = $field;
 					break;
 				}
@@ -563,7 +590,7 @@ class NPMP_Import_Manager {
 
 		foreach ( $rows_to_do as $row_number => $row ) {
 			$record = $this->map_indexed_row( $row, $mapping );
-			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 2 ); // +2 for 1-indexed + header offset.
+			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 2, $row, $mapping ); // +2 for 1-indexed + header offset.
 
 			$this->tally_result( $stats, $result );
 		}
@@ -602,7 +629,7 @@ class NPMP_Import_Manager {
 
 		foreach ( $rows_to_do as $row_number => $row ) {
 			$record = $this->map_named_row( $row, $mapping );
-			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 1 );
+			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 1, $row, $mapping );
 
 			$this->tally_result( $stats, $result );
 		}
@@ -622,15 +649,38 @@ class NPMP_Import_Manager {
 	 * @param array $record  Mapped member data.
 	 * @param array $options Import options.
 	 * @param int   $row_num Row number for error reporting.
+	 * @param array $row     The source row (cells by index, or keys for API rows).
+	 * @param array $mapping Column => field mapping the row came through.
 	 * @return array { status: imported|skipped|updated|error, message?: string }
 	 */
-	private function import_single_record( $record, $options, $row_num ) {
+	private function import_single_record( $record, $options, $row_num, $row = array(), $mapping = array() ) {
 		self::$importing = true;
 		try {
-			return $this->write_single_record( $record, $options, $row_num );
+			$result = $this->write_single_record( $record, $options, $row_num );
 		} finally {
 			self::$importing = false;
 		}
+
+		if ( ! empty( $result['member_id'] ) ) {
+			/**
+			 * Fires after each import row creates, updates, or skips a
+			 * contact (not on an error). Pro reads `$record['groups']` (a
+			 * comma-separated list from a mapped `groups` column) and adds the
+			 * member to those groups, except groups the member left.
+			 *
+			 * @param int    $member_id Contact post ID.
+			 * @param array  $record    The mapped row (field => value), including
+			 *                          fields the member record doesn't store.
+			 * @param array  $row       The source row as read.
+			 * @param array  $mapping   Column => field mapping.
+			 * @param string $status    'imported', 'updated', or 'skipped'.
+			 * @param array  $options   Import options (duplicate_handling, defaults, source).
+			 */
+			do_action( 'npmp_import_row_imported', (int) $result['member_id'], $record, (array) $row, (array) $mapping, (string) $result['status'], $options );
+		}
+		unset( $result['member_id'] );
+
+		return $result;
 	}
 
 	/**
@@ -686,7 +736,7 @@ class NPMP_Import_Manager {
 							),
 						);
 					}
-					return array( 'status' => 'updated' );
+					return array( 'status' => 'updated', 'member_id' => (int) $existing->id );
 
 				case 'create_new':
 					// Fall through to add_member below.
@@ -694,7 +744,7 @@ class NPMP_Import_Manager {
 
 				case 'skip':
 				default:
-					return array( 'status' => 'skipped' );
+					return array( 'status' => 'skipped', 'member_id' => (int) $existing->id );
 			}
 		}
 
@@ -711,7 +761,7 @@ class NPMP_Import_Manager {
 			);
 		}
 
-		return array( 'status' => 'imported' );
+		return array( 'status' => 'imported', 'member_id' => (int) $result );
 	}
 
 	// ------------------------------------------------------------------

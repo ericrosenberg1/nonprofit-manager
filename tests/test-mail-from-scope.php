@@ -209,6 +209,20 @@ check( 'plugin mail: no SMTP', 'mail', $m->Mailer );
 $m = t_send( false );
 check( 'core mail: keeps WordPress From', 'wordpress@example.org', $m->From );
 
+echo "\nA sender name passed to npmp_send_mail()\n";
+update_option( 'npmp_email_settings', $smtp_settings );
+$m = t_send( true, array( 'From: Art Group <art@elsewhere.example>' ) );
+check( 'plugin mail with a From name: keeps that name', 'Art Group', $m->FromName );
+check( 'plugin mail with a From name: still the configured address', 'hello@example.org', $m->From );
+$m = t_send( true, "Content-Type: text/html\r\nFrom: \"Book Club\" <x@example.org>" );
+check( 'string headers and a quoted name work too', 'Book Club', $m->FromName );
+$m = t_send( true );
+check( 'the next plugin mail goes back to the configured name', 'Example Council', $m->FromName );
+check( 'no override is left over after a send', '', npmp_mail_from_name_override() );
+$m = t_send( false, array( 'From: Forms <forms@example.org>' ) );
+check( 'other plugin mail keeps its own name, untouched', 'Forms', $m->FromName );
+check( 'a header with no display name gives no override', '', npmp_mail_header_from_name( array( 'From: <a@example.org>' ) ) );
+
 echo "\nAmazon SES with an IAM key pair\n";
 update_option( 'npmp_aws_ses_access_key', 'AKIAIOSFODNN7EXAMPLE' );
 update_option( 'npmp_aws_ses_secret_key', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' );

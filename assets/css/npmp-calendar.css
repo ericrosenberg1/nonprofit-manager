@@ -110,6 +110,71 @@
 	padding: 0 1rem;
 }
 
+/* ---- Print or save as PDF button ----------------------------------- */
+/* The bar carries `hidden` until assets/js/npmp-calendar-print.js loads.
+ * The print-only header and the month chips' locations carry it too, and
+ * assets/css/npmp-calendar-print.css shows them on paper. */
+.npmp-print-bar[hidden],
+.npmp-print-header[hidden],
+.npmp-calendar-event-location[hidden] {
+	display: none;
+}
+
+.npmp-print-bar {
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* In an events grid the bar spans every column. Mosaic rows are a fixed
+ * height, so its first row sizes to the bar instead. */
+.npmp-events-list > .npmp-print-bar {
+	grid-column: 1 / -1;
+}
+
+.npmp-events--mosaic.npmp-events--has-print {
+	grid-template-rows: auto;
+}
+
+.npmp-print-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 44px;
+	margin: 0;
+	padding: 0 1rem;
+	font: inherit;
+	font-size: 0.95rem;
+	font-weight: 600;
+	line-height: 1.2;
+	color: var(--npmp-cal-accent, #0f766e);
+	background: #fff;
+	border: 1px solid var(--npmp-cal-accent, #0f766e);
+	border-radius: var(--npmp-cal-radius, 8px);
+	cursor: pointer;
+	text-decoration: none;
+	text-transform: none;
+	letter-spacing: normal;
+	box-shadow: none;
+}
+
+.npmp-print-button:hover {
+	color: #fff;
+	background: var(--npmp-cal-accent, #0f766e);
+}
+
+.npmp-print-button:focus {
+	outline: 3px solid #0f766e;
+	outline-offset: 2px;
+}
+
+.npmp-print-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.npmp-print-icon {
+	flex: 0 0 auto;
+}
+
 /* ---- Month + week grid ----------------------------------------------- */
 .npmp-calendar-table {
 	width: 100%;
@@ -167,6 +232,12 @@
 	color: #fff;
 }
 
+/* Weekday headings carry the full and the short name. Phones show the
+ * short one, since "Wednesday" ran into the next column at 375px. */
+.npmp-calendar-weekday-short {
+	display: none;
+}
+
 /* Week view: taller cells, weekday + date in the header */
 .npmp-calendar-wrapper[data-view="week"] .npmp-calendar-day {
 	height: 11rem;
@@ -220,9 +291,27 @@
 }
 
 /* ---- List view ------------------------------------------------------- */
+/* ---- Events loop (list, grid, cards, mosaic) --------------------------
+ * One markup, four layouts. The root also carries the block's own color,
+ * type, spacing and border styles, so the editor's Styles tab and Global
+ * Styles work on it. Colors that a block color should win over use :where()
+ * to stay at zero specificity.
+ */
 .npmp-events-list {
+	--npmp-cal-accent: #0f766e;
+	--npmp-cal-border: #dcdfe3;
+	--npmp-cal-muted: #6a7178;
+	--npmp-cal-radius: 8px;
+	--npmp-events-ratio: 16 / 9;
 	display: grid;
 	gap: 1rem;
+	box-sizing: border-box;
+}
+
+.npmp-events-list *,
+.npmp-events-list *::before,
+.npmp-events-list *::after {
+	box-sizing: border-box;
 }
 
 .npmp-event {
@@ -231,19 +320,34 @@
 	border-left: 4px solid var(--npmp-cal-accent);
 	border-radius: var(--npmp-cal-radius);
 	background: #fff;
+	min-width: 0;
+}
+
+.wp-block-nonprofit-manager-events.has-background .npmp-event {
+	background: transparent;
+}
+
+.npmp-event-body {
+	min-width: 0;
+	flex: 1 1 auto;
 }
 
 .npmp-event-title {
 	margin: 0 0 0.25rem;
-	font-size: 1.2rem;
+	font-size: 1.2em;
+	line-height: 1.3;
 }
 
 .npmp-event-title a {
 	text-decoration: none;
-	color: #1d2327;
 }
 
-.npmp-event-title a:hover {
+:where(.npmp-event-title a) {
+	color: inherit;
+}
+
+.npmp-event-title a:hover,
+.npmp-event-title a:focus {
 	color: var(--npmp-cal-accent);
 }
 
@@ -263,6 +367,229 @@
 	margin-right: 0.3rem;
 }
 
+/* A block background or text color wins over the accent and muted tones. */
+.wp-block-nonprofit-manager-events.has-background .npmp-event-date,
+.wp-block-nonprofit-manager-events.has-text-color .npmp-event-date,
+.wp-block-nonprofit-manager-events.has-background .npmp-event-location,
+.wp-block-nonprofit-manager-events.has-text-color .npmp-event-location {
+	color: inherit;
+}
+
+.wp-block-nonprofit-manager-events.has-background .npmp-event-location,
+.wp-block-nonprofit-manager-events.has-text-color .npmp-event-location {
+	opacity: 0.85;
+}
+
+.npmp-event-excerpt p {
+	margin: 0.35rem 0 0;
+}
+
+.npmp-event-more {
+	margin: 0.5rem 0 0;
+	font-weight: 600;
+}
+
+.npmp-event-more a {
+	text-decoration: underline;
+}
+
+/* Image or date tile */
+.npmp-event-media {
+	display: block;
+	aspect-ratio: var(--npmp-events-ratio);
+	overflow: hidden;
+	border-radius: calc(var(--npmp-cal-radius) - 2px);
+	background: var(--npmp-cal-accent);
+	text-decoration: none;
+}
+
+.npmp-event-image {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.npmp-event-media-fallback {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	color: #fff;
+	line-height: 1.1;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.npmp-event-media-month {
+	font-size: 0.95em;
+	font-weight: 600;
+}
+
+.npmp-event-media-day {
+	font-size: 2.4em;
+	font-weight: 700;
+}
+
+.npmp-event-media-year {
+	font-size: 0.85em;
+	opacity: 0.9;
+}
+
+/* List: image sits to the left. */
+.npmp-events--list .npmp-event {
+	display: flex;
+	align-items: flex-start;
+	gap: 1rem;
+}
+
+.npmp-events--list .npmp-event-media {
+	flex: 0 0 10rem;
+	width: 10rem;
+}
+
+/* Grid, cards and mosaic share a column grid. */
+.npmp-events--grid,
+.npmp-events--cards,
+.npmp-events--mosaic {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.npmp-events--cols-2.npmp-events--grid,
+.npmp-events--cols-2.npmp-events--cards,
+.npmp-events--cols-2.npmp-events--mosaic {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.npmp-events--cols-4.npmp-events--grid,
+.npmp-events--cols-4.npmp-events--cards,
+.npmp-events--cols-4.npmp-events--mosaic {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Grid: open tiles, image over text, no box. */
+.npmp-events--grid .npmp-event {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+/* Cards: boxed, raised, image flush to the top edge. */
+.npmp-events--cards .npmp-event {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+	border-left-width: 1px;
+	border-left-color: var(--npmp-cal-border);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.npmp-events--cards .npmp-event-media {
+	border-radius: 0;
+}
+
+.npmp-events--cards .npmp-event-body {
+	padding: 1rem 1.15rem 1.15rem;
+}
+
+/* Mosaic: image tiles with the text on top, every fifth tile twice the size. */
+.npmp-events--mosaic {
+	grid-auto-rows: 15rem;
+	grid-auto-flow: dense;
+}
+
+.npmp-events--mosaic .npmp-event {
+	position: relative;
+	display: block;
+	padding: 0;
+	border: 0;
+	overflow: hidden;
+	background: var(--npmp-cal-accent);
+	color: #fff;
+}
+
+.npmp-events--mosaic .npmp-event-media {
+	position: absolute;
+	inset: 0;
+	aspect-ratio: auto;
+	border-radius: 0;
+}
+
+.npmp-events--mosaic .npmp-event-media-fallback {
+	flex-direction: row;
+	align-items: flex-start;
+	justify-content: flex-start;
+	gap: 0.35em;
+	padding: 0.85rem 1rem;
+	font-size: 0.9rem;
+}
+
+.npmp-events--mosaic .npmp-event-media-day {
+	font-size: 1em;
+}
+
+.npmp-events--mosaic .npmp-event-body {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 1;
+	padding: 3rem 1rem 1rem;
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+}
+
+.npmp-events--mosaic .npmp-event-title a,
+.npmp-events--mosaic .npmp-event-date,
+.npmp-events--mosaic .npmp-event-location,
+.npmp-events--mosaic .npmp-event-more a {
+	color: #fff;
+}
+
+.npmp-events--mosaic .npmp-event-title a:hover,
+.npmp-events--mosaic .npmp-event-title a:focus {
+	text-decoration: underline;
+	color: #fff;
+}
+
+.npmp-events--mosaic .npmp-event-excerpt {
+	display: none;
+}
+
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) {
+	grid-column: span 2;
+	grid-row: span 2;
+}
+
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) .npmp-event-excerpt {
+	display: block;
+}
+
+.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) .npmp-event-title {
+	font-size: 1.5em;
+}
+
+/* Two columns: the big tile spans the full row. */
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(5n + 1) {
+	grid-column: auto;
+	grid-row: auto;
+}
+
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(3n + 1) {
+	grid-column: span 2;
+	grid-row: span 2;
+}
+
+.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(3n + 1) .npmp-event-excerpt {
+	display: block;
+}
+
 .npmp-events-empty {
 	padding: 1.5rem;
 	text-align: center;
@@ -272,6 +599,61 @@
 }
 
 /* ---- Responsive ------------------------------------------------------ */
+@media (max-width: 900px) {
+	.npmp-events--cols-3.npmp-events--grid,
+	.npmp-events--cols-3.npmp-events--cards,
+	.npmp-events--cols-3.npmp-events--mosaic,
+	.npmp-events--cols-4.npmp-events--grid,
+	.npmp-events--cols-4.npmp-events--cards,
+	.npmp-events--cols-4.npmp-events--mosaic {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 600px) {
+	.npmp-events--grid,
+	.npmp-events--cards,
+	.npmp-events--mosaic,
+	.npmp-events--cols-2.npmp-events--grid,
+	.npmp-events--cols-2.npmp-events--cards,
+	.npmp-events--cols-2.npmp-events--mosaic,
+	.npmp-events--cols-3.npmp-events--grid,
+	.npmp-events--cols-3.npmp-events--cards,
+	.npmp-events--cols-3.npmp-events--mosaic,
+	.npmp-events--cols-4.npmp-events--grid,
+	.npmp-events--cols-4.npmp-events--cards,
+	.npmp-events--cols-4.npmp-events--mosaic {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.npmp-events--mosaic .npmp-event:nth-of-type(n),
+	.npmp-events--cols-2.npmp-events--mosaic .npmp-event:nth-of-type(n) {
+		grid-column: auto;
+		grid-row: auto;
+	}
+
+	.npmp-events--mosaic {
+		grid-auto-rows: 17rem;
+	}
+
+	.npmp-events--mosaic .npmp-event:nth-of-type(n) .npmp-event-excerpt {
+		display: none;
+	}
+
+	.npmp-events--mosaic .npmp-event:nth-of-type(n) .npmp-event-title {
+		font-size: 1.2em;
+	}
+
+	.npmp-events--list .npmp-event {
+		flex-direction: column;
+	}
+
+	.npmp-events--list .npmp-event-media {
+		flex-basis: auto;
+		width: 100%;
+	}
+}
+
 @media (max-width: 600px) {
 	.npmp-calendar-toolbar {
 		justify-content: center;
@@ -291,13 +673,53 @@
 	}
 
 	.npmp-calendar-table th {
-		font-size: 0.65rem;
-		padding: 0.4rem 0.15rem;
+		font-size: 0.7rem;
+		padding: 0.4rem 0.1rem;
+		letter-spacing: 0;
+		overflow: hidden;
 	}
 
+	/* Off screen but still read aloud: the short name is aria-hidden. */
+	.npmp-calendar-weekday-full {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.npmp-calendar-weekday-short {
+		display: inline;
+	}
+
+	/* A seventh of a phone fits a few letters a line. The time gets its own
+	 * line and long titles wrap mid-word instead of trailing off after one
+	 * letter. */
 	.npmp-calendar-events a {
-		font-size: 0.75rem;
+		padding: 0.15rem 0.2rem;
+		font-size: 0.7rem;
+		line-height: 1.2;
 		white-space: normal;
+		text-overflow: clip;
+		overflow-wrap: anywhere;
+		border-left-width: 2px;
+	}
+
+	.npmp-calendar-event-time {
+		display: block;
+		overflow-wrap: normal;
+	}
+
+	.npmp-calendar-event-title {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 	}
 
 	/* Week view stacks into a readable day-by-day list on phones. */
