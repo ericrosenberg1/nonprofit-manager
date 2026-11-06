@@ -76,13 +76,13 @@ function npmp_get_membership_setup_status() {
 		$rows[] = array(
 			'status'  => 'warning',
 			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
-			'message' => __( 'No unsubscribe page is set, so newsletter unsubscribe links fall back to /unsubscribe, which may not exist. Choose a page in the Unsubscribe Form section below.', 'nonprofit-manager' ),
+			'message' => __( 'No unsubscribe page is set, so the footer\'s unsubscribe link points to /unsubscribe, which may not exist. You can pick a page in the Unsubscribe Form section below.', 'nonprofit-manager' ),
 		);
 	} elseif ( 'publish' !== get_post_status( $unsub_id ) ) {
 		$rows[] = array(
 			'status'  => 'error',
 			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
-			'message' => __( 'The configured unsubscribe page is missing or not published, so unsubscribe links in your emails will break. Pick a published page below.', 'nonprofit-manager' ),
+			'message' => __( 'The unsubscribe page you picked is missing or unpublished, so the unsubscribe links in your emails go nowhere. Pick a published page below.', 'nonprofit-manager' ),
 		);
 	} else {
 		$has_form = false !== strpos( (string) get_post_field( 'post_content', $unsub_id ), '[npmp_email_unsubscribe]' );
@@ -106,7 +106,7 @@ function npmp_get_membership_setup_status() {
 		$rows[] = array(
 			'status'  => 'warning',
 			'label'   => __( 'Mailing address', 'nonprofit-manager' ),
-			'message' => __( 'No organization mailing address is set. CAN-SPAM requires a physical postal address in newsletter footers; an email address is used as a fallback for now. Add one on the Newsletter Settings screen.', 'nonprofit-manager' ),
+			'message' => __( 'No mailing address is set. CAN-SPAM requires a postal address in every newsletter footer, and until you add one the footer shows your admin email instead. You can add it on the Newsletter Settings screen.', 'nonprofit-manager' ),
 		);
 	} else {
 		$rows[] = array(
@@ -122,7 +122,7 @@ function npmp_get_membership_setup_status() {
 		$rows[] = array(
 			'status'  => 'error',
 			'label'   => __( 'Signup page', 'nonprofit-manager' ),
-			'message' => __( 'The configured signup page is missing or not published.', 'nonprofit-manager' ),
+			'message' => __( 'The signup page you picked is missing or unpublished. Pick a published page below.', 'nonprofit-manager' ),
 		);
 	} elseif ( $signup_id ) {
 		/* translators: %s: page title */
@@ -205,6 +205,12 @@ function npmp_render_membership_forms_page() {
 		$membership_levels = array_diff( $membership_levels, array( $level_to_remove ) );
 		$membership_levels = array_values( $membership_levels ); // Re-index
 		update_option( 'npmp_membership_levels', $membership_levels );
+		// A removed level can't stay the default, or new signups keep getting
+		// a level that no longer shows anywhere.
+		if ( $level_to_remove === $default_membership_level ) {
+			update_option( 'npmp_default_membership_level', '' );
+			$default_membership_level = '';
+		}
 		$message = sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s removed.', 'nonprofit-manager' ), npmp_label( 'level' ) );
 	}
 
@@ -380,7 +386,7 @@ function npmp_render_membership_forms_page() {
 					</th>
 					<td>
 						<select name="npmp_default_membership_level" id="npmp_default_membership_level" class="regular-text">
-							<option value=""><?php esc_html_e( '-- Select Default Level --', 'nonprofit-manager' ); ?></option>
+							<option value=""><?php esc_html_e( 'None (new members get "member")', 'nonprofit-manager' ); ?></option>
 							<?php foreach ( $membership_levels as $level ) : ?>
 								<option value="<?php echo esc_attr( $level ); ?>" <?php selected( $default_membership_level, $level ); ?>>
 									<?php echo esc_html( $level ); ?>
@@ -388,7 +394,7 @@ function npmp_render_membership_forms_page() {
 							<?php endforeach; ?>
 						</select>
 						<p class="description">
-							<?php esc_html_e( 'This level will be automatically assigned to new members who sign up via email forms.', 'nonprofit-manager' ); ?>
+							<?php esc_html_e( 'People who join through a signup form get this level.', 'nonprofit-manager' ); ?>
 						</p>
 						<?php submit_button( __( 'Save Default Level', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
 					</td>
@@ -428,11 +434,11 @@ function npmp_render_membership_forms_page() {
 	wp_nonce_field( 'npmp_membership_form_save' );
 
 	/* Signup section */
-	echo '<h2>' . esc_html__( 'Signup Form', 'nonprofit-manager' ) . '</h2><p><code>[npmp_email_signup]</code> - ' . esc_html__( 'Embed anywhere or pick a page below to inject automatically.', 'nonprofit-manager' ) . '</p>';
+	echo '<h2>' . esc_html__( 'Signup Form', 'nonprofit-manager' ) . '</h2><p><code>[npmp_email_signup]</code> ' . esc_html__( 'You can paste this shortcode on any page, or pick a page below and the form shows up at the bottom of it.', 'nonprofit-manager' ) . '</p>';
 	echo '<table class="form-table">';
 	$field( 'signup_heading', esc_html__( 'Heading', 'nonprofit-manager' ) );
 	$field( 'signup_description', esc_html__( 'Description', 'nonprofit-manager' ), 'textarea' );
-	echo '<tr><th>' . esc_html__( 'Inject on Page', 'nonprofit-manager' ) . '</th><td>';
+	echo '<tr><th>' . esc_html__( 'Add to Page', 'nonprofit-manager' ) . '</th><td>';
 	wp_dropdown_pages(
 		array(
 			'name'             => 'signup_page_id',
@@ -441,14 +447,14 @@ function npmp_render_membership_forms_page() {
 			'option_none_value'=> 0,
 		)
 	);
-	echo '<p class="description">' . esc_html__( 'The form will be appended to the bottom of the selected page.', 'nonprofit-manager' ) . '</p></td></tr></table>';
+	echo '<p class="description">' . esc_html__( 'Nonprofit Manager adds the form below the page\'s own content.', 'nonprofit-manager' ) . '</p></td></tr></table>';
 
 	/* Unsubscribe section */
-	echo '<h2>' . esc_html__( 'Unsubscribe Form', 'nonprofit-manager' ) . '</h2><p><code>[npmp_email_unsubscribe]</code> - ' . esc_html__( 'Embed anywhere or pick a page below to inject automatically.', 'nonprofit-manager' ) . '</p>';
+	echo '<h2>' . esc_html__( 'Unsubscribe Form', 'nonprofit-manager' ) . '</h2><p><code>[npmp_email_unsubscribe]</code> ' . esc_html__( 'You can paste this shortcode on any page, or pick a page below and the form shows up at the bottom of it.', 'nonprofit-manager' ) . '</p>';
 	echo '<table class="form-table">';
 	$field( 'unsubscribe_heading', esc_html__( 'Heading', 'nonprofit-manager' ) );
 	$field( 'unsubscribe_description', esc_html__( 'Description', 'nonprofit-manager' ), 'textarea' );
-	echo '<tr><th>' . esc_html__( 'Inject on Page', 'nonprofit-manager' ) . '</th><td>';
+	echo '<tr><th>' . esc_html__( 'Add to Page', 'nonprofit-manager' ) . '</th><td>';
 	wp_dropdown_pages(
 		array(
 			'name'             => 'unsubscribe_page_id',
@@ -457,7 +463,7 @@ function npmp_render_membership_forms_page() {
 			'option_none_value'=> 0,
 		)
 	);
-	echo '<p class="description">' . esc_html__( 'The form will be appended to the bottom of the selected page.', 'nonprofit-manager' ) . '</p></td></tr></table>';
+	echo '<p class="description">' . esc_html__( 'Nonprofit Manager adds the form below the page\'s own content.', 'nonprofit-manager' ) . '</p></td></tr></table>';
 
 	/* Shared labels */
 	echo '<h2>' . esc_html__( 'Shared Labels & Messages', 'nonprofit-manager' ) . '</h2>';
@@ -508,7 +514,12 @@ function npmp_get_banner_html( $type, $settings ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-captcha"><p>' . esc_html__( 'Please complete the spam protection check before submitting.', 'nonprofit-manager' ) . '</p></div>';
 		}
 		if ( 'busy' === $status ) {
-			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-error" role="alert"><p>' . esc_html__( 'We received many signups in a short time. Please try again in an hour.', 'nonprofit-manager' ) . '</p></div>';
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-error" role="alert"><p>' . esc_html__( 'We got too many requests from here in a short time. Please try again in an hour.', 'nonprofit-manager' ) . '</p></div>';
+		}
+		if ( 'unsubscribed' === $status ) {
+			// The one-click link landed here. The shared success message
+			// ("Your request has been processed") didn't say what happened.
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'You\'re unsubscribed. We won\'t send you any more of these emails.', 'nonprofit-manager' ) . '</p></div>';
 		}
 		if ( 'confirm' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'If that address is on our list, a confirmation email is on its way. Click the link in it to finish unsubscribing.', 'nonprofit-manager' ) . '</p></div>';
@@ -522,7 +533,78 @@ function npmp_get_banner_html( $type, $settings ) {
 }
 
 /* ------------ Signup shortcode ------------ */
-function npmp_email_signup_shortcode() {
+
+/**
+ * Default [npmp_email_signup] attributes, extended by add-ons.
+ *
+ * @return array
+ */
+function npmp_signup_form_default_atts() {
+	/**
+	 * Filter the attributes [npmp_email_signup] and the Email Signup block
+	 * accept (free has none). Pro adds `'groups' => ''`, so
+	 * `[npmp_email_signup groups="art,history"]` puts each new member in
+	 * those groups. The form signs the non-empty values into a hidden field,
+	 * so a visitor can't change them, and `npmp_after_email_signup` gets them
+	 * back as `$atts`.
+	 *
+	 * @param array $defaults Attribute => default value.
+	 */
+	$defaults = apply_filters( 'npmp_signup_form_default_atts', array() );
+	return is_array( $defaults ) ? $defaults : array();
+}
+
+/**
+ * Sign a signup form's attributes for its hidden field.
+ *
+ * @param array $atts Attributes (only non-empty scalars are kept).
+ * @return string payload.signature, or '' when there's nothing to carry.
+ */
+function npmp_signup_atts_token( $atts ) {
+	$keep = array();
+	foreach ( (array) $atts as $key => $value ) {
+		if ( is_scalar( $value ) && '' !== (string) $value ) {
+			$keep[ sanitize_key( (string) $key ) ] = (string) $value;
+		}
+	}
+	if ( ! $keep ) {
+		return '';
+	}
+	ksort( $keep );
+	$payload = rtrim( strtr( base64_encode( (string) wp_json_encode( $keep ) ), '+/', '-_' ), '=' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- URL-safe transport of signed form attributes, not obfuscation.
+	return $payload . '.' . hash_hmac( 'sha256', $payload, wp_salt( 'nonce' ) );
+}
+
+/**
+ * Read back a signup form's signed attributes. A missing or tampered field
+ * gives the defaults.
+ *
+ * @param string $token Value of the hidden npmp_signup_atts field.
+ * @return array
+ */
+function npmp_signup_atts_from_token( $token ) {
+	$defaults = npmp_signup_form_default_atts();
+	$parts    = explode( '.', (string) $token );
+	if ( 2 !== count( $parts ) || ! hash_equals( hash_hmac( 'sha256', $parts[0], wp_salt( 'nonce' ) ), $parts[1] ) ) {
+		return $defaults;
+	}
+	$json    = base64_decode( strtr( $parts[0], '-_', '+/' ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- Reverses npmp_signup_atts_token().
+	$decoded = is_string( $json ) ? json_decode( $json, true ) : null;
+	if ( ! is_array( $decoded ) ) {
+		return $defaults;
+	}
+	// Only attributes an add-on still accepts come back.
+	return array_merge( $defaults, array_intersect_key( $decoded, $defaults ) );
+}
+
+/**
+ * Render the email signup form.
+ *
+ * @param array|string $atts Shortcode attributes.
+ * @return string
+ */
+function npmp_email_signup_shortcode( $atts = array() ) {
+	$atts = shortcode_atts( npmp_signup_form_default_atts(), is_array( $atts ) ? $atts : array(), 'npmp_email_signup' );
 	$s    = npmp_get_membership_form_settings();
 	$html = npmp_get_banner_html( 'npmp_signup', $s );
 
@@ -536,11 +618,16 @@ function npmp_email_signup_shortcode() {
 	 * The subscriber notification preferences feature (post/event/digest
 	 * checkboxes) renders through this filter. The admin screen promised
 	 * those checkboxes "appear on the signup form" but nothing applied the
-	 * filter, so they never did.
+	 * filter, so they never did. Pro adds a group's checkboxes here when the
+	 * form names more than one group.
 	 *
 	 * @param string $fields Form field HTML so far.
+	 * @param array  $atts   The form's attributes, after defaults.
 	 */
-	$fields = apply_filters( 'npmp_signup_form_after_fields', $fields );
+	$fields = apply_filters( 'npmp_signup_form_after_fields', $fields, $atts );
+
+	$atts_token = npmp_signup_atts_token( $atts );
+	$atts_field = '' !== $atts_token ? '<input type="hidden" name="npmp_signup_atts" value="' . esc_attr( $atts_token ) . '">' : '';
 
 	$html .= '
 	<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" class="npmp-email-signup">
@@ -552,6 +639,7 @@ function npmp_email_signup_shortcode() {
 		' . wp_nonce_field( 'npmp_email_signup', 'npmp_email_signup_nonce', true, false ) . '
 		<input type="hidden" name="npmp_action" value="email_signup">
 		<input type="hidden" name="action" value="npmp_handle_form">
+		' . $atts_field . '
 		<p><button type="submit">' . esc_html( $s['signup_button'] ) . '</button></p>
 	</form>';
 	return $html;
@@ -672,12 +760,14 @@ function npmp_handle_membership_form() {
 			// Existing contact: subscribe them, but never overwrite a name or
 			// level someone else typed. A public form is not the place to
 			// rename a contact.
-			$update = $member_manager->update_member(
+			$default_level = sanitize_text_field( get_option( 'npmp_default_membership_level', '' ) );
+			$update        = $member_manager->update_member(
 				$existing->id,
 				array(
 					'name'             => ( '' !== (string) $existing->name ) ? $existing->name : $name,
 					'status'           => 'subscribed',
-					'membership_level' => $existing->membership_level ?: 'member',
+					// Same fallback a new contact gets below.
+					'membership_level' => $existing->membership_level ?: ( $default_level ? $default_level : 'member' ),
 				)
 			);
 			$result     = is_wp_error( $update ) ? 'error' : 'success';
@@ -709,10 +799,17 @@ function npmp_handle_membership_form() {
 			 * chosen checkboxes here. It was hooked but never fired, so
 			 * signup preferences were silently discarded.
 			 *
+			 * Pro adds the new or returning member to the form's groups
+			 * from `$atts['groups']` (and any group checkboxes it printed).
+			 *
 			 * @param int   $contact_id Contact post ID.
 			 * @param array $post_data  Submitted form data.
+			 * @param array $atts       The form's attributes, read back from its
+			 *                          signed hidden field (defaults when missing).
+			 * @param bool  $is_new     True when this signup created the contact.
 			 */
-			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
+			$signup_atts = npmp_signup_atts_from_token( sanitize_text_field( wp_unslash( $_POST['npmp_signup_atts'] ?? '' ) ) );
+			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ), $signup_atts, ! $existing ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
 		}
 
 		wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $result ) );
@@ -736,6 +833,14 @@ function npmp_handle_membership_form() {
 
 		if ( ! is_email( $email ) ) {
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_unsubscribe', 'error' ) );
+			exit;
+		}
+
+		// Each request emails the address it names, so cap it the way signup
+		// is capped. Without this, anyone could flood a member's inbox with
+		// confirmation emails from this site.
+		if ( ! npmp_rate_limit_allows( 'unsubscribe', 10, HOUR_IN_SECONDS ) || ! npmp_rate_limit_allows( 'unsubscribe_site', 200, HOUR_IN_SECONDS, 'site' ) ) {
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_unsubscribe', 'busy' ) );
 			exit;
 		}
 
@@ -1055,7 +1160,7 @@ function npmp_handle_one_click_unsubscribe() {
 	if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
 		$target = get_permalink( $page_id );
 		if ( $target ) {
-			wp_safe_redirect( npmp_membership_add_banner_arg( $target, 'npmp_unsubscribe', $valid ? 'success' : 'error' ) );
+			wp_safe_redirect( npmp_membership_add_banner_arg( $target, 'npmp_unsubscribe', $valid ? 'unsubscribed' : 'error' ) );
 			exit;
 		}
 	}

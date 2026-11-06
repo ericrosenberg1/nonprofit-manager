@@ -884,6 +884,7 @@ function npmp_clear_newsletter_cron() {
 	wp_clear_scheduled_hook( 'npmp_process_queued_newsletters' );
 	wp_clear_scheduled_hook( 'npmp_send_weekly_digest' );
 	wp_clear_scheduled_hook( 'npmp_process_digest_queue' );
+	wp_clear_scheduled_hook( 'npmp_scheduled_emails_sweep' );
 	// Pending async notification blasts carry per-post args, so clear every
 	// instance regardless of args.
 	if ( function_exists( 'wp_unschedule_hook' ) ) {

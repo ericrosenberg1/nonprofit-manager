@@ -121,7 +121,7 @@ list( $jar, $login ) = rig_login( $base, 'rig_org_admin', $password );
 rig_check( 'admin login redirects', 302, $login['code'] );
 $wizard = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_setup_wizard' ) );
 rig_check( 'wizard page 200', 200, $wizard['code'] );
-rig_has( 'wizard asks the question', 'What kind of group is this?', $wizard['body'] );
+rig_has( 'wizard asks the question', 'What kind of group do you run?', $wizard['body'] );
 foreach ( array( 'nonprofit', 'club', 'school', 'sports', 'faith', 'hoa' ) as $slug ) {
 	rig_has( "wizard offers $slug", 'name="npmp_org_type" value="' . $slug . '"', $wizard['body'] );
 }

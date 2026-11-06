@@ -344,13 +344,14 @@ class NPMP_Tour {
 					'start'     => __( 'Start the tour', 'nonprofit-manager' ),
 					'dismiss'   => __( 'Not right now', 'nonprofit-manager' ),
 					'rerun'     => __( 'Re-run setup tour', 'nonprofit-manager' ),
+					/* translators: 1: current step number, 2: total steps. */
 					'stepLabel' => __( 'Step %1$d of %2$d', 'nonprofit-manager' ),
 					'modalTitle'   => __( 'Welcome to Nonprofit Manager', 'nonprofit-manager' ),
-					'modalBody'    => __( "Take a 3-minute tour to set up your org, configure email, and learn where everything lives. You can leave the tour at any step.", 'nonprofit-manager' ),
+					'modalBody'    => __( 'A three-minute tour shows you how to set up your organization and email, and where everything lives. You can leave it at any step.', 'nonprofit-manager' ),
 					'bannerTitle'  => __( 'Set up Nonprofit Manager', 'nonprofit-manager' ),
-					'bannerBody'   => __( 'Walk through a short tour to get your org configured and learn the basics.', 'nonprofit-manager' ),
-					'finishedTitle' => __( "You're set up!", 'nonprofit-manager' ),
-					'finishedBody'  => __( "Everything is ready. You can rerun the tour any time from the Overview page.", 'nonprofit-manager' ),
+					'bannerBody'   => __( 'A short tour walks you through your organization details, email, and the basics.', 'nonprofit-manager' ),
+					'finishedTitle' => __( "You're set up", 'nonprofit-manager' ),
+					'finishedBody'  => __( 'You can rerun the tour any time from the Overview screen.', 'nonprofit-manager' ),
 				),
 			)
 		);
@@ -369,7 +370,7 @@ class NPMP_Tour {
 			<span style="font-size:22px;">🎯</span>
 			<div style="flex:1;">
 				<p style="margin:0 0 4px;font-size:14px;"><strong><?php esc_html_e( 'Set up Nonprofit Manager', 'nonprofit-manager' ); ?></strong></p>
-				<p style="margin:0;color:#475569;font-size:13px;"><?php esc_html_e( 'Take a short tour to configure your org identity, email delivery, and learn the admin layout.', 'nonprofit-manager' ); ?></p>
+				<p style="margin:0;color:#475569;font-size:13px;"><?php esc_html_e( 'A short tour walks you through your organization details, email delivery, and where everything lives.', 'nonprofit-manager' ); ?></p>
 			</div>
 			<button type="button" class="button button-primary" data-npmp-tour-action="start" style="white-space:nowrap;"><?php esc_html_e( 'Start the tour', 'nonprofit-manager' ); ?></button>
 			<button type="button" class="button-link" data-npmp-tour-action="dismiss-banner" aria-label="<?php esc_attr_e( 'Dismiss banner', 'nonprofit-manager' ); ?>" style="color:#64748b;text-decoration:none;font-size:18px;">×</button>

@@ -73,7 +73,7 @@ function npmp_template_settings_meta_box($post) {
             <?php esc_html_e('Set as default template', 'nonprofit-manager'); ?>
         </label>
         <br>
-        <span class="description"><?php esc_html_e('This template will be automatically applied to new newsletters.', 'nonprofit-manager'); ?></span>
+        <span class="description"><?php esc_html_e('New newsletters start with this template.', 'nonprofit-manager'); ?></span>
     </p>
 
     <script>

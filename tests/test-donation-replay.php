@@ -76,6 +76,12 @@ function npmp_add_donor_to_membership( $email, $name ) { $GLOBALS['t_members']++
 function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
 	$GLOBALS['t_verified']++;
 	$order_data = array( 'status' => 'COMPLETED' );
+	if ( 'PAYPAL-ORDER-JPY' === $order_id ) {
+		$order_data['purchase_units'][0] = array(
+			'amount'   => array( 'value' => '101', 'currency_code' => 'JPY' ),
+			'payments' => array( 'captures' => array( array( 'amount' => array( 'value' => '101' ) ) ) ),
+		);
+	}
 	return true;
 }
 
@@ -89,7 +95,9 @@ class NPMP_Donation_Manager {
 	public function find_by_transaction_id( $txn ) {
 		return $this->by_txn[ $txn ] ?? 0;
 	}
+	public $amounts = array();
 	public function log_donation( $data ) {
+		$this->amounts[ $data['transaction_id'] ] = $data['amount'];
 		if ( isset( $this->by_txn[ $data['transaction_id'] ] ) ) {
 			return $this->by_txn[ $data['transaction_id'] ];
 		}
@@ -104,7 +112,7 @@ require_once __DIR__ . '/../includes/npmp-currency.php';
 
 // Take the two handlers out of a file that needs WordPress to load.
 $src = file_get_contents( __DIR__ . '/../includes/payments/npmp-payment-gateways.php' );
-foreach ( array( 'npmp_maybe_finalize_stripe_donation', 'npmp_ajax_log_donation' ) as $fn ) {
+foreach ( array( 'npmp_maybe_finalize_stripe_donation', 'npmp_ajax_log_donation', 'npmp_paypal_recorded_amount' ) as $fn ) {
 	$start = strpos( $src, "function $fn(" );
 	$end   = strpos( $src, "\n}", $start ) + 2;
 	eval( substr( $src, $start, $end - $start ) ); // phpcs:ignore Squiz.PHP.Eval.Discouraged -- Test harness: extracting handlers rather than booting WordPress.
@@ -182,6 +190,16 @@ check( 'replay does not re-thank', 1, $GLOBALS['t_emails'] );
 $other = paypal_post( 'PAYPAL-ORDER-2' );
 check( 'a new order is processed', 2, $GLOBALS['t_verified'] );
 check( 'a new order is thanked', 2, $GLOBALS['t_emails'] );
+
+echo "\n== 3. PayPal records what PayPal captured ==\n";
+// The browser sends the typed amount. A yen gift typed as 100.5 becomes a
+// 101 yen order, and the record used to say 100.5.
+$_POST_amount = paypal_post( 'PAYPAL-ORDER-JPY' );
+check( 'verified order records the captured amount', 101.0, NPMP_Donation_Manager::get_instance()->amounts['PAYPAL-ORDER-JPY'] );
+check( 'unverified order keeps the reported amount', 25.5, npmp_paypal_recorded_amount( 25.5, null ) );
+check( 'order without amounts keeps the reported amount', 25.5, npmp_paypal_recorded_amount( 25.5, array( 'status' => 'COMPLETED' ) ) );
+check( 'purchase unit amount is used when no capture is listed', 40.0, npmp_paypal_recorded_amount( 25.0, array( 'purchase_units' => array( array( 'amount' => array( 'value' => '40.00' ) ) ) ) ) );
+check( 'a zero capture keeps the reported amount', 25.0, npmp_paypal_recorded_amount( 25.0, array( 'purchase_units' => array( array( 'payments' => array( 'captures' => array( array( 'amount' => array( 'value' => '0' ) ) ) ) ) ) ) ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
