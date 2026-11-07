@@ -567,16 +567,104 @@ function npmp_email_prepare_image_tag( $tag, $base_url ) {
 /**
  * Resolve one image source against the site URL.
  *
+ * Kept as its own name because it is the image half of the pair and reads
+ * that way at the call site. The rules are shared with links.
+ *
  * @param string $url      Source as written in the body.
  * @param string $base_url Site URL without a trailing slash.
  * @return string
  */
 function npmp_email_absolute_image_url( $url, $base_url ) {
+	return npmp_email_absolute_url( $url, $base_url );
+}
+
+/**
+ * Make the links in an email body survive a mail client.
+ *
+ * The same trouble the images had, one tag over. A link typed into the image
+ * block's link field, or into any link field, is stored exactly as typed:
+ * `/news` and `newsletter/archive` are both legal there and both resolve in
+ * the editor, against the page the editor is on. An email has no page, so a
+ * mail client has nothing to resolve them against and the link is dead. An
+ * image linked to its own media file is the common case, which is what Eric
+ * asked for on ROS-4272: the email has to link back to the image's real
+ * public URL.
+ *
+ * `mailto:`, `tel:` and any other scheme are left alone. So is a `#fragment`,
+ * which points inside the message itself, and so is a value still holding an
+ * unfilled `[token]` or `{token}` placeholder, where guessing a site URL
+ * would only bury the token in a longer broken link.
+ *
+ * @param string $html     Email body HTML.
+ * @param string $base_url Site URL to resolve relative links against.
+ *                         Defaults to home_url().
+ * @return string
+ */
+function npmp_email_prepare_links( $html, $base_url = '' ) {
+	$html = (string) $html;
+	if ( '' === $html || false === stripos( $html, '<a' ) ) {
+		return $html;
+	}
+
+	if ( '' === $base_url ) {
+		$base_url = function_exists( 'home_url' ) ? (string) home_url() : '';
+	}
+	$base_url = rtrim( $base_url, '/' );
+
+	return (string) preg_replace_callback(
+		'/<a\b[^>]*>/i',
+		static function ( $m ) use ( $base_url ) {
+			return npmp_email_prepare_link_tag( $m[0], $base_url );
+		},
+		$html
+	);
+}
+
+/**
+ * One `<a>` tag, made email-safe. Split out from npmp_email_prepare_links()
+ * so it can be tested on its own.
+ *
+ * @param string $tag      The whole `<a ...>` tag.
+ * @param string $base_url Site URL without a trailing slash.
+ * @return string
+ */
+function npmp_email_prepare_link_tag( $tag, $base_url ) {
+	return (string) preg_replace_callback(
+		'/(\shref\s*=\s*)("([^"]*)"|\'([^\']*)\')/i',
+		static function ( $m ) use ( $base_url ) {
+			$double = '"' === $m[2][0];
+			$quote  = $double ? '"' : "'";
+			$url    = $double ? $m[3] : ( isset( $m[4] ) ? $m[4] : '' );
+			return $m[1] . $quote . npmp_email_absolute_url( $url, $base_url ) . $quote;
+		},
+		$tag
+	);
+}
+
+/**
+ * Resolve one URL written in an email body against the site URL.
+ *
+ * @param string $url      URL as written in the body.
+ * @param string $base_url Site URL without a trailing slash.
+ * @return string
+ */
+function npmp_email_absolute_url( $url, $base_url ) {
 	$url     = trim( (string) $url );
 	$trimmed = ltrim( $url );
 
 	if ( '' === $trimmed ) {
 		return $url;
+	}
+
+	// Points inside this message, not at the site.
+	if ( '#' === $trimmed[0] ) {
+		return $trimmed;
+	}
+
+	// A placeholder nothing filled in. Resolving it would only make the
+	// broken link longer.
+	if ( '[' === $trimmed[0] || '{' === $trimmed[0] ) {
+		return $trimmed;
 	}
 
 	// Already self-contained, or already absolute.

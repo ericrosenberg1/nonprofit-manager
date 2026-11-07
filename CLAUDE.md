@@ -133,6 +133,7 @@ Free (`readme.txt`):
 - Fixed: a newsletter sent with a wrapper or header template lost its whole body, images and all.
 - Fixed: images in a sent email now carry a plain absolute src, so mail clients show them.
 - Fixed: the newsletter template picker now shows "No Template" when that is what you saved.
+- Fixed: a link in a sent email, including the link on an image, now carries the full site address.
 
 Pro (licence server changelog):
 - (none)
