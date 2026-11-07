@@ -253,16 +253,33 @@ function npmp_apply_newsletter_template($content, $template_id = null) {
     }
 
     $template_type = get_post_meta($template_id, '_npmp_template_type', true);
+
+    // [email_content] is a shortcode so the template *preview* can show where
+    // the body lands. Expanding it here would be fatal: the_content() runs
+    // do_shortcode(), which turns the token into that preview box, and the
+    // str_replace() below then finds nothing to replace. The newsletter body,
+    // images and all, never reached the sent email (ROS-4261). So render the
+    // template with the shortcode switched off and the token still intact.
+    $placeholder_was_registered = shortcode_exists('email_content');
+    if ($placeholder_was_registered) {
+        remove_shortcode('email_content');
+    }
+    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Reuse core 'the_content' filters to match post formatting.
     $template_content = apply_filters('the_content', $template->post_content);
+    if ($placeholder_was_registered) {
+        add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
+    }
 
     // Handle different template types
     switch ($template_type) {
         case 'wrapper':
-            // Replace [email_content] placeholder with actual content
-            return str_replace('[email_content]', $content, $template_content);
-
         case 'header':
-            // Add content after header
+            // Replace [email_content] with the body. A template that never got
+            // the token would otherwise drop the body on the floor, so fall
+            // back to putting it after the template.
+            if (false === strpos($template_content, '[email_content]')) {
+                return $template_content . $content;
+            }
             return str_replace('[email_content]', $content, $template_content);
 
         case 'footer':
@@ -291,14 +308,20 @@ add_shortcode('npmp_nl_template', function ($atts) {
 });
 
 /**
- * Add [email_content] shortcode for template preview
+ * The [email_content] shortcode: a visible marker for where the newsletter
+ * body lands, shown when a template is previewed on its own. Named rather
+ * than a closure so npmp_apply_newsletter_template() can take it off and put
+ * it back while it renders the template.
+ *
+ * @return string
  */
-add_shortcode('email_content', function () {
+function npmp_email_content_placeholder_shortcode() {
     return '<div style="background: #f0f0f0; border: 2px dashed #666; padding: 20px; text-align: center; margin: 20px 0;">' .
            '<strong>' . esc_html__('Newsletter content will appear here', 'nonprofit-manager') . '</strong><br>' .
            '<span style="color: #666;">' . esc_html__('This placeholder is replaced with your newsletter content when sent.', 'nonprofit-manager') . '</span>' .
            '</div>';
-});
+}
+add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
 
 /**
  * Add template selector to newsletter editor
@@ -338,8 +361,9 @@ function npmp_newsletter_template_meta_box($post) {
     <p>
         <label for="npmp_newsletter_template"><strong><?php esc_html_e('Select Template', 'nonprofit-manager'); ?></strong></label><br>
         <select name="npmp_newsletter_template" id="npmp_newsletter_template" class="widefat">
-            <option value=""><?php esc_html_e('Use Default Template', 'nonprofit-manager'); ?></option>
-            <option value="none"><?php esc_html_e('No Template (Plain Content)', 'nonprofit-manager'); ?></option>
+            <?php // Both of these need selected(), or a saved "No Template" reopens reading "Use Default Template" and looks unsaved. ?>
+            <option value="" <?php selected($selected_template, ''); ?>><?php esc_html_e('Use Default Template', 'nonprofit-manager'); ?></option>
+            <option value="none" <?php selected($selected_template, 'none'); ?>><?php esc_html_e('No Template (Plain Content)', 'nonprofit-manager'); ?></option>
             <?php foreach ($templates as $template) : ?>
                 <option value="<?php echo esc_attr($template->ID); ?>" <?php selected($selected_template, $template->ID); ?>>
                     <?php echo esc_html($template->post_title); ?>

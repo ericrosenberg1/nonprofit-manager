@@ -321,6 +321,13 @@ class NPMP_Newsletter_Manager {
 			}
 		}
 
+		// the_content leaves every image dressed for a browser (srcset, sizes,
+		// loading, decoding) and leaves a relative src relative, which no mail
+		// client can resolve. Both lose the image in the inbox (ROS-4261).
+		if ( function_exists( 'npmp_email_prepare_images' ) ) {
+			$content = npmp_email_prepare_images( $content );
+		}
+
 		$preheader = trim( (string) get_post_meta( $newsletter_id, '_npmp_newsletter_preheader', true ) );
 		if ( '' !== $preheader ) {
 			$hidden  = esc_html( $preheader ) . str_repeat( '&nbsp;', 10 );

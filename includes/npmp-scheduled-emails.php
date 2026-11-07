@@ -1220,6 +1220,11 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject ) {
 	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $body['template'] ) {
 		$html = is_numeric( $body['template'] ) ? npmp_apply_newsletter_template( $html, absint( $body['template'] ) ) : npmp_apply_newsletter_template( $html );
 	}
+	// Same image handling the queue gets, so the test matches what sends
+	// (ROS-4261).
+	if ( function_exists( 'npmp_email_prepare_images' ) ) {
+		$html = npmp_email_prepare_images( $html );
+	}
 	$html .= do_shortcode( '[npmp_can_spam]' );
 	return array(
 		'subject' => npmp_scheduled_emails_fill( npmp_scheduled_emails_pick_subject( $subject, $body ), $map, false ),
