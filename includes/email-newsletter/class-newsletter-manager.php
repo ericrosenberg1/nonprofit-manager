@@ -328,6 +328,14 @@ class NPMP_Newsletter_Manager {
 			$content = npmp_email_prepare_images( $content );
 		}
 
+		// A link is stored exactly as it was typed, so the link on an image, or
+		// on anything else, can be relative too and a mail client has no page to
+		// resolve it against. Runs before click tracking, which only follows an
+		// http or https link (ROS-4272).
+		if ( function_exists( 'npmp_email_prepare_links' ) ) {
+			$content = npmp_email_prepare_links( $content );
+		}
+
 		$preheader = trim( (string) get_post_meta( $newsletter_id, '_npmp_newsletter_preheader', true ) );
 		if ( '' !== $preheader ) {
 			$hidden  = esc_html( $preheader ) . str_repeat( '&nbsp;', 10 );

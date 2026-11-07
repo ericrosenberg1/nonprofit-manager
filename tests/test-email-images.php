@@ -1,9 +1,9 @@
 <?php
 /**
- * Images in sent email (ROS-4261).
+ * Images and links in sent email (ROS-4261, ROS-4272).
  *
- * Two separate ways an image a user put in an email body never reached the
- * inbox:
+ * Three separate ways an image a user put in an email body never reached the
+ * inbox, or arrived linked to nowhere:
  *
  * 1. npmp_email_prepare_images() in includes/email/helpers.php. A newsletter
  *    body goes through the_content, so core hands back browser-only
@@ -14,6 +14,10 @@
  *    [email_content] is a shortcode, so the_content expanded it into the
  *    preview box before str_replace() could swap the body in, and the whole
  *    body was dropped.
+ * 3. npmp_email_prepare_links() in includes/email/helpers.php. The link on an
+ *    image, usually the image's own media file, is stored as typed, so it can
+ *    be relative in exactly the way the src was, and dies the same way
+ *    (ROS-4272).
  *
  * Run: php tests/test-email-images.php
  */
@@ -205,6 +209,116 @@ check(
 	'event email test prepares images',
 	1,
 	preg_match( '/npmp_email_prepare_images\( \$html \)/', $sched_src )
+);
+
+/* ---------------------------------------------------------------------------
+ * npmp_email_prepare_links() -- the link on an image, and every other link
+ * ------------------------------------------------------------------------ */
+
+check(
+	'absolute https href untouched',
+	'https://u3acommunities.org/news',
+	npmp_email_absolute_url( 'https://u3acommunities.org/news', $base )
+);
+check(
+	'root-relative href resolved',
+	'https://u3acommunities.org/news',
+	npmp_email_absolute_url( '/news', $base )
+);
+check(
+	'document-relative href resolved',
+	'https://u3acommunities.org/newsletter/archive',
+	npmp_email_absolute_url( 'newsletter/archive', $base )
+);
+check(
+	'protocol-relative href takes the site scheme',
+	'https://u3acommunities.org/join',
+	npmp_email_absolute_url( '//u3acommunities.org/join', $base )
+);
+check(
+	'mailto href untouched',
+	'mailto:pete@plord.co.uk',
+	npmp_email_absolute_url( 'mailto:pete@plord.co.uk', $base )
+);
+check(
+	'tel href untouched',
+	'tel:+441234567890',
+	npmp_email_absolute_url( 'tel:+441234567890', $base )
+);
+check(
+	'in-message anchor untouched',
+	'#top',
+	npmp_email_absolute_url( '#top', $base )
+);
+check(
+	'unfilled placeholder untouched',
+	'[event_url]',
+	npmp_email_absolute_url( '[event_url]', $base )
+);
+check(
+	'empty href untouched',
+	'',
+	npmp_email_absolute_url( '', $base )
+);
+
+// The reported shape: an image linked to its own media file, where the link
+// was typed into the editor root-relative.
+check(
+	'link on an image made absolute',
+	'<figure><a href="https://u3acommunities.org/news"><img src="https://u3acommunities.org/wp-content/uploads/logo.png" alt="" /></a></figure>',
+	npmp_email_prepare_links(
+		npmp_email_prepare_images( '<figure><a href="/news"><img src="/wp-content/uploads/logo.png" alt="" loading="lazy" /></a></figure>' )
+	)
+);
+check(
+	'single-quoted href resolved',
+	"<a href='https://u3acommunities.org/news'>x</a>",
+	npmp_email_prepare_links( "<a href='/news'>x</a>" )
+);
+check(
+	'every link in a body resolved, one pass',
+	2,
+	preg_match_all(
+		'#href="https://u3acommunities\.org/#',
+		npmp_email_prepare_links( '<a href="/a">a</a><p>words</p><a href="b">b</a>' )
+	)
+);
+check(
+	'a body with no links returned unchanged',
+	'<p>No links here.</p>',
+	npmp_email_prepare_links( '<p>No links here.</p>' )
+);
+check( 'empty body returned unchanged by the link pass', '', npmp_email_prepare_links( '' ) );
+
+// <address> starts with "a" too, and must not be read as a link tag.
+check(
+	'address element untouched',
+	'<address>12 High St</address>',
+	npmp_email_prepare_links( '<address>12 High St</address>' )
+);
+
+// Click tracking only follows an http or https link, so the absolute pass has
+// to run first or a relative link is never tracked either.
+$manager_order = file_get_contents( dirname( __DIR__ ) . '/includes/email-newsletter/class-newsletter-manager.php' );
+check(
+	'links are absolute before click tracking runs',
+	true,
+	strpos( $manager_order, 'npmp_email_prepare_links( $content )' ) < strpos( $manager_order, 'self::track_links(' )
+);
+
+/* ---------------------------------------------------------------------------
+ * Both send paths call the link helper too
+ * ------------------------------------------------------------------------ */
+
+check(
+	'newsletter render prepares links',
+	1,
+	preg_match( '/npmp_email_prepare_links\( \$content \)/', $manager_src )
+);
+check(
+	'event email test prepares links',
+	1,
+	preg_match( '/npmp_email_prepare_links\( \$html \)/', $sched_src )
 );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );

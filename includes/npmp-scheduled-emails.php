@@ -1225,6 +1225,9 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject ) {
 	if ( function_exists( 'npmp_email_prepare_images' ) ) {
 		$html = npmp_email_prepare_images( $html );
 	}
+	if ( function_exists( 'npmp_email_prepare_links' ) ) {
+		$html = npmp_email_prepare_links( $html );
+	}
 	$html .= do_shortcode( '[npmp_can_spam]' );
 	return array(
 		'subject' => npmp_scheduled_emails_fill( npmp_scheduled_emails_pick_subject( $subject, $body ), $map, false ),
