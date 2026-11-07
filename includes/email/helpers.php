@@ -493,3 +493,108 @@ function npmp_email_smtp_is_configured( $settings ) {
 
 	return ( '' !== $host && '' !== $username && '' !== $password && $port > 0 );
 }
+
+/**
+ * Make the images in an email body survive a mail client.
+ *
+ * Newsletter and event-email bodies are rendered through the `the_content`
+ * filters, so every `<img>` arrives dressed for a browser: core adds
+ * `srcset`, `sizes="auto, ..."`, `loading="lazy"`, `decoding="async"` and
+ * sometimes `fetchpriority`. None of those mean anything in email, no mail
+ * client implements responsive images, and a client that reads `srcset` or
+ * `sizes` before `src` can end up showing nothing at all. A relative or
+ * protocol-relative `src` is worse: it has no page to resolve against once
+ * the message leaves the site, so the image is simply missing (ROS-4261).
+ *
+ * So: drop the browser-only attributes and resolve every `src` to an
+ * absolute URL. `data:` and `cid:` sources are left alone, since both are
+ * already self-contained.
+ *
+ * @param string $html     Email body HTML.
+ * @param string $base_url Site URL to resolve relative sources against.
+ *                         Defaults to home_url().
+ * @return string
+ */
+function npmp_email_prepare_images( $html, $base_url = '' ) {
+	$html = (string) $html;
+	if ( '' === $html || false === stripos( $html, '<img' ) ) {
+		return $html;
+	}
+
+	if ( '' === $base_url ) {
+		$base_url = function_exists( 'home_url' ) ? (string) home_url() : '';
+	}
+	$base_url = rtrim( $base_url, '/' );
+
+	return (string) preg_replace_callback(
+		'/<img\b[^>]*>/i',
+		static function ( $m ) use ( $base_url ) {
+			return npmp_email_prepare_image_tag( $m[0], $base_url );
+		},
+		$html
+	);
+}
+
+/**
+ * One `<img>` tag, made email-safe. Split out from
+ * npmp_email_prepare_images() so it can be tested on its own.
+ *
+ * @param string $tag      The whole `<img ...>` tag.
+ * @param string $base_url Site URL without a trailing slash.
+ * @return string
+ */
+function npmp_email_prepare_image_tag( $tag, $base_url ) {
+	// Browser-only attributes. Quoted, single-quoted and bare forms, plus the
+	// valueless shape a hand-written body can carry.
+	$tag = (string) preg_replace(
+		'/\s+(?:srcset|sizes|loading|decoding|fetchpriority)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i',
+		'',
+		$tag
+	);
+
+	return (string) preg_replace_callback(
+		'/(\ssrc\s*=\s*)("([^"]*)"|\'([^\']*)\')/i',
+		static function ( $m ) use ( $base_url ) {
+			$double = '"' === $m[2][0];
+			$quote  = $double ? '"' : "'";
+			$url    = $double ? $m[3] : ( isset( $m[4] ) ? $m[4] : '' );
+			return $m[1] . $quote . npmp_email_absolute_image_url( $url, $base_url ) . $quote;
+		},
+		$tag
+	);
+}
+
+/**
+ * Resolve one image source against the site URL.
+ *
+ * @param string $url      Source as written in the body.
+ * @param string $base_url Site URL without a trailing slash.
+ * @return string
+ */
+function npmp_email_absolute_image_url( $url, $base_url ) {
+	$url     = trim( (string) $url );
+	$trimmed = ltrim( $url );
+
+	if ( '' === $trimmed ) {
+		return $url;
+	}
+
+	// Already self-contained, or already absolute.
+	if ( preg_match( '#^(?:[a-z][a-z0-9+.-]*:)#i', $trimmed ) ) {
+		return $trimmed;
+	}
+
+	if ( '' === $base_url ) {
+		return $trimmed;
+	}
+
+	// Protocol-relative: //host/path takes the site's scheme.
+	if ( 0 === strpos( $trimmed, '//' ) ) {
+		$scheme = preg_match( '#^(https?)://#i', $base_url, $m ) ? strtolower( $m[1] ) : 'https';
+		return $scheme . ':' . $trimmed;
+	}
+
+	// Root-relative and document-relative both resolve against the site root.
+	// A newsletter has no page of its own to be relative to.
+	return $base_url . '/' . ltrim( $trimmed, '/' );
+}
