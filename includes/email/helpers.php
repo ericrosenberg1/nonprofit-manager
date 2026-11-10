@@ -526,6 +526,11 @@ function npmp_email_prepare_images( $html, $base_url = '' ) {
 	}
 	$base_url = rtrim( $base_url, '/' );
 
+	// An image set to expand on click arrives with core's lightbox button. An
+	// email carries no script or stylesheet to hide it, so it shows as a stray
+	// empty button beside the image.
+	$html = (string) preg_replace( '/<button\b[^>]*\blightbox-trigger\b[^>]*>.*?<\/button>/is', '', $html );
+
 	return (string) preg_replace_callback(
 		'/<img\b[^>]*>/i',
 		static function ( $m ) use ( $base_url ) {
@@ -547,7 +552,7 @@ function npmp_email_prepare_image_tag( $tag, $base_url ) {
 	// Browser-only attributes. Quoted, single-quoted and bare forms, plus the
 	// valueless shape a hand-written body can carry.
 	$tag = (string) preg_replace(
-		'/\s+(?:srcset|sizes|loading|decoding|fetchpriority)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i',
+		'/\s+(?:srcset|sizes|loading|decoding|fetchpriority|data-wp-[a-z0-9_-]+)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i',
 		'',
 		$tag
 	);
