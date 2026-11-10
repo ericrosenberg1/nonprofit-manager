@@ -321,5 +321,15 @@ check(
 	preg_match( '/npmp_email_prepare_links\( \$html \)/', $sched_src )
 );
 
+// An image set to expand on click: core's button and interactivity attributes
+// mean nothing in an inbox, and the button shows as a stray empty box.
+$lightbox = npmp_email_prepare_images(
+	'<figure class="wp-lightbox-container"><img data-wp-on--click="actions.showLightbox" data-wp-class--hide="state.isContentHidden" src="https://x.test/a.png" alt="" /><button class="lightbox-trigger" type="button" aria-haspopup="dialog"><svg width="12" height="12"></svg></button></figure><p><button type="button">Keep me</button></p>'
+);
+check( 'lightbox button removed', false, strpos( $lightbox, 'lightbox-trigger' ) );
+check( 'lightbox attributes removed', false, strpos( $lightbox, 'data-wp-' ) );
+check( 'lightbox image kept', true, false !== strpos( $lightbox, 'src="https://x.test/a.png"' ) );
+check( 'other buttons kept', true, false !== strpos( $lightbox, 'Keep me' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );
