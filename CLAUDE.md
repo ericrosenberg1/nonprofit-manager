@@ -135,6 +135,7 @@ Free (`readme.txt`):
 - Fixed: the newsletter template picker now shows "No Template" when that is what you saved.
 - Fixed: a link in a sent email, including the link on an image, now carries the full site address.
 - Fixed: an image set to expand on click no longer adds a stray button to a sent email.
+- Added: an import can map a date column to a contact's Added date, so a list moved from another tool keeps its original signup dates.
 
 Pro (licence server changelog):
 - (none)

@@ -139,7 +139,7 @@ Yes. Use the "Convert to Event" action on any post or page. It carries your cont
 
 = How do I import my existing email list? =
 
-Go to Membership > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. The free plugin imports up to 50 supporters per job, and Pro removes the cap.
+Go to Membership > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. Map your old tool's signup date column to Added and every contact keeps the day they first joined, instead of the day of the import. The free plugin imports up to 50 supporters per job, and Pro removes the cap.
 
 = Where can I get support? =
 

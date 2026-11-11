@@ -65,6 +65,7 @@ class NPMP_Import_Manager {
 		'country'          => 'Country',
 		'tags'             => 'Tags',
 		'source'           => 'Source',
+		'created_at'       => 'Added (signup date)',
 		'notes'            => 'Notes',
 	);
 
@@ -89,6 +90,22 @@ class NPMP_Import_Manager {
 		'status'           => array( 'status', 'member status', 'subscription status', 'contact status' ),
 		'notes'            => array( 'notes', 'note', 'comments', 'comment', 'description' ),
 		'source'           => array( 'source', 'origin', 'signup source', 'lead source' ),
+		// The date the contact joined, so a list brought over from another tool
+		// keeps its original signup dates instead of showing the day of the
+		// import. Variants are written the way detect_columns() sees them,
+		// after it lowercases the header and drops punctuation other than
+		// spaces, underscores and slashes: "Opt-in Date" arrives as
+		// "optin date". MailPoet exports this column as "Confirmation time",
+		// Mailchimp as "OPTIN_TIME" or "CONFIRM_TIME".
+		'created_at'       => array(
+			'added', 'date added', 'date_added', 'added on', 'added date', 'first added',
+			'created', 'created at', 'created_at', 'created on', 'created date', 'date created',
+			'signup date', 'signup_date', 'sign up date', 'signup time', 'signed up', 'signed up on',
+			'subscribed on', 'subscribed at', 'subscribed_at', 'subscribed date', 'date subscribed', 'subscription date',
+			'confirmation time', 'confirmation date', 'confirmed at', 'confirmed_at', 'confirmed on', 'confirm time', 'confirm_time',
+			'optin date', 'optin time', 'optin_time', 'timestamp_opt', 'timestamp_signup',
+			'joined', 'joined on', 'joined date', 'join date', 'date joined', 'member since',
+		),
 	);
 
 	/**

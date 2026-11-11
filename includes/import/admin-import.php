@@ -1057,6 +1057,10 @@ function npmp_import_render_page() {
 				<span class="npmp-import-total-badge"></span>
 			</p>
 
+			<p class="description">
+				<?php esc_html_e( 'Map a date column to "Added (signup date)" to keep the day each contact first joined. MailPoet calls that column "Confirmation time". Write a date as 2019-03-14 and the importer reads it exactly as it looks. The importer reads a slash date month first, so 03/04/2019 means 4 March. A cell that is empty, or holds something the importer cannot read as a date, takes the date of the import instead.', 'nonprofit-manager' ); ?>
+			</p>
+
 			<div class="npmp-import-preview-table-wrap">
 				<table id="npmp-import-preview-table" class="widefat striped">
 					<thead id="npmp-preview-thead"></thead>

@@ -754,6 +754,10 @@ class NPMP_Member_Manager {
 			'donation_total',
 			'donation_currency',
 			'donation_totals',
+			// Stored on the contact post's own date, not in meta. add_member()
+			// and update_member() write it to post_date; nothing else reads it
+			// from $clean, so it is absent from meta_keys() on purpose.
+			'created_at',
 		);
 	}
 
@@ -868,6 +872,14 @@ class NPMP_Member_Manager {
 					break;
 				case 'donation_count':
 					$value = intval( $value );
+					break;
+				case 'created_at':
+					// The date the contact joined, which an import can carry
+					// over from the tool the list came from. Read in the site's
+					// timezone, because that is what the Added column shows.
+					// null means "no usable date": the caller leaves post_date
+					// alone, so a new contact gets the time of the import.
+					$value = npmp_parse_date_input( $value, function_exists( 'wp_timezone' ) ? wp_timezone() : 'UTC' );
 					break;
 				case 'last_contacted':
 				case 'last_donation_at':
@@ -1271,6 +1283,14 @@ class NPMP_Member_Manager {
 			'meta_input'  => $meta_input,
 		);
 
+		// An import can carry the date the contact first joined. Without one,
+		// WordPress dates the post now, which is what "Added" has always
+		// meant for a contact created by hand or by a signup form.
+		if ( ! empty( $clean['created_at'] ) ) {
+			$postarr['post_date']     = $clean['created_at'];
+			$postarr['post_date_gmt'] = get_gmt_from_date( $clean['created_at'] );
+		}
+
 		$post_id = wp_insert_post( $postarr, true );
 
 		if ( is_wp_error( $post_id ) ) {
@@ -1313,6 +1333,15 @@ class NPMP_Member_Manager {
 			$post_update['post_title'] = $clean['name'] ? $clean['name'] : ( $clean['email'] ?? $member->email );
 			unset( $clean['name'] );
 		}
+
+		// Only a usable date moves "Added". An empty or unreadable value
+		// leaves the date the contact already has, so re-importing a list
+		// whose date column has gaps can't blank out dates that are right.
+		if ( ! empty( $clean['created_at'] ) ) {
+			$post_update['post_date']     = $clean['created_at'];
+			$post_update['post_date_gmt'] = get_gmt_from_date( $clean['created_at'] );
+		}
+		unset( $clean['created_at'] );
 
 		if ( count( $post_update ) > 1 ) {
 			$result = wp_update_post( $post_update, true );
