@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.3
+Stable tag: 2026.11.4
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.4 =
+* Fixed the setup wizard newsletter signup, which wasn't reaching the list.
 
 = 2026.11.3 =
 * New signups confirm by email first, with a setting to turn it off.
@@ -475,6 +478,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.4 =
+Fixes the newsletter signup in the setup wizard.
 
 = 2026.11.3 =
 New signups now get an email with a link to confirm before they join your list. You can turn this off under Membership Settings.
