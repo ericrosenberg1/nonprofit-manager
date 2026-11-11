@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.2
+Stable tag: 2026.11.3
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,19 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.3 =
+* New signups confirm by email first, with a setting to turn it off.
+* Readers can unsubscribe without typing their address.
+* Added [first_name], [last_name], and [name] tags to newsletters and event emails.
+* Added [event_image] and [event_excerpt] tags to event emails.
+* Added a Date Added column to contact imports.
+* Fixed newsletters with templates losing their body.
+* Fixed images and links in sent emails.
+* Fixed HTML codes in newsletter subjects.
+* Fixed the template picker hiding "No Template."
+* Removed a stray lightbox button from sent emails.
+* Fixed notifications reaching unconfirmed contacts.
 
 = 2026.11.2 =
 * Added scheduled emails: one email per event, and Send later for any newsletter.
@@ -462,6 +475,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.3 =
+New signups now get an email with a link to confirm before they join your list. You can turn this off under Membership Settings.
 
 = 2026.10.10 =
 No change to the free plugin. Lockstep with Nonprofit Manager Pro 2026.10.10.
