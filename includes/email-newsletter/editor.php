@@ -331,6 +331,7 @@ function npmp_newsletter_send_controls_html($post) {
 
     echo '<p><label for="npmp-newsletter-preheader"><strong>' . esc_html__('Preheader', 'nonprofit-manager') . '</strong></label>';
     echo '<input type="text" id="npmp-newsletter-preheader" name="npmp_newsletter_preheader" class="widefat" value="' . esc_attr($preheader) . '" placeholder="' . esc_attr__('Short summary that appears next to the subject line.', 'nonprofit-manager') . '"></p>';
+    echo '<p class="description npmp-newsletter-tags">' . esc_html__('To greet each reader by name, type [first_name] in the subject, preheader, body or template. [first_name default="Member"] fills in a word for contacts with no name. [last_name] and [name] work too.', 'nonprofit-manager') . '</p>';
 
     echo '<fieldset class="npmp-newsletter-audience">';
     echo '<legend><strong>' . esc_html__('Audience', 'nonprofit-manager') . '</strong></legend>';

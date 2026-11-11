@@ -67,6 +67,23 @@ function home_url( $path = '' ) {
 function add_query_arg( $key, $value, $url ) {
 	return $url . '?' . $key . '=' . $value;
 }
+function esc_attr( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+}
+function strip_shortcodes( $text ) {
+	return preg_replace( '/\[[^\]]+\]/', '', (string) $text );
+}
+// Event 12 has a 1200px featured image, event 14 a 320px one, others none.
+function get_post_thumbnail_id( $id ) {
+	return array( 12 => 501, 14 => 502 )[ $id ] ?? 0;
+}
+function wp_get_attachment_image_src( $id, $size ) {
+	$srcs = array(
+		501 => array( 'https://example.org/wp-content/uploads/hall-1024x683.jpg', 1024, 683 ),
+		502 => array( 'https://example.org/wp-content/uploads/logo.png', 320, 120 ),
+	);
+	return $srcs[ $id ] ?? false;
+}
 
 /**
  * Enough of $wpdb for the claim: one table of rows keyed by id. query()
@@ -236,6 +253,29 @@ check( 'unknown placeholder left alone', true, false !== strpos( $html, '[unknow
 check( 'no known placeholder left', 0, preg_match( '/\[(event_|join_|ical_)/', $html ) );
 check( 'subject is plain text', 'Tomorrow: Art & History', npmp_scheduled_emails_fill( 'Tomorrow: [event_title]', array( '[event_title]' => 'Art & <b>History</b>' ), false ) );
 check( 'javascript link dropped', 'href=""', npmp_scheduled_emails_fill( 'href="[event_url]"', array( '[event_url]' => 'javascript:alert(1)' ), true ) );
+
+echo "Event image and excerpt (wordpress.org thread \"more template shortcodes\")\n";
+check( 'image placeholder carries url and width', array( 'url' => 'https://example.org/wp-content/uploads/hall-1024x683.jpg', 'width' => 1024 ), $map['[event_image]'] );
+$html = npmp_scheduled_emails_fill( '<p>[event_image]</p>', $map, true );
+check( 'image tag capped at 600 wide', true, false !== strpos( $html, '<img src="https://example.org/wp-content/uploads/hall-1024x683.jpg" alt="Art &amp; History &lt;Group&gt;" width="600"' ) );
+check( 'image in a subject is dropped', 'See ', npmp_scheduled_emails_fill( 'See [event_image]', $map, false ) );
+$GLOBALS['t_meta'][14] = array( '_npmp_event_start' => '2026-11-12 19:30:00' );
+$html = npmp_scheduled_emails_fill( '[event_image]', npmp_scheduled_emails_placeholders( 14 ), true );
+check( 'small image keeps its own width', true, false !== strpos( $html, 'width="320" style="display:block;width:100%;max-width:320px;' ) );
+check( 'no featured image, no tag', '<p></p>', npmp_scheduled_emails_fill( '<p>[event_image]</p>', $map13, true ) );
+
+$long = array( '[event_excerpt]' => trim( str_repeat( 'word ', 80 ) ), '[event_title]' => 'T' );
+check( 'excerpt defaults to 55 words', 55, str_word_count( rtrim( npmp_scheduled_emails_fill( '[event_excerpt]', $long, true ), "\u{2026}" ) ) );
+check( 'excerpt ends in an ellipsis when cut', true, "\u{2026}" === mb_substr( npmp_scheduled_emails_fill( '[event_excerpt]', $long, true ), -1 ) );
+check( 'words="10" sets the length', 10, str_word_count( rtrim( npmp_scheduled_emails_fill( '[event_excerpt words="10"]', $long, true ), "\u{2026}" ) ) );
+check( 'curly quotes from the editor still work', 12, str_word_count( rtrim( npmp_scheduled_emails_fill( "[event_excerpt words=\u{201D}12\u{201D}]", $long, true ), "\u{2026}" ) ) );
+check( 'entity quotes from the_content still work', 7, str_word_count( rtrim( npmp_scheduled_emails_fill( '[event_excerpt words=&#8221;7&#8221;]', $long, true ), "\u{2026}" ) ) );
+check( 'a words value that is not a number leaves the tag', '[event_excerpt words="ten"]', npmp_scheduled_emails_fill( '[event_excerpt words="ten"]', $long, true ) );
+check( 'short excerpt has no ellipsis', 'Bring a friend.', npmp_scheduled_emails_fill( '[event_excerpt words="200"]', array( '[event_excerpt]' => 'Bring a friend.' ), true ) );
+check( 'excerpt escaped in HTML', 'A &amp; B &lt;b&gt;', npmp_scheduled_emails_fill( '[event_excerpt]', array( '[event_excerpt]' => 'A & B <b>' ), true ) );
+check( 'excerpt source drops markup and shortcodes', 'Art & History', npmp_scheduled_emails_excerpt_source( 12 ) );
+check( 'help lists the new tags', true, isset( npmp_scheduled_emails_placeholder_help()['[event_image]'], npmp_scheduled_emails_placeholder_help()['[event_excerpt]'], npmp_scheduled_emails_placeholder_help()['[first_name]'] ) );
+check( '[first_name] is left for the send to fill', '[first_name default="Member"]', npmp_scheduled_emails_fill( '[first_name default="Member"]', $map, true ) );
 
 add_filter(
 	'npmp_scheduled_email_placeholders',

@@ -433,11 +433,12 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 				array( 'key' => '_npmp_weekly_digest', 'value' => '' ),
 			),
 			// A contact an admin or an import marked unsubscribed gets nothing,
-			// whatever their notification checkboxes still say.
+			// whatever their notification checkboxes still say, and neither
+			// does one who hasn't confirmed their signup yet (Pending).
 			array(
 				'relation' => 'OR',
 				array( 'key' => 'npmp_status', 'compare' => 'NOT EXISTS' ),
-				array( 'key' => 'npmp_status', 'value' => 'unsubscribed', 'compare' => '!=' ),
+				array( 'key' => 'npmp_status', 'value' => array( 'unsubscribed', 'pending' ), 'compare' => 'NOT IN' ),
 			),
 		),
 	) );
@@ -581,7 +582,7 @@ function npmp_process_weekly_digest() {
 			array(
 				'relation' => 'OR',
 				array( 'key' => 'npmp_status', 'compare' => 'NOT EXISTS' ),
-				array( 'key' => 'npmp_status', 'value' => 'unsubscribed', 'compare' => '!=' ),
+				array( 'key' => 'npmp_status', 'value' => array( 'unsubscribed', 'pending' ), 'compare' => 'NOT IN' ),
 			),
 		),
 	) );

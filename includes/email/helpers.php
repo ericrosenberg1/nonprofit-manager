@@ -691,3 +691,68 @@ function npmp_email_absolute_url( $url, $base_url ) {
 	// A newsletter has no page of its own to be relative to.
 	return $base_url . '/' . ltrim( $trimmed, '/' );
 }
+
+/**
+ * The per-recipient tags a newsletter can use, for one contact.
+ *
+ * A contact stores one name, so first_name is its first word and last_name
+ * the rest. A contact saved without a name has its email as the title, which
+ * counts as no name.
+ *
+ * @param string $name Contact name.
+ * @return array<string,string> Tag => raw value.
+ */
+function npmp_email_recipient_tag_values( $name ) {
+	$name = trim( preg_replace( '/\s+/u', ' ', (string) $name ) );
+	if ( false !== strpos( $name, '@' ) ) {
+		$name = '';
+	}
+	$parts = '' === $name ? array() : explode( ' ', $name, 2 );
+	return array(
+		'first_name' => $parts[0] ?? '',
+		'last_name'  => $parts[1] ?? '',
+		'name'       => $name,
+	);
+}
+
+/**
+ * Swap per-recipient tags like [first_name default="Member"] for their values.
+ *
+ * Runs after the_content, which curls the quotes of a tag WordPress doesn't
+ * know (default=&#8221;Member&#8221;), so the default may sit in straight,
+ * curly or entity quotes. A tag with no value and no default becomes empty.
+ *
+ * @param string               $text   Body (HTML) or subject (plain text).
+ * @param array<string,string> $values Tag => raw value.
+ * @param bool                 $html   True to escape values for HTML.
+ * @return string
+ */
+function npmp_email_fill_recipient_tags( $text, $values, $html = true ) {
+	$text = (string) $text;
+	if ( '' === $text || false === strpos( $text, '[' ) || empty( $values ) ) {
+		return $text;
+	}
+	$names   = implode(
+		'|',
+		array_map(
+			function ( $key ) {
+				return preg_quote( (string) $key, '/' );
+			},
+			array_keys( (array) $values )
+		)
+	);
+	$pattern = '/\[(' . $names . ')(?:\s+default\s*=\s*([^\]]*))?\s*\]/u';
+
+	return (string) preg_replace_callback(
+		$pattern,
+		function ( $m ) use ( $values, $html ) {
+			$value = trim( (string) ( $values[ $m[1] ] ?? '' ) );
+			if ( '' === $value && isset( $m[2] ) ) {
+				$value = html_entity_decode( $m[2], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+				$value = trim( $value, " \t\"'\u{201C}\u{201D}\u{2018}\u{2019}\u{2032}\u{2033}" );
+			}
+			return $html ? esc_html( $value ) : wp_strip_all_tags( $value );
+		},
+		$text
+	);
+}

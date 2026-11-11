@@ -817,6 +817,19 @@ class NPMP_Member_Manager {
 	}
 
 	/**
+	 * Read a "Date Added" value from incoming member data.
+	 *
+	 * @param array $data Raw data. Reads created_at.
+	 * @return array{local:string,gmt:string}|null
+	 */
+	private function parse_added_date( $data ) {
+		if ( ! is_array( $data ) || empty( $data['created_at'] ) || ! function_exists( 'npmp_import_parse_added_date' ) ) {
+			return null;
+		}
+		return npmp_import_parse_added_date( $data['created_at'] );
+	}
+
+	/**
 	 * Sanitise incoming member data.
 	 *
 	 * @param array  $data    Raw data.
@@ -1271,6 +1284,14 @@ class NPMP_Member_Manager {
 			'meta_input'  => $meta_input,
 		);
 
+		// The day the contact first joined, from an import's "Date Added"
+		// column. The contact list's Added column reads post_date.
+		$added = $this->parse_added_date( $data );
+		if ( $added ) {
+			$postarr['post_date']     = $added['local'];
+			$postarr['post_date_gmt'] = $added['gmt'];
+		}
+
 		$post_id = wp_insert_post( $postarr, true );
 
 		if ( is_wp_error( $post_id ) ) {
@@ -1302,7 +1323,7 @@ class NPMP_Member_Manager {
 			return new WP_Error( 'npmp_member_exists', __( 'Another contact already uses that email address.', 'nonprofit-manager' ) );
 		}
 
-		if ( empty( $clean ) ) {
+		if ( empty( $clean ) && empty( $data['created_at'] ) ) {
 			return true;
 		}
 
@@ -1312,6 +1333,16 @@ class NPMP_Member_Manager {
 		if ( isset( $clean['name'] ) ) {
 			$post_update['post_title'] = $clean['name'] ? $clean['name'] : ( $clean['email'] ?? $member->email );
 			unset( $clean['name'] );
+		}
+
+		// An import that updates existing contacts can only move "Added"
+		// earlier. A contact who joined in 2019 and again in a 2024 export
+		// keeps 2019.
+		$added = $this->parse_added_date( $data );
+		if ( $added && ( empty( $member->created_at ) || strtotime( $added['local'] ) < strtotime( $member->created_at ) ) ) {
+			$post_update['post_date']     = $added['local'];
+			$post_update['post_date_gmt'] = $added['gmt'];
+			$post_update['edit_date']     = true;
 		}
 
 		if ( count( $post_update ) > 1 ) {
