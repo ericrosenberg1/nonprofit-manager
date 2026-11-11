@@ -66,6 +66,7 @@ class NPMP_Import_Manager {
 		'tags'             => 'Tags',
 		'source'           => 'Source',
 		'notes'            => 'Notes',
+		'created_at'       => 'Date Added',
 	);
 
 	/**
@@ -89,6 +90,9 @@ class NPMP_Import_Manager {
 		'status'           => array( 'status', 'member status', 'subscription status', 'contact status' ),
 		'notes'            => array( 'notes', 'note', 'comments', 'comment', 'description' ),
 		'source'           => array( 'source', 'origin', 'signup source', 'lead source' ),
+		// MailPoet exports "Confirmation time" and "Created at", Mailchimp's
+		// CSV has OPTIN_TIME and CONFIRM_TIME.
+		'created_at'       => array( 'date added', 'date_added', 'added', 'added on', 'created', 'created at', 'created_at', 'creation date', 'confirmation time', 'confirmed at', 'confirmed_at', 'confirm_time', 'optin_time', 'opt in time', 'optin date', 'subscribed at', 'subscribed_at', 'subscribed on', 'subscription date', 'date subscribed', 'signup date', 'sign up date', 'join date', 'date joined', 'joined', 'member since' ),
 	);
 
 	/**
@@ -316,6 +320,8 @@ class NPMP_Import_Manager {
 				'email_address' => isset( $mc_member['email_address'] ) ? $mc_member['email_address'] : '',
 				'status'        => $this->map_mailchimp_status( isset( $mc_member['status'] ) ? $mc_member['status'] : '' ),
 				'tags'          => implode( ',', $tag_names ),
+				// When they opted in, the contact's "Date Added".
+				'timestamp_opt' => isset( $mc_member['timestamp_opt'] ) ? (string) $mc_member['timestamp_opt'] : '',
 				// Back-compat keys for tests / callers that pre-date the mf:* convention.
 				'first_name'    => isset( $mc_member['merge_fields']['FNAME'] ) ? $mc_member['merge_fields']['FNAME'] : '',
 				'last_name'     => isset( $mc_member['merge_fields']['LNAME'] ) ? $mc_member['merge_fields']['LNAME'] : '',

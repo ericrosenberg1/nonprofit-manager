@@ -235,17 +235,18 @@ function npmp_import_ajax_preview() {
 				wp_send_json_error( $result->get_error_message() );
 			}
 
-			// Build the column order. Three Mailchimp-native columns always come
-			// first (email / status / tags), then every merge field in the order
+			// Build the column order. Four Mailchimp-native columns always come
+			// first (email / status / tags / opt-in time), then every merge field in the order
 			// Mailchimp returned them. The column_order array is also persisted
 			// in the credentials transient so the step handler can convert the
 			// UI's index-based mapping back into named keys for any merge tag.
-			$headers      = array( 'Email', 'Status', 'Tags' );
-			$column_order = array( 'email_address', 'status', 'tags' );
+			$headers      = array( 'Email', 'Status', 'Tags', 'Opted in' );
+			$column_order = array( 'email_address', 'status', 'tags', 'timestamp_opt' );
 			$auto_map     = array(
 				0 => 'email',
 				1 => 'status',
 				2 => 'tags',
+				3 => 'created_at',
 			);
 			foreach ( $merge_fields as $mf ) {
 				$tag                  = $mf['tag'];
@@ -262,6 +263,7 @@ function npmp_import_ajax_preview() {
 					isset( $m['email_address'] ) ? $m['email_address'] : '',
 					isset( $m['status'] ) ? $m['status'] : '',
 					implode( ', ', $tag_names ),
+					isset( $m['timestamp_opt'] ) ? (string) $m['timestamp_opt'] : '',
 				);
 				foreach ( $merge_fields as $mf ) {
 					$tag = $mf['tag'];

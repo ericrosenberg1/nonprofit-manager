@@ -81,6 +81,7 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/cc-contact-map.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/date-added.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/class-import-manager.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/admin-import.php';
 }
