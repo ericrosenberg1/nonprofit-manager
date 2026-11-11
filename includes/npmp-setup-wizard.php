@@ -354,15 +354,24 @@ add_action(
 				// (WordPress.org requires any data leaving the site to be
 				// opt-in). The "Powered by" link is no longer offered here. It
 				// is asked once after the first donation (npmp-credit-ask.php).
+				// The result rides on the redirect so the welcome screen can
+				// say whether the confirmation email is on its way.
+				$optin_result = '';
 				if ( isset( $_POST['npmp_setup_email_optin'] ) && isset( $_POST['npmp_setup_email'] ) ) {
 					$wizard_email = sanitize_email( wp_unslash( $_POST['npmp_setup_email'] ) );
 					if ( is_email( $wizard_email ) && function_exists( 'npmp_subscribe_to_newsletter' ) ) {
 						$current_user = wp_get_current_user();
-						npmp_subscribe_to_newsletter( $wizard_email, $current_user ? $current_user->display_name : '' );
+						$optin_result = npmp_subscribe_to_newsletter( $wizard_email, $current_user ? $current_user->display_name : '' ) ? 'sent' : 'failed';
+					} else {
+						$optin_result = 'invalid';
 					}
 				}
 
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_main&setup_complete=1' ) );
+				$done_url = admin_url( 'admin.php?page=npmp_main&setup_complete=1' );
+				if ( '' !== $optin_result ) {
+					$done_url = add_query_arg( 'npmp_optin', $optin_result, $done_url );
+				}
+				wp_safe_redirect( $done_url );
 				exit;
 			}
 		}

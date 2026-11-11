@@ -64,6 +64,7 @@ function npmp_render_main_plugin_page() {
 	$setup_complete       = isset( $_GET['setup_complete'] ) ? sanitize_key( wp_unslash( $_GET['setup_complete'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$pro_setup_complete   = isset( $_GET['pro_setup_complete'] ) ? sanitize_key( wp_unslash( $_GET['pro_setup_complete'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$features_updated     = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$optin_result         = isset( $_GET['npmp_optin'] ) ? sanitize_key( wp_unslash( $_GET['npmp_optin'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	?>
 	<div class="wrap">
 		<h1>
@@ -83,6 +84,14 @@ function npmp_render_main_plugin_page() {
 
 		<?php if ( $setup_complete ) : ?>
 			<div class="updated notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Setup complete! %s is ready to use.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p></div>
+		<?php endif; ?>
+
+		<?php if ( 'sent' === $optin_result ) : ?>
+			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Check your inbox for an email to confirm your Nonprofit Manager newsletter signup.', 'nonprofit-manager' ); ?></p></div>
+		<?php elseif ( 'failed' === $optin_result ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'We couldn\'t reach the Nonprofit Manager newsletter, so you aren\'t signed up yet. Your setup is saved.', 'nonprofit-manager' ); ?> <a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_setup_wizard' ) ); ?>"><?php esc_html_e( 'Try again from setup', 'nonprofit-manager' ); ?></a></p></div>
+		<?php elseif ( 'invalid' === $optin_result ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'That email address didn\'t look right, so we didn\'t sign you up for the newsletter. Your setup is saved.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( $pro_setup_complete ) : ?>
