@@ -647,9 +647,55 @@ function npmp_email_signup_shortcode( $atts = array() ) {
 add_shortcode( 'npmp_email_signup', 'npmp_email_signup_shortcode' );
 
 /* ------------ Unsubscribe shortcode ------------ */
+
+/**
+ * The address a newsletter's unsubscribe link signed, when the link is valid.
+ *
+ * @return string Email address, or '' for a bare visit or a bad token.
+ */
+function npmp_unsubscribe_link_email() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Token-authenticated email link.
+	if ( empty( $_GET['npmp_email'] ) || empty( $_GET['npmp_token'] ) ) {
+		return '';
+	}
+	$email = sanitize_email( wp_unslash( $_GET['npmp_email'] ) );
+	$token = sanitize_text_field( wp_unslash( $_GET['npmp_token'] ) );
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+	if ( ! $email || ! is_email( $email ) || ! hash_equals( npmp_generate_unsubscribe_token( $email ), $token ) ) {
+		return '';
+	}
+	return $email;
+}
+
 function npmp_email_unsubscribe_shortcode() {
 	$s    = npmp_get_membership_form_settings();
 	$html = npmp_get_banner_html( 'npmp_unsubscribe', $s );
+
+	// Arrived from the link in a newsletter: the address is already known and
+	// signed, so ask for one button press. A GET changes nothing, so a mail
+	// scanner that opens the link doesn't unsubscribe anyone. The button posts
+	// to the one-click handler, which lands back here with "You're unsubscribed".
+	$link_email = npmp_unsubscribe_link_email();
+	if ( '' !== $link_email ) {
+		$bare_url = remove_query_arg( array( 'npmp_email', 'npmp_token' ) );
+		$html    .= '
+	<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" class="npmp-email-unsubscribe npmp-email-unsubscribe-link">
+		<h3>' . esc_html( $s['unsubscribe_heading'] ) . '</h3>
+		<p>' . sprintf(
+			/* translators: %s: the subscriber's email address. */
+			esc_html__( 'Stop sending emails to %s?', 'nonprofit-manager' ),
+			'<strong>' . esc_html( $link_email ) . '</strong>'
+		) . '</p>
+		<input type="hidden" name="action" value="npmp_one_click_unsubscribe">
+		<input type="hidden" name="email" value="' . esc_attr( $link_email ) . '">
+		<input type="hidden" name="token" value="' . esc_attr( npmp_generate_unsubscribe_token( $link_email ) ) . '">
+		<input type="hidden" name="npmp_confirm" value="1">
+		<p><button type="submit">' . esc_html( $s['unsubscribe_button'] ) . '</button></p>
+		<p class="npmp-unsubscribe-other"><a href="' . esc_url( $bare_url ) . '">' . esc_html__( 'Unsubscribe a different address', 'nonprofit-manager' ) . '</a></p>
+	</form>';
+		return $html;
+	}
+
 	$html .= '
 	<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" class="npmp-email-unsubscribe">
 		<h3>' . esc_html( $s['unsubscribe_heading'] ) . '</h3>' .

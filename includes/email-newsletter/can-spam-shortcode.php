@@ -18,7 +18,7 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 		$replacements = array(
 			'[organization]'    => esc_html( get_bloginfo( 'name' ) ),
 			'[address]'         => npmp_can_spam_get_address(),
-			'[unsubscribe_url]' => esc_url( npmp_can_spam_get_unsubscribe_url() ),
+			'[unsubscribe_url]' => esc_url( npmp_can_spam_get_unsubscribe_url( $email ) ),
 		);
 
 		$footer_html = str_replace(
@@ -79,25 +79,44 @@ if ( ! function_exists( 'npmp_can_spam_get_unsubscribe_url' ) ) {
 	 * Honors the page chosen on the Membership Settings screen and falls back
 	 * to /unsubscribe only when none is set or the page is missing.
 	 *
+	 * With a recipient's address (every newsletter send), the link carries
+	 * that address and its signed unsubscribe token, so the page offers one
+	 * button and the reader types nothing. Before 2026.11.3 everyone got the
+	 * bare page and had to type their address. With no page set, it's the
+	 * one-click link, which always works.
+	 *
+	 * @param string $email Recipient address. Blank for the bare page.
 	 * @return string Unescaped URL.
 	 */
-	function npmp_can_spam_get_unsubscribe_url() {
+	function npmp_can_spam_get_unsubscribe_url( $email = '' ) {
 		$fallback = site_url( '/unsubscribe' );
+		$email    = sanitize_email( (string) $email );
+		$signed   = $email && is_email( $email ) && function_exists( 'npmp_generate_unsubscribe_token' );
 
-		if ( ! function_exists( 'npmp_get_membership_form_settings' ) ) {
-			return $fallback;
+		$permalink = '';
+		if ( function_exists( 'npmp_get_membership_form_settings' ) ) {
+			$settings = npmp_get_membership_form_settings();
+			$page_id  = absint( $settings['unsubscribe_page_id'] ?? 0 );
+			if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+				$permalink = (string) get_permalink( $page_id );
+			}
 		}
 
-		$settings = npmp_get_membership_form_settings();
-		$page_id  = absint( $settings['unsubscribe_page_id'] ?? 0 );
-
-		if ( ! $page_id || 'publish' !== get_post_status( $page_id ) ) {
-			return $fallback;
+		if ( ! $signed ) {
+			return '' !== $permalink ? $permalink : $fallback;
 		}
 
-		$permalink = get_permalink( $page_id );
+		if ( '' === $permalink ) {
+			return function_exists( 'npmp_get_one_click_unsubscribe_url' ) ? npmp_get_one_click_unsubscribe_url( $email ) : $fallback;
+		}
 
-		return $permalink ? $permalink : $fallback;
+		return add_query_arg(
+			array(
+				'npmp_email' => rawurlencode( $email ),
+				'npmp_token' => npmp_generate_unsubscribe_token( $email ),
+			),
+			$permalink
+		);
 	}
 }
 

@@ -135,6 +135,7 @@ Free (`readme.txt`):
 - Fixed: the newsletter template picker now shows "No Template" when that is what you saved.
 - Fixed: a link in a sent email, including the link on an image, now carries the full site address.
 - Fixed: an image set to expand on click no longer adds a stray button to a sent email.
+- New: the unsubscribe link in a newsletter fills in the reader's address, so they press one button instead of typing it.
 - New: contact imports take a Date Added column, so a list moved from MailPoet, Mailchimp or a spreadsheet keeps the day each contact joined.
 
 Pro (licence server changelog):
