@@ -136,6 +136,9 @@ Free (`readme.txt`):
 - Fixed: a link in a sent email, including the link on an image, now carries the full site address.
 - Fixed: an image set to expand on click no longer adds a stray button to a sent email.
 - New: the unsubscribe link in a newsletter fills in the reader's address, so they press one button instead of typing it.
+- New: newsletters and event emails can greet each reader by name with [first_name], [last_name] and [name], each with an optional default.
+- New: event emails can show the event's featured image with [event_image] and the start of its description with [event_excerpt].
+- Fixed: a newsletter subject with an apostrophe or ampersand no longer arrives with HTML codes like &#8217;.
 - New: contact imports take a Date Added column, so a list moved from MailPoet, Mailchimp or a spreadsheet keeps the day each contact joined.
 
 Pro (licence server changelog):

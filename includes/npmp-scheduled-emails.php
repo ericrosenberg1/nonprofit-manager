@@ -287,6 +287,9 @@ function npmp_scheduled_emails_placeholder_help() {
 		'[event_url]'      => __( 'The event page on your site', 'nonprofit-manager' ),
 		'[join_link]'      => __( 'The event link (a meeting link, say), or the event page', 'nonprofit-manager' ),
 		'[ical_link]'      => __( 'A calendar file members can add to their calendar', 'nonprofit-manager' ),
+		'[event_image]'    => __( 'The event\'s featured image', 'nonprofit-manager' ),
+		'[event_excerpt]'  => __( 'The start of the event description. [event_excerpt words="200"] sets the length (55 words if you leave it out)', 'nonprofit-manager' ),
+		'[first_name]'     => __( 'Each reader\'s first name. [first_name default="Member"] fills in a word for contacts with no name. [last_name] and [name] work the same way', 'nonprofit-manager' ),
 	);
 	/**
 	 * Filter the placeholder list the body editor shows. Pro adds
@@ -311,8 +314,32 @@ function npmp_scheduled_emails_placeholder_help() {
  * @return string
  */
 function npmp_scheduled_emails_fill( $text, $map, $html = true ) {
+	$text = (string) $text;
+	$map  = (array) $map;
+
+	// [event_image] is markup, not text, and [event_excerpt] takes a words=""
+	// length, so neither fits the plain swap below.
+	if ( array_key_exists( '[event_image]', $map ) ) {
+		$image = is_array( $map['[event_image]'] ) ? $map['[event_image]'] : array( 'url' => (string) $map['[event_image]'] );
+		$text  = str_replace( '[event_image]', $html ? npmp_scheduled_emails_image_html( (string) ( $image['url'] ?? '' ), (string) ( $map['[event_title]'] ?? '' ), (int) ( $image['width'] ?? 0 ) ) : '', $text );
+		unset( $map['[event_image]'] );
+	}
+	if ( array_key_exists( '[event_excerpt]', $map ) ) {
+		$source = (string) $map['[event_excerpt]'];
+		$text   = (string) preg_replace_callback(
+			'/\[event_excerpt(?:\s+words\s*=\s*(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?(\d+)(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?)?\s*\]/u',
+			function ( $m ) use ( $source, $html ) {
+				$words   = isset( $m[1] ) ? max( 1, min( 2000, (int) $m[1] ) ) : 55;
+				$excerpt = npmp_scheduled_emails_trim_words( $source, $words );
+				return $html ? esc_html( $excerpt ) : $excerpt;
+			},
+			$text
+		);
+		unset( $map['[event_excerpt]'] );
+	}
+
 	$pairs = array();
-	foreach ( (array) $map as $tag => $value ) {
+	foreach ( $map as $tag => $value ) {
 		$tag   = (string) $tag;
 		$value = (string) $value;
 		if ( $html ) {
@@ -327,7 +354,74 @@ function npmp_scheduled_emails_fill( $text, $map, $html = true ) {
 		}
 		$pairs[ $tag ] = $value;
 	}
-	return strtr( (string) $text, $pairs );
+	return strtr( $text, $pairs );
+}
+
+/**
+ * The <img> for [event_image]: the featured image at its own width up to 600
+ * pixels, which suits every mail client's reading pane, and never stretched.
+ *
+ * @param string $url   Image URL ('' when the event has none).
+ * @param string $title Event title, for the alt text.
+ * @param int    $width Image width in pixels, 0 when unknown.
+ * @return string
+ */
+function npmp_scheduled_emails_image_html( $url, $title, $width = 0 ) {
+	if ( '' === trim( $url ) ) {
+		return '';
+	}
+	$width = $width > 0 ? min( 600, (int) $width ) : 600;
+	return '<img src="' . esc_url( $url ) . '" alt="' . esc_attr( $title ) . '" width="' . $width . '" style="display:block;width:100%;max-width:' . $width . 'px;height:auto;border:0;">';
+}
+
+/**
+ * The featured image [event_image] shows.
+ *
+ * @param int $event_id Event ID.
+ * @return array{url:string,width:int}
+ */
+function npmp_scheduled_emails_image( $event_id ) {
+	$thumb = (int) get_post_thumbnail_id( $event_id );
+	$src   = $thumb ? wp_get_attachment_image_src( $thumb, 'large' ) : false;
+	return array(
+		'url'   => $src ? (string) $src[0] : '',
+		'width' => $src ? (int) $src[1] : 0,
+	);
+}
+
+/**
+ * Cut plain text to a number of words, with an ellipsis when it was longer.
+ *
+ * @param string $text  Plain text.
+ * @param int    $words Word limit.
+ * @return string
+ */
+function npmp_scheduled_emails_trim_words( $text, $words ) {
+	$parts = preg_split( '/\s+/u', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
+	if ( count( $parts ) <= $words ) {
+		return implode( ' ', $parts );
+	}
+	return rtrim( implode( ' ', array_slice( $parts, 0, $words ) ), ".,;:!? -" ) . "\u{2026}";
+}
+
+/**
+ * The plain-text source for [event_excerpt]: the event's excerpt when it has
+ * one, otherwise its description without blocks, shortcodes or markup.
+ *
+ * @param int $event_id Event ID.
+ * @return string
+ */
+function npmp_scheduled_emails_excerpt_source( $event_id ) {
+	$raw = (string) get_post_field( 'post_excerpt', $event_id, 'raw' );
+	if ( '' === trim( $raw ) ) {
+		$raw = (string) get_post_field( 'post_content', $event_id, 'raw' );
+		if ( function_exists( 'excerpt_remove_blocks' ) ) {
+			$raw = excerpt_remove_blocks( $raw );
+		}
+		$raw = strip_shortcodes( $raw );
+	}
+	$text = html_entity_decode( wp_strip_all_tags( $raw ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	return trim( (string) preg_replace( '/\s+/u', ' ', $text ) );
 }
 
 /**
@@ -353,7 +447,8 @@ function npmp_scheduled_emails_ical_url( $event_id ) {
  *
  * @param int         $event_id Event ID.
  * @param object|null $row      Scheduled email row, when there is one.
- * @return array<string,string>
+ * @return array<string,mixed> Strings, except [event_image], which is
+ *                             array{url:string,width:int}.
  */
 function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 	$event_id = (int) $event_id;
@@ -371,6 +466,8 @@ function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 		'[event_url]'      => $page,
 		'[join_link]'      => '' !== $details['url'] ? $details['url'] : $page,
 		'[ical_link]'      => npmp_scheduled_emails_ical_url( $event_id ),
+		'[event_image]'    => npmp_scheduled_emails_image( $event_id ),
+		'[event_excerpt]'  => npmp_scheduled_emails_excerpt_source( $event_id ),
 	);
 
 	return (array) apply_filters( 'npmp_scheduled_email_placeholders', $map, $event_id, $row );

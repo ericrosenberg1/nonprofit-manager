@@ -61,7 +61,7 @@ class NPMP_Newsletter_Manager {
 	 * =================================================================== */
 	public static function send_test_email( $newsletter_id, $user_email ) {
 		$content = self::get_newsletter_content( $newsletter_id, true, null, $user_email );
-		$subject = get_the_title( $newsletter_id );
+		$subject = self::personalize_subject( get_the_title( $newsletter_id ), null, $user_email );
 		return self::send_email( $user_email, $subject, $content, $newsletter_id );
 	}
 
@@ -226,7 +226,7 @@ class NPMP_Newsletter_Manager {
 				$sent = false;
 			} else {
 				$content = self::personalize_content( $bodies[ $newsletter_id ], $newsletter_id, false, $user_id, $email );
-				$subject = get_the_title( $newsletter_id );
+				$subject = self::personalize_subject( get_the_title( $newsletter_id ), $user_id, $email );
 				$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
 			}
 
@@ -356,6 +356,8 @@ class NPMP_Newsletter_Manager {
 	 * @return string
 	 */
 	private static function personalize_content( $content, $newsletter_id, $is_test, $user_id, $email ) {
+		$content = self::fill_recipient_tags( $content, $user_id, $email, true );
+
 		$track_opens  = (bool) get_option( 'npmp_newsletter_track_opens', true );
 		$track_clicks = (bool) get_option( 'npmp_newsletter_track_clicks', false );
 
@@ -385,6 +387,64 @@ class NPMP_Newsletter_Manager {
 			)
 			: do_shortcode( '[npmp_can_spam]' );
 		return $content;
+	}
+
+	/**
+	 * Fill a recipient's tags in a newsletter subject.
+	 *
+	 * @param string   $subject Subject, from get_the_title().
+	 * @param int|null $user_id Recipient contact ID.
+	 * @param string   $email   Recipient address.
+	 * @return string
+	 */
+	public static function personalize_subject( $subject, $user_id, $email ) {
+		// get_the_title() escapes for HTML. Mail headers want the plain text.
+		$subject = html_entity_decode( (string) $subject, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		return self::fill_recipient_tags( $subject, $user_id, $email, false );
+	}
+
+	/**
+	 * Swap [first_name], [last_name], [name] and any tag Pro adds for one
+	 * recipient's values. The contact is looked up only when the text holds a
+	 * tag, so a newsletter without one costs nothing per recipient.
+	 *
+	 * @param string   $text    Body or subject.
+	 * @param int|null $user_id Recipient contact ID.
+	 * @param string   $email   Recipient address.
+	 * @param bool     $html    True for the body.
+	 * @return string
+	 */
+	private static function fill_recipient_tags( $text, $user_id, $email, $html ) {
+		if ( ! function_exists( 'npmp_email_fill_recipient_tags' ) || false === strpos( (string) $text, '[' ) ) {
+			return (string) $text;
+		}
+
+		$contact = null;
+		if ( class_exists( 'NPMP_Member_Manager' ) ) {
+			$manager = NPMP_Member_Manager::get_instance();
+			$contact = $user_id ? $manager->get_member_by_id( $user_id ) : null;
+			if ( ! $contact && $email ) {
+				$contact = $manager->get_member_by_email( $email );
+			}
+		}
+
+		/**
+		 * Filter the per-recipient tags a newsletter body and subject can use.
+		 * Free fills first_name, last_name and name. A key added here works as
+		 * [key] and [key default="..."].
+		 *
+		 * @param array<string,string> $values  Tag (without brackets) => raw value.
+		 * @param object|null          $contact Contact record, null when not found.
+		 * @param string               $email   Recipient address.
+		 */
+		$values = (array) apply_filters(
+			'npmp_email_recipient_tags',
+			npmp_email_recipient_tag_values( $contact ? (string) $contact->name : '' ),
+			$contact,
+			(string) $email
+		);
+
+		return npmp_email_fill_recipient_tags( $text, $values, $html );
 	}
 
 	/**
