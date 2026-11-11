@@ -37,7 +37,25 @@ function npmp_membership_form_default_settings() {
 		'error_message'           => __( 'Something went wrong. Please try again.', 'nonprofit-manager' ),
 		'signup_page_id'          => 0,
 		'unsubscribe_page_id'     => 0,
+		// Email each new subscriber a link to confirm (double opt-in). On for
+		// every site from 2026.11.3, new and existing.
+		'double_optin'            => 1,
 	);
+}
+
+/**
+ * Whether a public signup waits for the subscriber to confirm by email.
+ *
+ * @return bool
+ */
+function npmp_double_optin_enabled() {
+	$settings = npmp_get_membership_form_settings();
+	/**
+	 * Filter whether public signups need email confirmation.
+	 *
+	 * @param bool $enabled The "Confirm new subscribers" setting.
+	 */
+	return (bool) apply_filters( 'npmp_double_optin_enabled', ! empty( $settings['double_optin'] ) );
 }
 
 function npmp_get_membership_form_settings( $refresh = false ) {
@@ -244,6 +262,9 @@ function npmp_render_membership_forms_page() {
 					: sanitize_text_field( wp_unslash( $_POST[ $k ] ) )
 				);
 		}
+		// A checkbox posts nothing when it's off, so the loop above can't
+		// turn it off.
+		$settings['double_optin'] = empty( $_POST['double_optin'] ) ? 0 : 1;
 		update_option( $option_key, $settings );
 		$settings = npmp_get_membership_form_settings( true );
 		$message = __( 'Settings saved.', 'nonprofit-manager' );
@@ -438,6 +459,8 @@ function npmp_render_membership_forms_page() {
 	echo '<table class="form-table">';
 	$field( 'signup_heading', esc_html__( 'Heading', 'nonprofit-manager' ) );
 	$field( 'signup_description', esc_html__( 'Description', 'nonprofit-manager' ), 'textarea' );
+	echo '<tr><th scope="row">' . esc_html__( 'Confirm New Subscribers', 'nonprofit-manager' ) . '</th><td><label><input type="checkbox" name="double_optin" value="1"' . checked( ! empty( $settings['double_optin'] ), true, false ) . '> ' . esc_html__( 'Email each new subscriber a link to confirm before they get any email', 'nonprofit-manager' ) . '</label>';
+	echo '<p class="description">' . esc_html__( 'Stops people from signing up someone else and catches typos. Until they click the link, they show as Pending on the Contacts screen.', 'nonprofit-manager' ) . '</p></td></tr>';
 	echo '<tr><th>' . esc_html__( 'Add to Page', 'nonprofit-manager' ) . '</th><td>';
 	wp_dropdown_pages(
 		array(
@@ -520,6 +543,12 @@ function npmp_get_banner_html( $type, $settings ) {
 			// The one-click link landed here. The shared success message
 			// ("Your request has been processed") didn't say what happened.
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'You\'re unsubscribed. We won\'t send you any more of these emails.', 'nonprofit-manager' ) . '</p></div>';
+		}
+		if ( 'check_email' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks! Check your inbox for an email from us and click the link in it to confirm your subscription.', 'nonprofit-manager' ) . '</p></div>';
+		}
+		if ( 'confirmed' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ) . '</p></div>';
 		}
 		if ( 'confirm' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'If that address is on our list, a confirmation email is on its way. Click the link in it to finish unsubscribing.', 'nonprofit-manager' ) . '</p></div>';
@@ -794,7 +823,36 @@ function npmp_handle_membership_form() {
 
 		$existing   = $member_manager->get_member_by_email( $email );
 		$contact_id = 0;
-		if ( $existing && 'unsubscribed' === ( $existing->status ?? '' ) ) {
+		$atts_token = sanitize_text_field( wp_unslash( $_POST['npmp_signup_atts'] ?? '' ) );
+		if ( ( ! $existing || 'unsubscribed' !== ( $existing->status ?? '' ) ) && npmp_double_optin_enabled() ) {
+			// Double opt-in: nothing a subscriber would notice happens until
+			// they click the link in their own inbox. A new address is saved as
+			// Pending, which no newsletter, digest or notification reaches. The
+			// visitor sees the same answer whether or not the address was known.
+			$is_new = ! $existing || ( 'pending' === ( $existing->status ?? '' ) && npmp_signup_pending_is_new( (int) $existing->id ) );
+			if ( $existing ) {
+				$contact_id = (int) $existing->id;
+			} else {
+				$default_level = sanitize_text_field( get_option( 'npmp_default_membership_level', '' ) );
+				$added         = $member_manager->add_member(
+					array(
+						'name'             => $name,
+						'email'            => $email,
+						'status'           => 'pending',
+						'membership_level' => $default_level ? $default_level : 'member',
+						'source'           => 'form_signup',
+					)
+				);
+				if ( is_wp_error( $added ) ) {
+					wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'error' ) );
+					exit;
+				}
+				$contact_id = (int) $added;
+			}
+			npmp_send_signup_confirmation( $contact_id, $email, $name, wp_unslash( $_POST ), $atts_token, $is_new ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Stored for npmp_after_email_signup, whose listeners sanitize what they read.
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'check_email' ) );
+			exit;
+		} elseif ( $existing && 'unsubscribed' === ( $existing->status ?? '' ) ) {
 			// Someone who unsubscribed is only put back on the list once they
 			// confirm from their own inbox. The form used to flip them straight
 			// back to subscribed, so anyone could re-subscribe a stranger. The
@@ -854,7 +912,7 @@ function npmp_handle_membership_form() {
 			 *                          signed hidden field (defaults when missing).
 			 * @param bool  $is_new     True when this signup created the contact.
 			 */
-			$signup_atts = npmp_signup_atts_from_token( sanitize_text_field( wp_unslash( $_POST['npmp_signup_atts'] ?? '' ) ) );
+			$signup_atts = npmp_signup_atts_from_token( $atts_token );
 			do_action( 'npmp_after_email_signup', $contact_id, wp_unslash( $_POST ), $signup_atts, ! $existing ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read. The array shape matches the documented hook contract.
 		}
 
@@ -1019,6 +1077,185 @@ function npmp_handle_confirm_resubscribe() {
 		}
 	}
 	wp_die( esc_html__( "You're subscribed again. Thanks for coming back.", 'nonprofit-manager' ), esc_html__( 'Subscribe', 'nonprofit-manager' ), array( 'response' => 200, 'back_link' => true ) );
+}
+
+/* ====================================================================
+ * Double opt-in: confirm a new signup from the subscriber's own inbox
+ * ==================================================================== */
+
+/**
+ * Whether a Pending contact's unconfirmed signup created them.
+ *
+ * @param int $contact_id Contact ID.
+ * @return bool
+ */
+function npmp_signup_pending_is_new( $contact_id ) {
+	$pending = get_post_meta( (int) $contact_id, '_npmp_signup_confirm', true );
+	return is_array( $pending ) && ! empty( $pending['is_new'] );
+}
+
+/**
+ * The submitted signup fields worth keeping until the subscriber confirms:
+ * the form's own npmp_ fields (notification and group checkboxes), without
+ * the nonce, honeypot or captcha.
+ *
+ * @param array $post Unslashed $_POST.
+ * @return array
+ */
+function npmp_signup_fields_to_keep( $post ) {
+	$skip = array( 'npmp_email_signup_nonce', 'npmp_signup_website', 'npmp_action', 'npmp_signup_atts' );
+	$keep = array();
+	foreach ( (array) $post as $key => $value ) {
+		$key = (string) $key;
+		if ( 0 !== strpos( $key, 'npmp_' ) || in_array( $key, $skip, true ) ) {
+			continue;
+		}
+		if ( is_scalar( $value ) ) {
+			$keep[ $key ] = substr( (string) $value, 0, 500 );
+		} elseif ( is_array( $value ) ) {
+			$keep[ $key ] = array_slice( array_map( 'strval', array_filter( $value, 'is_scalar' ) ), 0, 100 );
+		}
+	}
+	return $keep;
+}
+
+/**
+ * Save a pending signup and email the subscriber a link to confirm it.
+ *
+ * Each email gets a fresh single-use key, so an old link stops working once
+ * a newer one is sent or the signup is confirmed, and a link can't put back
+ * someone who confirmed and later unsubscribed.
+ *
+ * @param int    $contact_id Contact ID.
+ * @param string $email      Subscriber address.
+ * @param string $name       Name they typed.
+ * @param array  $post       Unslashed $_POST.
+ * @param string $atts_token The form's signed attributes.
+ * @param bool   $is_new     True when this signup created the contact.
+ * @return void
+ */
+function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts_token, $is_new ) {
+	$key = wp_generate_password( 32, false );
+	update_post_meta(
+		(int) $contact_id,
+		'_npmp_signup_confirm',
+		array(
+			'key'    => $key,
+			'name'   => (string) $name,
+			'post'   => npmp_signup_fields_to_keep( $post ),
+			'atts'   => (string) $atts_token,
+			'is_new' => (bool) $is_new,
+			'time'   => time(),
+		)
+	);
+
+	$url = add_query_arg(
+		array(
+			'action' => 'npmp_confirm_signup',
+			'email'  => rawurlencode( $email ),
+			'token'  => $key,
+		),
+		admin_url( 'admin-post.php' )
+	);
+	$subject = sprintf(
+		/* translators: %s: site name. */
+		__( 'Please confirm your subscription to %s', 'nonprofit-manager' ),
+		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
+	);
+	$body = sprintf(
+		/* translators: 1: site name, 2: confirmation URL. */
+		__( "Thanks for signing up for email from %1\$s.
+
+To confirm, open this link and press the button:
+%2\$s
+
+If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofit-manager' ),
+		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+		$url
+	);
+	if ( function_exists( 'npmp_send_mail' ) ) {
+		npmp_send_mail( $email, $subject, $body );
+	}
+}
+
+add_action( 'admin_post_nopriv_npmp_confirm_signup', 'npmp_handle_confirm_signup' );
+add_action( 'admin_post_npmp_confirm_signup', 'npmp_handle_confirm_signup' );
+
+/**
+ * Confirm a signup from the emailed link. A GET shows a button and only the
+ * POST subscribes, so a mail scanner that opens the link confirms no one.
+ *
+ * @return void
+ */
+function npmp_handle_confirm_signup() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Key-authenticated email link.
+	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
+	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
+	// phpcs:enable
+	$method  = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+	$title   = __( 'Confirm your subscription', 'nonprofit-manager' );
+	$manager = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance() : null;
+	$contact = ( $manager && $email && is_email( $email ) ) ? $manager->get_member_by_email( $email ) : null;
+	$pending = $contact ? get_post_meta( (int) $contact->id, '_npmp_signup_confirm', true ) : null;
+	$valid   = is_array( $pending ) && '' !== $token && hash_equals( (string) ( $pending['key'] ?? '' ), $token );
+
+	if ( ! $valid ) {
+		$already = $contact && 'subscribed' === ( $contact->status ?? '' ) && ! is_array( $pending );
+		wp_die(
+			esc_html(
+				$already
+					? __( 'You\'re already subscribed. Thanks!', 'nonprofit-manager' )
+					: __( 'This link has expired or was already used. Please sign up again on our website.', 'nonprofit-manager' )
+			),
+			esc_html( $title ),
+			array( 'response' => $already ? 200 : 400, 'back_link' => true )
+		);
+	}
+
+	if ( 'POST' !== $method ) {
+		npmp_render_email_link_confirm_page(
+			$title,
+			__( 'Press the button to start getting our emails at this address.', 'nonprofit-manager' ),
+			__( 'Confirm', 'nonprofit-manager' ),
+			'npmp_confirm_signup',
+			$email,
+			$token
+		);
+	}
+
+	$contact_id = (int) $contact->id;
+	$update     = array( 'status' => 'subscribed' );
+	if ( '' === trim( (string) $contact->name ) || $contact->name === $contact->email ) {
+		$update['name'] = (string) ( $pending['name'] ?? '' );
+	}
+	if ( '' === (string) ( $contact->membership_level ?? '' ) ) {
+		$default_level              = sanitize_text_field( get_option( 'npmp_default_membership_level', '' ) );
+		$update['membership_level'] = $default_level ? $default_level : 'member';
+	}
+	$manager->update_member( $contact_id, $update );
+	delete_post_meta( $contact_id, '_npmp_signup_confirm' );
+
+	$is_new = ! empty( $pending['is_new'] );
+	/** This action is documented in includes/npmp-membership-forms.php */
+	do_action( 'npmp_after_email_signup', $contact_id, (array) ( $pending['post'] ?? array() ), npmp_signup_atts_from_token( (string) ( $pending['atts'] ?? '' ) ), $is_new );
+
+	/**
+	 * Fires when a subscriber confirms a signup from the emailed link. Pro
+	 * runs its "member created" automation here for a contact the signup
+	 * created, instead of when the Pending contact was saved.
+	 *
+	 * @param int  $contact_id Contact ID.
+	 * @param bool $is_new     True when the confirmed signup created the contact.
+	 */
+	do_action( 'npmp_signup_confirmed', $contact_id, $is_new );
+
+	$settings = npmp_get_membership_form_settings();
+	$page_id  = absint( $settings['signup_page_id'] ?? 0 );
+	if ( $page_id && 'publish' === get_post_status( $page_id ) && get_permalink( $page_id ) ) {
+		wp_safe_redirect( npmp_membership_add_banner_arg( get_permalink( $page_id ), 'npmp_signup', 'confirmed' ) );
+		exit;
+	}
+	wp_die( esc_html__( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ), esc_html( $title ), array( 'response' => 200, 'back_link' => true ) );
 }
 
 /**

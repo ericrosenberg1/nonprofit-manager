@@ -140,9 +140,11 @@ Free (`readme.txt`):
 - New: event emails can show the event's featured image with [event_image] and the start of its description with [event_excerpt].
 - Fixed: a newsletter subject with an apostrophe or ampersand no longer arrives with HTML codes like &#8217;.
 - New: contact imports take a Date Added column, so a list moved from MailPoet, Mailchimp or a spreadsheet keeps the day each contact joined.
+- New: a new subscriber gets an email with a link to confirm before they get anything else. It's on by default, and you can turn it off under Membership Settings.
+- Fixed: post and event notifications no longer reach contacts still marked Pending.
 
 Pro (licence server changelog):
-- (none)
+- Fixed: the "member created" automation and the Mailer welcome now wait until a new subscriber confirms their signup.
 
 ## Releasing: three systems, always in this order
 
