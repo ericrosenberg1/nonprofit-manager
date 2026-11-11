@@ -74,7 +74,7 @@ Nonprofit Manager talks to outside services only where a feature needs it. Nothi
 
 **Product update emails (optional, off by default)**
 
-If you tick the product update box in the setup wizard, your email address and display name are sent once to our newsletter system at listmonk.ericrosenberg.com to start a double opt-in signup. You then get one confirmation email, and nothing else is sent unless you click it. Leave the box unticked and no request is made. Data sent: your email address and display name, at that one moment. Service: Listmonk, self-hosted by Rosenberg Digital LLC. Privacy policy: https://nonprofitmanager.app/privacy-policy/
+If you tick the product update box in the setup wizard, your email address and display name are sent once to our newsletter system at news.nonprofitmanager.app to start a double opt-in signup. You then get one confirmation email, and nothing else is sent unless you click it. Leave the box unticked and no request is made. Data sent: your email address and display name, at that one moment. Service: Listmonk, self-hosted by Rosenberg Digital LLC. Privacy policy: https://nonprofitmanager.app/privacy-policy/
 
 **Nonprofit Manager Pro licensing (only with Pro installed)**
 
