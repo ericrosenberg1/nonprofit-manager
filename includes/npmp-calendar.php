@@ -203,12 +203,15 @@ function npmp_render_events_dashboard() {
 	$calendar_page_id = absint( get_option( 'npmp_calendar_page_id', 0 ) );
 	$calendar_link    = $calendar_page_id ? get_permalink( $calendar_page_id ) : '';
 
-	echo '<div class="wrap">';
-	echo '<h1>' . esc_html__( 'Events Overview', 'nonprofit-manager' ) . '</h1>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title(
+		__( 'Events Overview', 'nonprofit-manager' ),
+		array(
+			__( 'Add Event', 'nonprofit-manager' )  => admin_url( 'post-new.php?post_type=npmp_event' ),
+			__( 'All Events', 'nonprofit-manager' ) => admin_url( 'edit.php?post_type=npmp_event' ),
+		)
+	);
 	echo '<p>' . esc_html__( 'Create in-person or virtual events, promote them on the calendar, and keep your community up to date.', 'nonprofit-manager' ) . '</p>';
-
-	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Add New Event', 'nonprofit-manager' ) . '</a> ';
-	echo '<a class="button" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Manage All Events', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( $calendar_link ) {
 		echo '<p>' . sprintf(
@@ -226,7 +229,7 @@ function npmp_render_events_dashboard() {
 	do_action( 'npmp_admin_table_toolbar', 'events', array( 'view' => 'overview' ) );
 
 	// Upcoming Events Card
-	echo '<div class="card" style="max-width:900px; margin-bottom: 20px;">';
+	echo '<div class="card npmp-events-card">';
 	echo '<h2 class="title">' . esc_html__( 'Upcoming Events', 'nonprofit-manager' ) . '</h2>';
 
 	if ( $upcoming_query->have_posts() ) {
@@ -254,13 +257,13 @@ function npmp_render_events_dashboard() {
 		}
 		echo '</tbody></table>';
 	} else {
-		echo '<p>' . esc_html__( 'No upcoming events scheduled yet. Start by creating one above.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html__( 'No upcoming events yet.', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Add Event', 'nonprofit-manager' ) . '</a></p>';
 	}
 	wp_reset_postdata();
 	echo '</div>';
 
 	// Past Events Card
-	echo '<div class="card" style="max-width:900px; margin-bottom: 20px;">';
+	echo '<div class="card npmp-events-card">';
 	echo '<h2 class="title">' . esc_html__( 'Recent Past Events', 'nonprofit-manager' ) . '</h2>';
 
 	if ( $past_query->have_posts() ) {
@@ -1646,8 +1649,8 @@ function npmp_render_event_settings_page() {
 		}
 	}
 
-	echo '<div class="wrap">';
-	echo '<h1>' . esc_html__( 'Calendar Settings', 'nonprofit-manager' ) . '</h1>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( __( 'Calendar Settings', 'nonprofit-manager' ) );
 
 	foreach ( $notices as $notice ) {
 		$class = 'notice';
@@ -1658,25 +1661,25 @@ function npmp_render_event_settings_page() {
 		} else {
 			$class .= ' notice-info';
 		}
-		echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $notice['message'] ) . '</p></div>';
+		echo '<div class="' . esc_attr( $class . ' is-dismissible' ) . '"><p>' . esc_html( $notice['message'] ) . '</p></div>';
 	}
 
 	// Calendar Settings Card
-	echo '<div class="card" style="max-width:720px; margin-bottom: 20px;">';
-	echo '<h2 class="title">' . esc_html__( 'Calendar Settings', 'nonprofit-manager' ) . '</h2>';
+	echo '<div class="card npmp-settings-narrow">';
+	echo '<h2 class="title">' . esc_html__( 'Calendar page and display', 'nonprofit-manager' ) . '</h2>';
 
 	echo '<form method="post">';
 	wp_nonce_field( 'npmp_save_calendar_settings', 'npmp_event_settings_nonce' );
 
 	echo '<table class="form-table"><tbody>';
 	echo '<tr>';
-	echo '<th scope="row"><label for="npmp_calendar_page_id">' . esc_html__( 'Default Calendar Page', 'nonprofit-manager' ) . '</label></th>';
+	echo '<th scope="row"><label for="npmp_calendar_page_id">' . esc_html__( 'Calendar page', 'nonprofit-manager' ) . '</label></th>';
 	echo '<td>';
-	echo '<p class="description" style="margin-top: 0;">' . esc_html__( 'Select the WordPress page that should display your public events calendar.', 'nonprofit-manager' ) . '</p>';
+	echo '<p class="description npmp-flush-top">' . esc_html__( 'Select the WordPress page that should display your public events calendar.', 'nonprofit-manager' ) . '</p>';
 
 	echo '<select name="npmp_calendar_page_id" id="npmp_calendar_page_id">';
 	echo '<option value="0">' . esc_html__( '— Select a page —', 'nonprofit-manager' ) . '</option>';
-	echo '<option value="create_new" style="font-weight: bold;">' . esc_html__( '+ New Page', 'nonprofit-manager' ) . '</option>';
+	echo '<option value="create_new">' . esc_html__( 'Create a new page', 'nonprofit-manager' ) . '</option>';
 
 	$pages = get_pages();
 	foreach ( $pages as $page ) {
@@ -1757,7 +1760,7 @@ function npmp_render_event_settings_page() {
 	$start_of_week = (int) get_option( 'start_of_week', 0 );
 	echo '<tr>';
 	echo '<th scope="row">' . esc_html__( 'Week starts on', 'nonprofit-manager' ) . '</th>';
-	echo '<td><p style="margin-top:0;">' . sprintf(
+	echo '<td><p class="npmp-flush-top">' . sprintf(
 		/* translators: %s: weekday name */
 		esc_html__( 'The calendar follows your WordPress setting: %s.', 'nonprofit-manager' ),
 		'<strong>' . esc_html( $wp_days[ $start_of_week ] ?? $wp_days[0] ) . '</strong>'
@@ -1767,17 +1770,17 @@ function npmp_render_event_settings_page() {
 
 	echo '</tbody></table>';
 
-	submit_button( esc_html__( 'Save Settings', 'nonprofit-manager' ), 'primary', 'npmp_save_calendar_settings' );
+	submit_button( esc_html__( 'Save settings', 'nonprofit-manager' ), 'primary', 'npmp_save_calendar_settings' );
 	echo '</form>';
 	echo '</div>';
 
 	// Embed Instructions Section
-	echo '<div class="card" style="max-width:720px;">';
-	echo '<h2 class="title">' . esc_html__( 'Embed Instructions', 'nonprofit-manager' ) . '</h2>';
+	echo '<div class="card npmp-settings-narrow">';
+	echo '<h2 class="title">' . esc_html__( 'Embed the calendar', 'nonprofit-manager' ) . '</h2>';
 	echo '<p>' . esc_html__( 'Use these shortcodes to display your calendar and events on any page or post:', 'nonprofit-manager' ) . '</p>';
 
 	echo '<table class="widefat striped">';
-	echo '<thead><tr><th>' . esc_html__( 'Shortcode', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Description', 'nonprofit-manager' ) . '</th></tr></thead>';
+	echo '<thead><tr><th scope="col">' . esc_html__( 'Shortcode', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Description', 'nonprofit-manager' ) . '</th></tr></thead>';
 	echo '<tbody>';
 
 	echo '<tr>';

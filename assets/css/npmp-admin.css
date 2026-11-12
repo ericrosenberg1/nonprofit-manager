@@ -421,3 +421,19 @@ h1 .npmp-pro-badge {
 	font-size: 11px;
 	line-height: 1.6;
 }
+
+/* Events */
+.npmp-admin-page .card.npmp-events-card {
+	max-width: 900px;
+	margin-bottom: 20px;
+}
+.npmp-admin-page .card.npmp-settings-narrow {
+	max-width: 720px;
+	margin-bottom: 20px;
+}
+.npmp-flush-top {
+	margin-top: 0;
+}
+.npmp-settings-subhead {
+	margin: 1.5em 0 0;
+}
