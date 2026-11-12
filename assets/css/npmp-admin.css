@@ -331,3 +331,14 @@ h1 .npmp-pro-badge {
 .npmp-required {
 	color: #d63638;
 }
+
+/* Donations */
+.npmp-section-gap {
+	margin-top: 2em;
+}
+.npmp-text-warning {
+	color: #996800;
+}
+.npmp-text-error {
+	color: #b32d2e;
+}
