@@ -124,6 +124,14 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-importer.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-hub.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-hub-source.php';
 
+// Donors and past gifts from GiveWP and Charitable. Needs contacts and donations.
+if ( ! empty( $npmp_features['members'] ) && ! empty( $npmp_features['donations'] ) ) {
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/past-gifts.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/gift-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/givewp-source.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/charitable-source.php';
+}
+
 /* -------------------------------------------------------------------------
  * Plugin action links
  * ---------------------------------------------------------------------- */

@@ -149,6 +149,21 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   Rig `tests/rig/mailpoet-hub.php` runs on real MailPoet (5.45.2 activates and takes API calls on SQLite).
   When a source's data comes back after step 5 finished, the hub forgets the old check and removal
   (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
+- **Past gifts from GiveWP and Charitable** (`includes/import/past-gifts.php`, `gift-importer.php`,
+  `givewp-source.php`, `charitable-source.php`). A past gift is an `npmp_donation` post written directly,
+  never through `log_donation()`, so Pro's automations mail no receipt and the first-donation milestone
+  stays unset (the Powered-by backfill in `npmp-credit-ask.php` skips posts with `_npmp_import_key`).
+  `_npmp_import_key` = `<source>:<id>` makes a rerun skip what's here. Donors follow the free total, and a
+  donor past it keeps every gift in the old plugin. Both sources read the old tables straight from the
+  database, so the import runs with the plugin off, and read only the `currency` key of `give_settings`
+  and `charitable_settings` (both hold Stripe keys). GiveWP money received is `publish` and
+  `give_subscription`, meta in `give_donationmeta` or older tables by `give_completed_upgrades`, and its
+  `createdAt` is site-local. Charitable's amount is the sum of `charitable_campaign_donations` rows, money
+  received is `charitable-completed` only, and a Charitable Recurring renewal (paid add-on, no source)
+  is stored with frequency `recurring`. Step 5 is unavailable for both: GiveWP's own uninstall and
+  Charitable's Reset Data on deactivation delete their data. Unit `tests/test-past-gifts.php`,
+  `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
+  1.8.15.1, Pro inactive).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -165,6 +180,7 @@ Free (`readme.txt`):
 - Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
 - Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 - Added MailPoet to the Switch Plugins screen.
+- Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
 
 Pro (licence server changelog):
 - (none)
