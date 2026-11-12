@@ -110,7 +110,7 @@ function npmp_tour_get_free_steps() {
 			'target'    => '#npmp_test_email',
 			'placement' => 'top',
 			'title'     => __( 'Send a test email', 'nonprofit-manager' ),
-			'body'      => __( 'Click Send Test Email and check your inbox before you move on. If it doesn\'t arrive, fix the provider settings first.', 'nonprofit-manager' ),
+			'body'      => __( 'Click Send test email and check your inbox before you move on. If it doesn\'t arrive, fix the provider settings first.', 'nonprofit-manager' ),
 			'advance'   => 'next',
 			'skip_if'   => 'npmp_tour_skip_without_members',
 		),

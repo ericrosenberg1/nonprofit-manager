@@ -342,3 +342,69 @@ h1 .npmp-pro-badge {
 .npmp-text-error {
 	color: #b32d2e;
 }
+
+/* Email Settings */
+.npmp-email-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	box-shadow: 0 1px 1px rgba(0,0,0,.04);
+	padding: 20px;
+	margin: 20px 0;
+	max-width: 800px;
+}
+.npmp-email-card h2 {
+	margin-top: 0;
+	padding-bottom: 10px;
+	border-bottom: 1px solid #c3c4c7;
+	font-size: 18px;
+}
+.npmp-email-card .form-table {
+	margin-top: 15px;
+}
+.npmp-email-card .form-table th {
+	width: 180px;
+	padding: 10px 10px 10px 0;
+	font-weight: 600;
+}
+.npmp-email-card .form-table td {
+	padding: 10px 10px;
+}
+.npmp-email-card hr {
+	margin: 20px 0;
+	border: none;
+	border-top: 1px solid #e0e0e0;
+}
+.npmp-provider-help {
+	background: #ecfdf5;
+	border-left: 3px solid #10b981;
+	padding: 12px 15px;
+	margin-top: 15px;
+}
+.npmp-provider-help a {
+	font-weight: 600;
+}
+.npmp-upgrade-notice {
+	background: #fff9e6;
+	border-left: 3px solid #ffb900;
+	padding: 12px 15px;
+	margin: 15px 0;
+}
+@media screen and (max-width: 782px) {
+	.npmp-email-card .form-table th {
+		width: 100%;
+		padding-bottom: 0;
+	}
+}
+.npmp-provider-title {
+	margin-top: 20px;
+}
+.npmp-flush {
+	margin: 0;
+}
+.npmp-error-detail {
+	display: block;
+	margin-top: 10px;
+	background: #f5f5f5;
+	padding: 10px;
+	border-left: 3px solid #d63638;
+}

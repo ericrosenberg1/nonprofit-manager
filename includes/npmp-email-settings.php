@@ -202,25 +202,25 @@ function npmp_render_email_settings_page() {
 			$success = npmp_send_mail( $to, $subject, nl2br( $message ), $headers );
 
 			if ( $success ) {
-				$test_result = '<div class="notice notice-success"><p>' . esc_html__( 'Your mail server accepted the test email. Check the inbox you sent it to, and the spam folder too.', 'nonprofit-manager' ) . '</p></div>';
+				$test_result = '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Your mail server accepted the test email. Check the inbox you sent it to, and the spam folder too.', 'nonprofit-manager' ) . '</p></div>';
 			} else {
 				$error_msg = esc_html__( 'Failed to send test email.', 'nonprofit-manager' );
 				if ( $err = get_option( 'npmp_email_last_error' ) ) {
 					$err_details = is_wp_error( $err ) ? $err->get_error_message() : wp_json_encode( $err );
-					$error_msg  .= '<br><code style="display:block;margin-top:10px;background:#f5f5f5;padding:10px;border-left:3px solid #dc3232;">' . esc_html( $err_details ) . '</code>';
+					$error_msg  .= '<br><code class="npmp-error-detail">' . esc_html( $err_details ) . '</code>';
 				}
-				$test_result = '<div class="notice notice-error"><p>' . wp_kses_post( $error_msg ) . '</p></div>';
+				$test_result = '<div class="notice notice-error is-dismissible"><p>' . wp_kses_post( $error_msg ) . '</p></div>';
 			}
 		}
 	}
 
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'Email Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Configure how Nonprofit Manager sends emails.', 'nonprofit-manager' ); ?></p>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( __( 'Email Settings', 'nonprofit-manager' ) ); ?>
+		<p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Choose how %s sends email.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p>
 
 		<?php foreach ( $notices as $notice ) : ?>
-			<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?>">
+			<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?> is-dismissible">
 				<p><?php echo wp_kses_post( $notice['message'] ); ?></p>
 			</div>
 		<?php endforeach; ?>
@@ -243,66 +243,13 @@ function npmp_render_email_settings_page() {
 		}
 		?>
 
-		<style>
-			.npmp-email-card {
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-				margin: 20px 0;
-				max-width: 800px;
-			}
-			.npmp-email-card h2 {
-				margin-top: 0;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-				font-size: 18px;
-			}
-			.npmp-email-card .form-table {
-				margin-top: 15px;
-			}
-			.npmp-email-card .form-table th {
-				width: 180px;
-				padding: 10px 10px 10px 0;
-				font-weight: 600;
-			}
-			.npmp-email-card .form-table td {
-				padding: 10px 10px;
-			}
-			.npmp-email-card hr {
-				margin: 20px 0;
-				border: none;
-				border-top: 1px solid #e0e0e0;
-			}
-			.npmp-provider-help {
-				background: #ecfdf5;
-				border-left: 3px solid #10b981;
-				padding: 12px 15px;
-				margin-top: 15px;
-			}
-			.npmp-provider-help a {
-				font-weight: 600;
-			}
-			.npmp-upgrade-notice {
-				background: #fff9e6;
-				border-left: 3px solid #ffb900;
-				padding: 12px 15px;
-				margin: 15px 0;
-			}
-			@media screen and (max-width: 782px) {
-				.npmp-email-card .form-table th {
-					width: 100%;
-					padding-bottom: 0;
-				}
-			}
-		</style>
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_email_settings', 'npmp_email_settings_nonce' ); ?>
 
 			<!-- Public Email Sender Settings -->
 			<div class="npmp-email-card">
-				<h2><?php esc_html_e( 'Public Email Sender Settings', 'nonprofit-manager' ); ?></h2>
+				<h2><?php esc_html_e( 'Public email sender', 'nonprofit-manager' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_email_from_name"><?php esc_html_e( 'Email "From" Name', 'nonprofit-manager' ); ?></label></th>
@@ -333,7 +280,7 @@ function npmp_render_email_settings_page() {
 
 			<!-- Email System Settings -->
 			<div class="npmp-email-card">
-				<h2><?php esc_html_e( 'Email System Settings', 'nonprofit-manager' ); ?></h2>
+				<h2><?php esc_html_e( 'Email delivery', 'nonprofit-manager' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_email_provider"><?php esc_html_e( 'Delivery Provider', 'nonprofit-manager' ); ?></label></th>
@@ -364,7 +311,7 @@ function npmp_render_email_settings_page() {
 				<!-- WordPress Default Provider -->
 				<div class="npmp-provider-block npmp-provider-wordpress" <?php echo 'wordpress' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 					<div class="npmp-upgrade-notice">
-						<p style="margin: 0;">
+						<p class="npmp-flush">
 							<strong><?php esc_html_e( 'Using WordPress Default (wp_mail)', 'nonprofit-manager' ); ?></strong><br>
 							<?php esc_html_e( 'Your site sends email through WordPress\'s built-in mailer. On shared hosting, that mail often lands in spam or never arrives.', 'nonprofit-manager' ); ?>
 							<?php if ( ! $is_pro ) : ?>
@@ -383,9 +330,9 @@ function npmp_render_email_settings_page() {
 				<!-- Custom SMTP Provider -->
 				<div class="npmp-provider-block npmp-provider-smtp" <?php echo 'smtp' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 					<hr>
-					<h3 style="margin-top: 20px;"><?php esc_html_e( 'Custom SMTP Configuration', 'nonprofit-manager' ); ?></h3>
+					<h3 class="npmp-provider-title"><?php esc_html_e( 'Custom SMTP Configuration', 'nonprofit-manager' ); ?></h3>
 
-					<table class="form-table" style="margin-top: 15px;">
+					<table class="form-table">
 						<tr>
 							<th><label for="npmp_smtp_host"><?php esc_html_e( 'SMTP Host', 'nonprofit-manager' ); ?></label></th>
 							<td>
@@ -400,9 +347,9 @@ function npmp_render_email_settings_page() {
 							</td>
 						</tr>
 						<tr>
-							<th><?php esc_html_e( 'Encryption', 'nonprofit-manager' ); ?></th>
+							<th><label for="npmp_smtp_encryption"><?php esc_html_e( 'Encryption', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<select name="npmp_smtp_encryption">
+								<select id="npmp_smtp_encryption" name="npmp_smtp_encryption">
 									<option value="tls" <?php selected( $settings['smtp']['encryption'], 'tls' ); ?>><?php esc_html_e( 'TLS (recommended)', 'nonprofit-manager' ); ?></option>
 									<option value="ssl" <?php selected( $settings['smtp']['encryption'], 'ssl' ); ?>><?php esc_html_e( 'SSL', 'nonprofit-manager' ); ?></option>
 									<option value="none" <?php selected( $settings['smtp']['encryption'], 'none' ); ?>><?php esc_html_e( 'None', 'nonprofit-manager' ); ?></option>
@@ -438,7 +385,7 @@ function npmp_render_email_settings_page() {
 					<!-- AWS SES -->
 					<div class="npmp-provider-block npmp-provider-aws_ses" <?php echo 'aws_ses' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Amazon SES Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Amazon SES Configuration', 'nonprofit-manager' ); ?></h3>
 						<p class="description"><?php esc_html_e( 'You connect to Amazon SES over SMTP with an IAM access key that can send email (ses:SendRawEmail). Already have SMTP credentials from the SES console? Choose Custom SMTP instead and enter them there.', 'nonprofit-manager' ); ?></p>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
@@ -446,7 +393,7 @@ function npmp_render_email_settings_page() {
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -454,7 +401,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_aws_region"><?php esc_html_e( 'AWS Region', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -499,14 +446,14 @@ function npmp_render_email_settings_page() {
 					<!-- Brevo -->
 					<div class="npmp-provider-block npmp-provider-brevo" <?php echo 'brevo' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Brevo (Sendinblue) API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Brevo (Sendinblue) API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'brevo' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -514,7 +461,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_brevo_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -528,14 +475,14 @@ function npmp_render_email_settings_page() {
 					<!-- SendGrid -->
 					<div class="npmp-provider-block npmp-provider-sendgrid" <?php echo 'sendgrid' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'SendGrid API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'SendGrid API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'sendgrid' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -543,7 +490,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_sendgrid_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -557,14 +504,14 @@ function npmp_render_email_settings_page() {
 					<!-- Mailgun -->
 					<div class="npmp-provider-block npmp-provider-mailgun" <?php echo 'mailgun' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Mailgun API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Mailgun API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'mailgun' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -572,7 +519,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_mailgun_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -593,14 +540,14 @@ function npmp_render_email_settings_page() {
 					<!-- Postmark -->
 					<div class="npmp-provider-block npmp-provider-postmark" <?php echo 'postmark' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Postmark API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Postmark API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'postmark' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -608,7 +555,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_postmark_api_key"><?php esc_html_e( 'Server API Token', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -621,13 +568,13 @@ function npmp_render_email_settings_page() {
 
 				<?php endif; ?>
 
-				<?php submit_button( __( 'Save Email Settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
+				<?php submit_button( __( 'Save email settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
 			</div>
 		</form>
 
 		<!-- Test Email Section -->
 		<div class="npmp-email-card">
-			<h2><?php esc_html_e( 'Send Test Email', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Send a test email', 'nonprofit-manager' ); ?></h2>
 			<p><?php esc_html_e( 'Send yourself a test email to check your settings.', 'nonprofit-manager' ); ?></p>
 
 			<?php echo wp_kses_post( $test_result ); ?>
@@ -654,7 +601,7 @@ function npmp_render_email_settings_page() {
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( __( 'Send Test Email', 'nonprofit-manager' ), 'secondary' ); ?>
+				<?php submit_button( __( 'Send test email', 'nonprofit-manager' ), 'secondary' ); ?>
 			</form>
 		</div>
 

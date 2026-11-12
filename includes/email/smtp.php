@@ -206,7 +206,13 @@ function npmp_email_admin_notices() {
 	}
 
 	echo '<div class="notice notice-warning"><p>';
-	echo esc_html__( 'Nonprofit Manager is set to send email over SMTP, but the host, port, username, or password is missing. Until you fill them in on the Email Settings screen, email goes out through WordPress\'s built-in mailer.', 'nonprofit-manager' );
+	printf(
+		/* translators: 1: admin menu name, such as Nonprofit Manager, 2: opening link tag to Email Settings, 3: closing link tag. */
+		esc_html__( '%1$s is set to send email over SMTP, but the host, port, username, or password is missing. Until you fill them in on %2$sEmail Settings%3$s, email goes out through WordPress\'s built-in mailer.', 'nonprofit-manager' ),
+		esc_html( function_exists( 'npmp_label' ) ? npmp_label( 'app_name' ) : 'Nonprofit Manager' ),
+		'<a href="' . esc_url( admin_url( 'admin.php?page=npmp_email_settings' ) ) . '">',
+		'</a>'
+	);
 	echo '</p></div>';
 }
 add_action( 'admin_notices', 'npmp_email_admin_notices' );
