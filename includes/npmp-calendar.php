@@ -348,7 +348,10 @@ function npmp_register_event_meta_boxes() {
 		__( 'Event Details', 'nonprofit-manager' ),
 		'npmp_render_event_meta_box',
 		'npmp_event',
-		'normal',
+		// The sidebar, beside the publish date, like the newsletter editor's boxes. Until
+		// 2026.11.8 it sat under the content, where the block editor tucks boxes into a
+		// "Meta Boxes" panel that reads as a different screen (Pete at U3A, 2026-11-12).
+		'side',
 		'high'
 	);
 }
@@ -382,18 +385,18 @@ function npmp_render_event_meta_box( $post ) {
 	$end_time   = $end && strlen( $end ) > 10 ? substr( $end, 11, 5 ) : '';
 
 	echo '<p><label for="npmp_event_start_date"><strong>' . esc_html__( 'Start Date', 'nonprofit-manager' ) . '</strong></label><br>';
-	echo '<input type="date" id="npmp_event_start_date" name="npmp_event_start_date" value="' . esc_attr( $start_date ) . '" class="regular-text" required></p>';
+	echo '<input type="date" id="npmp_event_start_date" name="npmp_event_start_date" value="' . esc_attr( $start_date ) . '" class="widefat" required></p>';
 
 	echo '<p><label for="npmp_event_start_time">' . esc_html__( 'Start Time', 'nonprofit-manager' ) . '</label><br>';
-	echo '<input type="time" id="npmp_event_start_time" name="npmp_event_start_time" value="' . esc_attr( $start_time ) . '" class="regular-text"></p>';
+	echo '<input type="time" id="npmp_event_start_time" name="npmp_event_start_time" value="' . esc_attr( $start_time ) . '" class="widefat"></p>';
 
 	echo '<hr>';
 
 	echo '<p><label for="npmp_event_end_date"><strong>' . esc_html__( 'End Date (optional)', 'nonprofit-manager' ) . '</strong></label><br>';
-	echo '<input type="date" id="npmp_event_end_date" name="npmp_event_end_date" value="' . esc_attr( $end_date ) . '" class="regular-text"></p>';
+	echo '<input type="date" id="npmp_event_end_date" name="npmp_event_end_date" value="' . esc_attr( $end_date ) . '" class="widefat"></p>';
 
 	echo '<p><label for="npmp_event_end_time">' . esc_html__( 'End Time (optional)', 'nonprofit-manager' ) . '</label><br>';
-	echo '<input type="time" id="npmp_event_end_time" name="npmp_event_end_time" value="' . esc_attr( $end_time ) . '" class="regular-text"></p>';
+	echo '<input type="time" id="npmp_event_end_time" name="npmp_event_end_time" value="' . esc_attr( $end_time ) . '" class="widefat"></p>';
 
 	echo '<hr>';
 
