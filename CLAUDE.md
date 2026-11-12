@@ -142,7 +142,13 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   as unavailable without a `batch` callable. TEC's removal refuses while Event Tickets is installed
   (tribe-common shares its option names) and never touches `npmp_*` options, the npmp_event posts, or their
   `_npmp_tec_*` meta, which the 301s read. Unit `tests/test-import-hub.php`, rig `tests/rig/import-hub.php`
-  (needs the real TEC, deletes it, runs each step in its own `wp` process).
+  (needs the real TEC, deletes it, runs each step in its own `wp` process). MailPoet is the second source
+  (`includes/import/mailpoet-hub-source.php`): removal drops every `{prefix}mailpoet_*` table, its options and
+  `mailpoet_page`/`mailpoet_email` posts, and leaves Action Scheduler's rows. Verify counts MailPoet subscribers
+  with no matching contact, since the free limit (`npmp_import_max_rows()`) leaves people only in MailPoet.
+  Rig `tests/rig/mailpoet-hub.php` runs on real MailPoet (5.45.2 activates and takes API calls on SQLite).
+  When a source's data comes back after step 5 finished, the hub forgets the old check and removal
+  (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -157,6 +163,8 @@ Free (`readme.txt`):
 - Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
 - Added calendar settings to The Events Calendar importer.
 - Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
+- Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
+- Added MailPoet to the Switch Plugins screen.
 
 Pro (licence server changelog):
 - (none)
