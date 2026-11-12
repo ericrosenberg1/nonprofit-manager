@@ -194,53 +194,64 @@ Free (`readme.txt`):
 - Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 - Added MailPoet to the Switch Plugins screen.
 - Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
+- Added a one-click update to the version notice that puts free and Pro on the same version.
 - Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
 - Old links reach their redirects right after you turn a plugin off on the Switch Plugins screen.
 
 Pro (licence server changelog):
-- (none)
+- Pro now updates together with Nonprofit Manager.
+- Rewrote license error messages in plain words.
+- Added Send a test to me on events with no email scheduled yet.
 
 ## Releasing: three systems, always in this order
 
-Free and Pro always ship the same `YYYY.MM.N` version (memory `feedback_npm_version_policy`). Free
-shipping alone breaks lockstep, and Pro shipped inside wp.org's hold once put CACC on mismatched
-versions. Commit and tag all three repos first, because the pre-push gate compares all three.
+Free and Pro always ship the same `YYYY.MM.N` version (memory `feedback_npm_version_policy`), and
+since 2026-11-12 they go live at the same moment. There is no wait for wordpress.org's six-hour
+update hold. What keeps a site from getting Pro before free is the licence server, not a delay: Pro's
+updater reports the free version installed and the one wordpress.org offers, and the server hands
+back the newest Pro no newer than those that runs beside the installed free (site repo
+`src/lib/pro-releases.ts`). Pro N then arrives in the same update run as free N. Every Pro version
+stays in R2 as `nonprofit-manager-pro-<version>.zip` and the download link names it, so an upload
+never changes bytes the server already advertises. Commit and tag all three repos first, because the
+pre-push gate compares all three.
 
 1. **Bump.** Free: `Version:` in `nonprofit-manager.php`, `Stable tag:` and a changelog entry in
    `readme.txt` (one short bullet per change, no why, memory `feedback_wporg_changelog_brief`),
    starting from the Pending changelog lines above, then empty that list.
-   Pro: `Version:` and `NPMP_PRO_VERSION` in `nonprofit-manager-pro.php`. Site:
-   `CURRENT_VERSION` and a changelog entry with a literal version heading in
+   Pro: `Version:` and `NPMP_PRO_VERSION` in `nonprofit-manager-pro.php`. Site: in
+   `src/lib/pro-releases.ts` move the outgoing `CURRENT_` values to the top of
+   `PREVIOUS_PRO_RELEASES`, set `CURRENT_VERSION` and `CURRENT_MIN_FREE_VERSION` (Pro's
+   `NPMP_PRO_MIN_FREE_VERSION`), and add a changelog entry with a literal version heading in
    `src/pages/api/license/version.ts`.
 2. **Commit and tag** `v<version>` in free and Pro.
 3. **Sign.** In Pro, `./release.sh v<version> --dry-run` builds from the tag, signs with
    `~/.npm-secrets/release-signing.key` and prints `CURRENT_ZIP_SHA256` and
-   `CURRENT_ZIP_SIGNATURE`. Put both in the site's `version.ts`, commit, tag, push all three. Do
-   NOT deploy the site yet: it would advertise a zip R2 doesn't hold, and every Pro install refuses
-   the checksum and mails its owner "failed to update" (10.1 and 10.2 shipped that way).
+   `CURRENT_ZIP_SIGNATURE`. Put both in the site's `src/lib/pro-releases.ts`, commit, tag, push all
+   three. Don't deploy the site by hand: `pro-leg.sh` deploys it after the upload, so the server never
+   lists a version R2 doesn't hold.
 4. **Free to wp.org.** `./build.sh`, unzip `dist/nonprofit-manager.zip` into a temp dir,
    `cd ~/wp-svn/nonprofit-manager-svn && svn up`, rsync the unzipped folder into `trunk/` with
    `--delete`, `svn add`/`svn rm` what `svn status` shows, `svn ci trunk` (screenshots and banners
    go in `assets/`). Tag with full URLs:
    `svn cp https://plugins.svn.wordpress.org/nonprofit-manager/trunk https://plugins.svn.wordpress.org/nonprofit-manager/tags/<version>`
    (`^/trunk` fails). Read tags from the server (`svn ls .../tags/`), never the working copy.
-5. **Wait out the six-hour hold.** WordPress.org holds every release about 6 hours before the
-   update-check API offers it. The plugin page, info API and zip switch at once and prove nothing.
-   Check with a POST to `api.wordpress.org/plugins/update-check/1.1/` with installed `Version` 0.
-   A second release during the hold supersedes the first, so ship Pro for whatever update-check
-   offers. Pattern that works: start Pro's `scripts/pro-leg.sh <version> <sha256>` with nohup right
-   after the SVN tag. Never under launchd with KeepAlive: on 11-01 it restarted the script every 10 seconds after a rate-limited download (496 runs, 496 R2 uploads) and used up the comp key's hourly quota, which then 429'd CACC's Pro update. It waits out the hold and does steps 6 to 8 with no prompts (memory
-   `reference_wporg_release_cooldown`). A scheduled Claude run parked on a permission prompt for
-   2026.10.9 and shipped nothing for three hours, so use one only to check CACC and report.
-6. **Pro to R2.** `./release.sh v<version>` in Pro. It refuses until wp.org offers the free
-   version (`NPMP_SKIP_WPORG_CHECK=1` only for an emergency Pro-only fix), uploads with `--remote`
-   to `nonprofit-manager-downloads/nonprofit-manager-pro-latest.zip`, and checks a live customer
-   download's SHA-256.
-7. **Licence server.** Steps in the site repo's CLAUDE.md (build, drop `dist/server/.dev.vars`,
-   deploy with the fleet token).
-8. **Verify.** `./release.sh --verify` in Pro (uses download slots: 40 an hour per licence key and 120 per IP, and CACC shares the comp key, so a loop here also blocks CACC's Pro update),
-   `scripts/check-lockstep.sh`, `/pricing` 200, then on CACC `wp plugin list --skip-update-check`.
-   A briefly stale version right after deploy is edge propagation, retry once.
+5. **Pro and the licence server, right away.** In Pro,
+   `nohup scripts/pro-leg.sh <version> <sha256> </dev/null >/dev/null 2>&1 &`. It runs
+   `./release.sh v<version>` (refuses until free `<version>` is in SVN, uploads the versioned zip,
+   reads it back), deploys the licence server from the site's `v<version>` tag, waits for the version
+   API to answer `<version>`, refreshes the legacy `-latest.zip`, and runs `./release.sh --verify`.
+   Log and status in `~/Library/Logs/npm-release/pro-leg-<version>.{log,status}`. It takes minutes.
+   Never under launchd with KeepAlive: on 11-01 that restarted it every 10 seconds after a
+   rate-limited download (496 runs, 496 R2 uploads) and used up the comp key's hourly quota, which
+   then 429'd CACC's Pro update.
+6. **Verify.** `./release.sh --verify` in Pro (uses download slots: 40 an hour per licence key and 120
+   per IP, and CACC shares the comp key, so a loop here also blocks CACC's Pro update),
+   `scripts/check-lockstep.sh`, `/pricing` 200, a version request with
+   `{"free_version":"<previous>"}` answering the previous Pro and one with `"free_offered":"<version>"`
+   answering the new one, then on CACC `wp plugin list --skip-update-check`. A briefly stale version
+   right after deploy is edge propagation, retry once. Sites see free and Pro together once
+   wordpress.org's hold ends (about six hours after the SVN tag), and anyone who updates free by hand
+   before then gets the matching Pro at once.
 
 Don't run wp-cli on a site while its auto-updater is installing. The updater rewrites the plugin
 folder and any WordPress load in that window drops it from `active_plugins`. If you force an update
