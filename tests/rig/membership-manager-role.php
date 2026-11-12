@@ -408,7 +408,12 @@ rig_check( 'recurring screen lists the subscription', true, false !== strpos( $b
 rig_check( 'recurring screen hides cancel/pause', false, false !== strpos( $bodies['admin.php?page=npmp_recurring_donations'], 'npmp_action=' ) );
 rig_check( 'dashboard keeps the member summary widget', true, false !== strpos( $bodies['index.php'], 'npmp_summary_widget' ) );
 rig_check( 'dashboard drops Activity', false, false !== strpos( $bodies['index.php'], 'id="dashboard_activity"' ) );
-rig_check( 'newsletter menu shows no extra entries', false, false !== strpos( $list, "href='edit.php?post_type=npmp_newsletter'" ) || false !== strpos( $list, "href='post-new.php?post_type=npmp_newsletter'" ) );
+// Add Newsletter is the menu's own first item (it opens the block editor on
+// a new newsletter). Core's automatic post type entries stay out.
+rig_check( 'newsletter menu has no core All Newsletters entry', false, false !== strpos( $list, "href='edit.php?post_type=npmp_newsletter'" ) );
+// Two links: the top-level menu takes its first item's URL, then the item.
+// A third would be core's own Add entry showing up again.
+rig_check( 'newsletter menu has one Add Newsletter entry', 2, substr_count( $list, "post-new.php?post_type=npmp_newsletter'" ) );
 rig_check( 'newsletter editor offers Send to Selected Members', true, false !== strpos( $bodies[ 'post.php?post=' . $nl_id . '&action=edit' ], 'id="npmp-send-newsletter"' ) );
 
 // Member writes over HTTP: create, update, delete, each redirecting.
