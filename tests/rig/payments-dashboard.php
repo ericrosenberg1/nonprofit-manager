@@ -2,8 +2,8 @@
 /**
  * Real-WordPress check of the Dashboard widgets' money figures and Quick Add
  * Event: the recurring run rate counts each donor once, the year-to-date
- * total follows the site's year, and a quick-added event has its start
- * before save_post fires.
+ * total follows the site's year, and a quick-added event is a draft with its
+ * start in place before save_post fires.
  *
  * Run inside a throwaway WordPress with the plugin active and donations on:
  *   wp eval-file tests/rig/payments-dashboard.php
@@ -106,15 +106,34 @@ $_POST = array(
 	'npmp_event_datetime'        => '2031-05-06T18:30',
 	'npmp_event_location'        => 'Library',
 );
-ob_start();
-npmp_render_quick_add_event_widget();
-$html = ob_get_clean();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$to   = '';
+$trap = static function ( $location ) use ( &$to ) {
+	$to = $location;
+	throw new RuntimeException( 'redirect' );
+};
+add_filter( 'wp_redirect', $trap );
+try {
+	npmp_quick_add_handle_post();
+} catch ( RuntimeException $e ) {
+	unset( $e );
+}
+remove_filter( 'wp_redirect', $trap );
 $_POST = array();
 remove_action( 'save_post_npmp_event', $spy, 1 );
 
 $event = get_posts( array( 'post_type' => 'npmp_event', 'title' => 'Rig quick event', 'numberposts' => 1, 'post_status' => 'any' ) );
 $eid   = $event ? $event[0]->ID : 0;
-$ok( 'event created', $eid > 0 && false !== strpos( $html, 'Event created.' ) );
+$ok( 'event created', $eid > 0 );
+$ok( 'saved as a draft, not published', $eid && 'draft' === get_post_status( $eid ) );
+$ok( 'redirects back to the Dashboard (got ' . $to . ')', false !== strpos( $to, 'index.php?' ) && false !== strpos( $to, 'npmp_quick=event_added' ) && false !== strpos( $to, 'npmp_event=' . $eid ) );
+$_GET = array( 'npmp_quick' => 'event_added', 'npmp_event' => (string) $eid );
+ob_start();
+npmp_render_quick_add_event_widget();
+$html = ob_get_clean();
+$_GET = array();
+$ok( 'notice stays in the widget (inline)', false !== strpos( $html, 'notice notice-success inline' ) );
+$ok( 'notice links to the draft', 1 === preg_match( '/post\.php\?post=' . $eid . '(&amp;|&#038;)action=edit/', $html ) );
 $ok( 'start is there when save_post fires (got ' . var_export( $seen, true ) . ')', '2031-05-06 18:30:00' === $seen );
 $ok( 'start stored as the site wall-clock time', '2031-05-06 18:30:00' === get_post_meta( $eid, '_npmp_event_start', true ) );
 $ok( 'location stored', 'Library' === get_post_meta( $eid, '_npmp_event_location', true ) );
