@@ -96,26 +96,31 @@ function npmp_convert_event_editor_button() {
 		overlay.id = 'npmp-convert-modal';
 		overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
 
+		var opener = document.activeElement;
 		var modal = document.createElement('div');
+		modal.setAttribute('role', 'dialog');
+		modal.setAttribute('aria-modal', 'true');
+		modal.setAttribute('aria-labelledby', 'npmp-convert-title');
+		modal.setAttribute('aria-describedby', 'npmp-convert-intro');
 		modal.style.cssText = 'background:#fff;border-radius:8px;padding:24px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto;';
-		modal.innerHTML = '<h2 style="margin:0 0 16px;"><?php echo esc_js( __( 'Convert to Event', 'nonprofit-manager' ) ); ?></h2>' +
-			'<p style="color:#666;margin:0 0 16px;"><?php echo esc_js( __( 'You get a new event with the same title and content. The original post stays unless you tick the last box.', 'nonprofit-manager' ) ); ?></p>' +
+		modal.innerHTML = '<h2 id="npmp-convert-title" style="margin:0 0 16px;"><?php echo esc_js( __( 'Convert to Event', 'nonprofit-manager' ) ); ?></h2>' +
+			'<p id="npmp-convert-intro" style="color:#50575e;margin:0 0 16px;"><?php echo esc_js( __( 'You get a new event with the same title and content. The original post stays unless you tick the last box.', 'nonprofit-manager' ) ); ?></p>' +
 			'<div style="margin-bottom:12px;">' +
-				'<label style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Event Start', 'nonprofit-manager' ) ); ?></label>' +
+				'<label for="npmp-convert-start" style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Event start', 'nonprofit-manager' ) ); ?></label>' +
 				'<input type="datetime-local" id="npmp-convert-start" style="width:100%;" required />' +
 			'</div>' +
 			'<div style="margin-bottom:12px;">' +
-				'<label style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Event End', 'nonprofit-manager' ) ); ?></label>' +
+				'<label for="npmp-convert-end" style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Event end', 'nonprofit-manager' ) ); ?></label>' +
 				'<input type="datetime-local" id="npmp-convert-end" style="width:100%;" />' +
 			'</div>' +
 			'<div style="margin-bottom:12px;">' +
-				'<label style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Location', 'nonprofit-manager' ) ); ?></label>' +
+				'<label for="npmp-convert-location" style="display:block;font-weight:600;margin-bottom:4px;"><?php echo esc_js( __( 'Location', 'nonprofit-manager' ) ); ?></label>' +
 				'<input type="text" id="npmp-convert-location" style="width:100%;" placeholder="<?php echo esc_attr__( 'Address, venue, or online link', 'nonprofit-manager' ); ?>" />' +
 			'</div>' +
 			'<div style="margin-bottom:12px;">' +
 				'<label><input type="checkbox" id="npmp-convert-delete" /> <?php echo esc_js( __( 'Move the original post to the Trash', 'nonprofit-manager' ) ); ?></label>' +
 			'</div>' +
-			'<div id="npmp-convert-status" style="margin-bottom:12px;display:none;"></div>' +
+			'<div id="npmp-convert-status" role="status" style="margin-bottom:12px;display:none;"></div>' +
 			'<div style="display:flex;gap:8px;justify-content:flex-end;">' +
 				'<button type="button" id="npmp-convert-cancel" class="button"><?php echo esc_js( __( 'Cancel', 'nonprofit-manager' ) ); ?></button>' +
 				'<button type="button" id="npmp-convert-submit" class="button button-primary"><?php echo esc_js( __( 'Create Event', 'nonprofit-manager' ) ); ?></button>' +
@@ -128,7 +133,39 @@ function npmp_convert_event_editor_button() {
 		document.getElementById('npmp-convert-cancel').addEventListener('click', closeModal);
 		document.getElementById('npmp-convert-submit').addEventListener('click', function() { submitConvert(postId); });
 
-		function closeModal() { overlay.remove(); }
+		// Keyboard: focus starts in the dialog, Tab stays inside it, and
+		// Escape closes it and puts focus back where it was.
+		function onKey(e) {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				closeModal();
+				return;
+			}
+			if (e.key !== 'Tab') return;
+			var items = modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled])');
+			var visible = [];
+			for (var i = 0; i < items.length; i++) {
+				if (items[i].offsetParent !== null) visible.push(items[i]);
+			}
+			if (!visible.length) return;
+			var first = visible[0];
+			var last = visible[visible.length - 1];
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault();
+				last.focus();
+			} else if (!e.shiftKey && document.activeElement === last) {
+				e.preventDefault();
+				first.focus();
+			}
+		}
+		document.addEventListener('keydown', onKey, true);
+		document.getElementById('npmp-convert-start').focus();
+
+		function closeModal() {
+			document.removeEventListener('keydown', onKey, true);
+			overlay.remove();
+			if (opener && typeof opener.focus === 'function') opener.focus();
+		}
 
 		function submitConvert(pid) {
 			var start = document.getElementById('npmp-convert-start').value;
@@ -163,7 +200,7 @@ function npmp_convert_event_editor_button() {
 						if (data.data.delete_original) window.location.href = '<?php echo esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ); ?>';
 					}, 1500);
 				} else {
-					showStatus(data.data || '<?php echo esc_js( __( 'Conversion failed.', 'nonprofit-manager' ) ); ?>', 'error');
+					showStatus(document.createTextNode(data.data || '<?php echo esc_js( __( 'Conversion failed.', 'nonprofit-manager' ) ); ?>').textContent.replace(/[&<>"']/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; }), 'error');
 					btn.disabled = false;
 					btn.textContent = '<?php echo esc_js( __( 'Create Event', 'nonprofit-manager' ) ); ?>';
 				}
