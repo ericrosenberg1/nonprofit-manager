@@ -47,7 +47,9 @@
  *
  * Optional: 'deactivate' (callable, returns what it turned off), 'active_plugins'
  * and 'installed_plugins' (callables returning basename => name) when a source
- * has add-ons, and 'import_summary' (callable returning a sentence). Leave
+ * has add-ons, 'import_summary' (callable returning a sentence), and
+ * 'delete_note' (callable returning a warning, or '') for a plugin whose own
+ * uninstall deletes its data when step 4 deletes its files. Leave
  * 'data_removal' out, or give it 'reason' and no 'batch', and step 5 shows as
  * unavailable with that reason.
  *
@@ -111,6 +113,7 @@ function npmp_import_hub_normalize_source( $slug, $source ) {
 			'deactivate'        => null,
 			'active_plugins'    => null,
 			'installed_plugins' => null,
+			'delete_note'       => null,
 			'data_removal'      => array(),
 		),
 		$source
@@ -1223,7 +1226,14 @@ function npmp_import_hub_render_step_remove_plugin( array $source, array $facts,
 		return;
 	}
 	$plugins = npmp_import_hub_installed_plugins( $source );
-	echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server. Its data stays in your database until the last step.', 'nonprofit-manager' ) . '</p>';
+	$note = npmp_import_hub_call( $source['delete_note'], '' );
+	if ( is_string( $note ) && '' !== $note ) {
+		// The old plugin's own uninstall deletes its data along with its files.
+		echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server.', 'nonprofit-manager' ) . '</p>';
+		echo '<p><strong>' . esc_html( $note ) . '</strong></p>';
+	} else {
+		echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server. Its data stays in your database until the last step.', 'nonprofit-manager' ) . '</p>';
+	}
 	if ( is_multisite() ) {
 		echo '<p><strong>' . esc_html__( 'This deletes the plugin for every site in your network.', 'nonprofit-manager' ) . '</strong></p>';
 	}

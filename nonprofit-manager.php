@@ -91,6 +91,7 @@ if ( ! empty( $npmp_features['members'] ) ) {
 
 	// Importer for sites switching from The Newsletter Plugin, on the MailPoet importer's writer.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/newsletter-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/pmpro-importer.php';
 }
 
 if ( ! empty( $npmp_features['donations'] ) ) {

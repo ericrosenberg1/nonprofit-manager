@@ -186,6 +186,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `newsletter_lists`, through `npmp_import_apply_settings_plan()`. Newsletter ships no uninstall code, and its
   add-ons share the `newsletter_` names, so step 5 is unavailable. Unit `tests/test-newsletter-importer.php`,
   rig `tests/rig/newsletter-importer.php` (Newsletter 9.5.7, visit wp-admin once so Newsletter creates its tables).
+- **Paid Memberships Pro** (`includes/import/pmpro-importer.php`, loaded right after the Newsletter importer). PMPro left
+  wordpress.org in 2024, so get its source from GitHub (strangerstudios/paid-memberships-pro, tag `3.9.1` verified). Members
+  are WordPress users with rows in `{prefix}pmpro_memberships_users`. A current member has a row with status `active` (PMPro's
+  own test), anyone else is a past member. Current members come over as Active with their newest level, past members as
+  Inactive with no level. Every PMPro level name joins `npmp_membership_levels`. A level set by hand on an existing contact
+  stays. `startdate` holds site-local time (checkout writes `current_time( 'mysql' )`), `user_registered` holds UTC. The
+  importer reads only the levels and memberships tables, the pmpro_b* address meta, and `pmpro_uninstall`, never orders,
+  subscriptions, or gateway settings. Members with a renewing plan keep paying through the processor after PMPro is off, so
+  Verify and the import screen warn. Step 5 is unavailable. PMPro's own uninstall drops its tables when "Uninstall PMPro on
+  deletion?" is Yes, and the hub's optional `delete_note` then warns in step 4. PMPro's reads use MySQL's `CONVERT_TZ()`, which
+  SQLite can't parse, so rig `tests/rig/pmpro-importer.php` seeds with PMPro's writers and reads its tables directly. Unit
+  `tests/test-pmpro-importer.php`.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -206,6 +218,7 @@ Free (`readme.txt`):
 - Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
 - Old links reach their redirects right after you turn a plugin off on the Switch Plugins screen.
 - Added an importer for The Newsletter Plugin: contacts, lists, sender settings, and signup dates, on the Switch Plugins screen.
+- Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
 
 Pro (licence server changelog):
 - (none)
