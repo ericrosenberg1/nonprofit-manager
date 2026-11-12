@@ -164,6 +164,19 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   Charitable's Reset Data on deactivation delete their data. Unit `tests/test-past-gifts.php`,
   `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
   1.8.15.1, Pro inactive).
+- **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
+  `sugar-calendar-source.php`). One engine for event plugins other than TEC: sources register on
+  `npmp_event_import_sources` and hand back one item per date, and the engine writes npmp_event posts with
+  `_npmp_import_key` = `<source>:<id>` and `_npmp_import_old_path`, then 301s those paths on a 404. Both sources read
+  the old tables straight from the database, so you can import with the plugin off. EM 7 saves a repeating
+  series as `em_events` rows of type `recurrence` with no post of their own, so each date borrows the parent's
+  post through `em_event_recurrences`, and only the first date carries the series link. A cancelled EM event
+  comes over as a draft. Sugar Lite keeps only the meta keys it registers (`location`, no `url`), and its
+  repeats come over as the first date. Categories bring their parents (`npmp_event_import_post_terms()`).
+  Step 5 is unavailable for both. The hub's turn-off step drops `rewrite_rules` so a dead plugin's `/events/`
+  routes stop answering. Neither plugin has a setting that maps to ours. Unit `tests/test-event-sources.php`,
+  rig `tests/rig/event-sources.php` (EM 7.4.14, Sugar Calendar Lite 3.17.0, visit wp-admin once so both make
+  their tables).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -181,6 +194,8 @@ Free (`readme.txt`):
 - Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 - Added MailPoet to the Switch Plugins screen.
 - Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
+- Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
+- Old links reach their redirects right after you turn a plugin off on the Switch Plugins screen.
 
 Pro (licence server changelog):
 - (none)
