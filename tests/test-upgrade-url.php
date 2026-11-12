@@ -20,6 +20,12 @@ function add_action( ...$args ) {}
 function add_filter( ...$args ) {}
 
 require_once dirname( __DIR__ ) . '/includes/npmp-version.php';
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $name, $default = false ) {
+		return $default;
+	}
+}
+require_once dirname( __DIR__ ) . '/includes/npmp-org-type.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-pro-feature-pages.php';
 
 $base = 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=upsell&utm_campaign=';

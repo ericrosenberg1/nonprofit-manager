@@ -789,7 +789,7 @@ function npmp_tnp_render_page() {
 
 	echo '<h2>' . esc_html__( 'What you leave in the old plugin', 'nonprofit-manager' ) . '</h2><ul class="npmp-hub-checklist">';
 	echo '<li>' . esc_html__( 'Sent newsletters, open and click stats, and signups that never finished.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'Delivery settings, licence keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Delivery settings, license keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
 	$label = $state['finished_at'] ? __( 'Import again', 'nonprofit-manager' ) : __( 'Import subscribers', 'nonprofit-manager' );

@@ -29,7 +29,7 @@ function npmp_import_register_menu() {
 
 	add_submenu_page(
 		$parent,
-		__( 'Import Members', 'nonprofit-manager' ),
+		sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Import %s', 'nonprofit-manager' ), npmp_label( 'members' ) ),
 		__( 'Import', 'nonprofit-manager' ),
 		npmp_staff_cap(),
 		'npmp_import',
@@ -915,8 +915,8 @@ function npmp_import_render_page() {
 	$member_mgr    = NPMP_Member_Manager::get_instance();
 	?>
 	<div class="wrap npmp-import-wrap">
-		<h1><?php esc_html_e( 'Import Members', 'nonprofit-manager' ); ?></h1>
-		<p class="description"><?php esc_html_e( 'Import your members or email subscribers from a file or another service.', 'nonprofit-manager' ); ?></p>
+		<h1><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Import %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></h1>
+		<p class="description"><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Import your %s or email subscribers from a file or another service.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ); ?></p>
 
 		<?php
 		/** Other importers add an entry point here, such as The Events Calendar's (includes/import/tec-importer.php). */
@@ -974,19 +974,19 @@ function npmp_import_render_page() {
 
 				<!-- CSV / XLSX upload -->
 				<div class="npmp-source-panel" data-source="csv xlsx">
-					<p><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></p>
+					<p><label for="npmp-import-file"><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></label></p>
 					<input type="file" id="npmp-import-file" accept=".csv,.xlsx,.xls">
 				</div>
 
 				<!-- Google Sheets URL -->
 				<div class="npmp-source-panel" data-source="google_sheet" style="display:none;">
 					<p>
-						<strong><?php esc_html_e( 'Published Google Sheet URL:', 'nonprofit-manager' ); ?></strong><br>
+						<label for="npmp-gsheet-url"><strong><?php esc_html_e( 'Published Google Sheet URL:', 'nonprofit-manager' ); ?></strong></label><br>
 						<span class="description">
 							<?php esc_html_e( 'Go to File > Share > Publish to web. Choose "Comma-separated values (.csv)" and copy the link.', 'nonprofit-manager' ); ?>
 						</span>
 					</p>
-					<input type="url" id="npmp-gsheet-url" class="regular-text" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" style="width:100%;max-width:600px;">
+					<input type="url" id="npmp-gsheet-url" class="regular-text npmp-import-url" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
 				</div>
 
 				<!-- Mailchimp -->
@@ -1147,8 +1147,8 @@ function npmp_import_render_page() {
 				</div>
 
 				<!-- Free-cap upsell, shown when the import was truncated at the cap. -->
-				<div id="npmp-import-cap-notice" class="notice notice-info inline" style="display:none;margin-top:20px;border-left-color:#10b981;">
-					<h3 style="margin-top:.5em;"><?php esc_html_e( 'You reached the free import limit', 'nonprofit-manager' ); ?></h3>
+				<div id="npmp-import-cap-notice" class="notice notice-info inline npmp-import-cap-notice" style="display:none;">
+					<h3 class="npmp-import-cap-title"><?php esc_html_e( 'You reached the free import limit', 'nonprofit-manager' ); ?></h3>
 					<p id="npmp-import-cap-text"></p>
 					<p>
 						<a href="<?php echo esc_url( npmp_get_upgrade_url( 'import_cap' ) ); ?>" target="_blank" rel="noopener" class="button button-primary"><?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?></a>

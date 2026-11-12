@@ -470,7 +470,7 @@ function npmp_gift_import_render_page() {
 			number_format_i18n( $counts['not_received'] )
 		)
 	) . '</li>';
-	echo '<li>' . esc_html__( 'Payment keys, webhook secrets, and licence keys. You connect Stripe on the Payments settings screen.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Payment keys, webhook secrets, and license keys. You connect Stripe on the Payment Settings screen.', 'nonprofit-manager' ) . '</li>';
 	echo '<li>' . esc_html__( 'Donation forms, campaigns, and goals. You build a form here once and place it on your page.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 

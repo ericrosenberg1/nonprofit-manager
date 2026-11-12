@@ -673,7 +673,7 @@ function npmp_event_import_render_page() {
 			)
 		) . '</li>';
 	}
-	echo '<li>' . esc_html__( 'Map keys, licence keys, and payment settings.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Map keys, keys for paid add-ons, and payment settings.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';

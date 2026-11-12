@@ -1064,7 +1064,7 @@ function npmp_pmpro_render_page() {
 
 	echo '<h2>' . esc_html__( 'What you leave in the old plugin', 'nonprofit-manager' ) . '</h2><ul class="npmp-hub-checklist">';
 	echo '<li>' . esc_html__( 'Orders, payment plans, discount codes, and level prices.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'Payment gateway settings, licence keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Payment gateway settings, license keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
 	echo '<li>' . esc_html__( 'Which pages and posts you kept for members only.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 

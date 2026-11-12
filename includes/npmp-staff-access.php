@@ -256,7 +256,7 @@ function npmp_staff_declutter_admin_bar( $admin_bar ) {
 add_action( 'admin_bar_menu', 'npmp_staff_declutter_admin_bar', 999 );
 
 /**
- * Preselect the Membership Manager role on Users > Add New when an admin
+ * Preselect the Membership Manager role on Users > Add User when an admin
  * follows the "Give a volunteer access" link. Only changes which option the
  * Role dropdown starts on. The stored default role is untouched, and the
  * submitted form decides the role as usual.
@@ -294,15 +294,22 @@ function npmp_render_staff_access_panel() {
 		return;
 	}
 
-	echo '<div class="card npmp-staff-access" style="max-width:820px;margin-top:24px;">';
+	echo '<div class="card npmp-staff-access">';
 	echo '<h2 class="title">' . esc_html__( 'Give a volunteer access', 'nonprofit-manager' ) . '</h2>';
-	echo '<p>' . esc_html__( 'Add your membership chair or treasurer as a WordPress user with the Membership Manager role. They can work with members, donations, and newsletters, and can\'t reach settings, payment keys, pages, plugins, or anything else in WordPress.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html(
+		sprintf(
+			/* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donations, such as donations or contributions. */
+			__( 'Add your membership chair or treasurer as a WordPress user with the Membership Manager role. They can work with %1$s, %2$s, and newsletters, and can\'t reach settings, payment keys, pages, plugins, or anything else in WordPress.', 'nonprofit-manager' ),
+			npmp_label( 'members_lc' ),
+			npmp_label( 'donations_lc' )
+		)
+	) . '</p>';
 
 	if ( current_user_can( 'create_users' ) && current_user_can( 'promote_users' ) ) {
 		$url = add_query_arg( 'npmp_role', NPMP_STAFF_ROLE, admin_url( 'user-new.php' ) );
 		echo '<p><a class="button" href="' . esc_url( $url ) . '">' . esc_html__( 'Add a Membership Manager', 'nonprofit-manager' ) . '</a></p>';
 	} else {
-		echo '<p>' . esc_html__( 'Ask a site administrator to add the user under Users > Add New and choose the Membership Manager role.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html__( 'Ask a site administrator to add the user under Users > Add User and choose the Membership Manager role.', 'nonprofit-manager' ) . '</p>';
 	}
 
 	echo '</div>';

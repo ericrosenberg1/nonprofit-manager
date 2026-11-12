@@ -1586,7 +1586,7 @@ function npmp_tec_register_menu() {
 	add_submenu_page(
 		! empty( $features['calendar'] ) ? 'npmp-events' : 'npmp_main',
 		__( 'Import from The Events Calendar', 'nonprofit-manager' ),
-		__( 'Import from TEC', 'nonprofit-manager' ),
+		__( 'Import from The Events Calendar', 'nonprofit-manager' ),
 		'manage_options',
 		'npmp_tec_import',
 		'npmp_tec_render_page'
@@ -1913,6 +1913,9 @@ function npmp_tec_render_page() {
 
 	echo '<div class="wrap npmp-tec-wrap">';
 	echo '<h1>' . esc_html__( 'Import from The Events Calendar', 'nonprofit-manager' ) . '</h1>';
+	if ( function_exists( 'npmp_import_hub_url' ) ) {
+		echo '<p><a href="' . esc_url( npmp_import_hub_url( 'the-events-calendar' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	}
 	/* translators: 1: step number, 2: total steps, 3: step name. */
 	echo '<p class="npmp-tec-progress-line">' . esc_html( sprintf( __( 'Step %1$d of %2$d: %3$s', 'nonprofit-manager' ), $step, 5, $labels[ $step ] ) ) . '</p>';
 	echo '<ol class="npmp-tec-steps">';
