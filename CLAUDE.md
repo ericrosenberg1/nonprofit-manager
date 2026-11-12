@@ -138,7 +138,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 
 Pro (licence server changelog):
 - (none)

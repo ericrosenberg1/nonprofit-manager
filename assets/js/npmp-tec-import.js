@@ -2,7 +2,9 @@
  * The Events Calendar importer: batch runner with a progress bar, select all
  * and none on the review table, and a compact skip list on submit.
  *
- * Loaded only on the importer screen (includes/import/tec-importer.php).
+ * Loaded only on the importer screen (includes/import/tec-importer.php). The
+ * MailPoet importer (includes/import/mailpoet-importer.php) uses the same
+ * batch runner on its own screen.
  */
 ( function () {
 	'use strict';
@@ -36,7 +38,8 @@
 		function step() {
 			var body = new FormData();
 			body.append( 'action', root.getAttribute( 'data-action' ) );
-			body.append( 'npmp_tec_nonce', root.getAttribute( 'data-nonce' ) );
+			// The MailPoet importer shares this runner and names its own nonce field.
+			body.append( root.getAttribute( 'data-nonce-name' ) || 'npmp_tec_nonce', root.getAttribute( 'data-nonce' ) );
 			if ( restart ) {
 				body.append( 'restart', '1' );
 				restart = false;
