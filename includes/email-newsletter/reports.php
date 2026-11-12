@@ -89,6 +89,31 @@ class NPMP_Newsletter_Stats {
         return $count;
     }
     
+    // Get link clicks for a newsletter. Click tracking (Newsletter Settings)
+    // writes wp_npmp_newsletter_clicks, one row per click. Before the
+    // Clicks column, nothing showed these.
+    public function get_clicks_count($newsletter_id) {
+        $cache_key = 'npmp_clicks_' . $newsletter_id;
+        $cached    = wp_cache_get( $cache_key, 'npmp_newsletters' );
+
+        if ( false !== $cached ) {
+            return (int) $cached;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'npmp_newsletter_clicks';
+        $count = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Result is cached via wp_cache_set() below. Dedicated tracking table.
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+                absint( $newsletter_id )
+            )
+        );
+
+        wp_cache_set( $cache_key, $count, 'npmp_newsletters', HOUR_IN_SECONDS );
+
+        return $count;
+    }
+
     // Get failure count for a newsletter
     public function get_failed_count($newsletter_id) {
         $cache_key = 'npmp_failed_' . $newsletter_id;
@@ -103,9 +128,9 @@ class NPMP_Newsletter_Stats {
 
 function npmp_render_newsletter_reports() {
     npmp_verify_admin_access('edit_npmp_newsletters');
-    echo '<div class="wrap">';
-    echo '<h1>' . esc_html__('Newsletter Reports', 'nonprofit-manager') . '</h1>';
-    echo '<p>' . esc_html__('Track opens, failures, and engagement for each newsletter.', 'nonprofit-manager') . '</p><hr>';
+    echo '<div class="wrap npmp-admin-page">';
+    npmp_admin_page_title(__('Newsletter Reports', 'nonprofit-manager'));
+    echo '<p class="npmp-page-description">' . esc_html__('Opens, clicks, and failed sends for your 10 latest newsletters.', 'nonprofit-manager') . '</p>';
 
     $newsletters = get_posts([
         'post_type' => 'npmp_newsletter',
@@ -115,7 +140,7 @@ function npmp_render_newsletter_reports() {
     ]);
 
     if (!$newsletters) {
-        echo '<p>' . esc_html__('No newsletters sent yet.', 'nonprofit-manager') . '</p>';
+        echo '<p>' . esc_html__('No newsletters sent yet.', 'nonprofit-manager') . ' <a href="' . esc_url(admin_url('post-new.php?post_type=npmp_newsletter')) . '">' . esc_html__('Add a newsletter', 'nonprofit-manager') . '</a></p>';
         echo '</div>';
         return;
     }
@@ -126,12 +151,13 @@ function npmp_render_newsletter_reports() {
     echo '<table class="widefat fixed striped">';
     echo '<thead>
             <tr>
-                <th>' . esc_html__('Title', 'nonprofit-manager') . '</th>
-                <th>' . esc_html__('Audience', 'nonprofit-manager') . '</th>
-                <th>' . esc_html__('Sent On', 'nonprofit-manager') . '</th>
-                <th>' . esc_html__('Total Recipients', 'nonprofit-manager') . '</th>
-                <th>' . esc_html__('Opens', 'nonprofit-manager') . '</th>
-                <th>' . esc_html__('Failed', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Title', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Audience', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Sent On', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Total Recipients', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Opens', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Clicks', 'nonprofit-manager') . '</th>
+                <th scope="col">' . esc_html__('Failed', 'nonprofit-manager') . '</th>
             </tr>
           </thead><tbody>';
           
@@ -144,6 +170,7 @@ function npmp_render_newsletter_reports() {
         // Get stats using the manager class
         $total = $stats->get_total_recipients($newsletter_id);
         $opens = $stats->get_opens_count($newsletter_id);
+        $clicks = $stats->get_clicks_count($newsletter_id);
         $failed = $stats->get_failed_count($newsletter_id);
 
         $sent_date = get_post_meta($newsletter_id, '_npmp_newsletter_queued_at', true);
@@ -161,6 +188,7 @@ function npmp_render_newsletter_reports() {
         echo '<td>' . esc_html($sent_date ? mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $sent_date) : '-') . '</td>';
         echo '<td>' . esc_html(intval($total)) . '</td>';
         echo '<td>' . esc_html(intval($opens)) . '</td>';
+        echo '<td>' . esc_html(intval($clicks)) . '</td>';
         echo '<td>' . esc_html(intval($failed)) . '</td>';
         echo '</tr>';
     }

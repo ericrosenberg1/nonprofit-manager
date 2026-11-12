@@ -976,6 +976,7 @@ function npmp_pmpro_render_page() {
 	$state = npmp_pmpro_state();
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from Paid Memberships Pro', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'pmpro' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( ! npmp_pmpro_has_tables() ) {
@@ -1064,7 +1065,7 @@ function npmp_pmpro_render_page() {
 
 	echo '<h2>' . esc_html__( 'What you leave in the old plugin', 'nonprofit-manager' ) . '</h2><ul class="npmp-hub-checklist">';
 	echo '<li>' . esc_html__( 'Orders, payment plans, discount codes, and level prices.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'Payment gateway settings, licence keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Payment gateway settings, license keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
 	echo '<li>' . esc_html__( 'Which pages and posts you kept for members only.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 

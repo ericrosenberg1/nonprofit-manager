@@ -152,7 +152,7 @@ $members = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_members' ) );
 rig_check( 'Members screen 200', 200, $members['code'] );
 rig_has( 'Members screen column says Last Contribution', 'Last Contribution', $members['body'] );
 rig_lacks( 'Members screen has no Last Donation', 'Last Donation', $members['body'] );
-rig_has( 'Members screen heading', 'Contacts &amp; Members', $members['body'] );
+rig_has( 'Contacts screen heading matches its menu name', '<h1 class="wp-heading-inline">Contacts</h1>', $members['body'] );
 rig_has( 'sidebar says Club Manager', '>Club Manager <span', $members['body'] );
 rig_has( 'sidebar says Contributions', '>Contributions<', $members['body'] );
 rig_has( 'sidebar says Contribution Settings', '>Contribution Settings<', $members['body'] );
@@ -169,7 +169,7 @@ rig_has( 'Membership Settings: Dues Levels heading', '<h2>Dues Levels</h2>', $fo
 rig_has( 'Membership Settings screen ID unchanged', 'membership_page_npmp_membership_forms', rig_body_class( $forms['body'] ) );
 
 $don = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_donations_group' ) );
-rig_has( 'Donations dashboard: Contributions Summary', 'Contributions Summary', $don['body'] );
+rig_has( 'Donations dashboard: Contributions Dashboard', 'Contributions Dashboard', $don['body'] );
 $don_settings = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_donation_settings' ) );
 rig_has( 'Donation settings screen ID unchanged', 'donations_page_npmp_donation_settings', rig_body_class( $don_settings['body'] ) );
 

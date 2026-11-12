@@ -120,6 +120,7 @@ class T_Wpdb {
 }
 $GLOBALS['wpdb'] = new T_Wpdb();
 
+require_once dirname( __DIR__ ) . '/includes/npmp-org-type.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-scheduled-emails.php';
 
 $london = new DateTimeZone( 'Europe/London' );
@@ -307,6 +308,31 @@ check( '60 minutes', '1 hour before', npmp_scheduled_emails_describe_minutes( 60
 check( 'custom hours read back', 300, npmp_scheduled_emails_read_timing( array( 'timing' => 'custom', 'custom_hours' => '5' ) ) );
 check( 'blank timing means site default', 0, npmp_scheduled_emails_read_timing( array( 'timing' => '' ) ) );
 check( 'preset timing', 4320, npmp_scheduled_emails_read_timing( array( 'timing' => '4320' ) ) );
+
+echo "\n== Labels on the timing and body fields ==\n";
+if ( ! function_exists( 'selected' ) ) {
+	function selected( $a, $b, $echo = true ) {
+		return (string) $a === (string) $b ? ' selected="selected"' : '';
+	}
+}
+if ( ! function_exists( 'esc_attr__' ) ) {
+	function esc_attr__( $text ) {
+		return esc_attr( $text );
+	}
+}
+ob_start();
+npmp_scheduled_emails_timing_fields( 'npmp_sched_defaults', 1440, false, 1440, 'npmp-sched-default-timing' );
+$html = ob_get_clean();
+check( 'timing select carries the id its label points at', true, false !== strpos( $html, '<select id="npmp-sched-default-timing" name="npmp_sched_defaults[timing]"' ) );
+check( 'custom hours input has an accessible name', true, false !== strpos( $html, 'aria-label="Hours before the event"' ) );
+ob_start();
+npmp_scheduled_emails_timing_fields( 'rules[0]', 1440, false );
+check( 'no id given (Pro\'s call): no id printed', true, false !== strpos( ob_get_clean(), '<select name="rules[0][timing]"' ) );
+$src = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-scheduled-emails.php' );
+foreach ( array( 'npmp-sched-timing', 'npmp-sched-body', 'npmp-sched-default-timing', 'npmp-sched-default-body' ) as $id ) {
+	check( "label for $id", true, false !== strpos( $src, '<label for="' . $id . '">' ) );
+}
+check( 'member words go through the label map', false, strpos( $src, "'Email members before" ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

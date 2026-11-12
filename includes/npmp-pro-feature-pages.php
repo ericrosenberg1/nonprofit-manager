@@ -48,7 +48,11 @@ if ( ! function_exists( 'npmp_pro_feature_pages' ) ) {
 			'npmp_custom_fields' => array(
 				'menu'     => __( 'Custom Fields', 'nonprofit-manager' ),
 				'title'    => __( 'Custom Fields', 'nonprofit-manager' ),
-				'line'     => __( 'Add your own fields to members, donations, and events (a phone number, a committee, a T-shirt size) and fill them in from the edit screens and imports. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => sprintf(
+					/* translators: %s: lowercase plural word for members, such as members. */
+					__( 'Add your own fields to %s and events (a phone number, a committee, a T-shirt size) and fill them in on their edit screens. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+					npmp_label( 'members_lc' )
+				),
 				'campaign' => 'custom_fields',
 			),
 			'npmp_segments'      => array(
@@ -60,7 +64,11 @@ if ( ! function_exists( 'npmp_pro_feature_pages' ) ) {
 			'npmp_groups'        => array(
 				'menu'     => __( 'Groups', 'nonprofit-manager' ),
 				'title'    => __( 'Groups', 'nonprofit-manager' ),
-				'line'     => __( 'Put members in one or more groups, send each group its own newsletters and event reminders, and give each group its own calendar and signup form. Groups come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => sprintf(
+					/* translators: %s: lowercase plural word for members, such as members. */
+					__( 'Put %s in one or more groups, send each group its own newsletters and event reminders, and give each group its own calendar and signup form. Groups come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+					npmp_label( 'members_lc' )
+				),
 				'campaign' => 'groups',
 				'parent'   => 'npmp_membership',
 			),
@@ -96,12 +104,12 @@ if ( ! function_exists( 'npmp_render_pro_feature_page' ) ) {
 		$page = npmp_pro_feature_pages()[ $slug ];
 		?>
 		<div class="wrap npmp-admin-page">
-			<h1><?php echo esc_html( $page['title'] ); ?> <span class="npmp-pro-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span></h1>
-			<div class="card npmp-upsell-card" style="max-width:640px;padding:20px 24px;">
-				<p style="font-size:14px;margin:0 0 1em;"><?php echo esc_html( $page['line'] ); ?></p>
-				<p style="margin:0;">
+			<?php npmp_admin_page_title( $page['title'], array(), __( 'Pro', 'nonprofit-manager' ) ); ?>
+			<div class="card npmp-upsell-card">
+				<p class="npmp-upsell-line"><?php echo esc_html( $page['line'] ); ?></p>
+				<p class="npmp-flush">
 					<a href="<?php echo esc_url( npmp_get_upgrade_url( $page['campaign'] ) ); ?>" class="button button-primary" target="_blank" rel="noopener"><?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?></a>
-					<span class="description" style="margin-left:10px;">
+					<span class="description npmp-upsell-note">
 						<?php
 						printf(
 							/* translators: %s: Pro's starting price, e.g. "$47 a year". */

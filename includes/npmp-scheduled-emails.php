@@ -286,7 +286,7 @@ function npmp_scheduled_emails_placeholder_help() {
 		'[event_location]' => __( 'Where it is', 'nonprofit-manager' ),
 		'[event_url]'      => __( 'The event page on your site', 'nonprofit-manager' ),
 		'[join_link]'      => __( 'The event link (a meeting link, say), or the event page', 'nonprofit-manager' ),
-		'[ical_link]'      => __( 'A calendar file members can add to their calendar', 'nonprofit-manager' ),
+		'[ical_link]'      => sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'A calendar file %s can add to their calendar', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
 		'[event_image]'    => __( 'The event\'s featured image', 'nonprofit-manager' ),
 		'[event_excerpt]'  => __( 'The start of the event description. [event_excerpt words="200"] sets the length (55 words if you leave it out)', 'nonprofit-manager' ),
 		'[first_name]'     => __( 'Each reader\'s first name. [first_name default="Member"] fills in a word for contacts with no name. [last_name] and [name] work the same way', 'nonprofit-manager' ),
@@ -1045,13 +1045,7 @@ function npmp_register_email_body_post_type() {
 	register_post_type(
 		'npmp_email_body',
 		array(
-			'labels'          => array(
-				'name'          => __( 'Scheduled Email Bodies', 'nonprofit-manager' ),
-				'singular_name' => __( 'Scheduled Email Body', 'nonprofit-manager' ),
-				'add_new_item'  => __( 'Write a Scheduled Email Body', 'nonprofit-manager' ),
-				'edit_item'     => __( 'Edit Scheduled Email Body', 'nonprofit-manager' ),
-				'not_found'     => __( 'No scheduled email bodies yet.', 'nonprofit-manager' ),
-			),
+			'labels'          => npmp_post_type_labels( 'npmp_email_body' ),
 			'public'          => false,
 			'show_ui'         => true,
 			'show_in_menu'    => false,
@@ -1568,7 +1562,7 @@ function npmp_scheduled_emails_process_row( $row, $now ) {
 		array(
 			'status'          => 'sent',
 			'recipient_count' => (int) $count,
-			'note'            => $count ? '' : __( 'No subscribed members matched.', 'nonprofit-manager' ),
+			'note'            => $count ? '' : sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'No subscribed %s matched.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
 		)
 	);
 	npmp_scheduled_emails_note_lateness( $row, $now );
@@ -1601,7 +1595,7 @@ function npmp_scheduled_emails_process_list_row( $row, $now ) {
 		array(
 			'status'          => 'sent',
 			'recipient_count' => (int) $count,
-			'note'            => $count ? '' : __( 'No subscribed members matched.', 'nonprofit-manager' ),
+			'note'            => $count ? '' : sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'No subscribed %s matched.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
 		)
 	);
 	npmp_scheduled_emails_note_lateness( $row, $now );
@@ -1767,7 +1761,7 @@ function npmp_scheduled_emails_events_prompt() {
 	}
 	$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=npmp_dismiss_sched_prompt' ), 'npmp_dismiss_sched_prompt' );
 	echo '<div class="notice notice-info"><p>';
-	echo esc_html__( 'You can email your members before each event, a day ahead by default.', 'nonprofit-manager' ) . ' ';
+	echo esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'You can email your %s before each event, a day ahead by default.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . ' ';
 	echo '<a href="' . esc_url( admin_url( 'admin.php?page=npmp_scheduled_emails' ) ) . '">' . esc_html__( 'Turn on event emails', 'nonprofit-manager' ) . '</a> &middot; ';
 	echo '<a href="' . esc_url( $dismiss ) . '">' . esc_html__( 'Not now', 'nonprofit-manager' ) . '</a></p></div>';
 }
@@ -1851,7 +1845,7 @@ function npmp_scheduled_emails_audience_label( $row ) {
 		/* translators: %d: group ID. */
 		$label = sprintf( __( 'Group %d', 'nonprofit-manager' ), (int) $row->audience_id );
 	} else {
-		$label = __( 'All subscribed members', 'nonprofit-manager' );
+		$label = sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'All subscribed %s', 'nonprofit-manager' ), npmp_label( 'members_lc' ) );
 	}
 	return (string) apply_filters( 'npmp_scheduled_email_audience_label', $label, $row );
 }
@@ -1863,13 +1857,14 @@ function npmp_scheduled_emails_audience_label( $row ) {
  * @param int    $minutes     Current minutes, 0 for "use the site default".
  * @param bool   $use_default Offer the "use the site default" choice.
  * @param int    $default     The site default, for its label.
+ * @param string $id          Optional id for the select, so a label can point at it.
  * @return void
  */
-function npmp_scheduled_emails_timing_fields( $name, $minutes, $use_default, $default = 1440 ) {
+function npmp_scheduled_emails_timing_fields( $name, $minutes, $use_default, $default = 1440, $id = '' ) {
 	$choices = npmp_scheduled_emails_timing_choices();
 	$current = $minutes && ! isset( $choices[ $minutes ] ) ? 'custom' : (string) $minutes;
 	$hours   = 'custom' === $current ? max( 1, (int) round( $minutes / 60 ) ) : 24;
-	echo '<select name="' . esc_attr( $name ) . '[timing]" class="npmp-sched-timing">';
+	echo '<select' . ( $id ? ' id="' . esc_attr( $id ) . '"' : '' ) . ' name="' . esc_attr( $name ) . '[timing]" class="npmp-sched-timing">';
 	if ( $use_default ) {
 		/* translators: %s: the site default, such as "1 day before". */
 		echo '<option value=""' . selected( $current, '0', false ) . '>' . esc_html( sprintf( __( 'Site default (%s)', 'nonprofit-manager' ), npmp_scheduled_emails_describe_minutes( $default ) ) ) . '</option>';
@@ -1878,7 +1873,7 @@ function npmp_scheduled_emails_timing_fields( $name, $minutes, $use_default, $de
 		echo '<option value="' . esc_attr( (string) $value ) . '"' . selected( $current, (string) $value, false ) . '>' . esc_html( $label ) . '</option>';
 	}
 	echo '<option value="custom"' . selected( $current, 'custom', false ) . '>' . esc_html__( 'Custom', 'nonprofit-manager' ) . '</option>';
-	echo '</select> <span class="npmp-sched-custom"><input type="number" min="1" max="1440" step="1" name="' . esc_attr( $name ) . '[custom_hours]" value="' . esc_attr( (string) $hours ) . '" class="small-text"> ' . esc_html__( 'hours before', 'nonprofit-manager' ) . '</span>';
+	echo '</select> <span class="npmp-sched-custom"><input type="number" min="1" max="1440" step="1" name="' . esc_attr( $name ) . '[custom_hours]" value="' . esc_attr( (string) $hours ) . '" class="small-text" aria-label="' . esc_attr__( 'Hours before the event', 'nonprofit-manager' ) . '"> ' . esc_html__( 'hours before', 'nonprofit-manager' ) . '</span>';
 }
 
 /**
@@ -1902,10 +1897,11 @@ function npmp_scheduled_emails_read_timing( $in ) {
  * @param string     $name        Field name.
  * @param int|string $current     Selected body ID, '' for the site default.
  * @param bool       $use_default Offer "use the site default".
+ * @param string     $id          Optional id for the select, so a label can point at it.
  * @return void
  */
-function npmp_scheduled_emails_body_select( $name, $current, $use_default ) {
-	echo '<select name="' . esc_attr( $name ) . '" class="npmp-sched-body">';
+function npmp_scheduled_emails_body_select( $name, $current, $use_default, $id = '' ) {
+	echo '<select' . ( $id ? ' id="' . esc_attr( $id ) . '"' : '' ) . ' name="' . esc_attr( $name ) . '" class="npmp-sched-body">';
 	if ( $use_default ) {
 		echo '<option value=""' . selected( (string) $current, '', false ) . '>' . esc_html__( 'Site default', 'nonprofit-manager' ) . '</option>';
 	}
@@ -1945,7 +1941,7 @@ function npmp_newsletter_scheduled_badge( $newsletter_id ) {
 	if ( ! get_post_meta( $newsletter_id, '_npmp_newsletter_scheduled_row', true ) ) {
 		return '';
 	}
-	return ' <span class="npmp-scheduled-badge" style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:3px;border:1px solid #a7f3d0;background:#ecfdf5;color:#0f766e;font-size:11px;line-height:1.6;">' . esc_html__( 'Scheduled', 'nonprofit-manager' ) . '</span>';
+	return ' <span class="npmp-scheduled-badge">' . esc_html__( 'Scheduled', 'nonprofit-manager' ) . '</span>';
 }
 
 /* =========================================================================
@@ -2024,7 +2020,7 @@ function npmp_scheduled_emails_render_event_box( $post ) {
 		echo '<p class="description">' . esc_html__( 'Event emails are off for the site. You can turn this one on below, or turn them on for every event under Scheduled Emails.', 'nonprofit-manager' ) . '</p>';
 	}
 
-	echo '<p><label for="npmp-sched-mode"><strong>' . esc_html__( 'Email members before this event', 'nonprofit-manager' ) . '</strong></label><br>';
+	echo '<p><label for="npmp-sched-mode"><strong>' . esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Email %s before this event', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '</strong></label><br>';
 	echo '<select id="npmp-sched-mode" name="npmp_sched_email[mode]">';
 	$modes = array(
 		/* translators: %s: on or off. */
@@ -2037,12 +2033,12 @@ function npmp_scheduled_emails_render_event_box( $post ) {
 	}
 	echo '</select></p>';
 
-	echo '<p><strong>' . esc_html__( 'When', 'nonprofit-manager' ) . '</strong><br>';
-	npmp_scheduled_emails_timing_fields( 'npmp_sched_email', $own['minutes_before'], true, $defaults['minutes_before'] );
+	echo '<p><label for="npmp-sched-timing"><strong>' . esc_html__( 'When', 'nonprofit-manager' ) . '</strong></label><br>';
+	npmp_scheduled_emails_timing_fields( 'npmp_sched_email', $own['minutes_before'], true, $defaults['minutes_before'], 'npmp-sched-timing' );
 	echo '</p>';
 
-	echo '<p><strong>' . esc_html__( 'Body', 'nonprofit-manager' ) . '</strong><br>';
-	npmp_scheduled_emails_body_select( 'npmp_sched_email[body_id]', $own['body_id'], true );
+	echo '<p><label for="npmp-sched-body"><strong>' . esc_html__( 'Body', 'nonprofit-manager' ) . '</strong></label><br>';
+	npmp_scheduled_emails_body_select( 'npmp_sched_email[body_id]', $own['body_id'], true, 'npmp-sched-body' );
 	echo '</p>';
 
 	echo '<p><label for="npmp-sched-subject"><strong>' . esc_html__( 'Subject (optional)', 'nonprofit-manager' ) . '</strong></label>';
@@ -2241,7 +2237,7 @@ function npmp_scheduled_emails_render_send_later( $post ) {
 	echo '<input type="datetime-local" id="npmp-send-later-at" value="' . esc_attr( $value ) . '" min="' . esc_attr( wp_date( 'Y-m-d\TH:i' ) ) . '"> ';
 	/* translators: %s: site timezone, such as Europe/London. */
 	echo '<span class="description">' . esc_html( sprintf( __( 'Site time (%s)', 'nonprofit-manager' ), wp_timezone_string() ) ) . '</span></p>';
-	echo '<p><button type="button" class="button" id="npmp-send-later-save" data-confirm="' . esc_attr__( 'Send this newsletter to the selected members at that time?', 'nonprofit-manager' ) . '">' . esc_html__( 'Schedule', 'nonprofit-manager' ) . '</button> ';
+	echo '<p><button type="button" class="button" id="npmp-send-later-save" data-confirm="' . esc_attr( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Send this newsletter to the selected %s at that time?', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '">' . esc_html__( 'Schedule', 'nonprofit-manager' ) . '</button> ';
 	echo '<button type="button" class="button-link" id="npmp-send-later-cancel"' . ( $pending ? '' : ' hidden' ) . '>' . esc_html__( 'Cancel the schedule', 'nonprofit-manager' ) . '</button></p>';
 	echo '<p class="npmp-send-later-status" role="status" aria-live="polite">';
 	if ( $pending ) {
@@ -2390,14 +2386,15 @@ function npmp_render_scheduled_emails_page() {
 
 	echo '<div class="wrap npmp-admin-page npmp-sched-page">';
 	echo '<h1>' . esc_html__( 'Scheduled Emails', 'nonprofit-manager' ) . '</h1>';
-	echo '<p>' . esc_html__( 'Email your members before each event, and see every email waiting to go out.', 'nonprofit-manager' ) . '</p>';
+	echo '<hr class="wp-header-end">';
+	echo '<p>' . esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Email your %s before each event, and see every email waiting to go out.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '</p>';
 
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only flag after a redirect.
 	if ( isset( $_GET['updated'] ) ) {
 		echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Saved. Upcoming events now follow these settings.', 'nonprofit-manager' ) . '</p></div>';
 	}
 	if ( ! $defaults['enabled'] ) {
-		echo '<div class="notice notice-info inline"><p>' . esc_html__( 'Event emails are off. Tick "Email members before each event" and save to turn them on.', 'nonprofit-manager' ) . '</p></div>';
+		echo '<div class="notice notice-info inline"><p>' . esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Event emails are off. Tick "Email %s before each event" and save to turn them on.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '</p></div>';
 	}
 
 	echo '<h2>' . esc_html__( 'Event emails', 'nonprofit-manager' ) . '</h2>';
@@ -2406,7 +2403,7 @@ function npmp_render_scheduled_emails_page() {
 	wp_nonce_field( 'npmp_save_scheduled_email_defaults' );
 	echo '<fieldset' . disabled( $can_edit, false, false ) . '><table class="form-table" role="presentation"><tbody>';
 
-	echo '<tr><th scope="row">' . esc_html__( 'Turn on', 'nonprofit-manager' ) . '</th><td><label><input type="checkbox" name="npmp_sched_defaults[enabled]" value="1"' . checked( $defaults['enabled'], 1, false ) . '> ' . esc_html__( 'Email members before each event', 'nonprofit-manager' ) . '</label>';
+	echo '<tr><th scope="row">' . esc_html__( 'Turn on', 'nonprofit-manager' ) . '</th><td><label><input type="checkbox" name="npmp_sched_defaults[enabled]" value="1"' . checked( $defaults['enabled'], 1, false ) . '> ' . esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Email %s before each event', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '</label>';
 	echo '<p class="description">' . esc_html__( 'You can still turn it on or off for one event from the event\'s Scheduled Email box.', 'nonprofit-manager' ) . '</p></td></tr>';
 
 	/**
@@ -2424,12 +2421,12 @@ function npmp_render_scheduled_emails_page() {
 		 */
 		do_action( 'npmp_scheduled_email_settings_rules', $defaults );
 	} else {
-		echo '<tr><th scope="row">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th><td>';
-		npmp_scheduled_emails_timing_fields( 'npmp_sched_defaults', $defaults['minutes_before'], false );
+		echo '<tr><th scope="row"><label for="npmp-sched-default-timing">' . esc_html__( 'When', 'nonprofit-manager' ) . '</label></th><td>';
+		npmp_scheduled_emails_timing_fields( 'npmp_sched_defaults', $defaults['minutes_before'], false, 1440, 'npmp-sched-default-timing' );
 		echo '<p class="description">' . esc_html__( 'Day and week offsets keep the same clock time in your site timezone, even across a clock change.', 'nonprofit-manager' ) . '</p></td></tr>';
 
-		echo '<tr><th scope="row">' . esc_html__( 'Body', 'nonprofit-manager' ) . '</th><td>';
-		npmp_scheduled_emails_body_select( 'npmp_sched_defaults[body_id]', (string) $defaults['body_id'], false );
+		echo '<tr><th scope="row"><label for="npmp-sched-default-body">' . esc_html__( 'Body', 'nonprofit-manager' ) . '</label></th><td>';
+		npmp_scheduled_emails_body_select( 'npmp_sched_defaults[body_id]', (string) $defaults['body_id'], false, 'npmp-sched-default-body' );
 		echo '</td></tr>';
 
 		echo '<tr><th scope="row"><label for="npmp-sched-default-subject">' . esc_html__( 'Subject', 'nonprofit-manager' ) . '</label></th><td><input type="text" class="regular-text" id="npmp-sched-default-subject" name="npmp_sched_defaults[subject]" value="' . esc_attr( $defaults['subject'] ) . '" placeholder="' . esc_attr__( 'Uses the body\'s subject', 'nonprofit-manager' ) . '"></td></tr>';
@@ -2482,7 +2479,13 @@ function npmp_render_scheduled_emails_page() {
 	do_action( 'npmp_admin_table_toolbar', 'scheduled_emails', array() );
 	$rows = npmp_scheduled_emails_table_rows();
 	if ( ! $rows ) {
-		echo '<p>' . esc_html__( 'Nothing scheduled yet.', 'nonprofit-manager' ) . '</p></div>';
+		echo '<p>' . esc_html__( 'Nothing scheduled yet.', 'nonprofit-manager' ) . ' ';
+		if ( ! $defaults['enabled'] ) {
+			echo esc_html__( 'Turn on event emails above, then publish an event with a start time.', 'nonprofit-manager' );
+		} else {
+			echo '<a href="' . esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Add an event with a start time', 'nonprofit-manager' ) . '</a>';
+		}
+		echo '</p></div>';
 		return;
 	}
 	echo '<table class="widefat striped npmp-sched-table"><thead><tr>';

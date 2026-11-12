@@ -51,18 +51,67 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'npmp_format_postal_address' ) ) {
+	/**
+	 * Turn the organization address from General Settings into postal lines.
+	 *
+	 * @param array $org NPMP_Org_Settings::get() values.
+	 * @return string One line per row, "" when there's no street address.
+	 */
+	function npmp_format_postal_address( $org ) {
+		$org   = is_array( $org ) ? $org : array();
+		$part  = static function ( $key ) use ( $org ) {
+			return trim( (string) ( $org[ $key ] ?? '' ) );
+		};
+		$line1 = $part( 'address_line1' );
+		if ( '' === $line1 ) {
+			return '';
+		}
+
+		$lines    = array( $line1 );
+		$lines[]  = $part( 'address_line2' );
+		$region   = trim( $part( 'state' ) . ' ' . $part( 'postal_code' ) );
+		$lines[]  = implode( ', ', array_filter( array( $part( 'city' ), $region ), 'strlen' ) );
+		$country  = $part( 'country' );
+		$lines[]  = ( '' !== $country && 'US' !== strtoupper( $country ) ) ? $country : '';
+
+		return implode( "\n", array_filter( $lines, 'strlen' ) );
+	}
+}
+
+if ( ! function_exists( 'npmp_can_spam_address_text' ) ) {
+	/**
+	 * The postal address for the CAN-SPAM footer, as plain text.
+	 *
+	 * The Newsletter Settings address wins. When it's empty, the organization
+	 * address from General Settings fills in, so nobody has to type the
+	 * address twice. Before this, an empty newsletter address put the admin
+	 * email in the footer even when General Settings had a street address.
+	 *
+	 * @return string "" when neither is set.
+	 */
+	function npmp_can_spam_address_text() {
+		$address = trim( (string) get_option( 'npmp_org_mailing_address', '' ) );
+		if ( '' !== $address ) {
+			return $address;
+		}
+		$org = get_option( 'npmp_org_settings', array() );
+		return npmp_format_postal_address( is_array( $org ) ? $org : array() );
+	}
+}
+
 if ( ! function_exists( 'npmp_can_spam_get_address' ) ) {
 	/**
 	 * Resolve the [address] token to a real postal mailing address.
 	 *
 	 * CAN-SPAM requires a valid physical postal address in commercial email.
-	 * Falls back to the site admin email only when no address is configured,
-	 * which is not compliant. Set one on the Newsletter Settings screen.
+	 * Falls back to the site admin email only when neither Newsletter Settings
+	 * nor General Settings has an address, which is not compliant.
 	 *
 	 * @return string Escaped, ready to drop into the footer markup.
 	 */
 	function npmp_can_spam_get_address() {
-		$address = trim( (string) get_option( 'npmp_org_mailing_address', '' ) );
+		$address = npmp_can_spam_address_text();
 
 		if ( '' === $address ) {
 			return esc_html( (string) get_option( 'admin_email' ) );

@@ -1755,8 +1755,9 @@ function npmp_send_thank_you_email( $donation_data ) {
 	}
 
 	// Get email template
-	$subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
-	$message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
+	$defaults = npmp_thank_you_defaults();
+	$subject  = get_option( 'npmp_thank_you_subject', $defaults['subject'] );
+	$message  = get_option( 'npmp_thank_you_message', $defaults['message'] );
 
 	// Replace shortcodes
 	$frequency_labels = array(
@@ -1876,3 +1877,16 @@ function npmp_paypal_verification_admin_notice() {
 	);
 }
 add_action( 'admin_notices', 'npmp_paypal_verification_admin_notice' );
+
+/**
+ * Default thank-you email subject and message, translated.
+ *
+ * @return array{subject:string,message:string}
+ */
+function npmp_thank_you_defaults() {
+	return array(
+		'subject' => __( 'Thank You for Your Donation!', 'nonprofit-manager' ),
+		/* translators: Keep the placeholders in braces as they are. */
+		'message' => __( "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}", 'nonprofit-manager' ),
+	);
+}

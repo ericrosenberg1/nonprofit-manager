@@ -132,7 +132,7 @@ $gs = file_get_contents( __DIR__ . '/../includes/npmp-general-settings.php' );
 foreach ( array( 'turnstile', 'recaptcha' ) as $kind ) {
 	check( "$kind Test button points at its own form", true, false !== strpos( $gs, 'form="npmp-test-' . $kind . '-form"' ) );
 	$form_at  = strpos( $gs, 'id="npmp-test-' . $kind . '-form"' );
-	$outer_at = strpos( $gs, "submit_button( __( 'Save Security Settings'" );
+	$outer_at = strpos( $gs, "submit_button( __( 'Save security settings'" );
 	check( "$kind test form sits after the security form closes", true, false !== $form_at && false !== $outer_at && $form_at > $outer_at );
 }
 $depth = 0;

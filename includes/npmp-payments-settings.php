@@ -11,7 +11,7 @@ require_once plugin_dir_path( __FILE__ ) . 'payments/class-donation-manager.php'
 require_once plugin_dir_path( __FILE__ ) . 'payments/npmp-payment-gateways.php';
 
 /* ==============================================================
- * Donations Summary Dashboard
+ * Donations Dashboard
  * ============================================================= */
 function npmp_render_donations_dashboard() {
 	if ( ! current_user_can( npmp_staff_cap() ) ) {
@@ -59,26 +59,27 @@ function npmp_render_donations_dashboard() {
 			: sprintf( __( 'Amount (%s)', 'nonprofit-manager' ), $currencies[0] );
 	}
 
-	echo '<div class="wrap"><h1>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Summary', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h1>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) ) );
 
 	/* Filter form */
-	echo '<form method="get" style="margin-bottom:1.5em;">';
+	echo '<form method="get" class="npmp-filter-bar">';
 	echo '<input type="hidden" name="page" value="npmp_donations_group">';
 	wp_nonce_field( 'npmp_donations_filter' );
-	echo '<label>' . esc_html__( 'Year', 'nonprofit-manager' ) . ' ';
-	echo '<select name="year">';
+	echo '<label for="npmp-donations-year">' . esc_html__( 'Year', 'nonprofit-manager' ) . '</label> ';
+	echo '<select name="year" id="npmp-donations-year">';
 	foreach ( $years as $y ) {
 		echo '<option value="' . esc_attr( $y ) . '"' . selected( $y, $current_year, false ) . '>' . esc_html( $y ) . '</option>';
 	}
-	echo '</select></label> ';
+	echo '</select> ';
 
-	echo '<label>' . esc_html__( 'Month', 'nonprofit-manager' ) . ' ';
-	echo '<select name="month">';
+	echo '<label for="npmp-donations-month">' . esc_html__( 'Month', 'nonprofit-manager' ) . '</label> ';
+	echo '<select name="month" id="npmp-donations-month">';
 	echo '<option value="0">' . esc_html__( 'All', 'nonprofit-manager' ) . '</option>';
 	for ( $m = 1; $m <= 12; $m ++ ) {
 		echo '<option value="' . esc_attr( $m ) . '"' . selected( $m, $current_month, false ) . '>' . esc_html( $GLOBALS['wp_locale']->get_month( $m ) ) . '</option>';
 	}
-	echo '</select></label> ';
+	echo '</select> ';
 	submit_button( esc_html__( 'Filter', 'nonprofit-manager' ), 'secondary', '', false );
 	echo '</form>';
 
@@ -125,15 +126,18 @@ function npmp_render_donations_dashboard() {
 		}
 	}
 
+	$date_format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+	$empty_next  = npmp_donations_empty_next_step();
+
 	/* One-Time Donations Table */
 	echo '<h2>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'One-Time %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h2>';
 	echo '<table class="widefat fixed striped">';
 	echo '<thead><tr>';
-	echo '<th>' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
-	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
-	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col" class="npmp-col-amount">' . esc_html( $amount_label ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
 
 	if ( $one_time_donations ) {
@@ -152,26 +156,26 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
-			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
+			echo '<td class="npmp-col-amount">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
+			echo '<td>' . esc_html( get_the_date( $date_format, $donation ) ) . '</td>';
 			echo '<td>' . esc_html( npmp_gateway_label( $gateway ) ) . '</td>';
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="5">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No one-time %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</td></tr>';
+		echo '<tr><td colspan="5">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No one-time %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . $empty_next . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
 	/* Recurring Donations Table */
-	echo '<h2 style="margin-top:2em;">' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Recurring %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h2>';
+	echo '<h2 class="npmp-section-gap">' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Recurring %s', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</h2>';
 	echo '<table class="widefat fixed striped">';
 	echo '<thead><tr>';
-	echo '<th>' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
-	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="text-align:right">' . esc_html( $amount_label ) . '</th>';
-	echo '<th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . esc_html( sprintf( /* translators: %s: singular word for a donor, such as Donor or Supporter. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'donor' ) ) ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col" class="npmp-col-amount">' . esc_html( $amount_label ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
 
 	if ( $recurring_donations ) {
@@ -191,19 +195,19 @@ function npmp_render_donations_dashboard() {
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
 			echo '<td>' . esc_html( $email ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
+			echo '<td class="npmp-col-amount">' . esc_html( npmp_format_amount( (float) $amount, $dm->get_donation_currency( $donation->ID ) ) ) . '</td>';
 			echo '<td>' . esc_html( npmp_frequency_label( $frequency ) ) . '</td>';
-			echo '<td>' . esc_html( get_the_date( 'M j, Y g:i A', $donation ) ) . '</td>';
+			echo '<td>' . esc_html( get_the_date( $date_format, $donation ) ) . '</td>';
 			echo '<td>' . esc_html( npmp_gateway_label( $gateway ) ) . '</td>';
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="6">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No recurring %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</td></tr>';
+		echo '<tr><td colspan="6">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No recurring %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . $empty_next . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
 	if ( ! npmp_is_pro() ) {
-		echo '<p class="description" style="margin-top:.75em;">';
+		echo '<p class="description npmp-field-gap">';
 		printf(
 			/* translators: %s: URL to upgrade page */
 			wp_kses_post( __( 'Weekly, monthly, quarterly, and annual giving through Stripe or the PayPal API comes with <a href="%s" target="_blank" rel="noopener">Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
@@ -213,6 +217,21 @@ function npmp_render_donations_dashboard() {
 	}
 
 	echo '</div>';
+}
+
+/**
+ * The next step after an empty donations table: set up a gateway, or add the
+ * form to a page.
+ *
+ * @return string HTML, starting with a space.
+ */
+function npmp_donations_empty_next_step() {
+	$gateways = (array) get_option( 'npmp_enabled_payment_gateways', array() );
+	$legacy   = get_option( 'npmp_payment_gateway', '' );
+	if ( ! $gateways && ( ! $legacy || 'none' === $legacy ) ) {
+		return ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_payment_settings' ) ) . '">' . esc_html__( 'Set up a payment method', 'nonprofit-manager' ) . '</a>';
+	}
+	return ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_donation_settings' ) ) . '">' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Pick a page for your %s form', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</a>';
 }
 
 /**
@@ -246,8 +265,8 @@ function npmp_frequency_label( $frequency ) {
 		'weekly'    => __( 'Weekly', 'nonprofit-manager' ),
 		'monthly'   => __( 'Monthly', 'nonprofit-manager' ),
 		'quarterly' => __( 'Quarterly', 'nonprofit-manager' ),
-		'annual'    => __( 'Annual', 'nonprofit-manager' ),
-		'yearly'    => __( 'Annual', 'nonprofit-manager' ),
+		'annual'    => __( 'Yearly', 'nonprofit-manager' ),
+		'yearly'    => __( 'Yearly', 'nonprofit-manager' ),
 	);
 	$frequency = (string) $frequency;
 	return $labels[ $frequency ] ?? ucfirst( str_replace( '_', ' ', $frequency ) );
@@ -287,87 +306,97 @@ function npmp_render_donation_settings_page() {
 			update_option( 'npmp_thank_you_message', wp_kses_post( wp_unslash( $_POST['npmp_thank_you_message'] ?? '' ) ) );
 		}
 
-		echo '<div class="updated"><p>' . esc_html__( 'Settings saved.', 'nonprofit-manager' ) . '</p></div>';
+		$saved = true;
 	}
 
 	$is_pro = npmp_is_pro();
 
 	/* Current options */
 	$thank_you_enabled = get_option( 'npmp_enable_thank_you_email', 1 );
-	$thank_you_subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
-	$thank_you_message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
+	$thank_you_default = npmp_thank_you_defaults();
+	$thank_you_subject = get_option( 'npmp_thank_you_subject', $thank_you_default['subject'] );
+	$thank_you_message = get_option( 'npmp_thank_you_message', $thank_you_default['message'] );
 	$form_labels       = npmp_donation_form_default_labels();
 
 	?>
-	<div class="wrap">
-		<h1><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h1>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?>
+		<?php if ( ! empty( $saved ) ) : ?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
+		<?php endif; ?>
 		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Customize your public %1$s form and its options.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></p>
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_donation_settings', 'npmp_donation_settings_nonce' ); ?>
 
 			<!-- Donation Page -->
-			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s Page', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
+			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s page', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
 			<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Pick a page, and you\'ll see the %s form at the bottom of that page. You can also put the form anywhere with the Donation block or this shortcode:', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?> <code>[npmp_donation_form]</code></p>
+			<label for="npmp_donation_page"><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( '%s page', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></label>
 			<?php
 			wp_dropdown_pages(
 				array(
 					'name'             => 'npmp_donation_page_id',
+					'id'               => 'npmp_donation_page',
 					'selected'         => absint( get_option( 'npmp_donation_page_id' ) ),
-					'show_option_none' => esc_html__( 'None (no default donation page)', 'nonprofit-manager' ),
+					'show_option_none' => esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'None (no default %s page)', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ),
 				)
 			);
 			?>
 
 			<!-- Form Labels -->
-			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Customize %s Form', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
+			<h2><?php echo esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Customize the %s form', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?></h2>
 			<table class="form-table">
 				<tr>
-					<th><?php esc_html_e( 'Form Title', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_form_title" value="<?php echo esc_attr( get_option( 'npmp_donation_form_title', $form_labels['title'] ) ); ?>" class="regular-text"></td>
+					<th scope="row"><label for="npmp_donation_form_title"><?php esc_html_e( 'Form title', 'nonprofit-manager' ); ?></label></th>
+					<td><input type="text" name="npmp_donation_form_title" id="npmp_donation_form_title" value="<?php echo esc_attr( get_option( 'npmp_donation_form_title', $form_labels['title'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
-					<th><?php esc_html_e( 'Intro Text', 'nonprofit-manager' ); ?></th>
-					<td><textarea name="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', $form_labels['intro'] ) ); ?></textarea></td>
+					<th scope="row"><label for="npmp_donation_form_intro"><?php esc_html_e( 'Intro text', 'nonprofit-manager' ); ?></label></th>
+					<td><textarea name="npmp_donation_form_intro" id="npmp_donation_form_intro" rows="3" class="large-text"><?php echo esc_textarea( get_option( 'npmp_donation_form_intro', $form_labels['intro'] ) ); ?></textarea></td>
 				</tr>
 				<tr>
-					<th><?php esc_html_e( 'Amount Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_amount_label" value="<?php echo esc_attr( get_option( 'npmp_donation_amount_label', $form_labels['amount_lbl'] ) ); ?>" class="regular-text"></td>
+					<th scope="row"><label for="npmp_donation_amount_label"><?php esc_html_e( 'Amount label', 'nonprofit-manager' ); ?></label></th>
+					<td><input type="text" name="npmp_donation_amount_label" id="npmp_donation_amount_label" value="<?php echo esc_attr( get_option( 'npmp_donation_amount_label', $form_labels['amount_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
-					<th><?php esc_html_e( 'Email Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_email_label" value="<?php echo esc_attr( get_option( 'npmp_donation_email_label', $form_labels['email_lbl'] ) ); ?>" class="regular-text"></td>
+					<th scope="row"><label for="npmp_donation_email_label"><?php esc_html_e( 'Email label', 'nonprofit-manager' ); ?></label></th>
+					<td><input type="text" name="npmp_donation_email_label" id="npmp_donation_email_label" value="<?php echo esc_attr( get_option( 'npmp_donation_email_label', $form_labels['email_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 				<tr>
-					<th><?php esc_html_e( 'Submit Button Label', 'nonprofit-manager' ); ?></th>
-					<td><input type="text" name="npmp_donation_button_label" value="<?php echo esc_attr( get_option( 'npmp_donation_button_label', $form_labels['btn_lbl'] ) ); ?>" class="regular-text"></td>
+					<th scope="row"><label for="npmp_donation_button_label"><?php esc_html_e( 'Submit button label', 'nonprofit-manager' ); ?></label></th>
+					<td><input type="text" name="npmp_donation_button_label" id="npmp_donation_button_label" value="<?php echo esc_attr( get_option( 'npmp_donation_button_label', $form_labels['btn_lbl'] ) ); ?>" class="regular-text"></td>
 				</tr>
 			</table>
 
 			<!-- Thank You Email Section -->
-			<h2><?php esc_html_e( 'Thank-You Email', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Thank-you email', 'nonprofit-manager' ); ?></h2>
 
 			<?php if ( $is_pro ) : ?>
 				<!-- Pro: Full functionality -->
 				<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donors, such as donors or supporters. */ __( 'You can send each of your %s a thank-you email every time they give.', 'nonprofit-manager' ), npmp_label( 'donors_lc' ) ) ); ?></p>
 
-				<label>
-					<input type="checkbox" name="npmp_enable_thank_you_email" value="1" <?php checked( $thank_you_enabled, 1 ); ?>>
-					<?php esc_html_e( 'Send thank-you emails', 'nonprofit-manager' ); ?>
-				</label>
-
-				<table class="form-table" style="margin-top: 15px;">
+				<table class="form-table">
 					<tr>
-						<th><?php esc_html_e( 'Email Subject', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Thank-you emails', 'nonprofit-manager' ); ?></th>
 						<td>
-							<input type="text" name="npmp_thank_you_subject" value="<?php echo esc_attr( $thank_you_subject ); ?>" class="large-text">
+							<label>
+								<input type="checkbox" name="npmp_enable_thank_you_email" value="1" <?php checked( $thank_you_enabled, 1 ); ?>>
+								<?php esc_html_e( 'Send thank-you emails', 'nonprofit-manager' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="npmp_thank_you_subject"><?php esc_html_e( 'Email subject', 'nonprofit-manager' ); ?></label></th>
+						<td>
+							<input type="text" name="npmp_thank_you_subject" id="npmp_thank_you_subject" value="<?php echo esc_attr( $thank_you_subject ); ?>" class="large-text">
 							<p class="description"><?php esc_html_e( 'The subject line of the thank-you email.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th><?php esc_html_e( 'Email Message', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><label for="npmp_thank_you_message"><?php esc_html_e( 'Email message', 'nonprofit-manager' ); ?></label></th>
 						<td>
-							<textarea name="npmp_thank_you_message" rows="8" class="large-text"><?php echo esc_textarea( $thank_you_message ); ?></textarea>
+							<textarea name="npmp_thank_you_message" id="npmp_thank_you_message" rows="8" class="large-text"><?php echo esc_textarea( $thank_you_message ); ?></textarea>
 							<p class="description">
 								<?php esc_html_e( 'Placeholders you can use:', 'nonprofit-manager' ); ?>
 								<code>{donor_name}</code>,
@@ -395,7 +424,7 @@ function npmp_render_donation_settings_page() {
 				</p>
 			<?php endif; ?>
 
-			<?php submit_button( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Save %s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?>
+			<?php submit_button( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Save %s settings', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ); ?>
 		</form>
 	</div>
 	<?php
@@ -553,7 +582,7 @@ function npmp_render_payment_settings_page() {
 			update_option( 'npmp_stripe_enable_annual',     ! empty( $_POST['npmp_stripe_enable_annual'] ) ? 1 : 0 );
 		}
 
-		echo '<div class="updated"><p>' . esc_html__( 'Payment settings saved.', 'nonprofit-manager' ) . '</p></div>';
+		$saved = true;
 	}
 
 	$enabled_gateways = get_option( 'npmp_enabled_payment_gateways', array() );
@@ -572,8 +601,11 @@ function npmp_render_payment_settings_page() {
 	$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
 
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'Payment Settings', 'nonprofit-manager' ); ?></h1>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( __( 'Payment Settings', 'nonprofit-manager' ) ); ?>
+		<?php if ( ! empty( $saved ) ) : ?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Payment settings saved.', 'nonprofit-manager' ); ?></p></div>
+		<?php endif; ?>
 		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Pick your currency and the ways people can send you %s.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
 
 		<?php
@@ -597,7 +629,7 @@ function npmp_render_payment_settings_page() {
 						</select>
 						<p class="description"><?php esc_html_e( 'Every donation form, membership dues price, and recurring gift uses this currency. Gifts you\'ve already recorded keep their original currency.', 'nonprofit-manager' ); ?></p>
 						<?php if ( $active_subscriptions > 0 ) : ?>
-							<p class="description" style="color:#996800;">
+							<p class="description npmp-text-warning">
 								<?php
 								echo esc_html(
 									sprintf(
@@ -618,19 +650,21 @@ function npmp_render_payment_settings_page() {
 				</tr>
 			</table>
 
-			<h2><?php esc_html_e( 'Payment Methods', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Payment methods', 'nonprofit-manager' ); ?></h2>
 			<p><?php esc_html_e( 'Turn on one or more. With more than one on, donors pick a button on the form.', 'nonprofit-manager' ); ?></p>
 
 			<table class="form-table">
 				<tr>
-					<th><?php esc_html_e( 'Payment Gateways', 'nonprofit-manager' ); ?></th>
+					<th scope="row"><?php esc_html_e( 'Payment gateways', 'nonprofit-manager' ); ?></th>
 					<td>
+						<fieldset>
+						<legend class="screen-reader-text"><?php esc_html_e( 'Payment gateways', 'nonprofit-manager' ); ?></legend>
 						<!-- Free Options -->
 						<label><input type="checkbox" name="npmp_gateways[]" value="paypal_link" <?php checked( in_array( 'paypal_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="paypal_link"> <?php esc_html_e( 'PayPal (Link)', 'nonprofit-manager' ); ?></label><br>
 
 						<label><input type="checkbox" name="npmp_gateways[]" value="venmo_link" <?php checked( in_array( 'venmo_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="venmo_link"> <?php esc_html_e( 'Venmo (Link)', 'nonprofit-manager' ); ?></label><br>
 						<?php if ( ! npmp_venmo_available( $site_currency ) && in_array( 'venmo_link', $enabled_gateways, true ) ) : ?>
-							<p class="description" style="color:#b32d2e;">
+							<p class="description npmp-text-error">
 								<?php
 								echo esc_html(
 									sprintf(
@@ -659,6 +693,7 @@ function npmp_render_payment_settings_page() {
 							<input type="checkbox" name="npmp_gateways[]" value="stripe" <?php checked( in_array( 'stripe', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="stripe">
 							<?php esc_html_e( 'Stripe (card payments)', 'nonprofit-manager' ); ?>
 						</label><br>
+						</fieldset>
 
 						<?php if ( ! $is_pro ) : ?>
 							<p class="description">
@@ -723,11 +758,13 @@ function npmp_render_payment_settings_page() {
 					</p>
 					<table class="form-table">
 						<tr>
-							<th><?php esc_html_e( 'Mode', 'nonprofit-manager' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'Mode', 'nonprofit-manager' ); ?></th>
 							<td>
 								<?php $paypal_mode = get_option( 'npmp_paypal_mode', 'live' ); ?>
+								<fieldset><legend class="screen-reader-text"><?php echo esc_html( sprintf( /* translators: %s: payment processor name, such as PayPal or Stripe. */ __( '%s mode', 'nonprofit-manager' ), 'PayPal' ) ); ?></legend>
 								<label><input type="radio" name="npmp_paypal_mode" value="live" <?php checked( $paypal_mode, 'live' ); ?>> <?php esc_html_e( 'Live', 'nonprofit-manager' ); ?></label>
 								<label><input type="radio" name="npmp_paypal_mode" value="sandbox" <?php checked( $paypal_mode, 'sandbox' ); ?>> <?php esc_html_e( 'Sandbox (Testing)', 'nonprofit-manager' ); ?></label>
+								</fieldset>
 								<p class="description"><?php esc_html_e( 'Use Sandbox with PayPal\'s test accounts, and Live to take donations.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
@@ -780,7 +817,7 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_paypal_enable_weekly" value="1" <?php checked( get_option( 'npmp_paypal_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_paypal_enable_monthly" value="1" <?php checked( get_option( 'npmp_paypal_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_paypal_enable_quarterly" value="1" <?php checked( get_option( 'npmp_paypal_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_paypal_enable_annual" value="1" <?php checked( get_option( 'npmp_paypal_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label><input type="checkbox" name="npmp_paypal_enable_annual" value="1" <?php checked( get_option( 'npmp_paypal_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'PayPal API supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 				</div>
 
@@ -801,11 +838,13 @@ function npmp_render_payment_settings_page() {
 					</p>
 					<table class="form-table">
 						<tr>
-							<th><?php esc_html_e( 'Mode', 'nonprofit-manager' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'Mode', 'nonprofit-manager' ); ?></th>
 							<td>
 								<?php $stripe_mode = get_option( 'npmp_stripe_mode', 'live' ); ?>
+								<fieldset><legend class="screen-reader-text"><?php echo esc_html( sprintf( /* translators: %s: payment processor name, such as PayPal or Stripe. */ __( '%s mode', 'nonprofit-manager' ), 'Stripe' ) ); ?></legend>
 								<label><input type="radio" name="npmp_stripe_mode" value="live" <?php checked( $stripe_mode, 'live' ); ?>> <?php esc_html_e( 'Live', 'nonprofit-manager' ); ?></label>
 								<label><input type="radio" name="npmp_stripe_mode" value="test" <?php checked( $stripe_mode, 'test' ); ?>> <?php esc_html_e( 'Test', 'nonprofit-manager' ); ?></label>
+								</fieldset>
 								<p class="description"><?php esc_html_e( 'Use Test with your Stripe test keys, and Live to take donations. The form uses the keys for the mode you pick.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
@@ -868,7 +907,7 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_stripe_enable_weekly" value="1" <?php checked( get_option( 'npmp_stripe_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_monthly" value="1" <?php checked( get_option( 'npmp_stripe_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_quarterly" value="1" <?php checked( get_option( 'npmp_stripe_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 					<?php else : ?>
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
@@ -877,7 +916,7 @@ function npmp_render_payment_settings_page() {
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description">
 						<?php
 						printf(

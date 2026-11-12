@@ -889,7 +889,8 @@ function npmp_import_hub_render_page() {
 	$groups = npmp_import_hub_partition( $facts );
 
 	echo '<div class="wrap npmp-hub-wrap">';
-	echo '<h1>' . esc_html__( 'Switch from another plugin', 'nonprofit-manager' ) . '</h1>';
+	echo '<h1>' . esc_html__( 'Switch Plugins', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	npmp_import_hub_tabs( 'switch' );
 	echo '<p class="npmp-hub-intro">' . esc_html(
 		sprintf(
@@ -948,7 +949,7 @@ function npmp_import_hub_render_message() {
 		$msg = get_transient( $key );
 		delete_transient( $key );
 		if ( $msg ) {
-			echo '<div class="notice notice-error"><p>' . esc_html( $msg ) . '</p></div>';
+			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
 		}
 		return;
 	}
@@ -1015,7 +1016,7 @@ function npmp_import_hub_render_source( array $source, array $facts ) {
 		foreach ( $source['pro_parts'] as $part ) {
 			echo '<li>' . esc_html( $part ) . ' ';
 			if ( npmp_is_pro() ) {
-				echo '<span class="npmp-hub-muted">' . esc_html__( '(included with your Pro licence)', 'nonprofit-manager' ) . '</span>';
+				echo '<span class="npmp-hub-muted">' . esc_html__( '(included with your Pro license)', 'nonprofit-manager' ) . '</span>';
 			} else {
 				echo npmp_pro_lock_badge( npmp_get_upgrade_url( 'import_hub' ), __( 'This part comes with Nonprofit Manager Pro', 'nonprofit-manager' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in npmp_pro_lock_badge().
 			}
