@@ -156,12 +156,17 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `_npmp_import_key` = `<source>:<id>` makes a rerun skip what's here. Donors follow the free total, and a
   donor past it keeps every gift in the old plugin. Both sources read the old tables straight from the
   database, so the import runs with the plugin off, and read only the `currency` key of `give_settings`
-  and `charitable_settings` (both hold Stripe keys). GiveWP money received is `publish` and
+  and `charitable_settings` (both hold Stripe keys), plus the one delete setting each (`uninstall_on_delete`,
+  `delete_data_on_uninstall`). GiveWP money received is `publish` and
   `give_subscription`, meta in `give_donationmeta` or older tables by `give_completed_upgrades`, and its
   `createdAt` is site-local. Charitable's amount is the sum of `charitable_campaign_donations` rows, money
   received is `charitable-completed` only, and a Charitable Recurring renewal (paid add-on, no source)
   is stored with frequency `recurring`. Step 5 is unavailable for both: GiveWP's own uninstall and
-  Charitable's Reset Data on deactivation delete their data. Unit `tests/test-past-gifts.php`,
+  Charitable's Reset Data on deactivation delete their data. So GiveWP's source sets `delete_note` (step 4)
+  while Remove Data on Uninstall is on, and Charitable's sets `deactivate_note` (step 3) while Reset Data is
+  on, since Charitable deletes on deactivation even though its label says uninstall. Each note names the
+  setting so the owner can switch it off first. The other five sources delete nothing on deactivation or
+  deletion (checked in EM 7.4.14, Sugar Lite 3.17.0, Newsletter 9.5.7, MailPoet 5.45.2, TEC 6.18.3.1). Unit `tests/test-past-gifts.php`,
   `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
   1.8.15.1, Pro inactive).
 - **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
@@ -210,6 +215,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 
 Free (`readme.txt`):
 - Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
+- The Switch Plugins screen warns before turning off Charitable or deleting GiveWP when that plugin's own setting would delete its data.
 
 Pro (licence server changelog):
 - (none)

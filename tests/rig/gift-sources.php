@@ -18,8 +18,10 @@
  *   wp plugin install give charitable --activate
  *   wp eval-file tests/rig/gift-sources.php
  *
- * It turns GiveWP and Charitable off at the end. Turn them on again for
- * another run. A second run reuses the seeded gifts.
+ * It turns GiveWP and Charitable off at the end. To prove step 3's warning,
+ * it ticks Charitable's Reset Data box before turning Charitable off, which
+ * deletes Charitable's campaigns, donations, tables, and settings. Turn both on
+ * again and visit wp-admin for another run, which seeds Charitable afresh.
  */
 
 $phase = isset( $args[0] ) ? (string) $args[0] : 'main';
@@ -81,6 +83,32 @@ if ( 'hub:deactivate' === substr( $phase, 0, 14 ) ) {
 	return;
 }
 
+// Child phase: prove Charitable's Reset Data fires when Charitable turns off,
+// which is why step 3 warns. One phase turns Charitable on, the next ticks the
+// box and turns it off.
+if ( 'charitable:on' === $phase ) {
+	activate_plugin( 'charitable/charitable.php' );
+	echo 'JSON ', wp_json_encode( array( 'active' => is_plugin_active( 'charitable/charitable.php' ) ) ), "\n";
+	return;
+}
+
+// Charitable sets its instance on plugins_loaded, so this phase boots with
+// Charitable already on, the same as the hub's turn-off request.
+if ( 'charitable:reset' === $phase ) {
+	$settings = get_option( 'charitable_settings', array() );
+	$settings = is_array( $settings ) ? $settings : array();
+	$table    = $wpdb->prefix . 'charitable_campaign_donations';
+	$before   = $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	$rows     = $before ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ) : 0;
+	$settings['delete_data_on_uninstall'] = 1;
+	update_option( 'charitable_settings', $settings );
+	deactivate_plugins( 'charitable/charitable.php' );
+	$after = $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	$left  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ( 'donation', 'campaign' )" );
+	echo 'JSON ', wp_json_encode( array( 'before' => $before, 'rows' => $rows, 'after' => $after, 'posts_left' => $left ) ), "\n";
+	return;
+}
+
 $child = function ( $phase, $before = '' ) {
 	$cmd = sprintf(
 		'wp --path=%s %s eval-file %s %s 2>&1',
@@ -92,8 +120,10 @@ $child = function ( $phase, $before = '' ) {
 	$out = array();
 	exec( $cmd, $out );
 	foreach ( $out as $line ) {
-		if ( 0 === strpos( $line, 'JSON ' ) ) {
-			return json_decode( substr( $line, 5 ), true );
+		// Charitable can print a word or two with no newline before ours.
+		$at = strpos( $line, 'JSON {' );
+		if ( false !== $at ) {
+			return json_decode( substr( $line, $at + 5 ), true );
 		}
 	}
 	return array( 'error' => implode( "\n", array_filter( $out, function ( $l ) {
@@ -202,7 +232,11 @@ $seed_char = function () use ( $wpdb, $domains ) {
 	update_post_meta( $partial, 'donation_refund', array( 'time' => time(), 'message' => '', 'campaign_refunds' => array(), 'total_refund' => 10 ) );
 	$gift( 'ada', $one( 99 ), array( '_test' => 1 ) );
 	$gift( 'ada', $one( 15 ), array( 'status' => 'charitable-refunded' ) );
-	// Ben: a running plan with two payments.
+	// Ben: a running plan with two payments. Reset Data leaves plans behind,
+	// so drop the last run's plan first.
+	foreach ( $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'recurring_donation' AND post_title = 'Ben plan'" ) as $old_plan ) {
+		wp_delete_post( (int) $old_plan, true );
+	}
 	$plan = wp_insert_post( array( 'post_type' => 'recurring_donation', 'post_status' => 'charitable-active', 'post_title' => 'Ben plan' ) );
 	$gift( 'ben', $one( 10 ), array( 'donation_plan' => $plan, 'date_gmt' => gmdate( 'Y-m-d H:i:s', strtotime( '-40 days' ) ) ) );
 	$gift( 'ben', $one( 10 ), array( 'donation_plan' => $plan, 'date_gmt' => gmdate( 'Y-m-d H:i:s', strtotime( '-10 days' ) ) ) );
@@ -352,6 +386,32 @@ foreach ( $domains as $slug => $domain ) {
 	$ok( "{$slug}: verify counts gifts 7 old, 7 new", 7 === $rows[0]['old'] && 7 === $rows[0]['new'], $rows );
 	$ok( "{$slug}: verify counts donors 5 old, 5 new", 5 === $rows[1]['old'] && 5 === $rows[1]['new'], $rows );
 
+	// The old plugin's own delete setting: the step it fires at warns while
+	// the setting is on and says nothing extra while it's off.
+	$danger = array(
+		'givewp'     => array( 'give_settings', 'uninstall_on_delete', 'enabled', 'disabled', 'remove_plugin', 'Remove Data on Uninstall setting is on' ),
+		'charitable' => array( 'charitable_settings', 'delete_data_on_uninstall', 1, 0, 'deactivate', 'Reset Data setting is on' ),
+	);
+	list( $opt, $key, $on, $off, $step, $words ) = $danger[ $slug ];
+	$render = function () use ( $hub, $facts, $step ) {
+		ob_start();
+		call_user_func( 'npmp_import_hub_render_step_' . $step, $hub, $facts, 'next', true );
+		return wp_strip_all_tags( (string) ob_get_clean() );
+	};
+	$saved_opt = get_option( $opt, array() );
+	$with      = is_array( $saved_opt ) ? $saved_opt : array();
+	$with[ $key ] = $off;
+	update_option( $opt, $with );
+	$quiet = $render();
+	$with[ $key ] = $on;
+	update_option( $opt, $with );
+	$loud = $render();
+	update_option( $opt, $saved_opt );
+	$default = 'deactivate' === $step ? 'delete nothing' : 'stays in your database';
+	$ok( "{$slug}: step {$step} says nothing extra while the setting is off", false === strpos( $quiet, $words ) && false !== strpos( $quiet, $default ), $quiet );
+	$ok( "{$slug}: step {$step} warns while the setting is on", false !== strpos( $loud, $words ) && false === strpos( $loud, 'delete nothing' ) && false === strpos( $loud, 'stays in your database' ), $loud );
+	$ok( "{$slug}: the setting is back as it was", $saved_opt === get_option( $opt, array() ) );
+
 	// Verify and deactivate through the hub in their own request, then import again with the plugin off.
 	$hubrun = $child( 'hub:deactivate:' . $slug );
 	$ok( "{$slug}: hub verify and deactivate", 'verified' === ( $hubrun['verify']['message'] ?? '' ) && 'deactivated' === ( $hubrun['deactivate']['message'] ?? '' ), $hubrun );
@@ -359,6 +419,13 @@ foreach ( $domains as $slug => $domain ) {
 	$r   = $run['state']['results'] ?? array();
 	$ok( "{$slug}: import reads with the plugin off", false === ( $run['active'] ?? null ) && 7 === ( $r['gifts_exists'] ?? -1 ) && 0 === ( $r['gifts_created'] ?? -1 ), $run );
 }
+
+echo "Charitable's Reset Data\n";
+$child( 'charitable:on' );
+$reset = $child( 'charitable:reset' );
+$ok( 'Charitable had its donation table and rows', ! empty( $reset['before'] ) && ( $reset['rows'] ?? 0 ) > 0, $reset );
+$ok( 'turning Charitable off with Reset Data on drops its tables and posts', isset( $reset['after'] ) && false === $reset['after'] && 0 === ( $reset['posts_left'] ?? -1 ), $reset );
+// Reset Data deletes Charitable's settings too, so the box is clear for the next run.
 
 wp_cache_delete( 'npmp_first_donation_at', 'options' );
 wp_cache_delete( 'alloptions', 'options' );

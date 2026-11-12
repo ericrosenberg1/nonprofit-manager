@@ -47,9 +47,12 @@
  *
  * Optional: 'deactivate' (callable, returns what it turned off), 'active_plugins'
  * and 'installed_plugins' (callables returning basename => name) when a source
- * has add-ons, 'import_summary' (callable returning a sentence), and
- * 'delete_note' (callable returning a warning, or '') for a plugin whose own
- * uninstall deletes its data when step 4 deletes its files. Leave
+ * has add-ons, 'import_summary' (callable returning a sentence),
+ * 'deactivate_note' (callable returning a warning, or '') for a plugin that
+ * deletes its own data when step 3 turns it off, and 'delete_note' (the same)
+ * for a plugin whose own uninstall deletes its data when step 4 deletes its
+ * files. Each warning names the old plugin's setting so the owner can switch
+ * it off first. Leave
  * 'data_removal' out, or give it 'reason' and no 'batch', and step 5 shows as
  * unavailable with that reason.
  *
@@ -113,6 +116,7 @@ function npmp_import_hub_normalize_source( $slug, $source ) {
 			'deactivate'        => null,
 			'active_plugins'    => null,
 			'installed_plugins' => null,
+			'deactivate_note'   => null,
 			'delete_note'       => null,
 			'data_removal'      => array(),
 		),
@@ -1186,7 +1190,14 @@ function npmp_import_hub_render_step_deactivate( array $source, array $facts, $s
 		return;
 	}
 	$plugins = npmp_import_hub_active_plugins( $source );
-	echo '<p>' . esc_html( _n( 'You turn off this plugin and delete nothing, so you can switch the plugin back on later.', 'You turn off these plugins together and delete nothing, so you can switch them back on later.', count( $plugins ), 'nonprofit-manager' ) ) . '</p>';
+	$note    = npmp_import_hub_call( $source['deactivate_note'], '' );
+	if ( is_string( $note ) && '' !== $note ) {
+		// The old plugin deletes its own data as it turns off.
+		echo '<p>' . esc_html( _n( 'You turn off this plugin.', 'You turn off these plugins together.', count( $plugins ), 'nonprofit-manager' ) ) . '</p>';
+		echo '<p><strong>' . esc_html( $note ) . '</strong></p>';
+	} else {
+		echo '<p>' . esc_html( _n( 'You turn off this plugin and delete nothing, so you can switch the plugin back on later.', 'You turn off these plugins together and delete nothing, so you can switch them back on later.', count( $plugins ), 'nonprofit-manager' ) ) . '</p>';
+	}
 	npmp_import_hub_render_plugin_list( $plugins );
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-hub-form">';
 	npmp_import_hub_form_fields( $source['slug'], 'deactivate' );

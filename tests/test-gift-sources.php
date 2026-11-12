@@ -91,8 +91,27 @@ foreach ( array( 'givewp-source.php', 'charitable-source.php', 'gift-importer.ph
 	}
 	check( "{$file} names no secret", '', $hit );
 	preg_match_all( "/\\\$settings\[\s*'([a-z_]+)'/", $src, $m );
-	check( "{$file} reads only the currency setting", array(), array_values( array_diff( array_unique( $m[1] ), array( 'currency' ) ) ) );
+	// Besides currency, each source reads the one setting that deletes its data.
+	$allowed = array(
+		'givewp-source.php'     => array( 'currency', 'uninstall_on_delete' ),
+		'charitable-source.php' => array( 'currency', 'delete_data_on_uninstall' ),
+	);
+	check( "{$file} reads only currency and its delete setting", array(), array_values( array_diff( array_unique( $m[1] ), $allowed[ $file ] ?? array( 'currency' ) ) ) );
 }
+
+// --- Warnings before the old plugin deletes its own data -----------------
+check( 'GiveWP removes data when set to enabled', true, npmp_givewp_removes_data_on_delete( array( 'uninstall_on_delete' => 'enabled' ) ) );
+check( 'GiveWP counts on and yes too', true, npmp_givewp_removes_data_on_delete( array( 'uninstall_on_delete' => 'on' ) ) && npmp_givewp_removes_data_on_delete( array( 'uninstall_on_delete' => 'yes' ) ) );
+check( 'GiveWP keeps data when disabled', false, npmp_givewp_removes_data_on_delete( array( 'uninstall_on_delete' => 'disabled' ) ) );
+check( 'GiveWP keeps data when unset', false, npmp_givewp_removes_data_on_delete( array() ) );
+check( 'GiveWP settings not an array', false, npmp_givewp_removes_data_on_delete( 'enabled' ) );
+check( 'Charitable resets data when ticked', true, npmp_charitable_resets_data_on_deactivate( array( 'delete_data_on_uninstall' => 1 ) ) );
+check( 'Charitable keeps data when unticked', false, npmp_charitable_resets_data_on_deactivate( array( 'delete_data_on_uninstall' => 0 ) ) );
+check( 'Charitable keeps data when unset', false, npmp_charitable_resets_data_on_deactivate( array() ) );
+$gv = file_get_contents( $root . '/includes/import/givewp-source.php' );
+$ch = file_get_contents( $root . '/includes/import/charitable-source.php' );
+check( 'GiveWP warns at step 4', 1, preg_match( "/'delete_note' => 'npmp_givewp_delete_note'/", $gv ) );
+check( 'Charitable warns at step 3', 1, preg_match( "/'deactivate_note' => 'npmp_charitable_deactivate_note'/", $ch ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );
