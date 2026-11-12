@@ -890,7 +890,19 @@ function npmp_mailpoet_approve( array $settings = array() ) {
  * @return array<string,mixed> Key => the value now saved.
  */
 function npmp_mailpoet_apply_settings( array $keys ) {
-	$plan    = npmp_mailpoet_current_plan();
+	return npmp_import_apply_settings_plan( npmp_mailpoet_current_plan(), $keys );
+}
+
+/**
+ * Save the chosen rows of a settings plan (npmp_mailpoet_settings_plan()).
+ * Only rows in the 'change' state move. The Newsletter Plugin importer
+ * shares this.
+ *
+ * @param array    $plan Settings plan.
+ * @param string[] $keys Rows to save.
+ * @return array Key => value saved.
+ */
+function npmp_import_apply_settings_plan( array $plan, array $keys ) {
 	$applied = array();
 
 	foreach ( $keys as $key ) {
@@ -961,10 +973,13 @@ function npmp_mailpoet_read_memberships( array $subscriber_ids, array $lists ) {
  * @param object     $row      Subscriber row from npmp_mailpoet_read_subscribers().
  * @param array|null $existing array{id:int,status:string} from npmp_mailpoet_find_contacts(), or null.
  * @param string[]   $lists    Names of the lists this subscriber is subscribed to.
+ * @param string     $source   Where the contact came from ('mailpoet', 'newsletter'). The row
+ *                             carries MailPoet's field names and statuses either way.
  * @return array{result:string,member_id:int,message:string,kept_unsubscribed:bool}
  *               result is created, updated, unchanged, invalid, or error.
  */
-function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists = array() ) {
+function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists = array(), $source = 'mailpoet' ) {
+	$source = sanitize_key( (string) $source );
 	$out = array(
 		'result'            => 'error',
 		'member_id'         => 0,
@@ -989,7 +1004,7 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 			'name'   => $name,
 			'email'  => $email,
 			'status' => $incoming,
-			'source' => 'mailpoet',
+			'source' => $source,
 		);
 		if ( '' !== $added ) {
 			$data['created_at'] = $added;
@@ -1045,7 +1060,7 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 		'name'   => $name,
 		'email'  => $email,
 		'status' => $final_status,
-		'source' => 'mailpoet',
+		'source' => $source,
 	);
 	// Someone who unsubscribed joins no group.
 	$cell = 'unsubscribed' === $final_status ? '' : npmp_mailpoet_groups_cell( $lists );
@@ -1065,13 +1080,13 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 		(int) $out['member_id'],
 		$record,
 		array(
-			'mailpoet_id' => (int) $row->id,
-			'lists'       => array_values( $lists ),
+			( 'mailpoet' === $source ? 'mailpoet_id' : 'source_id' ) => (int) $row->id,
+			'lists' => array_values( $lists ),
 		),
 		array(),
 		'created' === $out['result'] ? 'imported' : 'updated',
 		array(
-			'source'             => 'mailpoet',
+			'source'             => $source,
 			'duplicate_handling' => 'update',
 		)
 	);
