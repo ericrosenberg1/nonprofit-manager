@@ -177,6 +177,15 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   routes stop answering. Neither plugin has a setting that maps to ours. Unit `tests/test-event-sources.php`,
   rig `tests/rig/event-sources.php` (EM 7.4.14, Sugar Calendar Lite 3.17.0, visit wp-admin once so both make
   their tables).
+- **The Newsletter Plugin** (`includes/import/newsletter-importer.php`, loaded with the members module
+  right after the MailPoet importer's files). Subscribers come from `{prefix}newsletter` (status letters C, S, U, B, P, and T for
+  a signup that never finished, which stays behind) and go through the MailPoet writer,
+  `npmp_mailpoet_import_subscriber( $row, $known, $lists, 'newsletter' )`, so status merging, signup dates,
+  groups (Pro), and the free total match MailPoet. Settings come only from `newsletter_main` (sender name,
+  sender email, reply-to), `newsletter_subscription` (`noconfirmation`, 0 for double opt-in), and
+  `newsletter_lists`, through `npmp_import_apply_settings_plan()`. Newsletter ships no uninstall code, and its
+  add-ons share the `newsletter_` names, so step 5 is unavailable. Unit `tests/test-newsletter-importer.php`,
+  rig `tests/rig/newsletter-importer.php` (Newsletter 9.5.7, visit wp-admin once so Newsletter creates its tables).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -197,6 +206,7 @@ Free (`readme.txt`):
 - Added a one-click update to the version notice that puts free and Pro on the same version.
 - Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
 - Old links reach their redirects right after you turn a plugin off on the Switch Plugins screen.
+- Added an importer for The Newsletter Plugin: contacts, lists, sender settings, and signup dates, on the Switch Plugins screen.
 
 Pro (licence server changelog):
 - Pro now updates together with Nonprofit Manager.
