@@ -134,7 +134,7 @@ function npmp_tour_get_free_steps() {
 			'title'     => __( 'Bring your existing list', 'nonprofit-manager' ),
 			'body'      => $is_pro
 				? __( 'Have a list in Mailchimp or Constant Contact already? You can bring it in with the Import tool and match each field.', 'nonprofit-manager' )
-				: __( 'Have a list in Mailchimp or Constant Contact already? You can bring it in with the Import tool and match each field. The free plugin imports up to 100 people at a time, and Pro removes the limit.', 'nonprofit-manager' ),
+				: __( 'Have a list in Mailchimp or Constant Contact already? You can bring it in with the Import tool and match each field. The free plugin imports up to 100 people in total, and Pro removes the limit.', 'nonprofit-manager' ),
 			'advance'   => 'next',
 			'skip_if'   => 'npmp_tour_skip_without_members',
 		),

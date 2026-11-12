@@ -127,6 +127,14 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   (most hosts can't, and rendering an uploaded SVG can read server files), so the test send warns
   the author instead. Unit test `tests/test-email-image-formats.php`, rig
   `tests/rig/email-image-formats.php` with the Creative Commons plugin active.
+- **The free import limit is a total for the site** (`includes/import/import-cap.php`, since the
+  release after 2026.11.5): 100 new contacts, counted as the `npmp_contact` posts that carry
+  `_npmp_free_import`. A listener on `npmp_import_row_imported` writes that mark when the status is
+  `imported`, so an importer that creates contacts itself must ask `npmp_import_free_remaining()`
+  before each new one and fire that action after. Updates never count, a deleted contact gives its
+  place back, and contacts imported before this carry no mark. `npmp_import_max_rows()` is still the
+  row limit for one job, and Pro's filter on it turns both limits off. Unit
+  `tests/test-import-cap.php`, rig `tests/rig/import-cap-total.php` (Pro inactive).
 - **Switch Plugins hub** (`includes/import/import-hub.php`). Every importer that retires an old plugin
   registers a source on the `npmp_import_sources` filter (keys documented at the top of the file, TEC's in
   `includes/import/tec-hub-source.php`). Five steps in order, every refusal in `npmp_import_hub_run_step()`.
@@ -152,7 +160,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Raised the free import limit from 50 to 100 contacts.
+- Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
 - Added calendar settings to The Events Calendar importer.
 - Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
 - Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
