@@ -316,3 +316,37 @@
 		padding: 24px 22px 20px;
 	}
 }
+
+/* The admin notice that offers the tour (class-tour.php render_banner()). */
+.npmp-tour-banner.notice {
+	border-left-color: #10b981;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+}
+.npmp-tour-banner__icon {
+	font-size: 22px;
+}
+.npmp-tour-banner__text {
+	flex: 1;
+}
+.npmp-tour-banner .npmp-tour-banner__title {
+	margin: 0 0 4px;
+	padding: 0;
+	font-size: 14px;
+}
+.npmp-tour-banner .npmp-tour-banner__body {
+	margin: 0;
+	padding: 0;
+	color: #475569;
+	font-size: 13px;
+}
+.npmp-tour-banner__start {
+	white-space: nowrap;
+}
+.npmp-tour-banner .npmp-tour-banner__dismiss {
+	color: #64748b;
+	text-decoration: none;
+	font-size: 18px;
+}

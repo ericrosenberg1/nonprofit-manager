@@ -8,27 +8,68 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Render admin page header with consistent styling
+ * Print a screen title the way core lays it out in WordPress 7.1.
  *
- * @param string $title Page title.
- * @param string $description Optional page description.
- * @param array  $actions Optional array of action buttons ['label' => 'url'].
+ * An h1.wp-heading-inline, then each page-title-action link, then
+ * hr.wp-header-end. Core's common.js moves admin notices to just after that
+ * hr, so a screen without it gets notices above its title.
+ *
+ * @param string $title   Screen title, plain text.
+ * @param array  $actions Optional ['Label' => 'url'] links shown beside the title.
+ * @param string $badge   Optional short badge text shown inside the h1 (e.g. "Pro").
+ * @return void
  */
-function npmp_admin_page_header( $title, $description = '', $actions = array() ) {
-	echo '<div class="wrap npmp-admin-page">';
-	echo '<h1>' . esc_html( $title );
+function npmp_admin_page_title( $title, $actions = array(), $badge = '' ) {
+	echo '<h1 class="wp-heading-inline">' . esc_html( $title );
+	if ( '' !== (string) $badge ) {
+		echo ' <span class="npmp-pro-badge">' . esc_html( $badge ) . '</span>';
+	}
+	echo '</h1>';
 
-	if ( ! empty( $actions ) ) {
+	if ( is_array( $actions ) ) {
 		foreach ( $actions as $label => $url ) {
 			echo ' <a href="' . esc_url( $url ) . '" class="page-title-action">' . esc_html( $label ) . '</a>';
 		}
 	}
 
-	echo '</h1>';
+	echo '<hr class="wp-header-end">';
+}
+
+/**
+ * Open a plugin admin screen: the wrap and the title.
+ *
+ * Pro calls this with one, two, or three arguments, so the first three keep
+ * their meaning. Close the screen with npmp_admin_page_footer().
+ *
+ * @param string $title       Page title.
+ * @param string $description Optional page description.
+ * @param array  $actions     Optional array of action buttons ['label' => 'url'].
+ * @param string $badge       Optional badge text inside the h1.
+ */
+function npmp_admin_page_header( $title, $description = '', $actions = array(), $badge = '' ) {
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( $title, $actions, $badge );
 
 	if ( ! empty( $description ) ) {
-		echo '<p class="description">' . esc_html( $description ) . '</p>';
+		echo '<p class="description npmp-page-description">' . esc_html( $description ) . '</p>';
 	}
+}
+
+/**
+ * The name of each feature on the Overview screen and in the setup wizard.
+ *
+ * One list, so the two screens can't drift apart again.
+ *
+ * @return array feature key => name.
+ */
+function npmp_feature_names() {
+	return array(
+		'members'     => __( 'Member Tracking', 'nonprofit-manager' ),
+		'newsletters' => __( 'Email Newsletters', 'nonprofit-manager' ),
+		'donations'   => function_exists( 'npmp_label' ) ? npmp_label( 'donations' ) : __( 'Donations', 'nonprofit-manager' ),
+		'calendar'    => __( 'Event Calendar', 'nonprofit-manager' ),
+		'social'      => __( 'Social Sharing', 'nonprofit-manager' ),
+	);
 }
 
 /**
@@ -78,36 +119,22 @@ function npmp_is_plugin_admin_page() {
 }
 
 /**
- * Add consistent admin page styles
+ * Load the shared admin stylesheet on the plugin's screens and the Dashboard
+ * (its widgets use the same cards and badges).
+ *
+ * @param string $hook_suffix Current admin page.
+ * @return void
  */
-function npmp_admin_styles() {
-	if ( ! npmp_is_plugin_admin_page() ) {
+function npmp_admin_enqueue_styles( $hook_suffix = '' ) {
+	if ( 'index.php' !== $hook_suffix && ! npmp_is_plugin_admin_page() ) {
 		return;
 	}
-	?>
-	<style>
-		.npmp-admin-page .card {
-			max-width: none;
-			margin-bottom: 20px;
-		}
-		.npmp-admin-page .card h2.title {
-			margin: 0 0 15px 0;
-			font-size: 18px;
-			font-weight: 600;
-		}
-		.npmp-admin-page .description {
-			color: #646970;
-			font-size: 13px;
-		}
-		.npmp-upsell-card {
-			background-color: #ecfdf5;
-			border-left: 4px solid #10b981;
-		}
-		.npmp-upsell-card ul {
-			list-style: disc;
-			margin-left: 20px;
-		}
-	</style>
-	<?php
+	$file = dirname( __DIR__ ) . '/assets/css/npmp-admin.css';
+	wp_enqueue_style(
+		'npmp-admin',
+		plugins_url( 'assets/css/npmp-admin.css', dirname( __DIR__ ) . '/nonprofit-manager.php' ),
+		array(),
+		file_exists( $file ) ? (string) filemtime( $file ) : '1'
+	);
 }
-add_action( 'admin_head', 'npmp_admin_styles' );
+add_action( 'admin_enqueue_scripts', 'npmp_admin_enqueue_styles' );
