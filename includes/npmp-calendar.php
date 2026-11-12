@@ -1408,8 +1408,63 @@ function npmp_calendar_enqueue_styles() {
 		array(),
 		function_exists( 'npmp_get_asset_version' ) ? npmp_get_asset_version( $rel ) : null
 	);
+	$inline = npmp_calendar_inline_css();
+	if ( '' !== $inline ) {
+		wp_add_inline_style( 'npmp-calendar', $inline );
+	}
 }
 add_action( 'wp_enqueue_scripts', 'npmp_calendar_enqueue_styles' );
+
+/**
+ * Saved calendar appearance values that add-ons keep (Pro's custom CSS).
+ *
+ * @return array
+ */
+function npmp_calendar_appearance() {
+	$saved = get_option( 'npmp_calendar_appearance', array() );
+	return is_array( $saved ) ? $saved : array();
+}
+
+/**
+ * CSS printed after the calendar stylesheet, only where it loads.
+ *
+ * Free adds nothing. Pro adds its category colors and the custom CSS from
+ * Calendar Settings through the npmp_calendar_inline_css filter.
+ *
+ * @return string
+ */
+function npmp_calendar_inline_css() {
+	/**
+	 * Filter the CSS printed after the calendar stylesheet.
+	 *
+	 * @param string $css        CSS, empty in Free.
+	 * @param array  $appearance npmp_calendar_appearance().
+	 */
+	return trim( (string) apply_filters( 'npmp_calendar_inline_css', '', npmp_calendar_appearance() ) );
+}
+
+/**
+ * Save the appearance values posted with Calendar Settings.
+ *
+ * Starts from what's saved, so turning Pro off and saving keeps Pro's custom
+ * CSS for when it comes back.
+ *
+ * @param array $incoming Raw npmp_calendar_appearance from the form.
+ * @return array The saved values.
+ */
+function npmp_calendar_save_appearance( $incoming ) {
+	/**
+	 * Filter the appearance values before they're saved. Each add-on
+	 * sanitizes its own keys from $incoming.
+	 *
+	 * @param array $clean    Values to save.
+	 * @param array $incoming Raw posted values.
+	 */
+	$clean = apply_filters( 'npmp_calendar_save_appearance', npmp_calendar_appearance(), is_array( $incoming ) ? $incoming : array() );
+	$clean = is_array( $clean ) ? $clean : array();
+	update_option( 'npmp_calendar_appearance', $clean, false );
+	return $clean;
+}
 
 /**
  * Append event details on single event pages.
@@ -1613,6 +1668,7 @@ function npmp_render_event_settings_page() {
 		update_option( 'npmp_calendar_list_show_past', empty( $_POST['npmp_calendar_list_show_past'] ) ? 0 : 1 );
 		update_option( 'npmp_calendar_print_button', empty( $_POST['npmp_calendar_print_button'] ) ? 0 : 1 );
 		npmp_events_loop_save_from_post();
+		npmp_calendar_save_appearance( isset( $_POST['npmp_calendar_appearance'] ) && is_array( $_POST['npmp_calendar_appearance'] ) ? wp_unslash( $_POST['npmp_calendar_appearance'] ) : array() ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each add-on sanitizes its own keys in npmp_calendar_save_appearance.
 	}
 
 	if (
@@ -1755,6 +1811,14 @@ function npmp_render_event_settings_page() {
 	echo '</tr>';
 
 	npmp_events_loop_render_settings_rows();
+
+	/**
+	 * Print add-on rows inside the Calendar Settings form table. Pro adds
+	 * its custom CSS field here.
+	 *
+	 * @param array $appearance npmp_calendar_appearance().
+	 */
+	do_action( 'npmp_calendar_settings_fields', npmp_calendar_appearance() );
 
 	$wp_days       = array( __( 'Sunday' ), __( 'Monday' ), __( 'Tuesday' ), __( 'Wednesday' ), __( 'Thursday' ), __( 'Friday' ), __( 'Saturday' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Reusing WordPress core weekday translations.
 	$start_of_week = (int) get_option( 'start_of_week', 0 );

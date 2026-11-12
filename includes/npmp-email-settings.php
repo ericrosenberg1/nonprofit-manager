@@ -241,8 +241,12 @@ function npmp_render_email_settings_page() {
 			</div>
 			<?php
 		}
+		/**
+		 * Print above the Email Settings form. Pro shows its provider
+		 * picker here. Anything printed here sits outside the form.
+		 */
+		do_action( 'npmp_email_settings_before_form' );
 		?>
-
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_email_settings', 'npmp_email_settings_nonce' ); ?>

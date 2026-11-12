@@ -49,10 +49,9 @@ if ( ! function_exists( 'npmp_pro_feature_pages' ) ) {
 				'menu'     => __( 'Custom Fields', 'nonprofit-manager' ),
 				'title'    => __( 'Custom Fields', 'nonprofit-manager' ),
 				'line'     => sprintf(
-					/* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donations, such as donations or contributions. */
-					__( 'Add your own fields to %1$s, %2$s, and events (a phone number, a committee, a T-shirt size) and fill them in from the edit screens and imports. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
-					npmp_label( 'members_lc' ),
-					npmp_label( 'donations_lc' )
+					/* translators: %s: lowercase plural word for members, such as members. */
+					__( 'Add your own fields to %s and events (a phone number, a committee, a T-shirt size) and fill them in on their edit screens. Custom fields come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+					npmp_label( 'members_lc' )
 				),
 				'campaign' => 'custom_fields',
 			),

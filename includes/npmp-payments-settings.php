@@ -265,8 +265,8 @@ function npmp_frequency_label( $frequency ) {
 		'weekly'    => __( 'Weekly', 'nonprofit-manager' ),
 		'monthly'   => __( 'Monthly', 'nonprofit-manager' ),
 		'quarterly' => __( 'Quarterly', 'nonprofit-manager' ),
-		'annual'    => __( 'Annual', 'nonprofit-manager' ),
-		'yearly'    => __( 'Annual', 'nonprofit-manager' ),
+		'annual'    => __( 'Yearly', 'nonprofit-manager' ),
+		'yearly'    => __( 'Yearly', 'nonprofit-manager' ),
 	);
 	$frequency = (string) $frequency;
 	return $labels[ $frequency ] ?? ucfirst( str_replace( '_', ' ', $frequency ) );
@@ -817,7 +817,7 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_paypal_enable_weekly" value="1" <?php checked( get_option( 'npmp_paypal_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_paypal_enable_monthly" value="1" <?php checked( get_option( 'npmp_paypal_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_paypal_enable_quarterly" value="1" <?php checked( get_option( 'npmp_paypal_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_paypal_enable_annual" value="1" <?php checked( get_option( 'npmp_paypal_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label><input type="checkbox" name="npmp_paypal_enable_annual" value="1" <?php checked( get_option( 'npmp_paypal_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'PayPal API supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 				</div>
 
@@ -907,7 +907,7 @@ function npmp_render_payment_settings_page() {
 					<label><input type="checkbox" name="npmp_stripe_enable_weekly" value="1" <?php checked( get_option( 'npmp_stripe_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_monthly" value="1" <?php checked( get_option( 'npmp_stripe_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label><input type="checkbox" name="npmp_stripe_enable_quarterly" value="1" <?php checked( get_option( 'npmp_stripe_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label><input type="checkbox" name="npmp_stripe_enable_annual" value="1" <?php checked( get_option( 'npmp_stripe_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 					<?php else : ?>
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
@@ -916,7 +916,7 @@ function npmp_render_payment_settings_page() {
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Annual', 'nonprofit-manager' ); ?></label><br>
+					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
 					<p class="description">
 						<?php
 						printf(
