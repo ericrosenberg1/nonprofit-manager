@@ -197,21 +197,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
-- Added calendar settings to The Events Calendar importer.
-- Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
-- Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
-- Added MailPoet to the Switch Plugins screen.
-- Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
-- Added a one-click update to the version notice that puts free and Pro on the same version.
-- Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
-- Old links reach their redirects right after you turn a plugin off on the Switch Plugins screen.
-- Added an importer for The Newsletter Plugin: contacts, lists, sender settings, and signup dates, on the Switch Plugins screen.
+- (none)
 
 Pro (licence server changelog):
-- Pro now updates together with Nonprofit Manager.
-- Rewrote license error messages in plain words.
-- Added Send a test to me on events with no email scheduled yet.
+- (none)
 
 ## Releasing: three systems, always in this order
 
