@@ -203,6 +203,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   deletion?" is Yes, and the hub's optional `delete_note` then warns in step 4. PMPro's reads use MySQL's `CONVERT_TZ()`, which
   SQLite can't parse, so rig `tests/rig/pmpro-importer.php` seeds with PMPro's writers and reads its tables directly. Unit
   `tests/test-pmpro-importer.php`.
+- **Editor boxes go in the sidebar** (since 2026.11.8). In the block editor a meta box with context `normal`
+  lands in the collapsed "Meta Boxes" panel under the content, which Pete at U3A read as a different screen
+  from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
+  Pro stacks its tables there with `td[data-label]`. Every admin h1 needs `hr.wp-header-end` within two
+  lines or core puts notices above the title (`tests/test-admin-ui.php` scans for it).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
