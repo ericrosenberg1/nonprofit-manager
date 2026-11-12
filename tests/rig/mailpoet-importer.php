@@ -516,7 +516,7 @@ do {
 npmp_mailpoet_set_review( array( 'subscribed', 'inactive', 'unsubscribed', 'bounced', 'other' ), array( 1, 2 ) );
 $stage = npmp_mailpoet_get_stage();
 rig_check( 'unconfirmed unchecked', array( 'unconfirmed' ), $stage['skip_statuses'] );
-rig_has( 'approve warns about the free limit', 'You can move 2 contacts with the free version.', rig_render( 'npmp_mailpoet_render_approve', $stage ) );
+rig_has( 'approve warns about the per-import limit', 'In the free version you can move 2 subscribers in one import.', rig_render( 'npmp_mailpoet_render_approve', $stage ) );
 npmp_mailpoet_approve( array() );
 do {
 	$r = npmp_mailpoet_migrate_batch( 5 );
@@ -525,7 +525,7 @@ $stage = npmp_mailpoet_get_stage();
 rig_check( 'stopped at the cap', true, $stage['results']['cap_reached'] );
 rig_check( 'handled exactly 2', 2, (int) $stage['handled'] );
 rig_check( 'the unchecked status was left, not counted against the cap', 1, (int) $stage['results']['left'] );
-rig_has( 'result says the rest are still in MailPoet', 'The rest are still in MailPoet.', rig_render( 'npmp_mailpoet_render_migrate', $stage ) );
+rig_has( 'result says the rest are still in MailPoet', 'so the rest are still in MailPoet.', rig_render( 'npmp_mailpoet_render_migrate', $stage ) );
 remove_filter( 'npmp_import_max_rows', $cap, PHP_INT_MAX );
 wp_cache_flush();
 rig_check( 'Ada unsubscribed here after the first import, and the rerun left her out', 'unsubscribed', $get( 'ada' )->status );

@@ -1991,15 +1991,29 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	echo '<li>' . esc_html__( 'MailPoet keeps its own copy, so you can switch it back on if something looks wrong.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
-	if ( $count > $max ) {
-		echo '<div class="notice notice-warning inline"><p>' . esc_html(
-			sprintf(
-				/* translators: 1: free import limit, 2: number of subscribers. */
-				__( 'You can move %1$s contacts with the free version. With Pro you can move all %2$s in one pass.', 'nonprofit-manager' ),
-				number_format_i18n( $max ),
-				number_format_i18n( $count )
-			)
-		) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
+	// The free total (import-cap.php) counts new contacts from every import.
+	$places = function_exists( 'npmp_import_free_remaining' ) ? npmp_import_free_remaining() : PHP_INT_MAX;
+	$new    = (int) ( $stage['plan']['new'] ?? 0 );
+	$total  = defined( 'NPMP_IMPORT_FREE_MAX_ROWS' ) ? NPMP_IMPORT_FREE_MAX_ROWS : $max;
+	$note   = '';
+	if ( $new > $places ) {
+		$note = sprintf(
+			/* translators: 1: free import total, such as 100, 2: places left, 3: number of new contacts. */
+			__( 'In the free version you can import %1$s contacts in total, and you have %2$s places left. Of the %3$s new contacts here, the rest stay in MailPoet. Contacts you already have still update.', 'nonprofit-manager' ),
+			number_format_i18n( $total ),
+			number_format_i18n( $places ),
+			number_format_i18n( $new )
+		);
+	} elseif ( $count > $max ) {
+		$note = sprintf(
+			/* translators: 1: free per-import limit, 2: number of subscribers. */
+			__( 'In the free version you can move %1$s subscribers in one import. With Pro you can move all %2$s at once.', 'nonprofit-manager' ),
+			number_format_i18n( $max ),
+			number_format_i18n( $count )
+		);
+	}
+	if ( '' !== $note ) {
+		echo '<div class="notice notice-warning inline"><p>' . esc_html( $note ) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
 	}
 
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-tec-migrate-form">';
@@ -2153,7 +2167,7 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 				? npmp_import_free_limit_message()
 				: sprintf(
 					/* translators: %s: free import limit. */
-					__( 'You moved the first %s contacts, the limit in the free version. The rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
+					__( 'In the free version you can move %s subscribers in one import, so the rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
 					number_format_i18n( $max )
 				)
 		) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
