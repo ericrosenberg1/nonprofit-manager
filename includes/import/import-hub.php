@@ -579,6 +579,9 @@ function npmp_import_hub_run_step( $slug, $step, array $input = array() ) {
 			if ( npmp_import_hub_active_plugins( $source ) ) {
 				return new WP_Error( 'npmp_hub_still_active', __( 'WordPress couldn\'t turn the plugin off. Turn the plugin off on the Plugins screen, then come back to this screen.', 'nonprofit-manager' ) );
 			}
+			// The old plugin's routes stay cached until the rules rebuild, and
+			// they keep old links from reaching a 404 and its redirect.
+			delete_option( 'rewrite_rules' );
 			return array( 'message' => 'deactivated' );
 
 		case 'remove_plugin':
