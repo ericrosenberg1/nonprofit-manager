@@ -113,7 +113,8 @@ rig_check( 'clear-background WebP, typed as a relative address, is sent as a PNG
 rig_check( 'the PNG copy is a real PNG file', 'png', $magic( $file_of( $logo ) ) );
 if ( $file_of( $logo ) && is_file( $file_of( $logo ) ) ) {
 	$im = imagecreatefrompng( $file_of( $logo ) );
-	rig_check( 'the PNG copy kept its clear background', 127, ( imagecolorat( $im, 5, 5 ) >> 24 ) & 0x7F );
+	// Imagick writes a small-palette PNG, where imagecolorat() returns a palette index, not ARGB.
+	rig_check( 'the PNG copy kept its clear background', 127, imagecolorsforindex( $im, imagecolorat( $im, 5, 5 ) )['alpha'] );
 }
 
 if ( $has_avif ) {

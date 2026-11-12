@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.5
+Stable tag: 2026.11.6
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,18 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.6 =
+* Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
+* Added calendar settings to The Events Calendar importer.
+* Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
+* Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
+* Added MailPoet to the Switch Plugins screen.
+* Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
+* Added a one-click update to the version notice that puts free and Pro on the same version.
+* Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
+* Fixed redirects from old event links right after you turn a plugin off on the Switch Plugins screen.
+* Added an importer for The Newsletter Plugin: contacts, lists, sender settings, and signup dates, on the Switch Plugins screen.
 
 = 2026.11.5 =
 * Added PNG or JPG copies of WebP, AVIF, and HEIC images in emails.
@@ -483,6 +495,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.6 =
+Move from MailPoet, The Events Calendar, GiveWP, and other plugins on the new Switch Plugins screen.
 
 = 2026.11.5 =
 Outlook readers now see the WebP and AVIF images in your emails.

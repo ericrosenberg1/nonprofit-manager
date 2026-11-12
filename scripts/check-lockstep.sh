@@ -72,8 +72,12 @@ if [ -n "$free_ver" ] && [ -n "$pro_ver" ]; then
 fi
 
 VER_TS="$SITE_DIR/src/pages/api/license/version.ts"
+# Since 2026-11-12 the release values live in src/lib/pro-releases.ts (current release plus
+# earlier ones the server can still hand out). Older checkouts kept them in version.ts.
+REL_TS="$SITE_DIR/src/lib/pro-releases.ts"
+[ -f "$REL_TS" ] || REL_TS="$VER_TS"
 if [ -f "$VER_TS" ]; then
-  site_ver=$(grep -m1 "const CURRENT_VERSION" "$VER_TS" | sed -E "s/.*'([^']+)'.*/\1/")
+  site_ver=$(grep -m1 "^const CURRENT_VERSION" "$REL_TS" | sed -E "s/.*'([^']+)'.*/\1/")
   if [ -n "$pro_ver" ]; then
     if [ "$site_ver" = "$pro_ver" ]; then
       ok "licence server advertises the shipping Pro version ($site_ver)"
@@ -96,8 +100,8 @@ if [ -f "$VER_TS" ]; then
   # that sha256. An unsigned or mis-signed release would be refused by every
   # updated site, so check the pair against Pro's own SIGNING_KEY here.
   UPD="$PRO_DIR/includes/license/class-plugin-updater.php"
-  site_sha=$(sed -n "s/^const CURRENT_ZIP_SHA256 = '\([^']*\)'.*/\1/p" "$VER_TS")
-  site_sig=$(sed -n "s/^const CURRENT_ZIP_SIGNATURE = '\([^']*\)'.*/\1/p" "$VER_TS")
+  site_sha=$(sed -n "s/^const CURRENT_ZIP_SHA256 = '\([^']*\)'.*/\1/p" "$REL_TS")
+  site_sig=$(sed -n "s/^const CURRENT_ZIP_SIGNATURE = '\([^']*\)'.*/\1/p" "$REL_TS")
   pubkey=""
   [ -f "$UPD" ] && pubkey=$(sed -n "s/.*const SIGNING_KEY = '\([^']*\)'.*/\1/p" "$UPD" | head -1)
   if [ -n "$site_sig" ] || { [ -n "$pubkey" ] && [ "$(printf '%s\n%s\n' "2026.09.22" "$site_ver" | sort -V | head -1)" = "2026.09.22" ]; }; then
@@ -114,6 +118,37 @@ if [ -f "$VER_TS" ]; then
     else
       bad "release signature for $site_ver does not verify against Pro's SIGNING_KEY"
     fi
+  fi
+
+  # The licence server hands a site the newest Pro whose minimum free version it meets, so the
+  # minimum it lists for the current release must be the one Pro enforces.
+  site_min=$(sed -n "s/^const CURRENT_MIN_FREE_VERSION = '\([^']*\)'.*/\1/p" "$REL_TS")
+  if [ "$REL_TS" != "$VER_TS" ] && [ -n "${floor:-}" ]; then
+    if [ "$site_min" = "$floor" ]; then
+      ok "licence server and Pro agree on the minimum free version ($floor)"
+    else
+      bad "licence server lists minimum free '$site_min' for $site_ver but Pro enforces $floor"
+    fi
+  fi
+
+  # Every earlier release the server can still serve must verify too.
+  if [ "$REL_TS" != "$VER_TS" ] && [ -n "$pubkey" ] && command -v node >/dev/null; then
+    prev=$(cd "$SITE_DIR" && node --input-type=module -e '
+      const m = await import("./src/lib/pro-releases.ts");
+      for (const r of m.PREVIOUS_PRO_RELEASES) console.log([r.version, r.sha256, r.signature].join(" "));
+    ' 2>/dev/null) || bad "could not read PREVIOUS_PRO_RELEASES from $REL_TS"
+    while read -r pv psha psig; do
+      [ -n "$pv" ] || continue
+      if php -r '
+          $pk = base64_decode( $argv[1], true ); $sig = base64_decode( $argv[2], true );
+          $msg = "nonprofit-manager-release-v1\nnonprofit-manager-pro\n" . $argv[3] . "\n" . $argv[4];
+          exit( ( $pk && $sig && 32 === strlen( $pk ) && 64 === strlen( $sig ) && sodium_crypto_sign_verify_detached( $sig, $msg, $pk ) ) ? 0 : 1 );
+        ' "$pubkey" "$psig" "$pv" "$psha"; then
+        ok "release signature verifies for earlier release $pv"
+      else
+        bad "earlier release $pv in PREVIOUS_PRO_RELEASES does not verify against Pro's SIGNING_KEY"
+      fi
+    done <<< "$prev"
   fi
 
   # An interpolated heading retitles the last entry on every bump.
