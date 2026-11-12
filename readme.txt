@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.6
+Stable tag: 2026.11.7
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.7 =
+* Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
+* Added a warning on the Switch Plugins screen when a setting in Charitable or GiveWP would delete their donation data.
 
 = 2026.11.6 =
 * Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
@@ -495,6 +499,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.7 =
+See a warning before an old donation plugin deletes its own data, and import from Paid Memberships Pro.
 
 = 2026.11.6 =
 Move from MailPoet, The Events Calendar, GiveWP, and other plugins on the new Switch Plugins screen.
