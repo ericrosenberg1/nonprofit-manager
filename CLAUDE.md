@@ -146,6 +146,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
+- Raised the free import limit from 50 to 100 contacts.
 - Added calendar settings to The Events Calendar importer.
 - Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
 
