@@ -545,7 +545,7 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
         wp_send_json_success($message);
     }
 
-    wp_send_json_error(esc_html__('No subscribed members matched your selected audience.', 'nonprofit-manager'));
+    wp_send_json_error(esc_html(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('No subscribed %s matched your selected audience.', 'nonprofit-manager'), npmp_label('members_lc'))));
 });
 
 /**

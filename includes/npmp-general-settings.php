@@ -118,14 +118,6 @@ function npmp_render_general_settings_page() {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
 	}
 
-	// Set default membership levels if none exist
-	$default_levels = array( 'Subscriber', 'Member', 'Donor', 'Director' );
-	$membership_levels = get_option( 'npmp_membership_levels', array() );
-	if ( empty( $membership_levels ) ) {
-		$membership_levels = $default_levels;
-		update_option( 'npmp_membership_levels', $membership_levels );
-	}
-	$default_membership_level = get_option( 'npmp_default_membership_level', 'Subscriber' );
 	$current_captcha_provider = npmp_captcha_get_provider();
 	$current_turnstile_enabled = (int) get_option( 'npmp_turnstile_enabled', 0 );
 	$current_turnstile_site   = get_option( 'npmp_turnstile_site_key', '' );

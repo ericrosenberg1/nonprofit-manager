@@ -149,5 +149,8 @@ $GLOBALS['t_options'] = array( 'npmp_membership_levels' => array() );
 npmp_maybe_seed_membership_levels();
 check( 'an emptied list stays empty', array(), get_option( 'npmp_membership_levels' ) );
 
+$gs_src = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-general-settings.php' );
+check( 'General Settings never re-seeds an emptied list', false, strpos( $gs_src, "update_option( 'npmp_membership_levels'" ) );
+
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );
