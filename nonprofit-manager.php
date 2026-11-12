@@ -116,6 +116,10 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
 // Importer for sites switching from The Events Calendar, plus 301s from its old event URLs.
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-importer.php';
 
+// Switch Plugins: one screen to import from, check, and retire every plugin we replace.
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-hub.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-hub-source.php';
+
 /* -------------------------------------------------------------------------
  * Plugin action links
  * ---------------------------------------------------------------------- */

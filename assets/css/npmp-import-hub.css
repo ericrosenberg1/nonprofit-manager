@@ -1,0 +1,272 @@
+/* Switch Plugins screen (includes/import/import-hub.php). Brand tokens from CLAUDE.md. */
+
+.npmp-hub-wrap {
+	max-width: 960px;
+}
+
+.npmp-hub-tabs {
+	margin-bottom: 16px;
+}
+
+.npmp-hub-intro {
+	font-size: 14px;
+	max-width: 720px;
+}
+
+.npmp-hub-source {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-top: 4px solid #10B981;
+	border-radius: 8px;
+	padding: 16px 20px;
+	margin: 20px 0;
+}
+
+.npmp-hub-source.is-locked {
+	border-top-color: #c3c4c7;
+}
+
+.npmp-hub-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 4px 16px;
+}
+
+.npmp-hub-head h2 {
+	margin: 0;
+	font-size: 18px;
+	color: #111827;
+}
+
+.npmp-hub-status {
+	margin: 0;
+	font-weight: 600;
+	color: #1f2937;
+}
+
+.npmp-hub-status.is-active,
+.npmp-hub-status.is-done {
+	color: #0f766e;
+}
+
+.npmp-hub-covers {
+	color: #1f2937;
+	margin: 8px 0;
+}
+
+.npmp-hub-arrow {
+	color: #0f766e;
+}
+
+.npmp-hub-pro-parts {
+	margin: 4px 0 12px;
+}
+
+.npmp-hub-muted,
+.npmp-hub-note {
+	color: #646970;
+}
+
+.npmp-hub-note {
+	display: block;
+	font-weight: 400;
+	font-size: 12px;
+}
+
+.npmp-hub-steps {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+	border-top: 1px solid #f0f0f1;
+}
+
+.npmp-hub-step {
+	border-bottom: 1px solid #f0f0f1;
+	padding: 10px 0;
+	margin: 0;
+}
+
+.npmp-hub-step-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.npmp-hub-num {
+	flex: 0 0 26px;
+	height: 26px;
+	line-height: 26px;
+	text-align: center;
+	border-radius: 50%;
+	background: #f0f0f1;
+	color: #1f2937;
+	font-weight: 600;
+}
+
+.npmp-hub-step.is-done .npmp-hub-num {
+	background: #0f766e;
+	color: #fff;
+}
+
+.npmp-hub-step.is-open .npmp-hub-num {
+	background: #ecfdf5;
+	border: 1px solid #a7f3d0;
+	color: #0f766e;
+}
+
+.npmp-hub-step-name {
+	flex: 1 1 auto;
+	font-weight: 600;
+	color: #111827;
+}
+
+.npmp-hub-step.is-locked .npmp-hub-step-name,
+.npmp-hub-step.is-blocked .npmp-hub-step-name {
+	color: #646970;
+}
+
+.npmp-hub-badge {
+	flex: 0 0 auto;
+	font-size: 12px;
+	padding: 2px 8px;
+	border-radius: 8px;
+	background: #f0f0f1;
+	color: #50575e;
+	white-space: nowrap;
+}
+
+.npmp-hub-badge.is-done {
+	background: #ecfdf5;
+	color: #0f766e;
+	border: 1px solid #a7f3d0;
+}
+
+.npmp-hub-badge.is-ready {
+	background: #0f766e;
+	color: #fff;
+}
+
+.npmp-hub-step-body {
+	margin-left: 36px;
+}
+
+.npmp-hub-step-body > p:first-child {
+	margin-top: 6px;
+}
+
+.npmp-hub-step:not(.is-open) .npmp-hub-step-body .npmp-hub-counts,
+.npmp-hub-step:not(.is-open) .npmp-hub-step-body .npmp-hub-checklist {
+	font-size: 13px;
+}
+
+.npmp-hub-table-wrap {
+	overflow-x: auto;
+	margin: 8px 0;
+}
+
+.npmp-hub-counts {
+	max-width: 640px;
+}
+
+.npmp-hub-counts .num {
+	text-align: right;
+	white-space: nowrap;
+	width: 1%;
+}
+
+.npmp-hub-counts th[scope="row"] {
+	font-weight: 600;
+}
+
+.npmp-hub-checklist {
+	list-style: disc;
+	margin: 4px 0 8px 20px;
+}
+
+.npmp-hub-check {
+	font-weight: 600;
+}
+
+.npmp-hub-warning {
+	border-left: 4px solid #b32d2e;
+	background: #fcf0f1;
+	padding: 2px 12px;
+	margin: 10px 0;
+	max-width: 640px;
+}
+
+.npmp-hub-delete.button {
+	color: #fff;
+	background: #b32d2e;
+	border-color: #b32d2e;
+}
+
+.npmp-hub-delete.button:hover,
+.npmp-hub-delete.button:focus {
+	color: #fff;
+	background: #8a2424;
+	border-color: #8a2424;
+}
+
+.npmp-hub-delete.button:disabled {
+	color: #a7aaad !important;
+	background: #f6f7f7 !important;
+	border-color: #dcdcde !important;
+}
+
+.npmp-hub-again summary {
+	cursor: pointer;
+	color: #0f766e;
+	margin: 4px 0 8px;
+}
+
+.npmp-hub-other {
+	margin: 24px 0;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	padding: 12px 20px;
+}
+
+.npmp-hub-other summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: #111827;
+}
+
+.npmp-hub-other-list li {
+	margin: 6px 0;
+}
+
+@media screen and (max-width: 600px) {
+	.npmp-hub-source {
+		padding: 12px;
+	}
+
+	.npmp-hub-step-body {
+		margin-left: 0;
+	}
+
+	.npmp-hub-step .button {
+		white-space: normal;
+		height: auto;
+		line-height: 1.4;
+		padding: 6px 12px;
+	}
+
+	.npmp-hub-tabs .nav-tab {
+		font-size: 13px;
+	}
+
+	.npmp-hub-counts thead .num {
+		white-space: normal;
+		width: auto;
+	}
+
+	.npmp-hub-counts th,
+	.npmp-hub-counts td {
+		padding: 8px 6px;
+	}
+}
