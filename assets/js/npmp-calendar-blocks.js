@@ -30,6 +30,7 @@
 
 	/* ---- Calendar block ------------------------------------------------ */
 	blocks.registerBlockType( 'nonprofit-manager/calendar', {
+		apiVersion: 3,
 		title: __( 'Events Calendar', 'nonprofit-manager' ),
 		description: __( 'A month, week, or list calendar of your events, with built-in navigation.', 'nonprofit-manager' ),
 		icon: 'calendar-alt',
@@ -80,7 +81,7 @@
 				),
 				el(
 					'div',
-					{ className: 'npmp-block-preview' },
+					blockEditor.useBlockProps( { className: 'npmp-block-preview' } ),
 					el( ServerSideRender, { block: 'nonprofit-manager/calendar', attributes: a } )
 				)
 			);
