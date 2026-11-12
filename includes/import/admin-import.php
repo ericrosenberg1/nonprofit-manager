@@ -639,7 +639,7 @@ function npmp_import_ajax_step() {
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			// Cap accumulated error messages so the transient does not grow unbounded.
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -735,7 +735,7 @@ function npmp_import_ajax_step() {
 		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -812,7 +812,7 @@ function npmp_import_ajax_step() {
 		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -1670,7 +1670,7 @@ function npmp_import_render_scripts( $field_labels ) {
 				var imported = (s.imported || 0) + (s.updated || 0);
 				var total    = s.source_total || imported;
 				var cap      = s.cap_max_rows || <?php echo (int) NPMP_IMPORT_FREE_MAX_ROWS; ?>;
-				var template = '<?php echo esc_js( __( 'Imported the first %1$s of %2$s records. The free version imports up to %3$s at a time. Upgrade to Pro to import the rest in one pass.', 'nonprofit-manager' ) ); ?>';
+				var template = '<?php echo esc_js( __( 'We imported the first %1$s of %2$s records. With the free version, you can import up to %3$s records at a time and %3$s new contacts in total. Upgrade to Pro to import the rest.', 'nonprofit-manager' ) ); ?>';
 				$('#npmp-import-cap-text').text(
 					template
 						.replace('%1$s', imported)

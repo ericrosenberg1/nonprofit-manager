@@ -754,6 +754,12 @@ class NPMP_Import_Manager {
 			}
 		}
 
+		// The free plugin imports 100 new contacts in total (import-cap.php).
+		// Past that, a new contact waits for Pro. Existing ones updated above.
+		if ( function_exists( 'npmp_import_free_remaining' ) && npmp_import_free_remaining() < 1 ) {
+			return array( 'status' => 'capped' );
+		}
+
 		$result = $this->member_manager->add_member( $record );
 		if ( is_wp_error( $result ) ) {
 			return array(
@@ -1153,6 +1159,14 @@ class NPMP_Import_Manager {
 				break;
 			case 'skipped':
 				$stats['skipped']++;
+				break;
+			case 'capped':
+				// Counted with the skipped rows, with one line that says why.
+				$stats['skipped']++;
+				$why = npmp_import_free_limit_message();
+				if ( ! in_array( $why, $stats['error_messages'], true ) ) {
+					$stats['error_messages'][] = $why;
+				}
 				break;
 			case 'error':
 				$stats['errors']++;

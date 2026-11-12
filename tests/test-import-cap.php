@@ -38,15 +38,27 @@ $GLOBALS['cap_filter'] = null;
 
 // The number in the copy matches the cap.
 $copy = array(
-	'readme.txt'                       => 'imports up to 100 supporters per job',
-	'README.md'                        => 'imports 100 contacts per job',
-	'includes/onboarding/tour-data.php' => 'imports up to 100 people at a time',
+	'readme.txt'                       => 'imports up to 100 supporters in total',
+	'README.md'                        => 'imports 100 contacts in total',
+	'includes/onboarding/tour-data.php' => 'imports up to 100 people in total',
 );
 foreach ( $copy as $file => $phrase ) {
 	$text = (string) file_get_contents( $root . '/' . $file );
 	check( $file . ' states 100', true, false !== strpos( $text, $phrase ) );
 	check( $file . ' no longer states 50', 0, preg_match( '/imports? (?:up to )?50 (?:supporters|contacts|people)|50-contact cap/', $text ) );
 }
+
+// Places left out of the total.
+check( 'nothing used leaves 100', 100, npmp_import_places_left( 100, 0 ) );
+check( '40 used leaves 60', 60, npmp_import_places_left( 100, 40 ) );
+check( 'all used leaves none', 0, npmp_import_places_left( 100, 100 ) );
+check( 'over the total never goes negative', 0, npmp_import_places_left( 100, 250 ) );
+check( 'a negative count reads as zero', 100, npmp_import_places_left( 100, -3 ) );
+$GLOBALS['cap_filter'] = PHP_INT_MAX;
+check( 'with Pro the limit is off', false, npmp_import_is_capped() );
+check( 'with Pro the places left are unlimited', PHP_INT_MAX, npmp_import_free_remaining() );
+$GLOBALS['cap_filter'] = null;
+check( 'in free the limit is on', true, npmp_import_is_capped() );
 
 // The import screen's script falls back to the constant, never a typed number.
 $screen = (string) file_get_contents( $root . '/includes/import/admin-import.php' );
