@@ -138,10 +138,11 @@ if ( 'main' === $phase ) {
 	$mm  = NPMP_Member_Manager::get_instance();
 	$ben = $mm->add_member( array( 'name' => 'Ben Rig', 'email' => "ben@$domain", 'status' => 'subscribed', 'source' => 'manual' ) );
 	$ok( 'Ben is already a contact', is_numeric( $ben ) && $ben > 0, $ben );
-	// Zed came in from an earlier free import, so 2 of the 3 free places are left.
-	$zed = $mm->add_member( array( 'name' => 'Zed Rig', 'email' => "zed@$domain", 'status' => 'subscribed', 'source' => 'csv' ) );
-	update_post_meta( (int) $zed, NPMP_IMPORT_FREE_META, 1 );
-	npmp_import_free_used( true );
+	// Zed comes in through a CSV import first, so 2 of the 3 free places are left.
+	$csv = NPMP_Import_Manager::get_instance()->process_named_rows( array( array( 'email' => "zed@$domain", 'name' => 'Zed Rig' ) ), array( 'email' => 'email', 'name' => 'name' ), array( 'duplicate_handling' => 'update' ) );
+	$ok( 'a CSV import brings in Zed', 1 === (int) $csv['imported'], $csv );
+	$zed = (int) ( $mm->get_member_by_email( "zed@$domain" )->id ?? 0 );
+	$ok( 'the CSV import marks Zed as a free import', '1' === (string) get_post_meta( $zed, NPMP_IMPORT_FREE_META, true ) );
 	$ok( 'two free places left', 2 === npmp_import_free_remaining(), npmp_import_free_remaining() );
 
 	$form_page = wp_insert_post( array( 'post_title' => 'Rig Join Us', 'post_status' => 'publish', 'post_type' => 'page', 'post_content' => '[mailpoet_form id="1"]' ) );
@@ -196,6 +197,10 @@ if ( 'main' === $phase ) {
 		$r = npmp_mailpoet_stage_batch( 0 === $guard, 2 );
 	} while ( empty( $r['done'] ) && ++$guard < 20 );
 	npmp_mailpoet_set_review( npmp_mailpoet_status_keys(), array() );
+	ob_start();
+	npmp_mailpoet_render_approve( npmp_mailpoet_get_stage() );
+	$approve = html_entity_decode( wp_strip_all_tags( ob_get_clean() ), ENT_QUOTES );
+	$ok( 'the Approve screen names the total and the places left', false !== strpos( $approve, 'you can import 3 contacts in total, and you have 2 places left' ), $approve );
 	npmp_mailpoet_approve( array( 'from_name', 'from_email' ) );
 	$guard = 0;
 	do {
@@ -211,6 +216,28 @@ if ( 'main' === $phase ) {
 	ob_start();
 	npmp_mailpoet_render_migrate( $stage );
 	$ok( 'the migrate screen says the free contacts are used up', false !== strpos( html_entity_decode( ob_get_clean(), ENT_QUOTES ), 'You have imported your 3 free contacts' ) );
+	$ok( 'MailPoet marked the 2 contacts it made', 3 === npmp_import_free_used( true ), npmp_import_free_used() );
+
+	echo "Run the import again at the limit\n";
+	// A name that's only the email counts as blank, so the rerun fills it in.
+	wp_update_post( array( 'ID' => $contacts[ "ana@$domain" ], 'post_title' => "ana@$domain" ) );
+	$guard = 0;
+	do {
+		$r = npmp_mailpoet_stage_batch( 0 === $guard, 2 );
+	} while ( empty( $r['done'] ) && ++$guard < 20 );
+	npmp_mailpoet_set_review( npmp_mailpoet_status_keys(), array() );
+	npmp_mailpoet_approve( array() );
+	$guard = 0;
+	do {
+		$r = npmp_mailpoet_migrate_batch( 2 );
+	} while ( empty( $r['done'] ) && ++$guard < 20 );
+	$again = npmp_mailpoet_get_stage()['results'];
+	$ok( 'the rerun makes no new contact', 0 === (int) $again['created'] && 2 === (int) $again['over_limit'], $again );
+	$ok( 'the rerun still updates Ana', (int) $again['updated'] >= 1, $again );
+	$now_rerun = $rig_contacts();
+	$ok( 'still 4 contacts from the rig', 4 === count( $now_rerun ), array_keys( $now_rerun ) );
+	$ok( 'Ana has her name back', 'Ana Rig' === get_post( $contacts[ "ana@$domain" ] )->post_title, get_post( $contacts[ "ana@$domain" ] )->post_title );
+	$ok( 'still no free places left', 0 === npmp_import_free_remaining() );
 	$ok( 'sender name copied', 'Rig Club' === ( get_option( 'npmp_email_settings', array() )['from_name'] ?? '' ), get_option( 'npmp_email_settings' ) );
 	$states = npmp_import_hub_step_states( npmp_import_hub_facts( $source ) );
 	$ok( 'import done, verify next', 'done' === $states['import'] && 'ready' === $states['verify'], $states );
