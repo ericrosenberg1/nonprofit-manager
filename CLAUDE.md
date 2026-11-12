@@ -149,6 +149,7 @@ Free (`readme.txt`):
 - Raised the free import limit from 50 to 100 contacts.
 - Added calendar settings to The Events Calendar importer.
 - Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
+- Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 
 Pro (licence server changelog):
 - (none)
