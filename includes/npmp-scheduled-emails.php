@@ -1312,8 +1312,7 @@ function npmp_scheduled_emails_build_newsletter( $row, $event_id, $prefix = '' )
 function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject ) {
 	$body = npmp_scheduled_emails_get_body( $body_id );
 	$map  = npmp_scheduled_emails_placeholders( $event_id );
-	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter, as NPMP_Newsletter_Manager::get_newsletter_content() uses.
-	$html = apply_filters( 'the_content', npmp_scheduled_emails_fill( $body['content'], $map, true ) );
+	$html = npmp_email_the_content( npmp_scheduled_emails_fill( $body['content'], $map, true ) );
 	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $body['template'] ) {
 		$html = is_numeric( $body['template'] ) ? npmp_apply_newsletter_template( $html, absint( $body['template'] ) ) : npmp_apply_newsletter_template( $html );
 	}

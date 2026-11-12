@@ -461,13 +461,17 @@ add_action('wp_ajax_npmp_send_test_newsletter', function () {
     $sent = NPMP_Newsletter_Manager::send_test_email($post_id, $user->user_email);
 
     if ($sent) {
-        wp_send_json_success(
-            sprintf(
-                /* translators: %s: Email address the test email was sent to. */
-                esc_html__('Sent a test email to %s.', 'nonprofit-manager'),
-                esc_html($user->user_email)
-            )
+        $message = sprintf(
+            /* translators: %s: Email address the test email was sent to. */
+            esc_html__('Sent a test email to %s.', 'nonprofit-manager'),
+            esc_html($user->user_email)
         );
+        // Images left as SVG, WebP or AVIF, so the author hears before the real send.
+        $image_notice = npmp_email_unconverted_images_notice();
+        if ('' !== $image_notice) {
+            $message .= ' ' . esc_html($image_notice);
+        }
+        wp_send_json_success($message);
     } else {
         wp_send_json_error(esc_html__('Failed to send test email.', 'nonprofit-manager'));
     }
