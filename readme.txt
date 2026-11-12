@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.7
+Stable tag: 2026.11.8
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,16 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.8 =
+* Moved Event Details into the editor sidebar, beside the publish settings.
+* Fixed adding, removing, and choosing the default membership level on Membership Settings.
+* Fixed Share Now in the block editor.
+* Changed Quick Add Event on the Dashboard to save a draft.
+* Added a Clicks column to Newsletter Reports.
+* Used the organization address in the newsletter footer when no mailing address is set.
+* Cleaned up headings, labels, and wording on every admin screen, and kept the tour out of the editor.
+* Updated the blocks to the current block editor version.
 
 = 2026.11.7 =
 * Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
@@ -499,6 +509,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.8 =
+Find Event Details in the editor sidebar, plus fixes for membership levels, Share Now, and every admin screen.
 
 = 2026.11.7 =
 See a warning before an old donation plugin deletes its own data, and import from Paid Memberships Pro.
