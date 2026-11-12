@@ -2386,6 +2386,7 @@ function npmp_render_scheduled_emails_page() {
 
 	echo '<div class="wrap npmp-admin-page npmp-sched-page">';
 	echo '<h1>' . esc_html__( 'Scheduled Emails', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	echo '<p>' . esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Email your %s before each event, and see every email waiting to go out.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ) . '</p>';
 
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only flag after a redirect.

@@ -1913,6 +1913,7 @@ function npmp_tec_render_page() {
 
 	echo '<div class="wrap npmp-tec-wrap">';
 	echo '<h1>' . esc_html__( 'Import from The Events Calendar', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	if ( function_exists( 'npmp_import_hub_url' ) ) {
 		echo '<p><a href="' . esc_url( npmp_import_hub_url( 'the-events-calendar' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 	}

@@ -890,6 +890,7 @@ function npmp_import_hub_render_page() {
 
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Switch Plugins', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	npmp_import_hub_tabs( 'switch' );
 	echo '<p class="npmp-hub-intro">' . esc_html(
 		sprintf(

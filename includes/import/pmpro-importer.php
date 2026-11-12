@@ -976,6 +976,7 @@ function npmp_pmpro_render_page() {
 	$state = npmp_pmpro_state();
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from Paid Memberships Pro', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'pmpro' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( ! npmp_pmpro_has_tables() ) {

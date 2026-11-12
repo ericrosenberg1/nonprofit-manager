@@ -687,6 +687,7 @@ function npmp_tnp_render_page() {
 	$state = npmp_tnp_state();
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from The Newsletter Plugin', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'newsletter' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( ! npmp_tnp_table() ) {

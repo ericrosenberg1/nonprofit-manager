@@ -1704,6 +1704,7 @@ function npmp_mailpoet_render_page() {
 
 	echo '<div class="wrap npmp-tec-wrap npmp-mailpoet-wrap">';
 	echo '<h1>' . esc_html__( 'Import from MailPoet', 'nonprofit-manager' ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	if ( function_exists( 'npmp_import_hub_url' ) ) {
 		echo '<p><a href="' . esc_url( npmp_import_hub_url( 'mailpoet' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 	}

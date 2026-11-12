@@ -105,5 +105,27 @@ check( 'one list for the Overview and the wizard', array( 'members', 'newsletter
 check( 'donations name follows the label map', 'Donations', npmp_feature_names()['donations'] );
 check( 'calendar name matches the wizard', 'Event Calendar', npmp_feature_names()['calendar'] );
 
+echo "Every admin h1 ends its header\n";
+// Core moves notices to just after hr.wp-header-end. A screen without one puts them above the
+// title. Every h1 printed under includes/ needs the rule within the next two lines.
+$npmp_root = dirname( __DIR__ ) . '/includes';
+$npmp_missing = array();
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $npmp_root ) ) as $npmp_f ) {
+	if ( 'php' !== $npmp_f->getExtension() ) {
+		continue;
+	}
+	$npmp_lines = file( $npmp_f->getPathname() );
+	foreach ( $npmp_lines as $npmp_i => $npmp_line ) {
+		if ( ! preg_match( '/<h1[ >]/', $npmp_line ) || false === strpos( $npmp_line, '</h1>' ) ) {
+			continue;
+		}
+		$npmp_next = implode( '', array_slice( $npmp_lines, $npmp_i, 3 ) );
+		if ( false === strpos( $npmp_next, 'wp-header-end' ) && false === strpos( $npmp_next, 'npmp_admin_page' ) ) {
+			$npmp_missing[] = substr( $npmp_f->getPathname(), strlen( $npmp_root ) + 1 ) . ':' . ( $npmp_i + 1 );
+		}
+	}
+}
+check( 'no h1 without wp-header-end', array(), $npmp_missing );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

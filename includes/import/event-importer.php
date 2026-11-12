@@ -608,6 +608,7 @@ function npmp_event_import_render_page() {
 	echo '<div class="wrap npmp-hub-wrap">';
 	if ( ! isset( $sources[ $slug ] ) ) {
 		echo '<h1>' . esc_html__( 'Import events', 'nonprofit-manager' ) . '</h1>';
+		echo '<hr class="wp-header-end">';
 		echo '<p>' . esc_html__( 'Pick the plugin you\'re switching from on the Switch Plugins screen.', 'nonprofit-manager' ) . ' <a href="' . esc_url( npmp_import_hub_url() ) . '">' . esc_html__( 'Switch Plugins', 'nonprofit-manager' ) . '</a></p></div>';
 		return;
 	}
@@ -617,6 +618,7 @@ function npmp_event_import_render_page() {
 
 	/* translators: %s: old plugin name. */
 	echo '<h1>' . esc_html( sprintf( __( 'Import events from %s', 'nonprofit-manager' ), $source['name'] ) ) . '</h1>';
+	echo '<hr class="wp-header-end">';
 	echo '<p><a href="' . esc_url( npmp_import_hub_url( $slug ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( $state['running'] ) {

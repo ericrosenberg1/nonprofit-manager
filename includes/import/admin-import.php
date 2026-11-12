@@ -916,6 +916,7 @@ function npmp_import_render_page() {
 	?>
 	<div class="wrap npmp-import-wrap">
 		<h1><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Import %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></h1>
+		<hr class="wp-header-end">
 		<p class="description"><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Import your %s or email subscribers from a file or another service.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ); ?></p>
 
 		<?php
