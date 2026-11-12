@@ -19,7 +19,7 @@
  *   from the paid Charitable Recurring add-on, whose source we can't read,
  *   so the billing period is unknown and the gift is stored as 'recurring'.
  *
- * Never read: charitable_settings beyond its 'currency' key (it holds the
+ * Never read: charitable_settings beyond its 'currency' and 'delete_data_on_uninstall' keys (it holds the
  * Stripe, PayPal, and Square keys and the licence), or any standalone secret
  * option.
  *
@@ -267,7 +267,32 @@ function npmp_charitable_register_hub_source( $sources ) {
 			__( 'Check that donors on a monthly plan have a new gift set up on your form before you turn Charitable off.', 'nonprofit-manager' ),
 			__( 'Look at Reset Data on Charitable\'s Advanced settings tab. If it\'s on, you delete every Charitable campaign, donation, and donor table when you turn Charitable off in step 3.', 'nonprofit-manager' ),
 		),
-		__( 'Charitable deletes its own campaigns, donations, and tables when you turn on Reset Data on its Advanced settings tab and then turn Charitable off. We leave that choice with Charitable.', 'nonprofit-manager' )
+		__( 'Charitable deletes its own campaigns, donations, and tables when you turn on Reset Data on its Advanced settings tab and then turn Charitable off. We leave that choice with Charitable.', 'nonprofit-manager' ),
+		array( 'deactivate_note' => 'npmp_charitable_deactivate_note' )
 	);
 	return $sources;
+}
+
+/**
+ * Whether Charitable's "Reset Data" box is ticked. Despite its label,
+ * Charitable_Uninstall runs from Charitable's deactivation hook
+ * (charitable()->is_deactivation()), so turning Charitable off deletes its data.
+ *
+ * @param mixed $settings charitable_settings.
+ * @return bool
+ */
+function npmp_charitable_resets_data_on_deactivate( $settings ) {
+	return is_array( $settings ) && ! empty( $settings['delete_data_on_uninstall'] );
+}
+
+/**
+ * A warning for step 3 when turning Charitable off deletes its data.
+ *
+ * @return string
+ */
+function npmp_charitable_deactivate_note() {
+	if ( ! npmp_charitable_resets_data_on_deactivate( get_option( 'charitable_settings', array() ) ) ) {
+		return '';
+	}
+	return __( 'Charitable\'s Reset Data setting is on, so turning Charitable off deletes every campaign, donation, and donor and drops its tables. To keep them, clear the Reset Data box under Charitable, Settings, Advanced first.', 'nonprofit-manager' );
 }

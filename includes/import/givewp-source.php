@@ -18,7 +18,7 @@
  *   subscription_id meta. A first payment carries _give_subscription_payment
  *   and is the plan's parent_payment_id.
  *
- * Never read: give_settings beyond its 'currency' key (it holds the Stripe
+ * Never read: give_settings beyond its 'currency' and 'uninstall_on_delete' keys (it holds the Stripe
  * keys), the PayPal Commerce options, or anyone's API keys.
  *
  * Data removal stays with GiveWP: its uninstall.php deletes forms, gifts, and
@@ -383,7 +383,33 @@ function npmp_givewp_register_hub_source( $sources ) {
 			__( 'Check that donors on a monthly plan have a new gift set up on your form before you turn GiveWP off.', 'nonprofit-manager' ),
 			__( 'Look at Remove Data on Uninstall on GiveWP\'s Advanced settings tab. If it\'s on, you delete every GiveWP form, donation, and table when you delete GiveWP in step 4.', 'nonprofit-manager' ),
 		),
-		__( 'GiveWP deletes its own forms, donations, and tables when you turn on Remove Data on Uninstall on its Advanced settings tab and then delete GiveWP. We leave that choice with GiveWP.', 'nonprofit-manager' )
+		__( 'GiveWP deletes its own forms, donations, and tables when you turn on Remove Data on Uninstall on its Advanced settings tab and then delete GiveWP. We leave that choice with GiveWP.', 'nonprofit-manager' ),
+		array( 'delete_note' => 'npmp_givewp_delete_note' )
 	);
 	return $sources;
+}
+
+/**
+ * Whether GiveWP's "Remove Data on Uninstall" is on. GiveWP's uninstall.php
+ * checks give_is_setting_enabled( give_get_option( 'uninstall_on_delete' ) ),
+ * which counts 'enabled', 'on', and 'yes'.
+ *
+ * @param mixed $settings give_settings.
+ * @return bool
+ */
+function npmp_givewp_removes_data_on_delete( $settings ) {
+	$value = is_array( $settings ) ? ( $settings['uninstall_on_delete'] ?? '' ) : '';
+	return is_string( $value ) && in_array( $value, array( 'enabled', 'on', 'yes' ), true );
+}
+
+/**
+ * A warning for step 4 when GiveWP will delete its data along with its files.
+ *
+ * @return string
+ */
+function npmp_givewp_delete_note() {
+	if ( ! npmp_givewp_removes_data_on_delete( get_option( 'give_settings', array() ) ) ) {
+		return '';
+	}
+	return __( 'GiveWP\'s Remove Data on Uninstall setting is on, so deleting GiveWP also deletes its forms, donations, donors, and tables. To keep them, set it to "No, keep my GiveWP settings and donation data" under Donations, Settings, Advanced first.', 'nonprofit-manager' );
 }

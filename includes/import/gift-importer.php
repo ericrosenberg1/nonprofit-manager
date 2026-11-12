@@ -243,10 +243,11 @@ function npmp_gift_import_url( $slug, array $args = array() ) {
  * @param callable $installed Installed plugins callable.
  * @param string[] $checklist Verify checklist.
  * @param string   $reason    Why step 5 is unavailable.
+ * @param array    $notes     Optional 'deactivate_note' and 'delete_note' callables (see import-hub.php).
  * @return array
  */
-function npmp_gift_hub_source( $slug, $name, array $folders, $installed, array $checklist, $reason ) {
-	return array(
+function npmp_gift_hub_source( $slug, $name, array $folders, $installed, array $checklist, $reason, array $notes = array() ) {
+	return array_merge( array(
 		'name'              => $name,
 		'covers'            => __( 'Donors and past gifts', 'nonprofit-manager' ),
 		'feature'           => __( 'Donations and contacts', 'nonprofit-manager' ),
@@ -303,7 +304,7 @@ function npmp_gift_hub_source( $slug, $name, array $folders, $installed, array $
 		'data_removal'      => array(
 			'reason' => $reason,
 		),
-	);
+	), array_intersect_key( $notes, array_flip( array( 'deactivate_note', 'delete_note' ) ) ) );
 }
 
 // =====================================================================
