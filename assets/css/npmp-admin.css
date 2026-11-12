@@ -408,3 +408,16 @@ h1 .npmp-pro-badge {
 	padding: 10px;
 	border-left: 3px solid #d63638;
 }
+
+/* Scheduled emails */
+.npmp-scheduled-badge {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 6px;
+	border-radius: 3px;
+	border: 1px solid #a7f3d0;
+	background: #ecfdf5;
+	color: #0f766e;
+	font-size: 11px;
+	line-height: 1.6;
+}
