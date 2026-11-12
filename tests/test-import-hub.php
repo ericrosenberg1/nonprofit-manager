@@ -204,5 +204,82 @@ check( 'no npmp table', array(), array_values( array_filter( npmp_tec_hub_tables
 check( 'npmp_event is never a TEC post type', false, in_array( 'npmp_event', npmp_tec_hub_post_types(), true ) );
 check( 'TEC events are', true, in_array( 'tribe_events', npmp_tec_hub_post_types(), true ) );
 
+echo "Data that comes back after step 5\n";
+check( 'finished removal, data back: reset', true, npmp_import_hub_data_returned( array( 'removal' => array( 'started' => 1, 'done' => 2 ) ), true ) );
+check( 'finished removal, no data: keep', false, npmp_import_hub_data_returned( array( 'removal' => array( 'started' => 1, 'done' => 2 ) ), false ) );
+check( 'removal part way: keep, so the batches carry on', false, npmp_import_hub_data_returned( array( 'removal' => array( 'started' => 1, 'done' => false ) ), true ) );
+check( 'never removed: nothing to reset', false, npmp_import_hub_data_returned( array(), true ) );
+
+require_once dirname( __DIR__ ) . '/includes/import/mailpoet-importer.php';
+$before = count( $GLOBALS['t_hooks'] );
+require_once dirname( __DIR__ ) . '/includes/import/mailpoet-hub-source.php';
+$added = array_slice( $GLOBALS['t_hooks'], $before );
+
+echo "MailPoet source\n";
+check( 'MailPoet registers one filter', array( 'npmp_import_sources' ), array_column( $added, 0 ) );
+$mp = npmp_import_hub_normalize_source( 'mailpoet', npmp_mailpoet_hub_register( array() )['mailpoet'] );
+check( 'it normalises', 'mailpoet', $mp['slug'] );
+check( 'it is free', 'free', $mp['tier'] );
+check( 'one Pro part', 1, count( $mp['pro_parts'] ) );
+check( 'data removal is available', true, $mp['data_removal']['available'] );
+foreach ( array( 'has_data', 'is_imported', 'can_import', 'counts', 'deactivate', 'active_plugins', 'installed_plugins', 'import_summary' ) as $key ) {
+	check( "$key names a real function", true, is_callable( $mp[ $key ] ) );
+}
+foreach ( array( 'describe', 'blockers', 'batch' ) as $key ) {
+	check( "removal $key names a real function", true, is_callable( $mp['data_removal'][ $key ] ) );
+}
+
+echo "MailPoet options\n";
+// Every option name MailPoet 5.45.2's source writes to wp_options.
+$seen_on_mailpoet = array(
+	'mailpoet_deferred_admin_notices',
+	'mailpoet_admin_footer_text_rated',
+	'mailpoet_plugin_activated',
+	'mailpoet_cron_deactivating',
+	'mailpoet_pages_repair_lock',
+	'mailpoet_woo_attribution_writes_started_at',
+	'widget_mailpoet_form',
+);
+check( 'every MailPoet option matches', $seen_on_mailpoet, array_values( array_filter( $seen_on_mailpoet, 'npmp_mailpoet_hub_option_is_mailpoet' ) ) );
+// Made-up names in the shapes the matcher covers: its caches and a later version's flags.
+$shapes = array( '_transient_mailpoet_x', '_transient_timeout_mailpoet_x', '_site_transient_mailpoet_x', 'mailpoet_new_flag', 'mailpoet-new-flag' );
+check( 'transients and flags in MailPoet\'s shape match', $shapes, array_values( array_filter( $shapes, 'npmp_mailpoet_hub_option_is_mailpoet' ) ) );
+$not_mailpoet = array(
+	'npmp_mailpoet_imported',
+	'npmp_mailpoet_stage_1',
+	'npmp_mailpoet_notice',
+	'npmp_email_settings',
+	'npmp_membership_form_settings',
+	'npmp_email_from_name',
+	'npmp_email_from_email',
+	'_transient_npmp_mailpoet_cache',
+	'_transient_feed_mailpoet',
+	'widget_text',
+	'widget_block',
+	'sidebars_widgets',
+	'my_mailpoet_bridge',
+	'mailpoetish',
+	'action_scheduler_lock_async-request-runner',
+	'',
+);
+check( 'nothing of ours or anyone else\'s matches', array(), array_values( array_filter( $not_mailpoet, 'npmp_mailpoet_hub_option_is_mailpoet' ) ) );
+
+echo "MailPoet tables\n";
+check( 'subscribers', true, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoet_subscribers', 'wp_' ) );
+check( 'subscriber_segment', true, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoet_subscriber_segment', 'wp_' ) );
+check( 'automation_run_logs', true, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoet_automation_run_logs', 'wp_' ) );
+check( 'another site\'s table on multisite', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_2_mailpoet_subscribers', 'wp_' ) );
+check( 'this subsite\'s own table', true, npmp_mailpoet_hub_table_is_mailpoet( 'wp_2_mailpoet_subscribers', 'wp_2_' ) );
+check( 'Action Scheduler', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_actionscheduler_actions', 'wp_' ) );
+check( 'our tables', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_npmp_donations', 'wp_' ) );
+check( 'a look-alike without the underscore', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoetx', 'wp_' ) );
+check( 'the bare prefix', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoet_', 'wp_' ) );
+check( 'odd characters', false, npmp_mailpoet_hub_table_is_mailpoet( 'wp_mailpoet_x`; DROP', 'wp_' ) );
+check( 'an empty prefix', false, npmp_mailpoet_hub_table_is_mailpoet( 'mailpoet_subscribers', '' ) );
+
+echo "MailPoet post types\n";
+check( 'no npmp post type', array(), array_values( array_filter( npmp_mailpoet_hub_post_types(), static function ( $t ) { return 0 === strpos( $t, 'npmp' ); } ) ) );
+check( 'pages and emails', array( 'mailpoet_page', 'mailpoet_email' ), npmp_mailpoet_hub_post_types() );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

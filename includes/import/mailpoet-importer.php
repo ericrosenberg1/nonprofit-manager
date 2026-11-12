@@ -503,6 +503,7 @@ function npmp_mailpoet_empty_results() {
 		'left'              => 0,
 		'failed'            => array(),
 		'cap_reached'       => false,
+		'over_limit'        => 0,
 	);
 }
 
@@ -1081,8 +1082,11 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 /**
  * Migrate the next batch of subscribers.
  *
- * The free version moves up to npmp_import_max_rows() contacts, the same cap
- * every other import source has. Pro lifts it.
+ * The free version reads up to npmp_import_max_rows() subscribers in one run,
+ * and creates new contacts only while the site has free import places left
+ * (npmp_import_free_remaining(), a total shared with every other import
+ * source). Past that it skips new people and still updates contacts you
+ * already have, the same as the CSV importer. Pro lifts both limits.
  *
  * @param int $limit Subscribers per batch.
  * @return array{done:bool,position:int,total:int,created:int}
@@ -1123,8 +1127,18 @@ function npmp_mailpoet_migrate_batch( $limit = NPMP_MAILPOET_BATCH ) {
 				$stage['results']['cap_reached'] = true;
 				break;
 			} else {
-				$email  = strtolower( sanitize_email( (string) $row->email ) );
-				$result = npmp_mailpoet_import_subscriber( $row, $existing[ $email ] ?? null, $memberships[ (int) $row->id ] ?? array() );
+				$email = strtolower( sanitize_email( (string) $row->email ) );
+				$known = $existing[ $email ] ?? null;
+				if ( ! $known && is_email( $email ) && function_exists( 'npmp_import_free_remaining' ) && npmp_import_free_remaining() < 1 ) {
+					// No free places left for a new contact. Keep going, so
+					// contacts you already have still update.
+					$stage['results']['cap_reached'] = true;
+					++$stage['results']['over_limit'];
+					$stage['migrate_cursor'] = (int) $row->id;
+					++$stage['position'];
+					continue;
+				}
+				$result = npmp_mailpoet_import_subscriber( $row, $known, $memberships[ (int) $row->id ] ?? array() );
 
 				if ( 'invalid' === $result['result'] ) {
 					++$stage['results']['invalid'];
@@ -1148,7 +1162,9 @@ function npmp_mailpoet_migrate_batch( $limit = NPMP_MAILPOET_BATCH ) {
 		}
 	}
 
-	if ( count( $rows ) < $limit || $stage['results']['cap_reached'] ) {
+	// A run that stopped at the per-run row limit ends here. One that only
+	// skipped new people at the site total read every row.
+	if ( count( $rows ) < $limit || ( $stage['results']['cap_reached'] && ! $stage['results']['over_limit'] ) ) {
 		$stage['migrated'] = true;
 	}
 	npmp_mailpoet_save_stage( $stage );
@@ -1387,8 +1403,8 @@ function npmp_mailpoet_admin_notice() {
 	$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=npmp_mailpoet_dismiss' ), 'npmp_mailpoet_dismiss' );
 	echo '<div class="notice notice-info npmp-tec-notice"><p>';
 	if ( $stage['migrated'] ) {
-		esc_html_e( 'You moved your MailPoet contacts. You can turn off MailPoet now and keep all of its data.', 'nonprofit-manager' );
-		echo '</p><p><a class="button button-primary" href="' . esc_url( npmp_mailpoet_page_url( 5 ) ) . '">' . esc_html__( 'Turn off MailPoet', 'nonprofit-manager' ) . '</a> ';
+		esc_html_e( 'You moved your MailPoet contacts. Next, check the new contacts, then turn off MailPoet, delete the plugin, and clear out its old data on the Switch Plugins screen.', 'nonprofit-manager' );
+		echo '</p><p><a class="button button-primary" href="' . esc_url( function_exists( 'npmp_import_hub_url' ) ? npmp_import_hub_url( 'mailpoet' ) : npmp_mailpoet_page_url( 5 ) ) . '">' . esc_html__( 'Finish switching', 'nonprofit-manager' ) . '</a> ';
 	} else {
 		echo esc_html(
 			sprintf(
@@ -2133,11 +2149,13 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 	if ( $r['cap_reached'] ) {
 		$max = function_exists( 'npmp_import_max_rows' ) ? npmp_import_max_rows() : 0;
 		echo '<div class="notice notice-warning inline"><p>' . esc_html(
-			sprintf(
-				/* translators: %s: free import limit. */
-				__( 'You moved the first %s contacts, the limit in the free version. The rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
-				number_format_i18n( $max )
-			)
+			$r['over_limit'] && function_exists( 'npmp_import_free_limit_message' )
+				? npmp_import_free_limit_message()
+				: sprintf(
+					/* translators: %s: free import limit. */
+					__( 'You moved the first %s contacts, the limit in the free version. The rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
+					number_format_i18n( $max )
+				)
 		) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
 	}
 	if ( $r['failed'] ) {
@@ -2224,7 +2242,11 @@ function npmp_mailpoet_render_deactivate( array $stage ) {
 			echo '</ul>';
 		}
 		npmp_mailpoet_render_forms_list();
-		echo '<p><a class="button button-primary" href="' . esc_url( npmp_mailpoet_members_url() ) . '">' . esc_html__( 'See your contacts', 'nonprofit-manager' ) . '</a></p>';
+		echo '<p><a class="button button-primary" href="' . esc_url( npmp_mailpoet_members_url() ) . '">' . esc_html__( 'See your contacts', 'nonprofit-manager' ) . '</a>';
+		if ( function_exists( 'npmp_import_hub_url' ) ) {
+			echo ' <a class="button" href="' . esc_url( npmp_import_hub_url( 'mailpoet' ) ) . '">' . esc_html__( 'Finish on Switch Plugins', 'nonprofit-manager' ) . '</a>';
+		}
+		echo '</p>';
 		return;
 	}
 

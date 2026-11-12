@@ -253,9 +253,25 @@ function npmp_import_hub_current_step( array $states ) {
 }
 
 /**
- * Is every step done?
+ * Did the old plugin's data come back after step 5 finished?
  *
- * @param array $states From npmp_import_hub_step_states().
+ * That happens when someone installs the plugin again and it builds its
+ * tables, or when a removal left something behind. The old check and the old
+ * removal no longer describe what's in the database, so the hub forgets both:
+ * you check again and type the word again before anything new is deleted.
+ *
+ * @param array $state    Saved hub state for the source.
+ * @param bool  $has_data Whether the source has data now.
+ * @return bool
+ */
+function npmp_import_hub_data_returned( array $state, $has_data ) {
+	return $has_data && ! empty( $state['removal']['done'] );
+}
+
+/**
+ * Has every step finished?
+ *
+ * @param array $states Step states.
  * @return bool
  */
 function npmp_import_hub_finished( array $states ) {
@@ -476,6 +492,10 @@ function npmp_import_hub_facts( array $source ) {
 	$installed = npmp_import_hub_installed_plugins( $source );
 	$active    = npmp_import_hub_active_plugins( $source );
 	$has_data  = (bool) npmp_import_hub_call( $source['has_data'], false );
+	if ( npmp_import_hub_data_returned( $state, $has_data ) ) {
+		unset( $state['removal'], $state['verified'] );
+		npmp_import_hub_save_state( $source['slug'], $state );
+	}
 	$imported  = (bool) npmp_import_hub_call( $source['is_imported'], false );
 	$can       = npmp_import_hub_call( $source['can_import'], true );
 

@@ -594,7 +594,9 @@ rig_has( 'Import screen card', 'Switching from MailPoet?', ob_get_clean() );
 set_current_screen( 'membership_page_npmp_members' );
 ob_start();
 npmp_mailpoet_admin_notice();
-rig_has( 'notice on the member list offers to turn MailPoet off', 'Turn off MailPoet', ob_get_clean() );
+$notice = ob_get_clean();
+rig_has( 'notice on the member list offers to finish switching', 'Finish switching', $notice );
+rig_has( 'and links to the Switch Plugins hub', 'page=npmp_import_hub', $notice );
 
 // ---------------------------------------------------------------------
 // Clean up.
