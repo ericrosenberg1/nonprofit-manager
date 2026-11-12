@@ -119,6 +119,14 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   skips its wrapper attributes inside a REST request, because the editor already puts the block
   supports on its own wrapper. Core writes block gap only for blocks with a layout, so the loop
   writes `gap` itself (`npmp_events_loop_gap_css()`). Real-WordPress check: `tests/rig/events-loop.php`.
+- **Email bodies render through `npmp_email_the_content()`, never bare `apply_filters( 'the_content' )`**
+  (since 2026.11.5). It takes browser-only callbacks from other plugins off the filter for the
+  render and puts them back (list in `npmp_email_browser_only_content_filters()`, today Creative
+  Commons' attribution box). `npmp_email_prepare_images()` then swaps local WebP, AVIF and HEIC
+  files for PNG or JPG copies in `uploads/npmp-email-images/`. SVG is never rendered on the server
+  (most hosts can't, and rendering an uploaded SVG can read server files), so the test send warns
+  the author instead. Unit test `tests/test-email-image-formats.php`, rig
+  `tests/rig/email-image-formats.php` with the Creative Commons plugin active.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

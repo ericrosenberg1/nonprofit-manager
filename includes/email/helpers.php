@@ -563,7 +563,7 @@ function npmp_email_prepare_image_tag( $tag, $base_url ) {
 			$double = '"' === $m[2][0];
 			$quote  = $double ? '"' : "'";
 			$url    = $double ? $m[3] : ( isset( $m[4] ) ? $m[4] : '' );
-			return $m[1] . $quote . npmp_email_absolute_image_url( $url, $base_url ) . $quote;
+			return $m[1] . $quote . npmp_email_safe_image_url( npmp_email_absolute_image_url( $url, $base_url ) ) . $quote;
 		},
 		$tag
 	);
@@ -581,6 +581,309 @@ function npmp_email_prepare_image_tag( $tag, $base_url ) {
  */
 function npmp_email_absolute_image_url( $url, $base_url ) {
 	return npmp_email_absolute_url( $url, $base_url );
+}
+
+/**
+ * Image formats a browser shows and a mail app often doesn't, by file
+ * extension. Gmail and Outlook drop SVG, desktop Outlook drops WebP and AVIF,
+ * and almost nothing outside Apple shows HEIC.
+ *
+ * @return string[]
+ */
+function npmp_email_unsafe_image_extensions() {
+	return array( 'svg', 'svgz', 'webp', 'avif', 'heic', 'heif' );
+}
+
+/**
+ * The lowercase file extension of an image address, without its query.
+ *
+ * @param string $url Image address.
+ * @return string
+ */
+function npmp_email_image_extension( $url ) {
+	$path = (string) preg_replace( '/[?#].*$/', '', (string) $url );
+	// Drop the scheme and host, or the ".org" of a bare site address reads as an extension.
+	$path = (string) preg_replace( '#^(?:[a-z][a-z0-9+.-]*:)?//[^/]*#i', '', $path );
+	return strtolower( (string) pathinfo( $path, PATHINFO_EXTENSION ) );
+}
+
+/**
+ * True when a WebP, AVIF or HEIC file carries transparency, read from the
+ * file's own header so no image library has to decode it.
+ *
+ * WebP: the extended header (VP8X) has an alpha flag, lossless (VP8L) has an
+ * alpha bit after its size, and plain lossy (VP8) has no alpha at all. AVIF
+ * and HEIC list an alpha plane as an auxiliary image with a fixed name.
+ *
+ * @param string $bytes The first bytes of the file. 64 KB is plenty.
+ * @param string $ext   Lowercase extension.
+ * @return bool
+ */
+function npmp_email_image_bytes_have_alpha( $bytes, $ext ) {
+	$bytes = (string) $bytes;
+
+	if ( 'webp' === $ext ) {
+		if ( strlen( $bytes ) < 25 || 'RIFF' !== substr( $bytes, 0, 4 ) || 'WEBP' !== substr( $bytes, 8, 4 ) ) {
+			return false;
+		}
+		$chunk = substr( $bytes, 12, 4 );
+		if ( 'VP8X' === $chunk ) {
+			return (bool) ( ord( $bytes[20] ) & 0x10 );
+		}
+		if ( 'VP8L' === $chunk ) {
+			return (bool) ( ord( $bytes[24] ) & 0x10 );
+		}
+		return false;
+	}
+
+	return false !== strpos( $bytes, 'auxiliary:alpha' ) || false !== strpos( $bytes, 'auxid:1' );
+}
+
+/**
+ * The file on this server behind an uploads address, or '' when the address
+ * points anywhere else. Scheme and host case are ignored, and the resolved
+ * path has to stay inside the uploads folder.
+ *
+ * @param string $url Absolute image address.
+ * @return string
+ */
+function npmp_email_local_upload_path( $url ) {
+	if ( ! function_exists( 'wp_get_upload_dir' ) ) {
+		return '';
+	}
+	$uploads = wp_get_upload_dir();
+	if ( empty( $uploads['baseurl'] ) || empty( $uploads['basedir'] ) ) {
+		return '';
+	}
+
+	$strip   = static function ( $address ) {
+		return (string) preg_replace( '#^https?://(www\.)?#i', '', (string) $address );
+	};
+	$base    = rtrim( $strip( $uploads['baseurl'] ), '/' ) . '/';
+	$address = $strip( preg_replace( '/[?#].*$/', '', (string) $url ) );
+
+	if ( 0 !== stripos( $address, $base ) ) {
+		return '';
+	}
+
+	$relative = rawurldecode( substr( $address, strlen( $base ) ) );
+	$root     = realpath( $uploads['basedir'] );
+	$path     = realpath( $uploads['basedir'] . '/' . $relative );
+
+	if ( false === $root || false === $path || 0 !== strpos( $path, $root . DIRECTORY_SEPARATOR ) || ! is_file( $path ) ) {
+		return '';
+	}
+	return $path;
+}
+
+/**
+ * Images this request left in a format some mail apps can't show: an SVG, a
+ * file on another server, or a file this server couldn't convert. The test
+ * send reads the list so the author hears about it before the real send.
+ *
+ * @param string|null $url   Address to add, or null to only read.
+ * @param bool        $reset True to empty the list.
+ * @return string[]
+ */
+function npmp_email_unconverted_images( $url = null, $reset = false ) {
+	static $urls = array();
+	if ( $reset ) {
+		$urls = array();
+	}
+	if ( null !== $url && '' !== $url ) {
+		$urls[ $url ] = $url;
+	}
+	return array_values( $urls );
+}
+
+/**
+ * A sentence for the author about images that stayed in a risky format, or
+ * '' when every image is fine.
+ *
+ * @return string
+ */
+function npmp_email_unconverted_images_notice() {
+	$count = count( npmp_email_unconverted_images() );
+	if ( 0 === $count ) {
+		return '';
+	}
+	return sprintf(
+		/* translators: %d: number of images. */
+		_n(
+			'%d image is an SVG, WebP, or AVIF file that Gmail or Outlook may not show. Use a PNG or JPG file instead.',
+			'%d images are SVG, WebP, or AVIF files that Gmail or Outlook may not show. Use PNG or JPG files instead.',
+			$count,
+			'nonprofit-manager'
+		),
+		$count
+	);
+}
+
+/**
+ * Swap an image some mail apps can't show for a PNG or JPG copy.
+ *
+ * WordPress and most image plugins now store uploads as WebP or AVIF. Both
+ * are fine on a web page and both go missing in desktop Outlook. The copy is
+ * made once, with the site's own image library, and kept in
+ * uploads/npmp-email-images/ under a name tied to the original's size and
+ * date, so a replaced file gets a new copy. A file with transparency becomes
+ * a PNG, anything else a JPG no wider than 1200 pixels.
+ *
+ * An SVG stays as it is. Turning one into pixels takes a renderer most hosts
+ * don't have, and rendering an uploaded SVG on the server is a known way to
+ * read files off it. The address goes on the unconverted list instead, and
+ * so does anything on another server or anything the image library refuses.
+ *
+ * @param string $url Absolute image address.
+ * @return string The address to send.
+ */
+function npmp_email_safe_image_url( $url ) {
+	$ext = npmp_email_image_extension( $url );
+	if ( '' === $ext || ! in_array( $ext, npmp_email_unsafe_image_extensions(), true ) ) {
+		return $url;
+	}
+
+	/**
+	 * Return false to send every image in the format it was uploaded in.
+	 *
+	 * @param bool   $convert Whether to swap in a PNG or JPG copy.
+	 * @param string $url     Image address.
+	 */
+	if ( function_exists( 'apply_filters' ) && ! apply_filters( 'npmp_email_convert_images', true, $url ) ) {
+		return $url;
+	}
+
+	$path = ( 'svg' === $ext || 'svgz' === $ext ) ? '' : npmp_email_local_upload_path( $url );
+	if ( '' === $path || ! function_exists( 'wp_get_image_editor' ) ) {
+		npmp_email_unconverted_images( $url );
+		return $url;
+	}
+
+	$uploads = wp_get_upload_dir();
+	$alpha   = npmp_email_image_bytes_have_alpha( (string) file_get_contents( $path, false, null, 0, 65536 ), $ext ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file header, 64 KB.
+	$to      = $alpha ? 'png' : 'jpg';
+	$name    = sanitize_file_name( pathinfo( $path, PATHINFO_FILENAME ) ) . '-' . substr( md5( $path . '|' . filemtime( $path ) . '|' . filesize( $path ) ), 0, 10 ) . '.' . $to;
+	$dir     = rtrim( $uploads['basedir'], '/' ) . '/npmp-email-images';
+	$copy    = $dir . '/' . $name;
+	$address = rtrim( $uploads['baseurl'], '/' ) . '/npmp-email-images/' . $name;
+
+	if ( is_file( $copy ) && filesize( $copy ) > 0 ) {
+		return $address;
+	}
+
+	if ( ! wp_mkdir_p( $dir ) ) {
+		npmp_email_unconverted_images( $url );
+		return $url;
+	}
+
+	$editor = wp_get_image_editor( $path );
+	if ( is_wp_error( $editor ) ) {
+		npmp_email_unconverted_images( $url );
+		return $url;
+	}
+
+	$size = $editor->get_size();
+	if ( ! empty( $size['width'] ) && $size['width'] > 1200 ) {
+		$editor->resize( 1200, null, false );
+	}
+
+	$saved = $editor->save( $copy, $alpha ? 'image/png' : 'image/jpeg' );
+	if ( is_wp_error( $saved ) || empty( $saved['path'] ) || ! is_file( $saved['path'] ) ) {
+		npmp_email_unconverted_images( $url );
+		return $url;
+	}
+
+	return rtrim( $uploads['baseurl'], '/' ) . '/npmp-email-images/' . basename( $saved['path'] );
+}
+
+/**
+ * Callbacks other plugins hang on `the_content` that only make sense in a
+ * browser, as array( class, method ) pairs or function names.
+ *
+ * Creative Commons wraps every image in an attribution box: a second, SVG
+ * image and a caption that its stylesheet keeps hidden until the reader
+ * hovers. An email carries no stylesheet, so the box shows in full beside
+ * every image, and its unclosed alt attribute swallows the markup after it.
+ *
+ * @return array
+ */
+function npmp_email_browser_only_content_filters() {
+	$filters = array(
+		array( 'CreativeCommonsImage', 'add_attribution_boxes' ),
+	);
+	/**
+	 * Add or remove `the_content` callbacks that stay out of sent email.
+	 *
+	 * @param array $filters array( class, method ) pairs or function names.
+	 */
+	return function_exists( 'apply_filters' ) ? (array) apply_filters( 'npmp_email_browser_only_content_filters', $filters ) : $filters;
+}
+
+/**
+ * True when a hooked callback is one of the listed ones.
+ *
+ * @param mixed $callback A callback as WordPress stores it.
+ * @param array $listed   array( class, method ) pairs or function names.
+ * @return bool
+ */
+function npmp_email_callback_is_listed( $callback, $listed ) {
+	foreach ( (array) $listed as $entry ) {
+		if ( is_string( $entry ) ) {
+			if ( is_string( $callback ) && 0 === strcasecmp( ltrim( $callback, '\\' ), ltrim( $entry, '\\' ) ) ) {
+				return true;
+			}
+			continue;
+		}
+		if ( ! is_array( $entry ) || 2 !== count( $entry ) || ! is_array( $callback ) || 2 !== count( $callback ) ) {
+			continue;
+		}
+		list( $class, $method )   = array_values( $entry );
+		list( $target, $hooked )  = array_values( $callback );
+		if ( ! is_string( $hooked ) || 0 !== strcasecmp( $hooked, (string) $method ) ) {
+			continue;
+		}
+		$target_class = is_object( $target ) ? get_class( $target ) : (string) $target;
+		if ( 0 === strcasecmp( ltrim( $target_class, '\\' ), ltrim( (string) $class, '\\' ) ) || is_subclass_of( $target, (string) $class ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Run an email body through `the_content` without the browser-only callbacks
+ * other plugins add, then put those callbacks back for the next web page.
+ *
+ * @param string $content Email body as saved.
+ * @return string
+ */
+function npmp_email_the_content( $content ) {
+	global $wp_filter;
+
+	$listed  = npmp_email_browser_only_content_filters();
+	$removed = array();
+
+	if ( $listed && isset( $wp_filter['the_content'] ) && is_object( $wp_filter['the_content'] ) && ! empty( $wp_filter['the_content']->callbacks ) ) {
+		foreach ( $wp_filter['the_content']->callbacks as $priority => $callbacks ) {
+			foreach ( $callbacks as $hooked ) {
+				if ( npmp_email_callback_is_listed( $hooked['function'], $listed ) ) {
+					$removed[] = array( $hooked['function'], $priority, $hooked['accepted_args'] );
+				}
+			}
+		}
+		foreach ( $removed as $entry ) {
+			remove_filter( 'the_content', $entry[0], $entry[1] );
+		}
+	}
+
+	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter, so blocks and shortcodes in an email body render the way they do in a post.
+	$content = apply_filters( 'the_content', $content );
+
+	foreach ( $removed as $entry ) {
+		add_filter( 'the_content', $entry[0], $entry[1], $entry[2] );
+	}
+
+	return $content;
 }
 
 /**

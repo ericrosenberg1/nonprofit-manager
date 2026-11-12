@@ -306,8 +306,9 @@ class NPMP_Newsletter_Manager {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Use core 'the_content' filters so newsletter blocks/shortcodes render correctly.
-		$content = apply_filters( 'the_content', $post->post_content );
+		// the_content, so newsletter blocks and shortcodes render, minus what
+		// other plugins add for a browser only.
+		$content = npmp_email_the_content( $post->post_content );
 
 		// Apply newsletter template if configured
 		$selected_template = get_post_meta( $newsletter_id, '_npmp_newsletter_template', true );

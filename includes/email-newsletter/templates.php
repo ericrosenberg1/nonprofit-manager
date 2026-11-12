@@ -264,8 +264,7 @@ function npmp_apply_newsletter_template($content, $template_id = null) {
     if ($placeholder_was_registered) {
         remove_shortcode('email_content');
     }
-    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Reuse core 'the_content' filters to match post formatting.
-    $template_content = apply_filters('the_content', $template->post_content);
+    $template_content = npmp_email_the_content($template->post_content);
     if ($placeholder_was_registered) {
         add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
     }

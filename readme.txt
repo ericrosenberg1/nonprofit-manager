@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.4
+Stable tag: 2026.11.5
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -157,6 +157,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.5 =
+* Added PNG or JPG copies of WebP, AVIF, and HEIC images in emails.
+* Added a test email warning for SVG images.
+* Fixed the Creative Commons attribution box showing in emails.
 
 = 2026.11.4 =
 * Fixed the setup wizard newsletter signup, which wasn't reaching the list.
@@ -478,6 +483,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.5 =
+Outlook readers now see the WebP and AVIF images in your emails.
 
 = 2026.11.4 =
 Fixes the newsletter signup in the setup wizard.
