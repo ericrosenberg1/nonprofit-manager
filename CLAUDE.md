@@ -214,8 +214,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
-- The Switch Plugins screen warns before turning off Charitable or deleting GiveWP when that plugin's own setting would delete its data.
+- (none)
 
 Pro (licence server changelog):
 - (none)
