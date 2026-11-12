@@ -17,8 +17,9 @@
  *   wp plugin install mailpoet --activate
  *   wp eval-file tests/rig/mailpoet-hub.php
  *
- * It deletes MailPoet's files and data. Install MailPoet again before another
- * run.
+ * Run it with Nonprofit Manager Pro inactive, since Pro lifts the free total
+ * this rig fills up. It deletes MailPoet's files and data. Install MailPoet
+ * again before another run.
  */
 
 $phase = isset( $args[0] ) ? (string) $args[0] : 'main';
@@ -202,7 +203,7 @@ if ( 'main' === $phase ) {
 	} while ( empty( $r['done'] ) && ++$guard < 20 );
 	$stage = npmp_mailpoet_get_stage();
 	$ok( 'the free total stopped new people', ! empty( $stage['results']['cap_reached'] ) && 2 === (int) $stage['results']['over_limit'], $stage['results'] );
-	$ok( 'the import read every subscriber', ! empty( $stage['migrated'] ) && 2 === (int) $stage['results']['created'] && 1 === (int) $stage['results']['updated'], $stage['results'] );
+	$ok( 'the import read every subscriber', ! empty( $stage['migrated'] ) && 2 === (int) $stage['results']['created'] && 1 === (int) $stage['results']['updated'] + (int) $stage['results']['unchanged'], $stage['results'] );
 	$ok( 'no free places left', 0 === npmp_import_free_remaining() );
 	$contacts = $rig_contacts();
 	unset( $contacts[ "zed@$domain" ] );
