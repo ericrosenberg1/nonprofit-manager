@@ -2,7 +2,8 @@
 /**
  * The Events Calendar importer (includes/import/tec-importer.php): timezone
  * conversion from TEC's stored values, venue lines, the redirect path
- * normaliser, block cleanup, staging keys, and which plugins need TEC.
+ * normaliser, block cleanup, staging keys, which plugins need TEC, and the
+ * settings map with its value conversion and "still on default" decision.
  *
  * The database half runs on a real WordPress with TEC installed:
  * tests/rig/tec-importer.php.
@@ -113,6 +114,90 @@ check( 'Shortcode & Templates by name', true, npmp_tec_plugin_needs_tec( 'some-f
 check( 'tribe-ext extension folder', true, npmp_tec_plugin_needs_tec( 'tribe-ext-hide-past/plugin.php', array( 'Name' => 'Hide Past' ) ) );
 check( 'Event Tickets runs alone, so it stays on', false, npmp_tec_plugin_needs_tec( 'event-tickets/event-tickets.php', array( 'Name' => 'Event Tickets' ) ) );
 check( 'unrelated plugin', false, npmp_tec_plugin_needs_tec( 'akismet/akismet.php', array( 'Name' => 'Akismet' ) ) );
+
+echo "Settings map\n";
+$map = npmp_tec_settings_map();
+check( 'three settings have a match', array( 'default_view', 'list_limit', 'accent' ), array_keys( $map ) );
+check( 'view reads viewOption', array( 'tribe_events_calendar_options', array( 'viewOption' ) ), array( $map['default_view']['source'], $map['default_view']['path'] ) );
+check( 'page size reads postsPerPage', array( 'postsPerPage' ), $map['list_limit']['path'] );
+check( 'accent reads the Customizer option', array( 'tribe_customizer', array( 'global_elements', 'accent_color' ) ), array( $map['accent']['source'], $map['accent']['path'] ) );
+check( 'targets', array( 'npmp_calendar_default_view', 'npmp_calendar_list_limit', 'npmp_calendar_accent' ), array_column( $map, 'target' ) );
+check( 'defaults match the calendar code', array( 'month', 10, '#0f766e' ), array_column( $map, 'default' ) );
+$calendar_src = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-calendar.php' );
+foreach ( $map as $id => $entry ) {
+	check( "calendar reads {$entry['target']} with the same default", true, false !== strpos( $calendar_src, "get_option( '{$entry['target']}', " . var_export( $entry['default'], true ) . ' )' ) );
+}
+
+echo "Setting values convert\n";
+check( 'list view', 'list', npmp_tec_convert_setting( 'default_view', 'list' ) );
+check( 'month view, any case', 'month', npmp_tec_convert_setting( 'default_view', ' Month ' ) );
+check( 'TEC Pro week view', 'week', npmp_tec_convert_setting( 'default_view', 'week' ) );
+check( 'day view has no match', null, npmp_tec_convert_setting( 'default_view', 'day' ) );
+check( 'photo view has no match', null, npmp_tec_convert_setting( 'default_view', 'photo' ) );
+check( 'page size as TEC stores it, a string', 12, npmp_tec_convert_setting( 'list_limit', '12' ) );
+check( 'page size as an int', 25, npmp_tec_convert_setting( 'list_limit', 25 ) );
+check( 'page size caps at the settings screen limit', 100, npmp_tec_convert_setting( 'list_limit', '500' ) );
+check( 'zero page size has no match', null, npmp_tec_convert_setting( 'list_limit', '0' ) );
+check( 'negative page size has no match', null, npmp_tec_convert_setting( 'list_limit', '-1' ) );
+check( 'hex color lowercased', '#aa3366', npmp_tec_convert_setting( 'accent', '#AA3366' ) );
+check( 'short hex expands', '#aa3366', npmp_tec_convert_setting( 'accent', '#a36' ) );
+check( 'hex without the hash', '#334aff', npmp_tec_convert_setting( 'accent', '334AFF' ) );
+check( 'color name has no match', null, npmp_tec_convert_setting( 'accent', 'red' ) );
+check( 'markup in a color has no match', null, npmp_tec_convert_setting( 'accent', '#fff"><script>' ) );
+check( 'array value has no match', null, npmp_tec_convert_setting( 'default_view', array( 'list' ) ) );
+check( 'unknown setting has no match', null, npmp_tec_convert_setting( 'eventsSlug', 'events' ) );
+
+echo "Settings read from TEC's options\n";
+$tec_sources = array(
+	'tribe_events_calendar_options' => array(
+		'viewOption'            => 'list',
+		'postsPerPage'          => '25',
+		'tribeEnableViews'      => array( 'list', 'month', 'day' ),
+		'showComments'          => true,
+		'eventsSlug'            => 'whats-on',
+		'defaultCurrencySymbol' => '$',
+	),
+	'tribe_customizer'              => array( 'global_elements' => array( 'accent_color' => '#AA3366', 'link_color' => '#000000' ) ),
+);
+$staged = npmp_tec_read_settings( $tec_sources );
+check( 'only mapped settings staged', array( 'default_view', 'list_limit', 'accent' ), array_keys( $staged ) );
+check( 'view staged with both values', array( 'tec' => 'list', 'value' => 'list' ), $staged['default_view'] );
+check( 'page size staged as an int', array( 'tec' => '25', 'value' => 25 ), $staged['list_limit'] );
+check( 'accent keeps TEC\'s spelling and the clean value', array( 'tec' => '#AA3366', 'value' => '#aa3366' ), $staged['accent'] );
+check( 'no TEC options, nothing staged', array(), npmp_tec_read_settings( array() ) );
+check( 'TEC options not an array, nothing staged', array(), npmp_tec_read_settings( array( 'tribe_events_calendar_options' => false, 'tribe_customizer' => '' ) ) );
+check( 'day view is left out, page size still comes', array( 'list_limit' ), array_keys( npmp_tec_read_settings( array( 'tribe_events_calendar_options' => array( 'viewOption' => 'day', 'postsPerPage' => 8 ) ) ) ) );
+
+echo "Is the setting still on its default\n";
+check( 'unset option', true, npmp_tec_setting_on_default( 'default_view', null ) );
+check( 'saved as the default', true, npmp_tec_setting_on_default( 'default_view', 'month' ) );
+check( 'changed view', false, npmp_tec_setting_on_default( 'default_view', 'week' ) );
+check( 'page size saved as the string 10', true, npmp_tec_setting_on_default( 'list_limit', '10' ) );
+check( 'changed page size', false, npmp_tec_setting_on_default( 'list_limit', 5 ) );
+check( 'accent default in capitals', true, npmp_tec_setting_on_default( 'accent', '#0F766E' ) );
+check( 'the pinned legacy blue counts as changed', false, npmp_tec_setting_on_default( 'accent', '#2271b1' ) );
+check( 'a value the calendar can\'t use falls back to the default', true, npmp_tec_setting_on_default( 'default_view', 'agenda' ) );
+check( 'unknown setting is never on default', false, npmp_tec_setting_on_default( 'eventsSlug', null ) );
+
+echo "Approve rows\n";
+$rows = npmp_tec_settings_rows( $staged, array( 'npmp_calendar_default_view' => null, 'npmp_calendar_list_limit' => 5, 'npmp_calendar_accent' => '#aa3366' ) );
+check( 'on default: ticked', array( 'tec' => 'list', 'value' => 'list', 'current' => 'month', 'same' => false, 'checked' => true ), $rows['default_view'] );
+check( 'already changed: unticked, current value shown', array( 'tec' => '25', 'value' => 25, 'current' => 5, 'same' => false, 'checked' => false ), $rows['list_limit'] );
+check( 'already the same: no tick', array( true, false ), array( $rows['accent']['same'], $rows['accent']['checked'] ) );
+$rows = npmp_tec_settings_rows( array( 'default_view' => array( 'tec' => 'month', 'value' => 'month' ) ), array() );
+check( 'TEC on the same default: same, no tick', array( true, false ), array( $rows['default_view']['same'], $rows['default_view']['checked'] ) );
+check( 'no settings staged (a list from the older importer), no rows', array(), npmp_tec_settings_rows( array(), array( 'npmp_calendar_list_limit' => 5 ) ) );
+check( 'a tampered staged value drops out', array(), npmp_tec_settings_rows( array( 'accent' => array( 'tec' => 'x', 'value' => 'javascript:1' ), 'bogus' => array( 'value' => 1 ) ), array() ) );
+
+echo "Ticked settings\n";
+check( 'keeps staged, mapped keys in map order', array( 'default_view', 'accent' ), npmp_tec_clean_setting_keys( array( 'accent', 'default_view', 'eventsSlug', array( 'x' ) ), $staged ) );
+check( 'a mapped key that isn\'t staged drops out', array(), npmp_tec_clean_setting_keys( array( 'accent' ), array( 'list_limit' => array( 'tec' => '5', 'value' => 5 ) ) ) );
+check( 'nothing ticked', array(), npmp_tec_clean_setting_keys( array(), $staged ) );
+
+echo "Setting names and values in words\n";
+check( 'view value', 'List', npmp_tec_setting_display( 'default_view', 'list' ) );
+check( 'number value', '25', npmp_tec_setting_display( 'list_limit', 25 ) );
+check( 'every mapped setting has a name', 3, count( array_filter( array_map( 'npmp_tec_setting_label', array_keys( $map ) ), static function ( $l ) use ( $map ) { return ! isset( $map[ $l ] ); } ) ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

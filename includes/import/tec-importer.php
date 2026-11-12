@@ -11,6 +11,10 @@
  * TEC and its add-ons off. Reading and migrating run in batches of 100 over
  * admin-ajax so a site with thousands of events never times out.
  *
+ * The Import step also reads TEC's settings. The Approve screen lists the ones
+ * with a match here, a checkbox each, and the Migrate step saves the checked
+ * ones. The mapping lives in npmp_tec_settings_map().
+ *
  * TEC's own data is never changed or deleted, so you can switch TEC back on.
  *
  * This file loads on every request. The front end only gets the 404 redirect
@@ -329,6 +333,220 @@ function npmp_tec_plugin_needs_tec( $file, array $data ) {
 	return 0 === stripos( trim( (string) ( $data['Name'] ?? '' ) ), 'The Events Calendar' );
 }
 
+/**
+ * TEC settings with a true match here, and where each one lives on both sides.
+ *
+ * TEC keeps its settings in one serialized option, tribe_events_calendar_options,
+ * and its Customizer colors in another, tribe_customizer (an array of sections).
+ * 'path' is the trail of array keys inside the source option. 'default' is the
+ * value this plugin uses while the target option is unset.
+ *
+ * Everything else TEC stores (enabled views, events per day in month view, date
+ * formats, URL slugs, currency for event costs, timezone display, comments, and
+ * maps) has no setting here, so it stays behind. Week start and the site date
+ * and time formats already come from WordPress on both sides.
+ *
+ * @return array<string,array{source:string,path:string[],target:string,default:mixed}>
+ */
+function npmp_tec_settings_map() {
+	return array(
+		'default_view' => array(
+			'source'  => 'tribe_events_calendar_options',
+			'path'    => array( 'viewOption' ),
+			'target'  => 'npmp_calendar_default_view',
+			'default' => 'month',
+		),
+		'list_limit'   => array(
+			'source'  => 'tribe_events_calendar_options',
+			'path'    => array( 'postsPerPage' ),
+			'target'  => 'npmp_calendar_list_limit',
+			'default' => 10,
+		),
+		'accent'       => array(
+			'source'  => 'tribe_customizer',
+			'path'    => array( 'global_elements', 'accent_color' ),
+			'target'  => 'npmp_calendar_accent',
+			'default' => '#0f766e',
+		),
+	);
+}
+
+/**
+ * Turn one TEC value into the value this plugin saves, or null when it has no
+ * match (TEC's day, photo, map, and summary views, a zero page size, a color
+ * that isn't a hex code).
+ *
+ * The same function cleans a value on its way into the target option, since
+ * each target accepts exactly what this returns.
+ *
+ * @param string $id  Key from npmp_tec_settings_map().
+ * @param mixed  $raw Value as TEC stored it.
+ * @return string|int|null
+ */
+function npmp_tec_convert_setting( $id, $raw ) {
+	if ( ! is_scalar( $raw ) ) {
+		return null;
+	}
+	$raw = trim( (string) $raw );
+
+	switch ( $id ) {
+		case 'default_view':
+			$view = strtolower( $raw );
+			return in_array( $view, array( 'month', 'week', 'list' ), true ) ? $view : null;
+
+		case 'list_limit':
+			if ( ! preg_match( '/^\d+$/', $raw ) || (int) $raw < 1 ) {
+				return null;
+			}
+			// The Events settings screen takes 1 to 100.
+			return min( 100, (int) $raw );
+
+		case 'accent':
+			if ( preg_match( '/^#?([0-9a-f]{3})$/i', $raw, $m ) ) {
+				$h = strtolower( $m[1] );
+				return '#' . $h[0] . $h[0] . $h[1] . $h[1] . $h[2] . $h[2];
+			}
+			return preg_match( '/^#?([0-9a-f]{6})$/i', $raw, $m ) ? '#' . strtolower( $m[1] ) : null;
+	}
+	return null;
+}
+
+/**
+ * Pick the mapped settings out of TEC's stored options.
+ *
+ * @param array $sources Source option name => its stored value.
+ * @return array<string,array{tec:string,value:string|int}> Keyed like the map.
+ *         'tec' is TEC's own value, 'value' is what this plugin would save.
+ */
+function npmp_tec_read_settings( array $sources ) {
+	$out = array();
+	foreach ( npmp_tec_settings_map() as $id => $map ) {
+		$raw = $sources[ $map['source'] ] ?? null;
+		foreach ( $map['path'] as $key ) {
+			$raw = is_array( $raw ) && array_key_exists( $key, $raw ) ? $raw[ $key ] : null;
+		}
+		$value = npmp_tec_convert_setting( $id, $raw );
+		if ( null !== $value ) {
+			$out[ $id ] = array(
+				'tec'   => trim( (string) $raw ),
+				'value' => $value,
+			);
+		}
+	}
+	return $out;
+}
+
+/**
+ * Is this plugin's setting still on its default?
+ *
+ * An unset option (null) is the default. So is a saved value equal to it, and
+ * a saved value this plugin can't use, since the calendar falls back to the
+ * default for it.
+ *
+ * @param string $id      Key from npmp_tec_settings_map().
+ * @param mixed  $current Stored target value, null when the option is unset.
+ * @return bool
+ */
+function npmp_tec_setting_on_default( $id, $current ) {
+	$map = npmp_tec_settings_map();
+	if ( ! isset( $map[ $id ] ) ) {
+		return false;
+	}
+	if ( null === $current ) {
+		return true;
+	}
+	$clean = npmp_tec_convert_setting( $id, $current );
+	return null === $clean || $clean === $map[ $id ]['default'];
+}
+
+/**
+ * Build the rows of the settings table on the Approve screen.
+ *
+ * A row is ticked when this plugin is still on its default, and unticked when
+ * you already changed the setting, so nothing you chose gets overwritten unless
+ * you tick the box. A setting that already matches gets no checkbox.
+ *
+ * @param array $staged  Settings from npmp_tec_read_settings().
+ * @param array $current Target option name => stored value, null when unset.
+ * @return array<string,array{tec:string,value:string|int,current:string|int,same:bool,checked:bool}>
+ */
+function npmp_tec_settings_rows( array $staged, array $current ) {
+	$rows = array();
+	foreach ( npmp_tec_settings_map() as $id => $map ) {
+		if ( ! isset( $staged[ $id ]['value'] ) ) {
+			continue;
+		}
+		// Clean it again: the staging list is stored data.
+		$value = npmp_tec_convert_setting( $id, $staged[ $id ]['value'] );
+		if ( null === $value ) {
+			continue;
+		}
+		$stored     = $current[ $map['target'] ] ?? null;
+		$on_default = npmp_tec_setting_on_default( $id, $stored );
+		$now        = $on_default ? $map['default'] : npmp_tec_convert_setting( $id, $stored );
+		$same       = $now === $value;
+		$rows[ $id ] = array(
+			'tec'     => (string) ( $staged[ $id ]['tec'] ?? $value ),
+			'value'   => $value,
+			'current' => $now,
+			'same'    => $same,
+			'checked' => ! $same && $on_default,
+		);
+	}
+	return $rows;
+}
+
+/**
+ * Keep only the setting keys that are staged and that you ticked.
+ *
+ * @param mixed $picked Raw keys from the approve form.
+ * @param array $staged Settings from npmp_tec_read_settings().
+ * @return string[]
+ */
+function npmp_tec_clean_setting_keys( $picked, array $staged ) {
+	$out = array();
+	foreach ( array_keys( npmp_tec_settings_map() ) as $id ) {
+		if ( isset( $staged[ $id ] ) && in_array( $id, array_map( 'strval', array_filter( (array) $picked, 'is_scalar' ) ), true ) ) {
+			$out[] = $id;
+		}
+	}
+	return $out;
+}
+
+/**
+ * The name of a setting, in this plugin's words.
+ *
+ * @param string $id Key from npmp_tec_settings_map().
+ * @return string
+ */
+function npmp_tec_setting_label( $id ) {
+	$labels = array(
+		'default_view' => __( 'Default view', 'nonprofit-manager' ),
+		'list_limit'   => __( 'Events in list view', 'nonprofit-manager' ),
+		'accent'       => __( 'Highlight color', 'nonprofit-manager' ),
+	);
+	return $labels[ $id ] ?? (string) $id;
+}
+
+/**
+ * A setting's value in words, for the tables.
+ *
+ * @param string $id    Key from npmp_tec_settings_map().
+ * @param mixed  $value Value on either side.
+ * @return string
+ */
+function npmp_tec_setting_display( $id, $value ) {
+	if ( 'default_view' === $id ) {
+		$views = array(
+			'month' => __( 'Month', 'nonprofit-manager' ),
+			'week'  => __( 'Week', 'nonprofit-manager' ),
+			'list'  => __( 'List', 'nonprofit-manager' ),
+		);
+		return $views[ strtolower( (string) $value ) ] ?? (string) $value;
+	}
+	return (string) $value;
+}
+
 // =====================================================================
 // State
 // =====================================================================
@@ -393,6 +611,11 @@ function npmp_tec_get_stage() {
 				'failed'     => array(),
 			),
 			'deactivated' => array(),
+			// A list staged before the importer read settings has none of these
+			// keys, and the empty defaults mean "no settings staged".
+			'settings'         => array(),
+			'settings_apply'   => array(),
+			'settings_changed' => array(),
 		),
 		is_array( $stage ) ? $stage : array()
 	);
@@ -749,7 +972,8 @@ function npmp_tec_stage_batch( $restart = false, $limit = NPMP_TEC_BATCH ) {
 	}
 
 	if ( count( $ids ) < $limit ) {
-		$stage['done'] = true;
+		$stage['done']     = true;
+		$stage['settings'] = npmp_tec_stage_settings();
 	}
 	npmp_tec_save_stage( $stage );
 
@@ -759,6 +983,36 @@ function npmp_tec_stage_batch( $restart = false, $limit = NPMP_TEC_BATCH ) {
 		'total' => $total,
 		'items' => count( $stage['items'] ),
 	);
+}
+
+/**
+ * Read TEC's settings from the database for the staging list.
+ *
+ * Plain get_option() calls, so they work with TEC on or off.
+ *
+ * @return array Settings from npmp_tec_read_settings().
+ */
+function npmp_tec_stage_settings() {
+	$sources = array();
+	foreach ( npmp_tec_settings_map() as $map ) {
+		if ( ! isset( $sources[ $map['source'] ] ) ) {
+			$sources[ $map['source'] ] = get_option( $map['source'], array() );
+		}
+	}
+	return npmp_tec_read_settings( $sources );
+}
+
+/**
+ * This plugin's stored value for every mapped setting, null when unset.
+ *
+ * @return array<string,mixed> Target option name => value.
+ */
+function npmp_tec_current_settings() {
+	$current = array();
+	foreach ( npmp_tec_settings_map() as $map ) {
+		$current[ $map['target'] ] = get_option( $map['target'], null );
+	}
+	return $current;
 }
 
 // =====================================================================
@@ -838,12 +1092,16 @@ function npmp_tec_sanitize_options( $raw ) {
 /**
  * Approve the selection and queue it for the migrate step.
  *
- * @param array $options Sanitized options from the approve form.
+ * @param array $options  Sanitized options from the approve form.
+ * @param array $settings Keys of the settings you ticked, from npmp_tec_settings_map().
  * @return int Events queued.
  */
-function npmp_tec_approve( array $options = array() ) {
+function npmp_tec_approve( array $options = array(), array $settings = array() ) {
 	$stage             = npmp_tec_get_stage();
 	$stage['options']  = $options;
+	// Only keys that are staged and mapped get through.
+	$stage['settings_apply']   = npmp_tec_clean_setting_keys( $settings, (array) $stage['settings'] );
+	$stage['settings_changed'] = array();
 	$stage['queue']    = npmp_tec_selected_keys( $stage );
 	$stage['position'] = 0;
 	$stage['approved'] = true;
@@ -1105,7 +1363,9 @@ function npmp_tec_migrate_batch( $limit = NPMP_TEC_BATCH ) {
 	}
 
 	if ( $stage['position'] >= $total ) {
-		$stage['migrated'] = true;
+		$stage['migrated']         = true;
+		$stage['settings_changed'] = npmp_tec_apply_settings( (array) $stage['settings'], (array) $stage['settings_apply'] );
+		$stage['settings_apply']   = array();
 	}
 	npmp_tec_save_stage( $stage );
 
@@ -1121,6 +1381,30 @@ function npmp_tec_migrate_batch( $limit = NPMP_TEC_BATCH ) {
 		'total'    => $total,
 		'created'  => (int) $stage['results']['created'],
 	);
+}
+
+/**
+ * Save the settings you ticked on the Approve screen.
+ *
+ * @param array    $staged Settings from npmp_tec_read_settings().
+ * @param string[] $picked Keys you ticked.
+ * @return array<string,array{from:string|int,to:string|int}> What changed, keyed like the map.
+ */
+function npmp_tec_apply_settings( array $staged, array $picked ) {
+	$map     = npmp_tec_settings_map();
+	$rows    = npmp_tec_settings_rows( $staged, npmp_tec_current_settings() );
+	$changed = array();
+	foreach ( npmp_tec_clean_setting_keys( $picked, $staged ) as $id ) {
+		if ( ! isset( $rows[ $id ] ) || $rows[ $id ]['same'] ) {
+			continue;
+		}
+		update_option( $map[ $id ]['target'], $rows[ $id ]['value'] );
+		$changed[ $id ] = array(
+			'from' => $rows[ $id ]['current'],
+			'to'   => $rows[ $id ]['value'],
+		);
+	}
+	return $changed;
 }
 
 // =====================================================================
@@ -1489,7 +1773,8 @@ function npmp_tec_post_review() {
 function npmp_tec_post_approve() {
 	npmp_tec_check_request();
 	$options = npmp_tec_sanitize_options( wp_unslash( $_POST['npmp_tec_options'] ?? array() ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized key by key in npmp_tec_sanitize_options().
-	npmp_tec_approve( $options );
+	$settings = array_map( 'sanitize_key', (array) wp_unslash( $_POST['npmp_tec_settings'] ?? array() ) );
+	npmp_tec_approve( $options, $settings );
 	wp_safe_redirect( npmp_tec_page_url( 4 ) );
 	exit;
 }
@@ -1724,6 +2009,7 @@ function npmp_tec_render_import( array $stage ) {
 		)
 	) . '</p>';
 	echo '<p>' . esc_html__( 'First, the importer reads each one: its title, description, image, dates, venue, organizer, and categories. Nothing moves yet, and The Events Calendar keeps all of its data. You pick what moves on the next screen.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html__( 'You can also bring over your calendar settings from The Events Calendar. You choose which ones on the Approve screen, before anything changes.', 'nonprofit-manager' ) . '</p>';
 	if ( npmp_tec_has_occurrences_table() ) {
 		echo '<p class="description">' . esc_html__( 'A repeating event from Events Calendar Pro comes in as one event for each date.', 'nonprofit-manager' ) . '</p>';
 	}
@@ -1827,26 +2113,37 @@ function npmp_tec_render_approve( array $stage ) {
 	$selected = npmp_tec_selected_keys( $stage );
 	$count    = count( $selected );
 	$left     = array_intersect_key( $stage['items'], array_flip( $stage['skip'] ) );
+	$rows     = npmp_tec_settings_rows( (array) $stage['settings'], npmp_tec_current_settings() );
+	$open     = array_filter(
+		$rows,
+		static function ( $row ) {
+			return ! $row['same'];
+		}
+	);
 
-	if ( ! $count ) {
+	if ( ! $count && ! $open ) {
 		echo '<p>' . esc_html__( 'You unchecked every event, so nothing will move.', 'nonprofit-manager' ) . '</p>';
 		echo '<p><a class="button" href="' . esc_url( npmp_tec_page_url( 2 ) ) . '">' . esc_html__( 'Back to the list', 'nonprofit-manager' ) . '</a></p>';
 		return;
 	}
 
-	echo '<p>' . esc_html(
-		sprintf(
-			/* translators: %s: number of events. */
-			_n( 'You\'re moving %s event into Events.', 'You\'re moving %s events into Events.', $count, 'nonprofit-manager' ),
-			number_format_i18n( $count )
-		)
-	) . '</p>';
-	echo '<ul class="ul-disc">';
-	echo '<li>' . esc_html__( 'Each one keeps its title, description, featured image, dates, venue and address, website link, and categories.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'Dates come over in your site\'s timezone, set under Settings, General.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'Links to the old event pages will send visitors to the new ones.', 'nonprofit-manager' ) . '</li>';
-	echo '<li>' . esc_html__( 'The Events Calendar keeps its own copy, so you can switch it back on if something looks wrong.', 'nonprofit-manager' ) . '</li>';
-	echo '</ul>';
+	if ( $count ) {
+		echo '<p>' . esc_html(
+			sprintf(
+				/* translators: %s: number of events. */
+				_n( 'You\'re moving %s event into Events.', 'You\'re moving %s events into Events.', $count, 'nonprofit-manager' ),
+				number_format_i18n( $count )
+			)
+		) . '</p>';
+		echo '<ul class="ul-disc">';
+		echo '<li>' . esc_html__( 'Each one keeps its title, description, featured image, dates, venue and address, website link, and categories.', 'nonprofit-manager' ) . '</li>';
+		echo '<li>' . esc_html__( 'Dates come over in your site\'s timezone, set under Settings, General.', 'nonprofit-manager' ) . '</li>';
+		echo '<li>' . esc_html__( 'Links to the old event pages will send visitors to the new ones.', 'nonprofit-manager' ) . '</li>';
+		echo '<li>' . esc_html__( 'The Events Calendar keeps its own copy, so you can switch it back on if something looks wrong.', 'nonprofit-manager' ) . '</li>';
+		echo '</ul>';
+	} else {
+		echo '<p>' . esc_html__( 'You unchecked every event, so no events will move. You can still bring over the settings below.', 'nonprofit-manager' ) . '</p>';
+	}
 
 	if ( $left ) {
 		echo '<details class="npmp-tec-left"><summary>' . esc_html(
@@ -1872,14 +2169,108 @@ function npmp_tec_render_approve( array $stage ) {
 	 */
 	do_action( 'npmp_tec_import_options' );
 	echo '</div>';
+	npmp_tec_render_settings_table( $rows );
 	echo '<p><a class="button" href="' . esc_url( npmp_tec_page_url( 2 ) ) . '">' . esc_html__( 'Back to the list', 'nonprofit-manager' ) . '</a> ';
 	echo '<button type="submit" class="button button-primary">' . esc_html(
-		sprintf(
-			/* translators: %s: number of events. */
-			_n( 'Approve and move %s event', 'Approve and move %s events', $count, 'nonprofit-manager' ),
-			number_format_i18n( $count )
-		)
+		$count
+			? sprintf(
+				/* translators: %s: number of events. */
+				_n( 'Approve and move %s event', 'Approve and move %s events', $count, 'nonprofit-manager' ),
+				number_format_i18n( $count )
+			)
+			: __( 'Bring over the settings', 'nonprofit-manager' )
 	) . '</button></p></form>';
+}
+
+/**
+ * The settings table on the Approve screen, inside the approve form.
+ *
+ * @param array $rows Rows from npmp_tec_settings_rows().
+ * @return void
+ */
+function npmp_tec_render_settings_table( array $rows ) {
+	$app = npmp_label( 'app_name' );
+
+	echo '<h2>' . esc_html__( 'Calendar settings', 'nonprofit-manager' ) . '</h2>';
+	if ( $rows ) {
+		echo '<p>' . esc_html(
+			sprintf(
+				/* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */
+				__( 'Check the box for each setting you want. You start with a checked box where %s is still on its default, and an unchecked box where you already picked your own value.', 'nonprofit-manager' ),
+				$app
+			)
+		) . '</p>';
+		echo '<table class="widefat striped npmp-tec-settings"><thead><tr>';
+		echo '<td class="check-column"><span class="screen-reader-text">' . esc_html__( 'Bring over', 'nonprofit-manager' ) . '</span></td>';
+		echo '<th scope="col">' . esc_html__( 'Setting', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'In The Events Calendar', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'New value', 'nonprofit-manager' ) . '</th>';
+		echo '<th scope="col">' . esc_html__( 'Current value', 'nonprofit-manager' ) . '</th>';
+		echo '</tr></thead><tbody>';
+		foreach ( $rows as $id => $row ) {
+			$label = npmp_tec_setting_label( $id );
+			echo '<tr><th scope="row" class="check-column">';
+			if ( $row['same'] ) {
+				echo '<input type="checkbox" disabled aria-label="' . esc_attr__( 'Already the same', 'nonprofit-manager' ) . '">';
+			} else {
+				printf(
+					'<input type="checkbox" name="npmp_tec_settings[]" value="%1$s" %2$s aria-label="%3$s">',
+					esc_attr( $id ),
+					checked( $row['checked'], true, false ),
+					/* translators: %s: setting name. */
+					esc_attr( sprintf( __( 'Bring over %s', 'nonprofit-manager' ), $label ) )
+				);
+			}
+			echo '</th><td><strong>' . esc_html( $label ) . '</strong></td>';
+			echo '<td>' . esc_html( npmp_tec_setting_display( $id, $row['tec'] ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_tec_setting_display( $id, $row['value'] ) ) . '</td>';
+			echo '<td>' . esc_html( npmp_tec_setting_display( $id, $row['current'] ) );
+			if ( $row['same'] ) {
+				echo ' <span class="npmp-tec-status">' . esc_html__( 'Already the same', 'nonprofit-manager' ) . '</span>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table>';
+	}
+	echo '<p class="description">' . esc_html(
+		sprintf(
+			/* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */
+			__( 'You won\'t find a match in %s for the other settings in The Events Calendar, so they stay behind: enabled views, events per day in month view, date formats, URL slugs, currency, timezone display, comments, and maps.', 'nonprofit-manager' ),
+			$app
+		)
+	) . '</p>';
+}
+
+/**
+ * What the Migrate step did with your settings.
+ *
+ * @param array $stage Stage.
+ * @return void
+ */
+function npmp_tec_render_settings_changed( array $stage ) {
+	$changed = array_intersect_key( (array) $stage['settings_changed'], npmp_tec_settings_map() );
+	if ( ! $changed ) {
+		return;
+	}
+	echo '<p>' . esc_html(
+		sprintf(
+			/* translators: %s: number of settings. */
+			_n( 'You brought over %s setting:', 'You brought over %s settings:', count( $changed ), 'nonprofit-manager' ),
+			number_format_i18n( count( $changed ) )
+		)
+	) . '</p><ul class="ul-disc npmp-tec-settings-changed">';
+	foreach ( $changed as $id => $change ) {
+		echo '<li>' . esc_html(
+			sprintf(
+				/* translators: 1: setting name, 2: old value, 3: new value. */
+				__( '%1$s: %2$s changed to %3$s', 'nonprofit-manager' ),
+				npmp_tec_setting_label( $id ),
+				npmp_tec_setting_display( $id, $change['from'] ?? '' ),
+				npmp_tec_setting_display( $id, $change['to'] ?? '' )
+			)
+		) . '</li>';
+	}
+	echo '</ul>';
 }
 
 /**
@@ -1919,6 +2310,7 @@ function npmp_tec_render_migrate( array $stage ) {
 		}
 		echo '</ul></div>';
 	}
+	npmp_tec_render_settings_changed( $stage );
 	echo '<p><a class="button" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'See your events', 'nonprofit-manager' ) . '</a> ';
 	echo '<a class="button button-primary" href="' . esc_url( npmp_tec_page_url( 5 ) ) . '">' . esc_html__( 'Continue', 'nonprofit-manager' ) . '</a></p>';
 }
@@ -1945,6 +2337,7 @@ function npmp_tec_render_deactivate( array $stage ) {
 			}
 			echo '</ul>';
 		}
+		npmp_tec_render_settings_changed( $stage );
 		echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'See your events', 'nonprofit-manager' ) . '</a></p>';
 		return;
 	}
