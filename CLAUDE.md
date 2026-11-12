@@ -138,7 +138,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Raised the free import limit from 50 to 100 contacts.
 
 Pro (licence server changelog):
 - (none)
