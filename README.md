@@ -22,7 +22,7 @@ Nonprofit Manager runs the website of the College Area Community Council in Vent
 
 - One contact list for members and donors, with membership levels, filters, bulk actions and lifetime giving per person.
 - Signup and unsubscribe forms as blocks or shortcodes, protected by Cloudflare Turnstile or Google reCAPTCHA.
-- Imports from CSV, XLSX, Google Sheets, Mailchimp and Constant Contact. The free plugin imports 100 contacts per job.
+- Imports from CSV, XLSX, Google Sheets, Mailchimp and Constant Contact. The free plugin imports 100 contacts in total.
 - A Membership Manager role, so a volunteer can log in and work with members, donations and newsletters without seeing your settings.
 
 **Donations**
