@@ -84,9 +84,12 @@ $rig_contacts = function () use ( $wpdb, $domain ) {
 	return $out;
 };
 
-if ( 'main' === $phase && ( ! defined( 'NPMP_IMPORT_FREE_MAX_ROWS' ) || 3 !== NPMP_IMPORT_FREE_MAX_ROWS ) ) {
-	// The free total is a constant set at load, so run again with it at 3.
-	$code = $run_phase( 'main', "define( 'NPMP_IMPORT_FREE_MAX_ROWS', 3 );" );
+if ( 'main' === $phase && ! defined( 'NPMP_RIG_MP_BASE' ) ) {
+	// The free total is a constant set at load, so run again with 3 places
+	// on top of the free imports other rigs left on this site. The rig's own
+	// contacts from an earlier run don't count, since the run deletes them.
+	$base = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(DISTINCT f.post_id) FROM {$wpdb->postmeta} f INNER JOIN {$wpdb->posts} p ON p.ID = f.post_id AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' LEFT JOIN {$wpdb->postmeta} e ON e.post_id = f.post_id AND e.meta_key = 'npmp_email' WHERE f.meta_key = %s AND ( e.meta_value IS NULL OR e.meta_value NOT LIKE %s )", NPMP_IMPORT_FREE_META, '%@' . $wpdb->esc_like( $domain ) ) );
+	$code = $run_phase( 'main', sprintf( "define( 'NPMP_RIG_MP_BASE', %d ); define( 'NPMP_IMPORT_FREE_MAX_ROWS', %d );", $base, $base + 3 ) );
 	remove_all_actions( 'shutdown' );
 	exit( $code );
 }
@@ -200,7 +203,7 @@ if ( 'main' === $phase ) {
 	ob_start();
 	npmp_mailpoet_render_approve( npmp_mailpoet_get_stage() );
 	$approve = html_entity_decode( wp_strip_all_tags( ob_get_clean() ), ENT_QUOTES );
-	$ok( 'the Approve screen names the total and the places left', false !== strpos( $approve, 'you can import 3 contacts in total, and you have 2 places left' ), $approve );
+	$ok( 'the Approve screen names the total and the places left', false !== strpos( $approve, 'you can import ' . NPMP_IMPORT_FREE_MAX_ROWS . ' contacts in total, and you have 2 places left' ), $approve );
 	npmp_mailpoet_approve( array( 'from_name', 'from_email' ) );
 	$guard = 0;
 	do {
@@ -215,8 +218,8 @@ if ( 'main' === $phase ) {
 	$ok( 'Ana and Cal are new contacts, Ben is still one', isset( $contacts[ "ana@$domain" ], $contacts[ "ben@$domain" ], $contacts[ "cal@$domain" ] ) && 3 === count( $contacts ), array_keys( $contacts ) );
 	ob_start();
 	npmp_mailpoet_render_migrate( $stage );
-	$ok( 'the migrate screen says the free contacts are used up', false !== strpos( html_entity_decode( ob_get_clean(), ENT_QUOTES ), 'You have imported your 3 free contacts' ) );
-	$ok( 'MailPoet marked the 2 contacts it made', 3 === npmp_import_free_used( true ), npmp_import_free_used() );
+	$ok( 'the migrate screen says the free contacts are used up', false !== strpos( html_entity_decode( ob_get_clean(), ENT_QUOTES ), 'You have imported your ' . NPMP_IMPORT_FREE_MAX_ROWS . ' free contacts' ) );
+	$ok( 'MailPoet marked the 2 contacts it made', NPMP_RIG_MP_BASE + 3 === npmp_import_free_used( true ), npmp_import_free_used() );
 
 	echo "Run the import again at the limit\n";
 	// A name that's only the email counts as blank, so the rerun fills it in.
@@ -246,7 +249,7 @@ if ( 'main' === $phase ) {
 	$counts = npmp_mailpoet_hub_counts();
 	$ok( 'subscribers: 5 in MailPoet, 2 new contacts', 5 === $counts[0]['old'] && 2 === $counts[0]['new'], $counts[0] );
 	$ok( 'two subscribers left behind', 2 === $counts[1]['old'], $counts[1] );
-	$ok( 'the note names the free total from NPMP_IMPORT_FREE_MAX_ROWS', false !== strpos( $counts[1]['note'], 'import 3 contacts in all' ), $counts[1]['note'] );
+	$ok( 'the note names the free total from NPMP_IMPORT_FREE_MAX_ROWS', false !== strpos( $counts[1]['note'], 'import ' . NPMP_IMPORT_FREE_MAX_ROWS . ' contacts in all' ), $counts[1]['note'] );
 	$ok( 'two more lists than MailPoet started with', $lists_before + 2 === $counts[2]['old'], array( $lists_before, $counts[2] ) );
 	if ( npmp_mailpoet_groups_supported() ) {
 		$ok( 'with Pro groups, lists say they became groups', false !== strpos( $counts[2]['note'], 'became a group' ), $counts[2]['note'] );
@@ -267,7 +270,7 @@ if ( 'main' === $phase ) {
 	remove_filter( 'npmp_import_max_rows', $cap, PHP_INT_MAX );
 	$ok( 'shows MailPoet with its status', false !== strpos( $html, 'id="npmp-hub-mailpoet"' ) && false !== strpos( $html, 'Active on this site' ) );
 	$ok( 'shows the counts table', false !== strpos( $html, 'npmp-hub-counts' ) && false !== strpos( $html, 'Subscribers not in your contacts' ) );
-	$ok( 'the total shows as 3 on the screen', false !== strpos( $html, 'In the free version you can import 3 contacts in all' ) );
+	$ok( 'the total shows on the screen', false !== strpos( $html, 'In the free version you can import ' . NPMP_IMPORT_FREE_MAX_ROWS . ' contacts in all' ) );
 	$ok( 'the Pro part shows', false !== strpos( $html, 'Turn each list into a group' ) );
 	$ok( 'deactivate form is next', false !== strpos( $html, 'value="deactivate"' ) );
 	// Pro lifts the limit the same way.
