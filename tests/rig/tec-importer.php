@@ -6,7 +6,8 @@
  * add-ons, confirm TEC's data survived, and follow the old URLs over HTTP.
  *
  * Needs a throwaway WordPress with this plugin and The Events Calendar active,
- * pretty permalinks, home_url at http://127.0.0.1:10199, and port 10199 free:
+ * pretty permalinks, home_url at http://127.0.0.1:10199, and port 10199 free.
+ * The expected times assume the site runs on London time, so it sets that:
  *   wp plugin install the-events-calendar --activate
  *   wp rewrite structure '/%postname%/'
  *   wp eval-file tests/rig/tec-importer.php
@@ -28,6 +29,9 @@ if ( ! function_exists( 'tribe_create_event' ) ) {
 }
 
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
+// Every expected local time below is London time.
+update_option( 'timezone_string', 'Europe/London' );
+update_option( 'gmt_offset', '' );
 require_once ABSPATH . 'wp-admin/includes/media.php';
 require_once ABSPATH . 'wp-admin/includes/file.php';
 require_once ABSPATH . 'wp-admin/includes/image.php';

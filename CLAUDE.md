@@ -127,6 +127,14 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   (most hosts can't, and rendering an uploaded SVG can read server files), so the test send warns
   the author instead. Unit test `tests/test-email-image-formats.php`, rig
   `tests/rig/email-image-formats.php` with the Creative Commons plugin active.
+- **Switch Plugins hub** (`includes/import/import-hub.php`). Every importer that retires an old plugin
+  registers a source on the `npmp_import_sources` filter (keys documented at the top of the file, TEC's in
+  `includes/import/tec-hub-source.php`). Five steps in order, every refusal in `npmp_import_hub_run_step()`.
+  Register only sources with a working importer. Data removal deletes only what the source names and shows
+  as unavailable without a `batch` callable. TEC's removal refuses while Event Tickets is installed
+  (tribe-common shares its option names) and never touches `npmp_*` options, the npmp_event posts, or their
+  `_npmp_tec_*` meta, which the 301s read. Unit `tests/test-import-hub.php`, rig `tests/rig/import-hub.php`
+  (needs the real TEC, deletes it, runs each step in its own `wp` process).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -139,6 +147,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 
 Free (`readme.txt`):
 - Added calendar settings to The Events Calendar importer.
+- Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
 
 Pro (licence server changelog):
 - (none)

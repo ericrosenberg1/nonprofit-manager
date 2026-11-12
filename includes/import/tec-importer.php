@@ -1623,8 +1623,8 @@ function npmp_tec_admin_notice() {
 	$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=npmp_tec_dismiss' ), 'npmp_tec_dismiss' );
 	echo '<div class="notice notice-info npmp-tec-notice"><p>';
 	if ( $stage['migrated'] ) {
-		esc_html_e( 'You moved your events. You can turn off The Events Calendar now, and its old event links will keep working.', 'nonprofit-manager' );
-		echo '</p><p><a class="button button-primary" href="' . esc_url( npmp_tec_page_url( 5 ) ) . '">' . esc_html__( 'Turn off The Events Calendar', 'nonprofit-manager' ) . '</a> ';
+		esc_html_e( 'You moved your events. Check them, then turn off The Events Calendar on the Switch Plugins screen. Its old event links keep working.', 'nonprofit-manager' );
+		echo '</p><p><a class="button button-primary" href="' . esc_url( function_exists( 'npmp_import_hub_url' ) ? npmp_import_hub_url( 'the-events-calendar' ) : npmp_tec_page_url( 5 ) ) . '">' . esc_html__( 'Finish switching', 'nonprofit-manager' ) . '</a> ';
 	} else {
 		echo esc_html(
 			sprintf(
@@ -2338,7 +2338,11 @@ function npmp_tec_render_deactivate( array $stage ) {
 			echo '</ul>';
 		}
 		npmp_tec_render_settings_changed( $stage );
-		echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'See your events', 'nonprofit-manager' ) . '</a></p>';
+		echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'See your events', 'nonprofit-manager' ) . '</a>';
+		if ( function_exists( 'npmp_import_hub_url' ) ) {
+			echo ' <a class="button" href="' . esc_url( npmp_import_hub_url( 'the-events-calendar' ) ) . '">' . esc_html__( 'Finish on Switch Plugins', 'nonprofit-manager' ) . '</a>';
+		}
+		echo '</p>';
 		return;
 	}
 
