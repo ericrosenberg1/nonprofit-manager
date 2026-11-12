@@ -1669,7 +1669,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			if (s.cap_reached) {
 				var imported = (s.imported || 0) + (s.updated || 0);
 				var total    = s.source_total || imported;
-				var cap      = s.cap_max_rows || 50;
+				var cap      = s.cap_max_rows || <?php echo (int) NPMP_IMPORT_FREE_MAX_ROWS; ?>;
 				var template = '<?php echo esc_js( __( 'Imported the first %1$s of %2$s records. The free version imports up to %3$s at a time. Upgrade to Pro to import the rest in one pass.', 'nonprofit-manager' ) ); ?>';
 				$('#npmp-import-cap-text').text(
 					template
