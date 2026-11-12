@@ -38,7 +38,7 @@ function npmp_register_events_admin_menu() {
 
 	add_submenu_page(
 		'npmp-events',
-		__( 'Overview', 'nonprofit-manager' ),
+		__( 'Events Overview', 'nonprofit-manager' ),
 		__( 'Overview', 'nonprofit-manager' ),
 		'edit_posts',
 		'npmp-events',
@@ -55,8 +55,8 @@ function npmp_register_events_admin_menu() {
 
 	add_submenu_page(
 		'npmp-events',
-		__( 'Add New', 'nonprofit-manager' ),
-		__( 'Add New', 'nonprofit-manager' ),
+		__( 'Add Event', 'nonprofit-manager' ),
+		__( 'Add Event', 'nonprofit-manager' ),
 		'edit_posts',
 		'post-new.php?post_type=npmp_event'
 	);
@@ -82,24 +82,7 @@ function npmp_register_event_post_type() {
 		return;
 	}
 
-	$labels = array(
-		'name'                  => __( 'Events', 'nonprofit-manager' ),
-		'singular_name'         => __( 'Event', 'nonprofit-manager' ),
-		'add_new'               => __( 'Add New', 'nonprofit-manager' ),
-		'add_new_item'          => __( 'Add New Event', 'nonprofit-manager' ),
-		'edit_item'             => __( 'Edit Event', 'nonprofit-manager' ),
-		'new_item'              => __( 'New Event', 'nonprofit-manager' ),
-		'view_item'             => __( 'View Event', 'nonprofit-manager' ),
-		'search_items'          => __( 'Search Events', 'nonprofit-manager' ),
-		'not_found'             => __( 'No events found.', 'nonprofit-manager' ),
-		'not_found_in_trash'    => __( 'No events found in Trash.', 'nonprofit-manager' ),
-		'all_items'             => __( 'All Events', 'nonprofit-manager' ),
-		'archives'              => __( 'Event Archives', 'nonprofit-manager' ),
-		'attributes'            => __( 'Event Attributes', 'nonprofit-manager' ),
-		'insert_into_item'      => __( 'Insert into event', 'nonprofit-manager' ),
-		'uploaded_to_this_item' => __( 'Uploaded to this event', 'nonprofit-manager' ),
-		'item_updated'          => __( 'Event updated.', 'nonprofit-manager' ),
-	);
+	$labels = npmp_post_type_labels( 'npmp_event' );
 
 	$args = array(
 		'labels'             => $labels,

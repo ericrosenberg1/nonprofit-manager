@@ -182,7 +182,6 @@ function npmp_render_main_plugin_page() {
 
 					<?php if ( ! empty( $features['newsletters'] ) ) : ?>
 						<li class="npmp-quick-links__group"><strong><?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=npmp_newsletter' ) ); ?>"><?php esc_html_e( 'All Newsletters', 'nonprofit-manager' ); ?></a></li>
 						<li><a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=npmp_newsletter' ) ); ?>"><?php esc_html_e( 'Add Newsletter', 'nonprofit-manager' ); ?></a></li>
 						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_templates' ) ); ?>"><?php esc_html_e( 'Newsletter Templates', 'nonprofit-manager' ); ?></a></li>
 						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_archive' ) ); ?>"><?php esc_html_e( 'Newsletter Archive', 'nonprofit-manager' ); ?></a></li>

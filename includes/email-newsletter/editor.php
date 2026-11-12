@@ -7,10 +7,7 @@ defined('ABSPATH') || exit;
 add_action('init', 'npmp_register_newsletter_cpt');
 function npmp_register_newsletter_cpt() {
     register_post_type('npmp_newsletter', [
-        'labels' => [
-            'name' => 'Newsletters',
-            'singular_name' => 'Newsletter',
-        ],
+        'labels' => npmp_post_type_labels('npmp_newsletter'),
         'public' => false,
         'show_ui' => true,
         'show_in_menu' => false, // We add it manually via our submenu
@@ -40,8 +37,17 @@ function npmp_register_newsletter_taxonomy() {
                 'all_items' => __('All Topics', 'nonprofit-manager'),
                 'edit_item' => __('Edit Topic', 'nonprofit-manager'),
                 'update_item' => __('Update Topic', 'nonprofit-manager'),
-                'add_new_item' => __('Add New Topic', 'nonprofit-manager'),
+                'add_new_item' => __('Add Topic', 'nonprofit-manager'),
                 'new_item_name' => __('New Topic Name', 'nonprofit-manager'),
+                'view_item' => __('View Topic', 'nonprofit-manager'),
+                'popular_items' => __('Popular Topics', 'nonprofit-manager'),
+                'separate_items_with_commas' => __('Separate topics with commas', 'nonprofit-manager'),
+                'add_or_remove_items' => __('Add or remove topics', 'nonprofit-manager'),
+                'choose_from_most_used' => __('Choose from the most used topics', 'nonprofit-manager'),
+                'not_found' => __('No topics found.', 'nonprofit-manager'),
+                'no_terms' => __('No topics', 'nonprofit-manager'),
+                'back_to_items' => __('Go to Topics', 'nonprofit-manager'),
+                'menu_name' => __('Topics', 'nonprofit-manager'),
             ],
             'public' => false,
             'show_ui' => true,
@@ -81,7 +87,9 @@ function npmp_newsletter_register_editor_screens() {
     }
     foreach (['npmp_newsletter', 'npmp_nl_template', 'npmp_email_body'] as $type) {
         add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'edit.php?post_type=' . $type);
-        add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'post-new.php?post_type=' . $type);
+        if ('npmp_newsletter' !== $type) { // Add Newsletter is already a visible item.
+            add_submenu_page('npmp-newsletters', '', '', 'edit_npmp_newsletters', 'post-new.php?post_type=' . $type);
+        }
     }
 }
 add_action('admin_menu', 'npmp_newsletter_register_editor_screens', 20);
@@ -98,7 +106,8 @@ function npmp_newsletter_hide_editor_screens() {
         return;
     }
     foreach ($submenu['npmp-newsletters'] as $index => $item) {
-        if (isset($item[2]) && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template|email_body)$#', $item[2])) {
+        // Only the untitled entries. "Add Newsletter" is a real menu item.
+        if (isset($item[2]) && '' === (string) ($item[0] ?? '') && preg_match('#^(edit|post-new)\.php\?post_type=npmp_(newsletter|nl_template|email_body)$#', $item[2])) {
             unset($submenu['npmp-newsletters'][$index]);
         }
     }
@@ -110,10 +119,10 @@ add_action('admin_head', 'npmp_newsletter_hide_editor_screens');
  */
 function npmp_render_newsletter_editor() {
     npmp_verify_admin_access('edit_npmp_newsletters');
-    echo '<div class="wrap"><h1>' . esc_html__('New Newsletter', 'nonprofit-manager') . '</h1>';
-    echo '<p>' . esc_html__('Use the editor below to create a newsletter. You can send a test email or queue it for delivery.', 'nonprofit-manager') . '</p>';
-    echo '<a href="' . esc_url(admin_url('post-new.php?post_type=npmp_newsletter')) . '" class="button button-primary">' . esc_html__('Create New Newsletter', 'nonprofit-manager') . '</a>';
-    echo '<hr>';
+    // Old links to admin.php?page=npmp-newsletters land here. The menu's
+    // Add Newsletter item opens the block editor directly.
+    echo '<div class="wrap npmp-admin-page">';
+    npmp_admin_page_title(__('Newsletters', 'nonprofit-manager'), array(__('Add Newsletter', 'nonprofit-manager') => admin_url('post-new.php?post_type=npmp_newsletter')));
 
     // List past newsletters
     $newsletters = get_posts([
@@ -183,11 +192,11 @@ function npmp_render_newsletter_archive() {
         ]
     );
 
-    echo '<div class="wrap">';
-    echo '<h1>' . esc_html__('Newsletter Archive', 'nonprofit-manager') . '</h1>';
-    echo '<p>' . esc_html__('Browse past newsletters, duplicate successful campaigns, and keep track of who received each message.', 'nonprofit-manager') . '</p>';
+    echo '<div class="wrap npmp-admin-page">';
+    npmp_admin_page_title(__('Newsletter Archive', 'nonprofit-manager'), array(__('Add Newsletter', 'nonprofit-manager') => admin_url('post-new.php?post_type=npmp_newsletter')));
+    echo '<p class="npmp-page-description">' . esc_html__('Browse past newsletters, duplicate ones that worked, and see who got each one.', 'nonprofit-manager') . '</p>';
 
-    echo '<form method="get" class="tablenav top" style="margin-bottom:20px;">';
+    echo '<form method="get" class="tablenav top npmp-filter-bar">';
     echo '<input type="hidden" name="page" value="npmp_newsletter_archive">';
     echo '<div class="alignleft actions">';
 
@@ -219,12 +228,12 @@ function npmp_render_newsletter_archive() {
     if ($query->have_posts()) {
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Title', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Topics', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Audience', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Last Sent', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Recipients', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Title', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Topics', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Audience', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Last Sent', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Recipients', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
         echo '</tr></thead><tbody>';
 
         while ($query->have_posts()) {
@@ -258,7 +267,7 @@ function npmp_render_newsletter_archive() {
             echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a>' . (function_exists('npmp_newsletter_scheduled_badge') ? npmp_newsletter_scheduled_badge($post_id) : '') . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The badge is escaped where it's built.
             echo '<td>' . esc_html($topic_labels ? implode(', ', $topic_labels) : '—') . '</td>';
             echo '<td>' . esc_html($audience) . '</td>';
-            echo '<td>' . esc_html($sent_at ? $sent_at : '—') . '</td>';
+            echo '<td>' . esc_html($sent_at ? mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $sent_at) : '—') . '</td>';
             echo '<td>' . esc_html($recipient_total) . '</td>';
             echo '<td><a class="button button-small" href="' . esc_url(get_preview_post_link($post_id)) . '" target="_blank" rel="noopener">' . esc_html__('Preview', 'nonprofit-manager') . '</a> ';
             echo '<a class="button button-small" href="' . esc_url($duplicate_url) . '">' . esc_html__('Duplicate', 'nonprofit-manager') . '</a></td>';
@@ -282,7 +291,7 @@ function npmp_render_newsletter_archive() {
             echo '<div class="tablenav"><div class="tablenav-pages">' . wp_kses_post($pagination) . '</div></div>';
         }
     } else {
-        echo '<p>' . esc_html__('No newsletters found for the selected filters.', 'nonprofit-manager') . '</p>';
+        echo '<p>' . esc_html__('No newsletters match these filters.', 'nonprofit-manager') . ' <a href="' . esc_url(admin_url('post-new.php?post_type=npmp_newsletter')) . '">' . esc_html__('Add a newsletter', 'nonprofit-manager') . '</a></p>';
     }
 
     wp_reset_postdata();
@@ -338,8 +347,12 @@ function npmp_newsletter_send_controls_html($post) {
     echo '<p>' . esc_html__('Select who should receive this newsletter.', 'nonprofit-manager') . '</p>';
 
     // All Members option
-    $all_checked = empty($selected_levels);
-    echo '<label style="display:block;margin-bottom:8px;font-weight:600;"><input type="checkbox" class="npmp-newsletter-level npmp-newsletter-all" data-label="' . esc_attr__('All Members', 'nonprofit-manager') . '" name="npmp_newsletter_levels[]" value="__all__"' . checked(true, $all_checked, false) . '> ' . esc_html__('All Members', 'nonprofit-manager');
+    $all_checked  = empty($selected_levels);
+    /* translators: %s: plural word for members, such as Members. */
+    $all_label    = sprintf(__('All %s', 'nonprofit-manager'), npmp_label('members'));
+    /* translators: %s: plural word for members, such as Members. */
+    $none_label   = sprintf(__('%s without a level', 'nonprofit-manager'), npmp_label('members'));
+    echo '<label style="display:block;margin-bottom:8px;font-weight:600;"><input type="checkbox" class="npmp-newsletter-level npmp-newsletter-all" data-label="' . esc_attr($all_label) . '" name="npmp_newsletter_levels[]" value="__all__"' . checked(true, $all_checked, false) . '> ' . esc_html($all_label);
     if ($count_all) {
         echo ' <span class="description">(' . esc_html($count_all) . ')</span>';
     }
@@ -362,7 +375,7 @@ function npmp_newsletter_send_controls_html($post) {
 
     $none_checked = in_array('__none__', $selected_levels, true);
     $none_count   = isset($level_counts['']) ? (int) $level_counts[''] : 0;
-    echo '<label style="display:block;margin-bottom:4px;margin-left:20px;"><input type="checkbox" class="npmp-newsletter-level npmp-newsletter-specific" data-label="' . esc_attr__('Members without a level', 'nonprofit-manager') . '" name="npmp_newsletter_levels[]" value="__none__"' . checked(true, $none_checked, false) . ' ' . disabled($all_checked, true, false) . '> ' . esc_html__('Members without a level', 'nonprofit-manager');
+    echo '<label style="display:block;margin-bottom:4px;margin-left:20px;"><input type="checkbox" class="npmp-newsletter-level npmp-newsletter-specific" data-label="' . esc_attr($none_label) . '" name="npmp_newsletter_levels[]" value="__none__"' . checked(true, $none_checked, false) . ' ' . disabled($all_checked, true, false) . '> ' . esc_html($none_label);
     if ($none_count) {
         echo ' <span class="description">(' . esc_html($none_count) . ')</span>';
     }
@@ -372,8 +385,9 @@ function npmp_newsletter_send_controls_html($post) {
     if ($count_all) {
         echo '<p class="description">' . esc_html(
             sprintf(
-                /* translators: %d: Total number of subscribed members. */
-                __('Total subscribed members: %d', 'nonprofit-manager'),
+                /* translators: 1: lowercase plural word for members, such as members, 2: how many are subscribed. */
+                __('Total subscribed %1$s: %2$d', 'nonprofit-manager'),
+                npmp_label('members_lc'),
                 $count_all
             )
         ) . '</p>';
@@ -406,7 +420,7 @@ function npmp_newsletter_send_controls_html($post) {
      */
     do_action('npmp_newsletter_recipient_options', $post->ID);
 
-    echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr__('All subscribed members', 'nonprofit-manager') . '">' . esc_html($audience_label) . '</span></p>';
+    echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('All subscribed %s', 'nonprofit-manager'), npmp_label('members_lc'))) . '">' . esc_html($audience_label) . '</span></p>';
 
     $preview_link = get_preview_post_link($post);
     if ($preview_link) {
@@ -417,15 +431,17 @@ function npmp_newsletter_send_controls_html($post) {
     echo '<ul class="npmp-newsletter-checklist">';
     echo '<li>' . esc_html__('Review the preview link above for formatting issues.', 'nonprofit-manager') . '</li>';
     echo '<li>' . esc_html__('Confirm the audience matches your intent.', 'nonprofit-manager') . '</li>';
-    echo '<li>' . esc_html__('Send a test email to yourself before mailing members.', 'nonprofit-manager') . '</li>';
+    echo '<li>' . esc_html(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('Send a test email to yourself before mailing %s.', 'nonprofit-manager'), npmp_label('members_lc'))) . '</li>';
     echo '</ul>';
 
     echo '<p><button type="button" class="button" id="npmp-send-test" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($test_nonce) . '" data-default="' . esc_attr__('Send Test Email', 'nonprofit-manager') . '" data-working="' . esc_attr__('Sending…', 'nonprofit-manager') . '">' . esc_html__('Send Test Email', 'nonprofit-manager') . '</button></p>';
     if (!current_user_can(npmp_newsletter_send_capability())) {
-        echo '<p class="description">' . esc_html__('An editor, an administrator, or a Membership Manager sends newsletters to members. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager') . '</p>';
+        echo '<p class="description">' . esc_html(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('An editor, an administrator, or a Membership Manager sends newsletters to %s. Send yourself a test, then ask one of them to send it.', 'nonprofit-manager'), npmp_label('members_lc'))) . '</p>';
         return;
     }
-    echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr__('Queue this newsletter for delivery to the selected members?', 'nonprofit-manager') . '" data-default="' . esc_attr__('Send to Selected Members', 'nonprofit-manager') . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html__('Send to Selected Members', 'nonprofit-manager') . '</button></p>';
+    /* translators: %s: plural word for members, such as Members. */
+    $send_label = sprintf(__('Send to Selected %s', 'nonprofit-manager'), npmp_label('members'));
+    echo '<p><button type="button" class="button button-primary" id="npmp-send-newsletter" data-postid="' . esc_attr($post->ID) . '" data-nonce="' . esc_attr($send_nonce) . '" data-confirm="' . esc_attr(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('Queue this newsletter for delivery to the selected %s?', 'nonprofit-manager'), npmp_label('members_lc'))) . '" data-default="' . esc_attr($send_label) . '" data-working="' . esc_attr__('Queuing…', 'nonprofit-manager') . '">' . esc_html($send_label) . '</button></p>';
 
     // "Send later": pick a time and the scheduled emails sweep sends it then.
     if (function_exists('npmp_scheduled_emails_render_send_later')) {

@@ -276,3 +276,12 @@ h1 .npmp-pro-badge {
 @media screen and (min-width: 783px) {
 	.npmp-col-amount { text-align: right; }
 }
+
+/* ---- Newsletters ---------------------------------------------------- */
+
+.npmp-filter-bar {
+	margin-bottom: 20px;
+}
+.npmp-template-types {
+	margin: 20px 0;
+}

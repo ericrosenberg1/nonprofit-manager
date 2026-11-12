@@ -1045,13 +1045,7 @@ function npmp_register_email_body_post_type() {
 	register_post_type(
 		'npmp_email_body',
 		array(
-			'labels'          => array(
-				'name'          => __( 'Scheduled Email Bodies', 'nonprofit-manager' ),
-				'singular_name' => __( 'Scheduled Email Body', 'nonprofit-manager' ),
-				'add_new_item'  => __( 'Write a Scheduled Email Body', 'nonprofit-manager' ),
-				'edit_item'     => __( 'Edit Scheduled Email Body', 'nonprofit-manager' ),
-				'not_found'     => __( 'No scheduled email bodies yet.', 'nonprofit-manager' ),
-			),
+			'labels'          => npmp_post_type_labels( 'npmp_email_body' ),
 			'public'          => false,
 			'show_ui'         => true,
 			'show_in_menu'    => false,

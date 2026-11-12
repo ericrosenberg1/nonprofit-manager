@@ -25,6 +25,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-org-type.php';
 // Site currency: formatting, gateway minor units, minimums. Pro calls these too.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-currency.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-post-type-labels.php';
 // Membership Manager role + npmp_staff_cap(). Loaded before any screen that
 // registers a menu or handler against the staff capability.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-staff-access.php';
@@ -218,7 +219,11 @@ add_action(
 			// phpcs:disable WordPress.WP.Capabilities.Unknown -- edit_npmp_newsletters is the newsletter post types' own capability, resolved in npmp_filter_staff_caps().
 			add_menu_page( __( 'Email Newsletters', 'nonprofit-manager' ), __( 'Email Newsletters', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
 			npmp_pin_menu_hook( 'npmp-newsletters', 'email-newsletters' );
-			add_submenu_page( 'npmp-newsletters', __( 'New Newsletter', 'nonprofit-manager' ), __( 'New Newsletter', 'nonprofit-manager' ),       'edit_npmp_newsletters', 'npmp-newsletters',          'npmp_render_newsletter_editor' );
+			// The first item, and so the top-level link, opens the block
+			// editor on a new newsletter. admin.php?page=npmp-newsletters
+			// stays registered for old links, out of the menu.
+			add_submenu_page( 'npmp-newsletters', __( 'Add Newsletter', 'nonprofit-manager' ), __( 'Add Newsletter', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'post-new.php?post_type=npmp_newsletter' );
+			remove_submenu_page( 'npmp-newsletters', 'npmp-newsletters' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Templates', 'nonprofit-manager' ), __( 'Newsletter Templates', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Archive', 'nonprofit-manager' ), __( 'Newsletter Archive', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Reports', 'nonprofit-manager' ), __( 'Newsletter Reports', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
