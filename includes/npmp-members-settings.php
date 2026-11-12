@@ -166,30 +166,9 @@ function npmp_render_membership_dashboard() {
 	$financial        = $member_manager->get_financial_overview();
 	$recent_donors    = $member_manager->get_recent_donors();
 	$available_status = $member_manager->get_statuses();
-	$levels_option    = 'npmp_membership_levels';
 	$levels           = npmp_get_membership_levels_array(); // Handles the old newline-string format.
 
 	$total_activity  = isset( $financial['total_transactions'] ) ? intval( $financial['total_transactions'] ) : 0;
-
-	if ( $can_edit_tiers && ! empty( $_POST['add_level'] ) && ! empty( $_POST['new_level'] ) && check_admin_referer( 'npmp_levels' ) ) {
-		$new = sanitize_text_field( wp_unslash( $_POST['new_level'] ) );
-		if ( $new && ! in_array( $new, $levels, true ) ) {
-			$levels[] = $new;
-			update_option( $levels_option, $levels );
-			echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s added.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
-		}
-	}
-
-	if ( $can_edit_tiers && ! empty( $_POST['delete_level'] ) && ! empty( $_POST['level_slug'] ) && check_admin_referer( 'npmp_levels' ) ) {
-		$slug   = sanitize_text_field( wp_unslash( $_POST['level_slug'] ) );
-		$levels = array_values( array_diff( $levels, array( $slug ) ) );
-		update_option( $levels_option, $levels );
-		// A removed level can't stay the default for new signups.
-		if ( get_option( 'npmp_default_membership_level', '' ) === $slug ) {
-			update_option( 'npmp_default_membership_level', '' );
-		}
-		echo '<div class="notice notice-success"><p>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s removed.', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</p></div>';
-	}
 
 	// Tier counts from one grouped query instead of one query per level.
 	$tier_counts = array();
@@ -200,22 +179,22 @@ function npmp_render_membership_dashboard() {
 		}
 	}
 
-	echo '<div class="wrap">';
-	echo '<h1>' . esc_html__( 'Membership Dashboard', 'nonprofit-manager' ) . '</h1>';
-	echo '<p>' . esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donors, such as donors or supporters. */ __( 'Track and manage your %1$s, %2$s and contacts in one place.', 'nonprofit-manager' ), npmp_label( 'members_lc' ), npmp_label( 'donors_lc' ) ) ) . '</p>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( __( 'Membership Dashboard', 'nonprofit-manager' ) );
+	echo '<p class="npmp-page-description">' . esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donors, such as donors or supporters. */ __( 'Track and manage your %1$s, %2$s, and contacts in one place.', 'nonprofit-manager' ), npmp_label( 'members_lc' ), npmp_label( 'donors_lc' ) ) ) . '</p>';
 
-	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=npmp_members' ) ) . '">' . esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'View All %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ) . '</a> ';
+	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=npmp_members' ) ) . '">' . esc_html__( 'View contacts', 'nonprofit-manager' ) . '</a> ';
 	if ( $can_edit_tiers ) {
 		echo '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ) . '">' . esc_html__( 'Membership Settings', 'nonprofit-manager' ) . '</a>';
 	}
 	echo '</p>';
 
 	// Membership Overview Card
-	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
+	echo '<div class="card npmp-dash-card">';
 	echo '<h2 class="title">' . esc_html__( 'Membership Overview', 'nonprofit-manager' ) . '</h2>';
 	echo '<table class="widefat striped">';
-	echo '<thead><tr><th>' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th style="text-align:right">' . esc_html__( 'Count', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
-	echo '<tr><td><strong>' . esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ) . '</strong></td><td style="text-align:right"><strong>' . esc_html( number_format_i18n( $total_contacts ) ) . '</strong></td></tr>';
+	echo '<thead><tr><th scope="col">' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th scope="col" class="num">' . esc_html__( 'Count', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
+	echo '<tr><td><strong>' . esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ) . '</strong></td><td class="num"><strong>' . esc_html( number_format_i18n( $total_contacts ) ) . '</strong></td></tr>';
 
 	// Show breakdown by tier if tiers exist
 	if ( ! empty( $levels ) && ! empty( $tier_counts ) ) {
@@ -227,7 +206,7 @@ function npmp_render_membership_dashboard() {
 				),
 				admin_url( 'admin.php' )
 			);
-			echo '<tr><td>&nbsp;&nbsp;&nbsp;' . esc_html( $tier ) . '</td><td style="text-align:right"><a href="' . esc_url( $tier_url ) . '">' . esc_html( number_format_i18n( $count ) ) . '</a></td></tr>';
+			echo '<tr><td class="npmp-dash-card__indent">' . esc_html( $tier ) . '</td><td class="num"><a href="' . esc_url( $tier_url ) . '">' . esc_html( number_format_i18n( $count ) ) . '</a></td></tr>';
 		}
 	}
 
@@ -244,31 +223,31 @@ function npmp_render_membership_dashboard() {
 				),
 				admin_url( 'admin.php' )
 			);
-			echo '<tr><td>' . esc_html( $label ) . ' ' . esc_html( npmp_label( 'members' ) ) . '</td><td style="text-align:right"><a href="' . esc_url( $url ) . '">' . esc_html( number_format_i18n( $total ) ) . '</a></td></tr>';
+			echo '<tr><td>' . esc_html( sprintf( /* translators: 1: a contact status, such as Subscribed or Pending, 2: plural word for members, such as Members. */ __( '%1$s %2$s', 'nonprofit-manager' ), $label, npmp_label( 'members' ) ) ) . '</td><td class="num"><a href="' . esc_url( $url ) . '">' . esc_html( number_format_i18n( $total ) ) . '</a></td></tr>';
 		}
 	}
 
-	echo '<tr><td>' . esc_html( sprintf( /* translators: 1: plural word for members, such as Members, 2: plural word for donations, such as Donations or Contributions. */ __( '%1$s with %2$s', 'nonprofit-manager' ), npmp_label( 'members' ), npmp_label( 'donations' ) ) ) . '</td><td style="text-align:right">' . esc_html( number_format_i18n( $donor_count ) ) . '</td></tr>';
+	echo '<tr><td>' . esc_html( sprintf( /* translators: 1: plural word for members, such as Members, 2: plural word for donations, such as Donations or Contributions. */ __( '%1$s with %2$s', 'nonprofit-manager' ), npmp_label( 'members' ), npmp_label( 'donations' ) ) ) . '</td><td class="num">' . esc_html( number_format_i18n( $donor_count ) ) . '</td></tr>';
 	echo '</tbody></table>';
 	echo '</div>';
 
 	// Financial Overview Card
-	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
+	echo '<div class="card npmp-dash-card">';
 	echo '<h2 class="title">' . esc_html__( 'Financial Overview', 'nonprofit-manager' ) . '</h2>';
 	echo '<table class="widefat striped">';
-	echo '<thead><tr><th>' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th style="text-align:right">' . esc_html__( 'Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
-	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Lifetime %s Recorded', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</td><td style="text-align:right">' . esc_html( number_format_i18n( $total_activity ) ) . '</td></tr>';
-	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Lifetime %s Value', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) . '</td><td style="text-align:right"><strong>' . esc_html( npmp_crm_format_totals( $financial['total_by_currency'] ?? array() ) ) . '</strong></td></tr>';
-	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s in Last 30 Days', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</td><td style="text-align:right">' . esc_html( npmp_crm_format_totals( $financial['thirty_day_by_currency'] ?? array() ) ) . '</td></tr>';
+	echo '<thead><tr><th scope="col">' . esc_html__( 'Metric', 'nonprofit-manager' ) . '</th><th scope="col" class="num">' . esc_html__( 'Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
+	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( 'Lifetime %s Recorded', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</td><td class="num">' . esc_html( number_format_i18n( $total_activity ) ) . '</td></tr>';
+	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Lifetime %s Value', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) . '</td><td class="num"><strong>' . esc_html( npmp_crm_format_totals( $financial['total_by_currency'] ?? array() ) ) . '</strong></td></tr>';
+	echo '<tr><td>' . esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s in Last 30 Days', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ) . '</td><td class="num">' . esc_html( npmp_crm_format_totals( $financial['thirty_day_by_currency'] ?? array() ) ) . '</td></tr>';
 	echo '</tbody></table>';
 	echo '</div>';
 
 	// Recent Donors Card
-	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
+	echo '<div class="card npmp-dash-card">';
 	echo '<h2 class="title">' . esc_html( sprintf( /* translators: %s: plural word for donors, such as Donors or Supporters. */ __( 'Recent %s', 'nonprofit-manager' ), npmp_label( 'donors' ) ) ) . '</h2>';
 	if ( $recent_donors ) {
 		echo '<table class="widefat striped">';
-		echo '<thead><tr><th>' . esc_html__( 'Name', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th><th>' . esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) . '</th><th style="text-align:right">' . esc_html__( 'Lifetime Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
+		echo '<thead><tr><th scope="col">' . esc_html__( 'Name', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html( sprintf( /* translators: %s: singular word for a donation, such as Donation or Contribution. */ __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) ) ) . '</th><th scope="col" class="num">' . esc_html__( 'Lifetime Value', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
 		foreach ( $recent_donors as $donor ) {
 			$view_url = add_query_arg(
 				array(
@@ -282,7 +261,7 @@ function npmp_render_membership_dashboard() {
 			echo '<tr><td><a href="' . esc_url( $view_url ) . '">' . esc_html( $donor->name ?: $donor->email ) . '</a></td>';
 			echo '<td>' . esc_html( $donor->email ) . '</td>';
 			echo '<td>' . esc_html( $last_donation ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( npmp_member_lifetime_value( $donor ) ) . '</td></tr>';
+			echo '<td class="num">' . esc_html( npmp_member_lifetime_value( $donor ) ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
 	} else {
@@ -290,47 +269,15 @@ function npmp_render_membership_dashboard() {
 	}
 	echo '</div>';
 
-	if ( ! $can_edit_tiers ) {
+	if ( $can_edit_tiers ) {
+		// Levels are managed on Membership Settings only. The per-level
+		// counts sit in the overview table above.
+		echo '<div class="card npmp-dash-card">';
+		echo '<h2 class="title">' . esc_html( npmp_label( 'levels' ) ) . '</h2>';
+		echo '<p>' . esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'You can add, remove, and pick a default for %s on Membership Settings.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ) . '</p>';
+		echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=npmp_membership_forms#npmp-levels' ) ) . '">' . esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Manage %s', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ) . '</a></p>';
 		echo '</div>';
-		return;
 	}
-
-	// Membership Tiers/Levels Management Card
-	echo '<div class="card" style="max-width:900px; margin-top: 20px;">';
-	echo '<h2 class="title">' . esc_html( npmp_label( 'levels' ) ) . '</h2>';
-	echo '<p>' . esc_html( sprintf( /* translators: 1: lowercase plural word for membership levels, such as membership levels or dues levels, 2: lowercase plural word for members, such as members, 3: lowercase singular word for a member, such as member. */ __( 'Create %1$s to sort your %2$s by level, interest or committee. You can assign one when you add or edit a %3$s.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ), npmp_label( 'members_lc' ), npmp_label( 'member_lc' ) ) ) . '</p>';
-
-	echo '<form method="post" style="margin: 20px 0;">';
-	wp_nonce_field( 'npmp_levels' );
-	echo '<input type="text" name="new_level" placeholder="' . esc_attr( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Enter a %s name (e.g., Gold, Silver, Bronze)', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ) . '" required style="width: 300px; margin-right: 10px;">';
-	submit_button( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( 'Add %s', 'nonprofit-manager' ), npmp_label( 'level' ) ), 'secondary', 'add_level', false );
-	echo '</form>';
-
-	if ( $levels ) {
-		echo '<table class="widefat striped">';
-		echo '<thead><tr><th>' . esc_html( sprintf( /* translators: %s: singular word for a membership level, such as Membership Level or Dues Level. */ __( '%s Name', 'nonprofit-manager' ), npmp_label( 'level' ) ) ) . '</th><th style="text-align:right">' . esc_html( npmp_label( 'members' ) ) . '</th><th style="text-align:right">' . esc_html__( 'Actions', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
-		foreach ( $levels as $slug ) {
-			$count = isset( $tier_counts[ $slug ] ) ? $tier_counts[ $slug ] : 0;
-			echo '<tr><td>' . esc_html( $slug ) . '</td>';
-			echo '<td style="text-align:right">' . esc_html( number_format_i18n( $count ) ) . '</td>';
-			echo '<td style="text-align:right">';
-			echo '<form method="post" style="display:inline">';
-			wp_nonce_field( 'npmp_levels' );
-			echo '<input type="hidden" name="level_slug" value="' . esc_attr( $slug ) . '">';
-			submit_button(
-				__( 'Remove', 'nonprofit-manager' ),
-				'delete',
-				'delete_level',
-				false,
-				array( 'onclick' => 'return confirm("' . esc_js( sprintf( /* translators: 1: lowercase singular word for a membership level, such as membership level or dues level, 2: plural word for members, such as Members. */ __( 'Remove this %1$s? %2$s who have it will keep it.', 'nonprofit-manager' ), npmp_label( 'level_lc' ), npmp_label( 'members' ) ) ) . '")' )
-			);
-			echo '</form></td></tr>';
-		}
-		echo '</tbody></table>';
-	} else {
-		echo '<p class="description">' . esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'No %s yet. Add your first one above.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ) . '</p>';
-	}
-	echo '</div>';
 
 	echo '</div>';
 }
@@ -588,12 +535,20 @@ function npmp_render_members_page() {
 	$deleted      = isset( $_GET['deleted'] ) ? absint( $_GET['deleted'] ) : 0;
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-	echo '<div class="wrap">';
-	echo '<h1 class="wp-heading-inline">' . esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Contacts & %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ) . '</h1>';
-
-	if ( 'list' === $action ) {
-		echo ' <a href="' . esc_url( add_query_arg( array( 'page' => 'npmp_members', 'action' => 'new' ), admin_url( 'admin.php' ) ) ) . '" class="page-title-action">' . esc_html__( 'Add New', 'nonprofit-manager' ) . '</a>';
+	// One name for this screen in the menu, the browser title, and the h1.
+	$page_title    = __( 'Contacts', 'nonprofit-manager' );
+	$title_actions = array();
+	if ( 'new' === $action ) {
+		$page_title = __( 'Add Contact', 'nonprofit-manager' );
+	} elseif ( in_array( $action, array( 'view', 'edit' ), true ) ) {
+		$page_title = __( 'Edit Contact', 'nonprofit-manager' );
 	}
+	if ( 'new' !== $action ) {
+		$title_actions[ __( 'Add Contact', 'nonprofit-manager' ) ] = add_query_arg( array( 'page' => 'npmp_members', 'action' => 'new' ), admin_url( 'admin.php' ) );
+	}
+
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( $page_title, $title_actions );
 
 	if ( $message_code ) {
 		$classes = array( 'notice', 'is-dismissible' );
@@ -788,8 +743,6 @@ function npmp_render_member_list_table( $context ) {
 		);
 	};
 
-	echo '<hr class="wp-header-end">';
-
 	echo '<form method="get" class="npmp-member-filters" style="margin-bottom:20px;">';
 	echo '<input type="hidden" name="page" value="npmp_members">';
 
@@ -851,26 +804,24 @@ function npmp_render_member_list_table( $context ) {
 	wp_nonce_field( 'npmp_manage_members', 'npmp_members_nonce' );
 	echo '<input type="hidden" name="npmp_members_action" value="bulk_delete">';
 
-	// Right-align amounts on wide screens only. At phone width the cell
-	// shows its label on the left, and right alignment pushed the label too.
-	echo '<style>@media screen and (min-width: 783px) { .npmp-col-amount { text-align: right; } }</style>';
+	// Amounts right-align on wide screens only (assets/css/npmp-admin.css).
 	echo '<table class="wp-list-table widefat fixed striped">';
 	echo '<thead><tr>';
-	echo '<td class="check-column"><input type="checkbox" id="npmp-members-select-all"></td>';
+	echo '<td class="manage-column column-cb check-column"><label class="screen-reader-text" for="npmp-members-select-all">' . esc_html__( 'Select all', 'nonprofit-manager' ) . '</label><input type="checkbox" id="npmp-members-select-all"></td>';
 	echo '<th scope="col" class="column-primary">' . wp_kses_post( $sort_link( 'name', __( 'Name', 'nonprofit-manager' ) ) ) . '</th>';
-	echo '<th>' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
-	echo '<th>' . wp_kses_post( $sort_link( 'membership_level', npmp_label( 'level' ) ) ) . '</th>';
-	echo '<th>' . wp_kses_post( $sort_link( 'status', __( 'Status', 'nonprofit-manager' ) ) ) . '</th>';
-	echo '<th>' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</th>';
-	echo '<th style="width:110px;">' . wp_kses_post( $sort_link( 'donation_total', __( 'Lifetime Value', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Email', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col">' . wp_kses_post( $sort_link( 'membership_level', npmp_label( 'level' ) ) ) . '</th>';
+	echo '<th scope="col">' . wp_kses_post( $sort_link( 'status', __( 'Status', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col" class="npmp-col-110">' . wp_kses_post( $sort_link( 'donation_total', __( 'Lifetime Value', 'nonprofit-manager' ) ) ) . '</th>';
 	/* translators: %s: singular word for a donation, such as Donation or Contribution. */
 	$last_label = sprintf( __( 'Last %s', 'nonprofit-manager' ), npmp_label( 'donation' ) );
-	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'last_donation_at', $last_label ) ) . '</th>';
-	echo '<th style="width:140px;">' . wp_kses_post( $sort_link( 'created_at', __( 'Added', 'nonprofit-manager' ) ) ) . '</th>';
+	echo '<th scope="col" class="npmp-col-140">' . wp_kses_post( $sort_link( 'last_donation_at', $last_label ) ) . '</th>';
+	echo '<th scope="col" class="npmp-col-140">' . wp_kses_post( $sort_link( 'created_at', __( 'Added', 'nonprofit-manager' ) ) ) . '</th>';
 	foreach ( $extra_columns as $column_label ) {
-		echo '<th>' . esc_html( $column_label ) . '</th>';
+		echo '<th scope="col">' . esc_html( $column_label ) . '</th>';
 	}
-	echo '<th style="width:120px;">' . esc_html__( 'Actions', 'nonprofit-manager' ) . '</th>';
+	echo '<th scope="col" class="npmp-col-120">' . esc_html__( 'Actions', 'nonprofit-manager' ) . '</th>';
 	echo '</tr></thead><tbody>';
 
 	if ( $members ) {
@@ -910,7 +861,7 @@ function npmp_render_member_list_table( $context ) {
 			// the row at phone width (name first, the rest behind the arrow,
 			// each cell labelled). Without them every cell stacked unlabelled.
 			echo '<tr>';
-			echo '<th scope="row" class="check-column"><input type="checkbox" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
+			echo '<th scope="row" class="check-column"><label class="screen-reader-text" for="cb-select-' . esc_attr( $member->id ) . '">' . esc_html( sprintf( /* translators: %s: contact name or email. */ __( 'Select %s', 'nonprofit-manager' ), $member->name ?: $member->email ) ) . '</label><input type="checkbox" id="cb-select-' . esc_attr( $member->id ) . '" name="member_ids[]" value="' . esc_attr( $member->id ) . '"></th>';
 			echo '<td class="column-primary"><strong><a href="' . esc_url( $view_url ) . '">' . esc_html( $member->name ?: $member->email ) . '</a></strong><button type="button" class="toggle-row"><span class="screen-reader-text">' . esc_html__( 'Show more details', 'nonprofit-manager' ) . '</span></button></td>';
 			echo '<td data-colname="' . esc_attr__( 'Email', 'nonprofit-manager' ) . '"><a href="' . esc_url( 'mailto:' . $member->email ) . '">' . esc_html( $member->email ) . '</a></td>';
 			echo '<td data-colname="' . esc_attr( npmp_label( 'level' ) ) . '">' . esc_html( $member->membership_level ?: '—' ) . '</td>';
@@ -934,7 +885,7 @@ function npmp_render_member_list_table( $context ) {
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr class="no-items"><td colspan="' . esc_attr( 10 + count( $extra_columns ) ) . '">' . esc_html__( 'No contacts match these filters. Press Reset to see everyone, or Add New to add a contact.', 'nonprofit-manager' ) . '</td></tr>';
+		echo '<tr class="no-items"><td colspan="' . esc_attr( 10 + count( $extra_columns ) ) . '">' . esc_html__( 'No contacts match these filters. Press Reset to see everyone, or Add Contact to add one.', 'nonprofit-manager' ) . '</td></tr>';
 	}
 
 	echo '</tbody></table>';
@@ -1055,12 +1006,14 @@ function npmp_render_member_detail_view( $context ) {
 	}
 
 	$form_action = $is_new ? 'create' : 'update';
-	$title       = $is_new ? __( 'Add Contact', 'nonprofit-manager' ) : __( 'Contact Details', 'nonprofit-manager' );
+	// The h1 already says Add Contact or Edit Contact, so this heading names
+	// the person.
+	$title       = $is_new ? __( 'Contact details', 'nonprofit-manager' ) : ( $member->name ?: $member->email );
 
 	echo '<div class="npmp-member-detail" style="margin-top:20px;">';
 	echo '<a href="' . esc_url( add_query_arg( array( 'page' => 'npmp_members' ), admin_url( 'admin.php' ) ) ) . '" class="button" style="float:right;margin-left:10px;">' . esc_html__( 'Back to list', 'nonprofit-manager' ) . '</a>';
 	if ( ! $is_new ) {
-		echo '<a href="' . esc_url( wp_nonce_url( add_query_arg( array( 'page' => 'npmp_members', 'action' => 'delete', 'id' => $member->id ), admin_url( 'admin.php' ) ), 'npmp_delete_member_' . $member->id ) ) . '" class="button delete" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\');">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a>';
+		echo '<a href="' . esc_url( wp_nonce_url( add_query_arg( array( 'page' => 'npmp_members', 'action' => 'delete', 'id' => $member->id ), admin_url( 'admin.php' ) ), 'npmp_delete_member_' . $member->id ) ) . '" class="button button-link-delete" onclick="return confirm(\'' . esc_js( __( 'Delete this contact permanently?', 'nonprofit-manager' ) ) . '\');">' . esc_html__( 'Delete', 'nonprofit-manager' ) . '</a>';
 	}
 	echo '<h2>' . esc_html( $title ) . '</h2>';
 
@@ -1213,30 +1166,32 @@ function npmp_render_member_activity_panel( $member_manager, $member ) {
 	$donations = $member_manager->get_member_donations( $member, 25 );
 
 	echo '<div class="npmp-member-activity" style="margin-top:30px;">';
-	echo '<h2>' . esc_html__( 'Engagement & Giving Summary', 'nonprofit-manager' ) . '</h2>';
+	echo '<h2>' . esc_html__( 'Engagement and giving', 'nonprofit-manager' ) . '</h2>';
 
 	echo '<table class="widefat striped" style="max-width:600px;margin-bottom:20px;">';
 	echo '<tbody>';
-	echo '<tr><th>' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</th><td>' . esc_html( $member->donation_count ) . '</td></tr>';
-	echo '<tr><th>' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_member_lifetime_value( $member ) ) . '</td></tr>';
+	echo '<tr><th scope="row">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Total %s', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</th><td>' . esc_html( $member->donation_count ) . '</td></tr>';
+	echo '<tr><th scope="row">' . esc_html__( 'Lifetime value', 'nonprofit-manager' ) . '</th><td>' . esc_html( npmp_member_lifetime_value( $member ) ) . '</td></tr>';
 	$last_donation = $member->last_donation_at ? date_i18n( get_option( 'date_format' ), strtotime( $member->last_donation_at ) ) : __( 'Not yet recorded', 'nonprofit-manager' );
-	echo '<tr><th>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Most recent %s', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</th><td>' . esc_html( $last_donation ) . '</td></tr>';
-	echo '<tr><th>' . esc_html__( 'First added', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) ) . '</td></tr>';
-	echo '<tr><th>' . esc_html__( 'Last updated', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->updated_at ?? $member->created_at ) ) ) . '</td></tr>';
+	echo '<tr><th scope="row">' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Most recent %s', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</th><td>' . esc_html( $last_donation ) . '</td></tr>';
+	echo '<tr><th scope="row">' . esc_html__( 'First added', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->created_at ) ) ) . '</td></tr>';
+	echo '<tr><th scope="row">' . esc_html__( 'Last updated', 'nonprofit-manager' ) . '</th><td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $member->updated_at ?? $member->created_at ) ) ) . '</td></tr>';
 	echo '</tbody></table>';
 
 	echo '<h3>' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Recent %s', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . '</h3>';
 
 	if ( $donations ) {
 		echo '<table class="widefat striped" style="max-width:760px;">';
-		echo '<thead><tr><th>' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Amount', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
+		echo '<thead><tr><th scope="col">' . esc_html__( 'Date', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Amount', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Gateway', 'nonprofit-manager' ) . '</th></tr></thead><tbody>';
 		foreach ( $donations as $donation ) {
 			$date = $donation->created_at ? date_i18n( get_option( 'date_format' ), strtotime( $donation->created_at ) ) : '—';
 			echo '<tr>';
 			echo '<td>' . esc_html( $date ) . '</td>';
 			echo '<td>' . esc_html( npmp_crm_format_currency( (float) $donation->amount, $donation->currency ?? 'USD' ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( str_replace( '_', ' ', $donation->frequency ?? 'one_time' ) ) ) . '</td>';
-			echo '<td>' . esc_html( ucfirst( $donation->gateway ?? 'donation' ) ) . '</td>';
+			$frequency = (string) ( $donation->frequency ?? 'one_time' );
+			$gateway   = (string) ( $donation->gateway ?? '' );
+			echo '<td>' . esc_html( function_exists( 'npmp_frequency_label' ) ? npmp_frequency_label( $frequency ) : ucfirst( str_replace( '_', ' ', $frequency ) ) ) . '</td>';
+			echo '<td>' . esc_html( '' === $gateway ? '—' : ( function_exists( 'npmp_gateway_label' ) ? npmp_gateway_label( $gateway ) : ucfirst( $gateway ) ) ) . '</td>';
 			echo '</tr>';
 		}
 		echo '</tbody></table>';

@@ -205,9 +205,10 @@ add_action(
 			);
 			npmp_pin_menu_hook( 'npmp_membership', 'membership' );
 
-			/* translators: %s: singular word for a member, such as Member. */
-			$npmp_member_list = sprintf( __( '%s List', 'nonprofit-manager' ), npmp_label( 'member' ) );
-			add_submenu_page( 'npmp_membership', $npmp_member_list, $npmp_member_list, npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
+			// One name per screen: the browser title and the h1 say
+			// "Membership Dashboard", the menu says Membership > Dashboard.
+			add_submenu_page( 'npmp_membership', __( 'Membership Dashboard', 'nonprofit-manager' ), __( 'Dashboard', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_membership', 'npmp_render_membership_dashboard' );
+			add_submenu_page( 'npmp_membership', __( 'Contacts', 'nonprofit-manager' ), __( 'Contacts', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
 			add_submenu_page( 'npmp_membership', __( 'Membership Settings', 'nonprofit-manager' ), __( 'Membership Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_membership_forms',   'npmp_render_membership_forms_page' );
 			add_submenu_page( 'npmp_main',       __( 'Email Settings', 'nonprofit-manager' ), __( 'Email Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_email_settings',     'npmp_render_email_settings_page' );
 		}
@@ -229,6 +230,9 @@ add_action(
 		if ( ! empty( $npmp_features['donations'] ) ) {
 			add_menu_page( npmp_label( 'donations' ), npmp_label( 'donations' ), npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
 			npmp_pin_menu_hook( 'npmp_donations_group', 'donations' );
+			/* translators: %s: plural word for donations, such as Donations or Contributions. */
+			$npmp_donations_dashboard = sprintf( __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) );
+			add_submenu_page( 'npmp_donations_group', $npmp_donations_dashboard, __( 'Dashboard', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard' );
 			/* translators: %s: singular word for a donation, such as Donation or Contribution. */
 			$npmp_donation_settings = sprintf( __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) );
 			add_submenu_page( 'npmp_donations_group', $npmp_donation_settings, $npmp_donation_settings, 'manage_options', 'npmp_donation_settings', 'npmp_render_donation_settings_page' );

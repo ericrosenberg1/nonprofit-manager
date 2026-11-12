@@ -64,10 +64,14 @@ function rig_run( $callable, $post = array(), $get = array(), &$out = null ) {
 	$_SERVER['REQUEST_METHOD'] = $post ? 'POST' : 'GET';
 	ob_start();
 	$kind = 'returned';
+	$GLOBALS['rig_last_redirect'] = null;
 	try {
 		call_user_func( $callable );
 	} catch ( Rig_Stop $e ) {
 		$kind = $e->kind;
+		if ( 'redirect' === $kind ) {
+			$GLOBALS['rig_last_redirect'] = $e->payload;
+		}
 	}
 	$printed = ob_get_clean();
 	$json    = json_decode( $printed, true );
@@ -151,10 +155,11 @@ echo "== Settings handlers refuse a Membership Manager holding a valid nonce ==\
 wp_set_current_user( $mm_id );
 $cases = array(
 	'features toggle'          => array( array( 'npmp_features_nonce' => wp_create_nonce( 'npmp_save_features' ) ), array(), array( 'npmp_enabled_features' ) ),
-	'general: add level'       => array( array( 'npmp_add_level_nonce' => wp_create_nonce( 'npmp_add_membership_level' ), 'npmp_new_level' => 'RigEvil' ), array(), array( 'npmp_membership_levels' ) ),
-	'general: default level'   => array( array( 'npmp_default_level_nonce' => wp_create_nonce( 'npmp_save_default_level' ), 'npmp_default_level' => 'RigEvil' ), array(), array( 'npmp_default_membership_level' ) ),
-	'general: CAPTCHA keys'    => array( array( 'npmp_captcha_settings_nonce' => wp_create_nonce( 'npmp_save_captcha_settings' ), 'npmp_captcha_provider' => 'none', 'npmp_turnstile_site_key' => 'evil', 'npmp_turnstile_secret_key' => 'evil' ), array(), array( 'npmp_captcha_provider', 'npmp_turnstile_site_key', 'npmp_turnstile_secret_key' ) ),
-	'general: powered-by'      => array( array( 'npmp_powered_by_nonce' => wp_create_nonce( 'npmp_save_powered_by' ), 'npmp_powered_by_optin' => '1' ), array(), array( 'npmp_powered_by_optin' ) ),
+	'levels: add level'        => array( array( 'npmp_add_level_nonce' => wp_create_nonce( 'npmp_add_membership_level' ), 'npmp_new_level' => 'RigEvil' ), array( 'page' => 'npmp_membership_forms' ), array( 'npmp_membership_levels' ) ),
+	'levels: remove level'     => array( array( 'npmp_remove_level_nonce' => wp_create_nonce( 'npmp_remove_membership_level' ), 'npmp_level_to_remove' => 'Member' ), array( 'page' => 'npmp_membership_forms' ), array( 'npmp_membership_levels' ) ),
+	'levels: default level'    => array( array( 'npmp_default_level_nonce' => wp_create_nonce( 'npmp_save_default_level' ), 'npmp_default_membership_level' => 'RigEvil' ), array( 'page' => 'npmp_membership_forms' ), array( 'npmp_default_membership_level' ) ),
+	'general: CAPTCHA keys'    => array( array( 'npmp_captcha_settings_nonce' => wp_create_nonce( 'npmp_save_captcha_settings' ), 'npmp_captcha_provider' => 'none', 'npmp_turnstile_site_key' => 'evil', 'npmp_turnstile_secret_key' => 'evil' ), array( 'page' => 'npmp_general_settings' ), array( 'npmp_captcha_provider', 'npmp_turnstile_site_key', 'npmp_turnstile_secret_key' ) ),
+	'general: powered-by'      => array( array( 'npmp_powered_by_nonce' => wp_create_nonce( 'npmp_save_powered_by' ), 'npmp_powered_by_optin' => '1' ), array( 'page' => 'npmp_general_settings' ), array( 'npmp_powered_by_optin' ) ),
 	'org identity'             => array( array( 'npmp_org_settings_nonce' => wp_create_nonce( 'npmp_save_org_settings' ), 'npmp_org_settings' => array( 'name' => 'Evil Org' ) ), array(), array( 'npmp_org_settings' ) ),
 	'setup wizard'             => array( array( 'npmp_setup_nonce' => wp_create_nonce( 'npmp_setup_wizard' ), 'npmp_setup_step' => 'complete' ), array(), array( 'npmp_enabled_features', 'npmp_setup_completed' ) ),
 	'credit ask'               => array( array( 'npmp_credit_ask_nonce' => wp_create_nonce( 'npmp_credit_ask' ), 'npmp_credit_ask_choice' => 'save', 'npmp_powered_by_optin' => '1' ), array(), array( 'npmp_powered_by_optin', 'npmp_credit_ask_done' ) ),
@@ -181,7 +186,8 @@ rig_check( 'Pro recurring cancel: subscription still active', 'active', $wpdb->g
 $r = rig_admin_init( array(), array( 'page' => 'npmp_membership_dues', 'npmp_action' => 'pause', 'subscription_id' => $sub_id, '_wpnonce' => wp_create_nonce( 'npmp_dues_action_' . $sub_id ) ) );
 rig_check( 'Pro dues pause: no redirect', 'returned', $r['kind'] );
 
-// Tier management on the Membership dashboard.
+// The Membership dashboard used to take tier posts in its render. Levels
+// live on Membership Settings now, so the old post must change nothing.
 $levels_before = get_option( 'npmp_membership_levels' );
 rig_run( 'npmp_render_membership_dashboard', array( 'add_level' => '1', 'new_level' => 'RigEvilTier', '_wpnonce' => wp_create_nonce( 'npmp_levels' ) ) );
 rig_check( 'membership dashboard: tier not added', $levels_before, get_option( 'npmp_membership_levels' ) );
@@ -250,6 +256,16 @@ $threshold = get_option( 'npmp_dues_failure_threshold' );
 $r = rig_admin_init( array( 'npmp_dues_save_settings' => '1', 'npmp_dues_nonce' => wp_create_nonce( 'npmp_dues_save_settings' ), 'npmp_dues_failure_threshold' => '7' ), array( 'page' => 'npmp_membership_dues' ), array( 'npmp_dues_failure_threshold' ) );
 rig_check( 'admin dues pricing save writes and redirects', array( 'redirect', array( 'npmp_dues_failure_threshold' ) ), array( $r['kind'], $r['changed'] ) );
 false === $threshold ? delete_option( 'npmp_dues_failure_threshold' ) : update_option( 'npmp_dues_failure_threshold', $threshold );
+$levels = get_option( 'npmp_membership_levels' );
+$r = rig_admin_init( array( 'npmp_add_level_nonce' => wp_create_nonce( 'npmp_add_membership_level' ), 'npmp_new_level' => 'RigAdminLevel' ), array( 'page' => 'npmp_membership_forms' ), array( 'npmp_membership_levels' ) );
+rig_check( 'admin level add on Membership Settings writes and redirects there', array( 'redirect', array( 'npmp_membership_levels' ), true ), array( $r['kind'], $r['changed'], false !== strpos( (string) ( $GLOBALS['rig_last_redirect'] ?? '' ), 'page=npmp_membership_forms' ) ) );
+update_option( 'npmp_membership_levels', $levels );
+$powered = get_option( 'npmp_powered_by_optin' );
+$r = rig_admin_init( array( 'npmp_add_level_nonce' => wp_create_nonce( 'npmp_add_membership_level' ), 'npmp_new_level' => 'RigAdminLevel' ), array( 'page' => 'npmp_general_settings' ), array( 'npmp_membership_levels' ) );
+rig_check( 'admin level post on General Settings changes nothing', array( 'returned', array() ), array( $r['kind'], $r['changed'] ) );
+$r = rig_admin_init( array( 'npmp_powered_by_nonce' => wp_create_nonce( 'npmp_save_powered_by' ), 'npmp_powered_by_optin' => '1' ), array( 'page' => 'npmp_general_settings' ), array() );
+rig_check( 'admin powered-by save on General Settings redirects', 'redirect', $r['kind'] );
+false === $powered ? delete_option( 'npmp_powered_by_optin' ) : update_option( 'npmp_powered_by_optin', $powered );
 wp_set_current_user( 0 );
 
 // ---------------------------------------------------------------------------

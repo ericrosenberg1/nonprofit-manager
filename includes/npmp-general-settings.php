@@ -7,151 +7,108 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Handle form submissions
+ * Handle the General Settings forms.
+ *
+ * Acts only on a POST to admin.php?page=npmp_general_settings. Membership
+ * levels used to be edited here too, with the same nonce names as Membership
+ * Settings, so a level added on Membership Settings ran this handler first and
+ * landed on General Settings. Levels now live on Membership Settings alone
+ * (npmp_membership_levels_handle_post()), and this handler checks the page.
+ * tests/test-settings-handlers.php pins both.
+ *
+ * @return void
  */
-add_action(
-	'admin_init',
-	static function () {
-		// Nonce verification alone isn't a capability check: gate every
-		// action below on manage_options too, defense-in-depth alongside
-		// the nonce, matching the render function of this same page.
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-
-		// Handle adding a membership level
-		if (
-			isset( $_POST['npmp_add_level_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_add_level_nonce'] ) ), 'npmp_add_membership_level' )
-		) {
-			$new_level = isset( $_POST['npmp_new_level'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_new_level'] ) ) : '';
-			if ( ! empty( $new_level ) ) {
-				$levels = get_option( 'npmp_membership_levels', array() );
-				if ( ! is_array( $levels ) ) { // Old sites stored a newline-separated string.
-					$levels = array_filter( array_map( 'trim', explode( "\n", (string) $levels ) ) );
-				}
-				if ( ! in_array( $new_level, $levels, true ) ) {
-					$levels[] = $new_level;
-					update_option( 'npmp_membership_levels', $levels );
-				}
-			}
-			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
-			exit;
-		}
-
-		// Handle removing a membership level
-		if (
-			isset( $_POST['npmp_remove_level_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_remove_level_nonce'] ) ), 'npmp_remove_membership_level' )
-		) {
-			$level_to_remove = isset( $_POST['npmp_level_to_remove'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_level_to_remove'] ) ) : '';
-			if ( ! empty( $level_to_remove ) ) {
-				$levels = get_option( 'npmp_membership_levels', array() );
-				if ( ! is_array( $levels ) ) { // Old sites stored a newline-separated string.
-					$levels = array_filter( array_map( 'trim', explode( "\n", (string) $levels ) ) );
-				}
-				$levels = array_values( array_diff( $levels, array( $level_to_remove ) ) );
-				update_option( 'npmp_membership_levels', $levels );
-
-				// If the removed level was the default, clear the default
-				$default_level = get_option( 'npmp_default_membership_level', '' );
-				if ( $default_level === $level_to_remove ) {
-					update_option( 'npmp_default_membership_level', '' );
-				}
-			}
-			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
-			exit;
-		}
-
-		// Handle updating default level
-		if (
-			isset( $_POST['npmp_default_level_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_default_level_nonce'] ) ), 'npmp_save_default_level' )
-		) {
-			$default_level = isset( $_POST['npmp_default_membership_level'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_default_membership_level'] ) ) : '';
-			update_option( 'npmp_default_membership_level', $default_level );
-			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
-			exit;
-		}
-
-		// Handle CAPTCHA settings save
-		if (
-			isset( $_POST['npmp_captcha_settings_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_captcha_settings_nonce'] ) ), 'npmp_save_captcha_settings' )
-		) {
-			$captcha_provider = sanitize_key( wp_unslash( $_POST['npmp_captcha_provider'] ?? 'none' ) );
-			if ( ! in_array( $captcha_provider, array( 'none', 'turnstile', 'recaptcha' ), true ) ) {
-				$captcha_provider = 'none';
-			}
-
-			// Prevent free users from selecting reCAPTCHA
-			if ( 'recaptcha' === $captcha_provider && ! npmp_is_pro() ) {
-				$captcha_provider = 'none';
-			}
-
-			// Automatically enable Turnstile if it's selected as the provider
-			$turnstile_enabled = ( 'turnstile' === $captcha_provider ) ? 1 : 0;
-			$turnstile_site    = sanitize_text_field( wp_unslash( $_POST['npmp_turnstile_site_key'] ?? '' ) );
-			$turnstile_secret  = sanitize_text_field( wp_unslash( $_POST['npmp_turnstile_secret_key'] ?? '' ) );
-			$recaptcha_site    = sanitize_text_field( wp_unslash( $_POST['npmp_recaptcha_site_key'] ?? '' ) );
-			$recaptcha_secret  = sanitize_text_field( wp_unslash( $_POST['npmp_recaptcha_secret_key'] ?? '' ) );
-
-			update_option( 'npmp_captcha_provider', $captcha_provider );
-			update_option( 'npmp_turnstile_enabled', $turnstile_enabled );
-			update_option( 'npmp_turnstile_site_key', $turnstile_site );
-			// Secret fields render blank with a masked placeholder, so an
-			// empty submission means "keep the saved secret".
-			if ( '' !== $turnstile_secret ) {
-				update_option( 'npmp_turnstile_secret_key', $turnstile_secret );
-			}
-			update_option( 'npmp_recaptcha_site_key', $recaptcha_site );
-			if ( '' !== $recaptcha_secret ) {
-				update_option( 'npmp_recaptcha_secret_key', $recaptcha_secret );
-			}
-
-			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
-			exit;
-		}
-
-		// Handle the "Powered by" attribution opt-in toggle
-		if (
-			isset( $_POST['npmp_powered_by_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_powered_by_nonce'] ) ), 'npmp_save_powered_by' )
-		) {
-			update_option( 'npmp_powered_by_optin', isset( $_POST['npmp_powered_by_optin'] ) ? 1 : 0 );
-			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
-			exit;
-		}
-
-		// Handle Turnstile test
-		if (
-			isset( $_POST['npmp_test_turnstile_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_turnstile_nonce'] ) ), 'npmp_test_turnstile' )
-		) {
-			$result = npmp_turnstile_test_keys();
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&turnstile_test=error&turnstile_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&turnstile_test=success' ) );
-			}
-			exit;
-		}
-
-		// Handle reCAPTCHA test
-		if (
-			isset( $_POST['npmp_test_recaptcha_nonce'] ) &&
-			wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_recaptcha_nonce'] ) ), 'npmp_test_recaptcha' )
-		) {
-			$result = npmp_recaptcha_test_keys();
-			if ( is_wp_error( $result ) ) {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&recaptcha_test=error&recaptcha_message=' . urlencode( $result->get_error_message() ) ) );
-			} else {
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&recaptcha_test=success' ) );
-			}
-			exit;
-		}
+function npmp_general_settings_handle_post() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only. Each action below checks its own nonce.
+	if ( ! isset( $_GET['page'] ) || 'npmp_general_settings' !== $_GET['page'] ) {
+		return;
 	}
-);
+
+	// Nonce verification alone isn't a capability check: gate every
+	// action below on manage_options too, defense-in-depth alongside
+	// the nonce, matching the render function of this same page.
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	// Handle CAPTCHA settings save
+	if (
+		isset( $_POST['npmp_captcha_settings_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_captcha_settings_nonce'] ) ), 'npmp_save_captcha_settings' )
+	) {
+		$captcha_provider = sanitize_key( wp_unslash( $_POST['npmp_captcha_provider'] ?? 'none' ) );
+		if ( ! in_array( $captcha_provider, array( 'none', 'turnstile', 'recaptcha' ), true ) ) {
+			$captcha_provider = 'none';
+		}
+
+		// Prevent free users from selecting reCAPTCHA
+		if ( 'recaptcha' === $captcha_provider && ! npmp_is_pro() ) {
+			$captcha_provider = 'none';
+		}
+
+		// Automatically enable Turnstile if it's selected as the provider
+		$turnstile_enabled = ( 'turnstile' === $captcha_provider ) ? 1 : 0;
+		$turnstile_site    = sanitize_text_field( wp_unslash( $_POST['npmp_turnstile_site_key'] ?? '' ) );
+		$turnstile_secret  = sanitize_text_field( wp_unslash( $_POST['npmp_turnstile_secret_key'] ?? '' ) );
+		$recaptcha_site    = sanitize_text_field( wp_unslash( $_POST['npmp_recaptcha_site_key'] ?? '' ) );
+		$recaptcha_secret  = sanitize_text_field( wp_unslash( $_POST['npmp_recaptcha_secret_key'] ?? '' ) );
+
+		update_option( 'npmp_captcha_provider', $captcha_provider );
+		update_option( 'npmp_turnstile_enabled', $turnstile_enabled );
+		update_option( 'npmp_turnstile_site_key', $turnstile_site );
+		// Secret fields render blank with a masked placeholder, so an
+		// empty submission means "keep the saved secret".
+		if ( '' !== $turnstile_secret ) {
+			update_option( 'npmp_turnstile_secret_key', $turnstile_secret );
+		}
+		update_option( 'npmp_recaptcha_site_key', $recaptcha_site );
+		if ( '' !== $recaptcha_secret ) {
+			update_option( 'npmp_recaptcha_secret_key', $recaptcha_secret );
+		}
+
+		wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
+		exit;
+	}
+
+	// Handle the "Powered by" attribution opt-in toggle
+	if (
+		isset( $_POST['npmp_powered_by_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_powered_by_nonce'] ) ), 'npmp_save_powered_by' )
+	) {
+		update_option( 'npmp_powered_by_optin', isset( $_POST['npmp_powered_by_optin'] ) ? 1 : 0 );
+		wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&updated=1' ) );
+		exit;
+	}
+
+	// Handle Turnstile test
+	if (
+		isset( $_POST['npmp_test_turnstile_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_turnstile_nonce'] ) ), 'npmp_test_turnstile' )
+	) {
+		$result = npmp_turnstile_test_keys();
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&turnstile_test=error&turnstile_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&turnstile_test=success' ) );
+		}
+		exit;
+	}
+
+	// Handle reCAPTCHA test
+	if (
+		isset( $_POST['npmp_test_recaptcha_nonce'] ) &&
+		wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_test_recaptcha_nonce'] ) ), 'npmp_test_recaptcha' )
+	) {
+		$result = npmp_recaptcha_test_keys();
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&recaptcha_test=error&recaptcha_message=' . urlencode( $result->get_error_message() ) ) );
+		} else {
+			wp_safe_redirect( admin_url( 'admin.php?page=npmp_general_settings&recaptcha_test=success' ) );
+		}
+		exit;
+	}
+}
+add_action( 'admin_init', 'npmp_general_settings_handle_post' );
 
 /**
  * Render the General Settings page
@@ -184,12 +141,12 @@ function npmp_render_general_settings_page() {
 	$recaptcha_message = isset( $_GET['recaptcha_message'] ) ? sanitize_text_field( wp_unslash( $_GET['recaptcha_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'General Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Your organization details, %s, and form spam protection.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></p>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( __( 'General Settings', 'nonprofit-manager' ) ); ?>
+		<p class="npmp-page-description"><?php esc_html_e( 'Your organization details, form spam protection, and the attribution link.', 'nonprofit-manager' ); ?></p>
 
 		<?php if ( $updated ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<?php
@@ -205,169 +162,39 @@ function npmp_render_general_settings_page() {
 		<?php endif; ?>
 
 		<?php if ( 'success' === $turnstile_test ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Turnstile accepted your keys.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Turnstile accepted your keys.', 'nonprofit-manager' ); ?></p></div>
 		<?php elseif ( 'error' === $turnstile_test ) : ?>
-			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'Turnstile test failed: %s', 'nonprofit-manager' ), $turnstile_message ) ); ?></p></div>
+			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'Turnstile test failed: %s', 'nonprofit-manager' ), $turnstile_message ) ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( 'success' === $recaptcha_test ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'reCAPTCHA accepted your keys.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'reCAPTCHA accepted your keys.', 'nonprofit-manager' ); ?></p></div>
 		<?php elseif ( 'error' === $recaptcha_test ) : ?>
-			<div class="error notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'reCAPTCHA test failed: %s', 'nonprofit-manager' ), $recaptcha_message ) ); ?></p></div>
+			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: why the test failed. */ __( 'reCAPTCHA test failed: %s', 'nonprofit-manager' ), $recaptcha_message ) ); ?></p></div>
 		<?php endif; ?>
 
-		<style>
-			.npmp-settings-card {
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-				margin: 20px 0;
-				max-width: 800px;
-			}
-			.npmp-settings-card h2 {
-				margin-top: 0;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-			}
-			.npmp-settings-card .form-table {
-				margin-top: 10px;
-			}
-			.npmp-settings-card .form-table th {
-				padding: 12px 10px 12px 0;
-			}
-			.npmp-settings-card .form-table td {
-				padding: 12px 10px;
-			}
-			.npmp-levels-table {
-				width: 100%;
-				border-collapse: collapse;
-				margin: 15px 0;
-			}
-			.npmp-levels-table th {
-				text-align: left;
-				padding: 10px;
-				background: #f6f7f7;
-				border: 1px solid #c3c4c7;
-				font-weight: 600;
-			}
-			.npmp-levels-table td {
-				padding: 10px;
-				border: 1px solid #dcdcde;
-			}
-			.npmp-levels-table tr:hover {
-				background: #f6f7f7;
-			}
-			.npmp-delete-level {
-				color: #b32d2e;
-				text-decoration: none;
-				cursor: pointer;
-			}
-			.npmp-delete-level:hover {
-				color: #dc3232;
-			}
-			.npmp-add-level-form {
-				display: flex;
-				gap: 10px;
-				align-items: center;
-				margin-top: 15px;
-			}
-			.npmp-add-level-form input[type="text"] {
-				flex: 1;
-				max-width: 300px;
-			}
-		</style>
-
-		<!-- Membership Levels Section -->
+		<?php if ( function_exists( 'npmp_render_membership_forms_page' ) ) : ?>
 		<div class="npmp-settings-card">
 			<h2><?php echo esc_html( npmp_label( 'levels' ) ); ?></h2>
-			<p><?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for membership levels, such as membership levels or dues levels, 2: lowercase word for the group, such as nonprofit or club, 3: lowercase plural word for members, such as members. */ __( 'Define %1$s for your %2$s. You can pick one when you add or edit %3$s.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ), npmp_label( 'org_lc' ), npmp_label( 'members_lc' ) ) ); ?></p>
-
-			<!-- Current Levels Table -->
-			<?php if ( ! empty( $membership_levels ) ) : ?>
-				<table class="npmp-levels-table">
-					<thead>
-						<tr>
-							<th><?php esc_html_e( 'Level Name', 'nonprofit-manager' ); ?></th>
-							<th style="width: 100px; text-align: center;"><?php esc_html_e( 'Action', 'nonprofit-manager' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( $membership_levels as $level ) : ?>
-							<tr>
-								<td><?php echo esc_html( $level ); ?></td>
-								<td style="text-align: center;">
-									<a href="#" class="npmp-delete-level" data-level="<?php echo esc_attr( $level ); ?>" title="<?php esc_attr_e( 'Delete this level', 'nonprofit-manager' ); ?>">
-										<span class="dashicons dashicons-no-alt"></span>
-									</a>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
-			<?php else : ?>
-				<p><em><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'No %s defined yet.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></em></p>
-			<?php endif; ?>
-
-			<!-- Add New Level Form -->
-			<form method="post" class="npmp-add-level-form">
-				<?php wp_nonce_field( 'npmp_add_membership_level', 'npmp_add_level_nonce' ); ?>
-				<input
-					type="text"
-					name="npmp_new_level"
-					placeholder="<?php echo esc_attr( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Enter a new %s name', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?>"
-					required
-				>
-				<?php submit_button( __( 'Add Level', 'nonprofit-manager' ), 'secondary', 'submit', false ); ?>
-			</form>
-
-			<!-- Hidden form for deletion -->
-			<form method="post" id="npmp-delete-level-form" style="display: none;">
-				<?php wp_nonce_field( 'npmp_remove_membership_level', 'npmp_remove_level_nonce' ); ?>
-				<input type="hidden" name="npmp_level_to_remove" id="npmp_level_to_remove">
-			</form>
-
-			<hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
-
-			<!-- Default Level Selection -->
-			<form method="post">
-				<?php wp_nonce_field( 'npmp_save_default_level', 'npmp_default_level_nonce' ); ?>
-				<table class="form-table">
-					<tr>
-						<th scope="row">
-							<label for="npmp_default_membership_level"><?php esc_html_e( 'Default Level', 'nonprofit-manager' ); ?></label>
-						</th>
-						<td>
-							<select name="npmp_default_membership_level" id="npmp_default_membership_level" class="regular-text">
-								<option value=""><?php esc_html_e( 'No default level', 'nonprofit-manager' ); ?></option>
-								<?php foreach ( $membership_levels as $level ) : ?>
-									<option value="<?php echo esc_attr( $level ); ?>" <?php selected( $default_membership_level, $level ); ?>>
-										<?php echo esc_html( $level ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-							<p class="description">
-								<?php esc_html_e( 'People who join through a signup form get this level.', 'nonprofit-manager' ); ?>
-							</p>
-							<?php submit_button( __( 'Save Default Level', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
-						</td>
-					</tr>
-				</table>
-			</form>
+			<p>
+				<?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'You can add, remove, and pick a default for %s on Membership Settings.', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_membership_forms#npmp-levels' ) ); ?>"><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for membership levels, such as membership levels or dues levels. */ __( 'Manage %s', 'nonprofit-manager' ), npmp_label( 'levels_lc' ) ) ); ?></a>
+			</p>
 		</div>
+		<?php endif; ?>
 
 		<!-- Form Security Section -->
 		<div class="npmp-settings-card">
-			<h2><?php esc_html_e( 'Form Security (CAPTCHA)', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Form security (CAPTCHA)', 'nonprofit-manager' ); ?></h2>
 			<p><?php esc_html_e( 'A CAPTCHA keeps bots off your public signup and contact forms.', 'nonprofit-manager' ); ?></p>
 
 			<form method="post">
 				<?php wp_nonce_field( 'npmp_save_captcha_settings', 'npmp_captcha_settings_nonce' ); ?>
 
-				<table class="form-table">
+				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row">
-							<label for="npmp_captcha_provider"><?php esc_html_e( 'CAPTCHA Provider', 'nonprofit-manager' ); ?></label>
+							<label for="npmp_captcha_provider"><?php esc_html_e( 'CAPTCHA provider', 'nonprofit-manager' ); ?></label>
 						</th>
 						<td>
 							<select name="npmp_captcha_provider" id="npmp_captcha_provider">
@@ -408,15 +235,15 @@ function npmp_render_general_settings_page() {
 					</tr>
 
 					<tr class="captcha-turnstile" style="<?php echo 'turnstile' !== $current_captcha_provider ? 'display:none;' : ''; ?>">
-						<th scope="row"><?php esc_html_e( 'Turnstile Configuration', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Turnstile keys', 'nonprofit-manager' ); ?></th>
 						<td>
-							<p><strong><?php esc_html_e( 'Site Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="text" class="regular-text" name="npmp_turnstile_site_key" value="<?php echo esc_attr( $current_turnstile_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your Turnstile site key', 'nonprofit-manager' ); ?>">
+							<p><label for="npmp_turnstile_site_key"><strong><?php esc_html_e( 'Site key', 'nonprofit-manager' ); ?></strong></label></p>
+							<input type="text" class="regular-text" id="npmp_turnstile_site_key" name="npmp_turnstile_site_key" value="<?php echo esc_attr( $current_turnstile_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your Turnstile site key', 'nonprofit-manager' ); ?>">
 
-							<p style="margin-top: 10px;"><strong><?php esc_html_e( 'Secret Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="password" class="regular-text" name="npmp_turnstile_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_turnstile_secret ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : esc_attr__( 'Enter your Turnstile secret key', 'nonprofit-manager' ); ?>">
+							<p class="npmp-field-gap"><label for="npmp_turnstile_secret_key"><strong><?php esc_html_e( 'Secret key', 'nonprofit-manager' ); ?></strong></label></p>
+							<input type="password" class="regular-text" id="npmp_turnstile_secret_key" name="npmp_turnstile_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_turnstile_secret ? esc_attr( sprintf( /* translators: %s: a masked secret, shown as dots. */ __( '%s (saved)', 'nonprofit-manager' ), '••••••••' ) ) : esc_attr__( 'Enter your Turnstile secret key', 'nonprofit-manager' ); ?>">
 
-							<p class="description" style="margin-top: 10px;">
+							<p class="description npmp-field-gap">
 								<?php
 								printf(
 									/* translators: %s: URL to Cloudflare Turnstile */
@@ -432,24 +259,24 @@ function npmp_render_general_settings_page() {
 						<th scope="row"></th>
 						<td>
 							<button type="submit" form="npmp-test-turnstile-form" class="button button-secondary">
-								<?php esc_html_e( 'Test Turnstile Keys', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Test Turnstile keys', 'nonprofit-manager' ); ?>
 							</button>
-							<p class="description" style="margin-top: 10px;">
+							<p class="description npmp-field-gap">
 								<?php esc_html_e( 'Save your keys first, then click Test.', 'nonprofit-manager' ); ?>
 							</p>
 						</td>
 					</tr>
 
 					<tr class="captcha-recaptcha" style="<?php echo 'recaptcha' !== $current_captcha_provider ? 'display:none;' : ''; ?>">
-						<th scope="row"><?php esc_html_e( 'reCAPTCHA v3 Configuration', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'reCAPTCHA v3 keys', 'nonprofit-manager' ); ?></th>
 						<td>
-							<p><strong><?php esc_html_e( 'Site Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="text" class="regular-text" name="npmp_recaptcha_site_key" value="<?php echo esc_attr( $current_recaptcha_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your reCAPTCHA v3 site key', 'nonprofit-manager' ); ?>">
+							<p><label for="npmp_recaptcha_site_key"><strong><?php esc_html_e( 'Site key', 'nonprofit-manager' ); ?></strong></label></p>
+							<input type="text" class="regular-text" id="npmp_recaptcha_site_key" name="npmp_recaptcha_site_key" value="<?php echo esc_attr( $current_recaptcha_site ); ?>" placeholder="<?php esc_attr_e( 'Enter your reCAPTCHA v3 site key', 'nonprofit-manager' ); ?>">
 
-							<p style="margin-top: 10px;"><strong><?php esc_html_e( 'Secret Key:', 'nonprofit-manager' ); ?></strong></p>
-							<input type="password" class="regular-text" name="npmp_recaptcha_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_recaptcha_secret ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : esc_attr__( 'Enter your reCAPTCHA v3 secret key', 'nonprofit-manager' ); ?>">
+							<p class="npmp-field-gap"><label for="npmp_recaptcha_secret_key"><strong><?php esc_html_e( 'Secret key', 'nonprofit-manager' ); ?></strong></label></p>
+							<input type="password" class="regular-text" id="npmp_recaptcha_secret_key" name="npmp_recaptcha_secret_key" value="" autocomplete="new-password" placeholder="<?php echo $current_recaptcha_secret ? esc_attr( sprintf( /* translators: %s: a masked secret, shown as dots. */ __( '%s (saved)', 'nonprofit-manager' ), '••••••••' ) ) : esc_attr__( 'Enter your reCAPTCHA v3 secret key', 'nonprofit-manager' ); ?>">
 
-							<p class="description" style="margin-top: 10px;">
+							<p class="description npmp-field-gap">
 								<?php
 								printf(
 									/* translators: %s: URL to Google reCAPTCHA */
@@ -465,16 +292,16 @@ function npmp_render_general_settings_page() {
 						<th scope="row"></th>
 						<td>
 							<button type="submit" form="npmp-test-recaptcha-form" class="button button-secondary">
-								<?php esc_html_e( 'Test reCAPTCHA Keys', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Test reCAPTCHA keys', 'nonprofit-manager' ); ?>
 							</button>
-							<p class="description" style="margin-top: 10px;">
+							<p class="description npmp-field-gap">
 								<?php esc_html_e( 'Save your keys first, then click Test.', 'nonprofit-manager' ); ?>
 							</p>
 						</td>
 					</tr>
 				</table>
 
-				<?php submit_button( __( 'Save Security Settings', 'nonprofit-manager' ), 'primary' ); ?>
+				<?php submit_button( __( 'Save security settings', 'nonprofit-manager' ), 'primary' ); ?>
 			</form>
 
 			<?php
@@ -496,7 +323,7 @@ function npmp_render_general_settings_page() {
 			<p><?php esc_html_e( 'Nonprofit Manager is free. If you\'d like to help other groups find it, you can show a small "Powered by Nonprofit Manager" link on your public donation forms and newsletter emails. It stays off unless you turn it on.', 'nonprofit-manager' ); ?></p>
 			<form method="post">
 				<?php wp_nonce_field( 'npmp_save_powered_by', 'npmp_powered_by_nonce' ); ?>
-				<table class="form-table">
+				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Attribution link', 'nonprofit-manager' ); ?></th>
 						<td>
@@ -508,7 +335,7 @@ function npmp_render_general_settings_page() {
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( __( 'Save', 'nonprofit-manager' ), 'primary' ); ?>
+				<?php submit_button( __( 'Save attribution setting', 'nonprofit-manager' ), 'primary' ); ?>
 			</form>
 		</div>
 
@@ -525,17 +352,6 @@ function npmp_render_general_settings_page() {
 				}
 			});
 
-			// Delete membership level with confirmation
-			$('.npmp-delete-level').on('click', function(e) {
-				e.preventDefault();
-				var level = $(this).data('level');
-				var confirmMessage = '<?php echo esc_js( sprintf( /* translators: %s: lowercase singular word for a membership level, such as membership level or dues level. */ __( 'Delete the %s', 'nonprofit-manager' ), npmp_label( 'level_lc' ) ) ); ?> "' + level + '"?\n\n<?php echo esc_js( __( 'People who have it keep it on their record, but you can\'t pick it for anyone new. You can\'t undo this.', 'nonprofit-manager' ) ); ?>';
-
-				if (confirm(confirmMessage)) {
-					$('#npmp_level_to_remove').val(level);
-					$('#npmp-delete-level-form').submit();
-				}
-			});
 		});
 		</script>
 	</div>
