@@ -114,9 +114,9 @@ class NPMP_Org_Settings {
 		$org   = self::get();
 		$types = self::types();
 		?>
-		<div class="npmp-org-settings" style="background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:24px;margin:24px 0;max-width:760px;">
-			<h2 style="margin-top:0;"><?php esc_html_e( 'Organization identity', 'nonprofit-manager' ); ?></h2>
-			<p class="description" style="margin-top:0;"><?php esc_html_e( 'Your organization\'s name heads the printed calendar. You can leave the optional fields blank.', 'nonprofit-manager' ); ?></p>
+		<div class="npmp-org-settings npmp-settings-card">
+			<h2><?php esc_html_e( 'Organization identity', 'nonprofit-manager' ); ?></h2>
+			<p class="description npmp-flush-top"><?php esc_html_e( 'Your organization\'s name heads the printed calendar. You can leave the optional fields blank.', 'nonprofit-manager' ); ?></p>
 
 			<?php wp_nonce_field( 'npmp_save_org_settings', 'npmp_org_settings_nonce' ); ?>
 
@@ -135,7 +135,7 @@ class NPMP_Org_Settings {
 				</tr>
 				<?php endif; ?>
 				<tr>
-					<th scope="row"><label for="npmp_org_name"><?php esc_html_e( 'Organization name', 'nonprofit-manager' ); ?> <span style="color:#dc2626;">*</span></label></th>
+					<th scope="row"><label for="npmp_org_name"><?php esc_html_e( 'Organization name', 'nonprofit-manager' ); ?> <span class="npmp-required" aria-hidden="true">*</span><span class="screen-reader-text"><?php esc_html_e( '(required)', 'nonprofit-manager' ); ?></span></label></th>
 					<td>
 						<input type="text" id="npmp_org_name" name="npmp_org_settings[name]" value="<?php echo esc_attr( $org['name'] ); ?>" class="regular-text" required>
 					</td>
@@ -163,15 +163,19 @@ class NPMP_Org_Settings {
 					<td>
 						<input type="text" id="npmp_org_address_line1" name="npmp_org_settings[address_line1]" value="<?php echo esc_attr( $org['address_line1'] ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Street address', 'nonprofit-manager' ); ?>">
 						<br><br>
-						<input type="text" name="npmp_org_settings[address_line2]" value="<?php echo esc_attr( $org['address_line2'] ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Apt / suite / PO box (optional)', 'nonprofit-manager' ); ?>">
+						<label for="npmp_org_address_line2" class="screen-reader-text"><?php esc_html_e( 'Address line 2', 'nonprofit-manager' ); ?></label>
+						<input type="text" id="npmp_org_address_line2" name="npmp_org_settings[address_line2]" value="<?php echo esc_attr( $org['address_line2'] ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Apt / suite / PO box (optional)', 'nonprofit-manager' ); ?>">
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><?php esc_html_e( 'City / State / ZIP', 'nonprofit-manager' ); ?></th>
+					<th scope="row"><?php esc_html_e( 'City, state, and ZIP', 'nonprofit-manager' ); ?></th>
 					<td>
-						<input type="text" name="npmp_org_settings[city]" value="<?php echo esc_attr( $org['city'] ); ?>" placeholder="<?php esc_attr_e( 'City', 'nonprofit-manager' ); ?>" style="width:200px;">
-						<input type="text" name="npmp_org_settings[state]" value="<?php echo esc_attr( $org['state'] ); ?>" placeholder="<?php esc_attr_e( 'State', 'nonprofit-manager' ); ?>" style="width:80px;">
-						<input type="text" name="npmp_org_settings[postal_code]" value="<?php echo esc_attr( $org['postal_code'] ); ?>" placeholder="<?php esc_attr_e( 'ZIP', 'nonprofit-manager' ); ?>" style="width:120px;">
+						<label for="npmp_org_city" class="screen-reader-text"><?php esc_html_e( 'City', 'nonprofit-manager' ); ?></label>
+						<input type="text" id="npmp_org_city" name="npmp_org_settings[city]" value="<?php echo esc_attr( $org['city'] ); ?>" placeholder="<?php esc_attr_e( 'City', 'nonprofit-manager' ); ?>" class="npmp-org-city">
+						<label for="npmp_org_state" class="screen-reader-text"><?php esc_html_e( 'State', 'nonprofit-manager' ); ?></label>
+						<input type="text" id="npmp_org_state" name="npmp_org_settings[state]" value="<?php echo esc_attr( $org['state'] ); ?>" placeholder="<?php esc_attr_e( 'State', 'nonprofit-manager' ); ?>" class="npmp-org-state">
+						<label for="npmp_org_postal_code" class="screen-reader-text"><?php esc_html_e( 'ZIP code', 'nonprofit-manager' ); ?></label>
+						<input type="text" id="npmp_org_postal_code" name="npmp_org_settings[postal_code]" value="<?php echo esc_attr( $org['postal_code'] ); ?>" placeholder="<?php esc_attr_e( 'ZIP', 'nonprofit-manager' ); ?>" class="npmp-org-zip">
 					</td>
 				</tr>
 				<tr>

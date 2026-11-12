@@ -51,5 +51,14 @@ check( 'share text has a label', true, false !== strpos( $social, '<label for="n
 check( 'row headers scoped', false, strpos( $social, '<th><' ) );
 check( 'no inline style block', false, strpos( $social, '<style>' ) );
 
+echo "Organization identity card\n";
+$org = $read( 'onboarding/class-org-settings.php' );
+foreach ( array( 'npmp_org_address_line2', 'npmp_org_city', 'npmp_org_state', 'npmp_org_postal_code' ) as $id ) {
+	check( "$id has a label", true, false !== strpos( $org, '<label for="' . $id . '"' ) && false !== strpos( $org, 'id="' . $id . '"' ) );
+}
+check( 'required mark has words for screen readers', true, false !== strpos( $org, '<span class="npmp-required" aria-hidden="true">*</span><span class="screen-reader-text">' ) );
+check( 'card uses the shared settings card', true, false !== strpos( $org, 'class="npmp-org-settings npmp-settings-card"' ) );
+check( 'no inline styles', false, strpos( $org, 'style="' ) );
+
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );

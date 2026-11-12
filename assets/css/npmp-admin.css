@@ -486,3 +486,8 @@ h1 .npmp-pro-badge {
 .npmp-import-cap-title {
 	margin-top: .5em;
 }
+
+/* Organization identity card */
+.npmp-org-city { width: 200px; }
+.npmp-org-state { width: 80px; }
+.npmp-org-zip { width: 120px; }
