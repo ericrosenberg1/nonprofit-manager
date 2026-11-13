@@ -766,35 +766,37 @@ function npmp_past_nl_write( $slug, array $row, array $site ) {
 	$source  = npmp_past_nl_source( $slug );
 	$name    = $source ? $source['name'] : $slug;
 	$lists   = array_values( array_filter( array_map( 'strval', (array) $row['lists'] ) ) );
-	$post_id = wp_insert_post(
-		wp_slash(
-			array(
-				'post_type'     => 'npmp_newsletter',
-				'post_status'   => 'publish',
-				'post_title'    => $built['title'],
-				'post_content'  => $built['content'],
-				'post_date'     => $local,
-				'post_date_gmt' => $gmt,
-				'post_author'   => get_current_user_id(),
-				'meta_input'    => array(
-					'_npmp_import_key'                => npmp_past_nl_key( $slug, $row['id'] ),
-					'_npmp_import_source'             => $slug,
-					'_npmp_import_old_id'             => (int) $row['id'],
-					'_npmp_newsletter_status'         => 'sent',
-					'_npmp_newsletter_queued_at'      => $local,
-					'_npmp_newsletter_template'       => 'none',
-					'_npmp_newsletter_preheader'      => sanitize_textarea_field( $built['preheader'] ),
-					'_npmp_newsletter_audience_label' => $lists
-						/* translators: 1: plugin name, such as MailPoet, 2: list names. */
-						? sprintf( __( '%1$s lists: %2$s', 'nonprofit-manager' ), $name, implode( ', ', $lists ) )
-						/* translators: %s: plugin name, such as MailPoet. */
-						: sprintf( __( 'Sent from %s', 'nonprofit-manager' ), $name ),
-					'_npmp_import_lost_formatting'    => $built['lost'] ? '1' : '',
-				),
-			)
-		),
-		true
+	$postarr = wp_slash(
+		array(
+			'post_type'     => 'npmp_newsletter',
+			'post_status'   => 'publish',
+			'post_title'    => $built['title'],
+			'post_content'  => $built['content'],
+			'post_date'     => $local,
+			'post_date_gmt' => $gmt,
+			'post_author'   => get_current_user_id(),
+			'meta_input'    => array(
+				'_npmp_import_key'                => npmp_past_nl_key( $slug, $row['id'] ),
+				'_npmp_import_source'             => $slug,
+				'_npmp_import_old_id'             => (int) $row['id'],
+				'_npmp_newsletter_status'         => 'sent',
+				'_npmp_newsletter_queued_at'      => $local,
+				'_npmp_newsletter_template'       => 'none',
+				'_npmp_newsletter_preheader'      => sanitize_textarea_field( $built['preheader'] ),
+				'_npmp_newsletter_audience_label' => $lists
+					/* translators: 1: plugin name, such as MailPoet, 2: list names. */
+					? sprintf( __( '%1$s lists: %2$s', 'nonprofit-manager' ), $name, implode( ', ', $lists ) )
+					/* translators: %s: plugin name, such as MailPoet. */
+					: sprintf( __( 'Sent from %s', 'nonprofit-manager' ), $name ),
+				'_npmp_import_lost_formatting'    => $built['lost'] ? '1' : '',
+			),
+		)
 	);
+	// Runs as an import, so Pro's automations and the Mailer skip it like every other importer's writes.
+	$insert  = static function () use ( $postarr ) {
+		return wp_insert_post( $postarr, true );
+	};
+	$post_id = function_exists( 'npmp_import_run_as_import' ) ? npmp_import_run_as_import( $insert ) : $insert();
 	if ( is_wp_error( $post_id ) || ! $post_id ) {
 		$out['error'] = is_wp_error( $post_id ) ? $post_id->get_error_message() : __( 'WordPress couldn\'t save the newsletter.', 'nonprofit-manager' );
 		return $out;
