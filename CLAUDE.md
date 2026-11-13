@@ -213,7 +213,8 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **Every marketing email to a contact ends with `npmp_email_recipient_footer( $email )`** (newsletter
   footer with that reader's unsubscribe link, plus the preferences link) and carries
   `npmp_get_list_unsubscribe_headers()`. Notifications and the digest use it, and Pro's automation engine
-  uses it and skips a contact whose status is `unsubscribed` at send time. Confirmation, unsubscribe,
+  uses it and skips a contact whose status is `unsubscribed` at send time, except on a transactional
+  trigger (only a failed payment, see Pro's CLAUDE.md), which gets the address and preferences link instead. Confirmation, unsubscribe,
   receipt, and admin mail stay without it. Unit `tests/test-signup-welcome-emails.php`, rig
   `tests/rig/signup-welcome-emails.php`, Pro rig `tests/rig/automation-footer.php`.
 - **Public newsletters are opt-in, one newsletter at a time** (`includes/email-newsletter/archive.php`,
@@ -245,6 +246,7 @@ Free (`readme.txt`):
 
 Pro (licence server changelog):
 - Automation emails now end with your newsletter footer and unsubscribe link, and people who unsubscribed get none.
+- Members who unsubscribed still get the failed payment email, with your address and a preferences link.
 - New [groups] tag lists the groups each reader belongs to, with [groups default="..."] for someone in no group.
 - The please-confirm email lists the groups the person asked to join.
 - New checked="yes" or checked="no" on the email signup form sets whether the group boxes start ticked.
