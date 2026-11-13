@@ -204,7 +204,7 @@ function npmp_mailpoet_hub_count_left_behind() {
 	}
 	$table = npmp_mailpoet_table( 'subscribers' );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name from $wpdb->prefix, no input.
-	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} s WHERE s.deleted_at IS NULL AND NOT EXISTS ( SELECT 1 FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND LOWER(pm.meta_value) = LOWER(s.email) AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' )" );
+	return npmp_import_count_emails_not_on_contacts( "SELECT s.email FROM {$table} s WHERE s.deleted_at IS NULL" );
 }
 
 /**

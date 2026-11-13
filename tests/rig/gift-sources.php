@@ -256,20 +256,23 @@ $seed_char();
 // ---------------------------------------------------------------------
 // Start clean: drop what an earlier run imported.
 // ---------------------------------------------------------------------
-$members = NPMP_Member_Manager::get_instance();
-foreach ( $domains as $slug => $domain ) {
-	foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_npmp_import_source' AND meta_value = %s", $slug ) ) as $pid ) {
-		wp_delete_post( (int) $pid, true );
-	}
-	foreach ( array( 'ada', 'ben', 'cara', 'dan', 'eve' ) as $key ) {
-		$m = $members->get_member_by_email( $key . '@' . $domain );
-		if ( $m ) {
-			$members->delete_member( (int) $m->id );
+$members    = NPMP_Member_Manager::get_instance();
+$rig_clean  = function () use ( $domains, $members, $wpdb ) {
+	foreach ( $domains as $slug => $domain ) {
+		foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_npmp_import_source' AND meta_value = %s", $slug ) ) as $pid ) {
+			wp_delete_post( (int) $pid, true );
 		}
+		foreach ( array( 'ada', 'ben', 'cara', 'dan', 'eve' ) as $key ) {
+			$m = $members->get_member_by_email( $key . '@' . $domain );
+			if ( $m ) {
+				$members->delete_member( (int) $m->id );
+			}
+		}
+		delete_option( 'npmp_gift_import_' . $slug );
+		delete_option( 'npmp_import_hub_' . $slug );
 	}
-	delete_option( 'npmp_gift_import_' . $slug );
-	delete_option( 'npmp_import_hub_' . $slug );
-}
+};
+$rig_clean();
 
 // A past gift says nothing about your own form, so the import never sets the
 // first-donation milestone behind the "Your donation form is working!" notice.
@@ -406,6 +409,13 @@ foreach ( $domains as $slug => $domain ) {
 	$with[ $key ] = $on;
 	update_option( $opt, $with );
 	$loud = $render();
+	if ( 'remove_plugin' === $step ) {
+		// GiveWP's setting lives on its own screens, so step 3 warns while it can still be changed.
+		ob_start();
+		npmp_import_hub_render_step_deactivate( $hub, $facts, 'ready', true );
+		$before_off = wp_strip_all_tags( (string) ob_get_clean() );
+		$ok( "{$slug}: step deactivate warns about step 4 while the plugin is on", false !== strpos( $before_off, $words ) && false !== strpos( $before_off, 'before you turn the plugin off' ), $before_off );
+	}
 	update_option( $opt, $saved_opt );
 	$default = 'deactivate' === $step ? 'delete nothing' : 'stays in your database';
 	$ok( "{$slug}: step {$step} says nothing extra while the setting is off", false === strpos( $quiet, $words ) && false !== strpos( $quiet, $default ), $quiet );
@@ -441,5 +451,8 @@ if ( false !== $first_donation ) {
 // No secret option ever got read into ours.
 $ours = $wpdb->get_col( "SELECT option_value FROM {$wpdb->options} WHERE option_name LIKE 'npmp\\_gift\\_import\\_%'" );
 $ok( 'saved state holds no secret words', 0 === preg_match( '/secret|token|password|license/i', implode( ' ', $ours ) ) );
+
+// Leave no imported gifts or donors behind for the next rig (import-cap-total counts them).
+$rig_clean();
 
 printf( "\n%s: %d failed\n", $fails ? 'FAIL' : 'OK', $fails );

@@ -68,6 +68,14 @@ check( 'all-day true', true, npmp_tec_is_all_day( true ) );
 check( 'all-day empty', false, npmp_tec_is_all_day( '' ) );
 check( 'all-day no', false, npmp_tec_is_all_day( 'no' ) );
 
+echo "Cancelled and postponed events\n";
+check( 'a scheduled event stays published', 'publish', npmp_tec_import_status( 'publish', 'scheduled' ) );
+check( 'no event status stays published', 'publish', npmp_tec_import_status( 'publish', '' ) );
+check( 'a cancelled event comes over as a draft', 'draft', npmp_tec_import_status( 'publish', 'canceled' ) );
+check( 'a postponed event comes over as a draft', 'draft', npmp_tec_import_status( 'publish', 'postponed' ) );
+check( 'a scheduled-ahead cancelled event comes over as a draft', 'draft', npmp_tec_import_status( 'future', 'canceled' ) );
+check( 'a private cancelled event stays private', 'private', npmp_tec_import_status( 'private', 'canceled' ) );
+
 echo "Venue lines\n";
 check( 'full address', 'Ventura Hall, 1 Main St, Ventura, CA 93001, United States', npmp_tec_format_venue( 'Ventura Hall', array( 'address' => '1 Main St', 'city' => 'Ventura', 'state' => 'CA', 'zip' => '93001', 'country' => 'United States' ) ) );
 check( 'name only', 'Online', npmp_tec_format_venue( 'Online', array() ) );

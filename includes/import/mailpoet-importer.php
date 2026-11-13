@@ -92,9 +92,10 @@ function npmp_mailpoet_map_status( $raw ) {
 /**
  * The status an existing contact should change to, or '' to leave it alone.
  *
- * An unsubscribe on either side wins. A contact waiting as Pending becomes
- * subscribed when MailPoet holds their confirmation. Every other status
- * someone chose here (Donor, Volunteer, Partner, Inactive) stays.
+ * An unsubscribe on either side wins. A contact waiting as Pending, or one
+ * a gift made a Donor, becomes subscribed when MailPoet holds their
+ * confirmation, since newsletters go to subscribed contacts only. Every
+ * status someone chose here (Volunteer, Partner, Inactive) stays.
  *
  * @param string $existing The contact's status here.
  * @param string $incoming The mapped MailPoet status (npmp_mailpoet_map_status()).
@@ -109,7 +110,7 @@ function npmp_mailpoet_merge_status( $existing, $incoming ) {
 	if ( 'unsubscribed' === $incoming ) {
 		return 'unsubscribed';
 	}
-	if ( 'pending' === $existing && 'subscribed' === $incoming ) {
+	if ( in_array( $existing, array( 'pending', 'donor' ), true ) && 'subscribed' === $incoming ) {
 		return 'subscribed';
 	}
 	return '';
@@ -454,6 +455,15 @@ function npmp_mailpoet_importer_visible() {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reads which screen this is.
 	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
 	return in_array( $page, array( 'npmp_mailpoet_import', 'npmp_import' ), true ) && npmp_mailpoet_has_table();
+}
+
+/**
+ * Is the free import limit on, so a rerun can't bring over the rest?
+ *
+ * @return bool
+ */
+function npmp_mailpoet_is_capped_free() {
+	return function_exists( 'npmp_import_is_capped' ) && npmp_import_is_capped();
 }
 
 /**
@@ -1107,6 +1117,32 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
  * @return array{done:bool,position:int,total:int,created:int}
  */
 function npmp_mailpoet_migrate_batch( $limit = NPMP_MAILPOET_BATCH ) {
+	// One run at a time. Two tabs, or a reload while a batch was still
+	// running, read the same rows and wrote each new record twice.
+	if ( ! npmp_mail_queue_lock( 'import_mailpoet', 120 ) ) {
+		$stage = npmp_mailpoet_get_stage();
+		return array(
+			'done'     => false,
+			'position' => (int) $stage['position'],
+			'total'    => (int) $stage['total'],
+			'created'  => (int) $stage['results']['created'],
+			'busy'     => true,
+		);
+	}
+	try {
+		return npmp_mailpoet_migrate_batch_locked( $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_mailpoet' );
+	}
+}
+
+/**
+ * The body of npmp_mailpoet_migrate_batch(), run while holding its lock.
+ *
+ * @see npmp_mailpoet_migrate_batch()
+ * @return array{done:bool,position:int,total:int,created:int}
+ */
+function npmp_mailpoet_migrate_batch_locked( $limit = NPMP_MAILPOET_BATCH ) {
 	$stage = npmp_mailpoet_get_stage();
 	$total = (int) $stage['total'];
 
@@ -2017,10 +2053,11 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	$note   = '';
 	if ( $new > $places ) {
 		$note = sprintf(
-			/* translators: 1: free import total, such as 100, 2: places left, 3: number of new contacts. */
-			__( 'In the free version you can import %1$s contacts in total, and you have %2$s places left. Of the %3$s new contacts here, the rest stay in MailPoet. Contacts you already have still update.', 'nonprofit-manager' ),
+			/* translators: 1: free import total, such as 100, 2: places left, 3: new contacts that stay behind, 4: number of new contacts. */
+			__( 'In the free version you can import %1$s contacts in total, and you have %2$s places left, so %3$s of the %4$s new contacts here stay in MailPoet. You can still update contacts you already have.', 'nonprofit-manager' ),
 			number_format_i18n( $total ),
 			number_format_i18n( $places ),
+			number_format_i18n( $new - $places ),
 			number_format_i18n( $new )
 		);
 	} elseif ( $count > $max ) {
@@ -2186,7 +2223,7 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 				? npmp_import_free_limit_message()
 				: sprintf(
 					/* translators: %s: free import limit. */
-					__( 'In the free version you can move %s subscribers in one import, so the rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
+					__( 'In the free version you can import %s contacts in total, so the rest are still in MailPoet. With Pro you can run this import again and move everyone.', 'nonprofit-manager' ),
 					number_format_i18n( $max )
 				)
 		) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
@@ -2288,7 +2325,7 @@ function npmp_mailpoet_render_deactivate( array $stage ) {
 	if ( ! $confirm ) {
 		echo '<p>' . esc_html__( 'You moved your subscribers. Once you check a few of the new contacts, you can turn off MailPoet so it stops loading on every page.', 'nonprofit-manager' ) . '</p>';
 		if ( $stage['results']['cap_reached'] ) {
-			echo '<p><strong>' . esc_html__( 'Some subscribers are still only in MailPoet. Move the rest first, or leave MailPoet running.', 'nonprofit-manager' ) . '</strong></p>';
+			echo '<p><strong>' . esc_html( npmp_mailpoet_is_capped_free() ? __( 'Some subscribers are still only in MailPoet, past the free limit. Add Pro and run the import again to move the rest, or leave MailPoet running.', 'nonprofit-manager' ) : __( 'Some subscribers are still only in MailPoet. Move the rest first, or leave MailPoet running.', 'nonprofit-manager' ) ) . '</strong></p>';
 		}
 		echo '<p>' . esc_html__( 'You delete nothing here. MailPoet keeps its subscribers, lists, emails, and settings, so you can turn it back on from Plugins.', 'nonprofit-manager' ) . '</p>';
 		npmp_mailpoet_render_forms_list();

@@ -187,3 +187,46 @@ function npmp_import_free_total_notice() {
 	}
 	echo '</p></div>';
 }
+
+/**
+ * How many addresses in $old are on no contact, ignoring case.
+ *
+ * @param string[] $old      Addresses in the old plugin.
+ * @param string[] $contacts Addresses on contacts.
+ * @return int
+ */
+function npmp_import_count_missing_emails( $old, $contacts ) {
+	$known = array();
+	foreach ( $contacts as $email ) {
+		$known[ strtolower( trim( (string) $email ) ) ] = true;
+	}
+	$missing = 0;
+	foreach ( $old as $email ) {
+		if ( ! isset( $known[ strtolower( trim( (string) $email ) ) ] ) ) {
+			++$missing;
+		}
+	}
+	return $missing;
+}
+
+/**
+ * How many addresses a query returns that are on no published contact.
+ *
+ * A NOT EXISTS subquery with LOWER() on both sides can't use an index, so on
+ * 50,000 MailPoet subscribers it ran for minutes and the Switch Plugins page
+ * timed out. Two plain reads and a lookup in PHP take under a second.
+ *
+ * @param string $old_sql A query with one column of addresses, built from $wpdb names only.
+ * @return int
+ */
+function npmp_import_count_emails_not_on_contacts( $old_sql ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- Caller builds the query from $wpdb names, no input.
+	$old = $wpdb->get_col( $old_sql );
+	if ( empty( $old ) ) {
+		return 0;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Admin-only count.
+	$contacts = $wpdb->get_col( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact' AND p.post_status = 'publish'" );
+	return npmp_import_count_missing_emails( $old, $contacts );
+}

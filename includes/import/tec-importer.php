@@ -119,6 +119,26 @@ function npmp_tec_is_all_day( $value ) {
 }
 
 /**
+ * The post status an event gets here.
+ *
+ * The Events Calendar marks a cancelled or postponed event with
+ * _tribe_events_status and keeps it published. A cancelled one has no date
+ * to keep, and a postponed one's date is wrong, so both come over as drafts,
+ * like a cancelled Events Manager event, and nobody turns up for them.
+ *
+ * @param string $post_status  The TEC event's post status.
+ * @param string $event_status Its _tribe_events_status: '', 'scheduled', 'canceled', or 'postponed'.
+ * @return string
+ */
+function npmp_tec_import_status( $post_status, $event_status ) {
+	$post_status = (string) $post_status;
+	if ( in_array( strtolower( trim( (string) $event_status ) ), array( 'canceled', 'cancelled', 'postponed' ), true ) && in_array( $post_status, array( 'publish', 'future' ), true ) ) {
+		return 'draft';
+	}
+	return $post_status;
+}
+
+/**
  * Work out an event's start and end in the site timezone.
  *
  * An all-day event keeps its calendar dates, since "all day on December 5"
@@ -834,11 +854,13 @@ function npmp_tec_read_event( $post, $occurrences, DateTimeZone $site_tz ) {
 	$permalink = 'publish' === $post->post_status ? (string) get_permalink( $post ) : '';
 	$all_day   = get_post_meta( $id, '_EventAllDay', true );
 	$timezone  = (string) get_post_meta( $id, '_EventTimezone', true );
+	$state     = strtolower( (string) get_post_meta( $id, '_tribe_events_status', true ) );
 
 	$base = array(
 		'tec_id'     => $id,
 		'title'      => html_entity_decode( get_the_title( $post ), ENT_QUOTES, 'UTF-8' ),
-		'status'     => $post->post_status,
+		'status'     => npmp_tec_import_status( $post->post_status, $state ),
+		'tec_state'  => in_array( $state, array( 'canceled', 'postponed' ), true ) ? $state : '',
 		'venue'      => $venue['name'],
 		'location'   => $venue['location'],
 		'organizers' => $organizers,
@@ -1317,6 +1339,32 @@ function npmp_tec_migrate_item( array $item, array $options = array() ) {
  * @return array{done:bool,position:int,total:int,created:int}
  */
 function npmp_tec_migrate_batch( $limit = NPMP_TEC_BATCH ) {
+	// One run at a time. Two tabs, or a reload while a batch was still
+	// running, read the same rows and wrote each new record twice.
+	if ( ! npmp_mail_queue_lock( 'import_tec', 120 ) ) {
+		$stage = npmp_tec_get_stage();
+		return array(
+			'done'     => false,
+			'position' => (int) $stage['position'],
+			'total'    => count( $stage['queue'] ),
+			'created'  => (int) $stage['results']['created'],
+			'busy'     => true,
+		);
+	}
+	try {
+		return npmp_tec_migrate_batch_locked( $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_tec' );
+	}
+}
+
+/**
+ * The body of npmp_tec_migrate_batch(), run while holding its lock.
+ *
+ * @see npmp_tec_migrate_batch()
+ * @return array{done:bool,position:int,total:int,created:int}
+ */
+function npmp_tec_migrate_batch_locked( $limit = NPMP_TEC_BATCH ) {
 	$stage = npmp_tec_get_stage();
 	$total = count( $stage['queue'] );
 
@@ -2093,7 +2141,10 @@ function npmp_tec_render_review( array $stage ) {
 			);
 		}
 		echo '</th><td><strong>' . esc_html( $item['title'] ) . '</strong>';
-		if ( 'publish' !== $item['status'] ) {
+		if ( ! empty( $item['tec_state'] ) ) {
+			$label = 'canceled' === $item['tec_state'] ? __( 'Cancelled, comes over as a draft', 'nonprofit-manager' ) : __( 'Postponed, comes over as a draft', 'nonprofit-manager' );
+			echo ' <span class="npmp-tec-status">' . esc_html( $label ) . '</span>';
+		} elseif ( 'publish' !== $item['status'] ) {
 			echo ' <span class="npmp-tec-status">' . esc_html( get_post_status_object( $item['status'] ) ? get_post_status_object( $item['status'] )->label : $item['status'] ) . '</span>';
 		}
 		if ( $imported ) {

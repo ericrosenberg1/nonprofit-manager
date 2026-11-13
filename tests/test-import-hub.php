@@ -286,5 +286,24 @@ echo "MailPoet post types\n";
 check( 'no npmp post type', array(), array_values( array_filter( npmp_mailpoet_hub_post_types(), static function ( $t ) { return 0 === strpos( $t, 'npmp' ); } ) ) );
 check( 'pages and emails', array( 'mailpoet_page', 'mailpoet_email' ), npmp_mailpoet_hub_post_types() );
 
+echo "The free total, shown before any import\n";
+if ( ! function_exists( 'number_format_i18n' ) ) {
+	function number_format_i18n( $n ) {
+		return number_format( (float) $n );
+	}
+}
+check( 'nothing with Pro', '', npmp_import_hub_free_total_text( false, 100, 0 ) );
+$t = npmp_import_hub_free_total_text( true, 100, 40 );
+check( 'names the total and places left', true, false !== strpos( $t, '100 new contacts in total' ) && false !== strpos( $t, '40 places left' ) );
+check( 'says it covers every plugin and file', true, false !== strpos( $t, 'every plugin on this screen and every file you import' ) );
+check( 'says who stays behind', true, false !== strpos( $t, 'stays in the old plugin' ) );
+check( 'no places left gets its own words', true, false !== strpos( npmp_import_hub_free_total_text( true, 100, 0 ), 'used all 100 free contact places' ) );
+
+echo "Step 1 with nothing to read\n";
+check( 'data to read: step 1 runs', true, npmp_import_hub_can_import_when( true, 'Events Manager' ) );
+$why = npmp_import_hub_can_import_when( false, 'Events Manager' );
+check( 'no data: step 1 says why, naming the plugin', true, is_string( $why ) && false !== strpos( $why, 'nothing from Events Manager to import yet' ) );
+check( 'no data: the step waits instead of opening', 'blocked', npmp_import_hub_step_states( array( 'can_import' => $why ) )['import'] );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
