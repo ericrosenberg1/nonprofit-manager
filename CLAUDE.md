@@ -180,6 +180,21 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   deletion (checked in EM 7.4.14, Sugar Lite 3.17.0, Newsletter 9.5.7, MailPoet 5.45.2, TEC 6.18.3.1). Unit `tests/test-past-gifts.php`,
   `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
   1.8.15.1, Pro inactive).
+- **Past gifts from a file** (`includes/import/gift-csv-parse.php`, pure, and `gift-csv-source.php`). A CSV from Zeffy,
+  Givebutter, Donorbox, or a spreadsheet goes through the GiveWP/Charitable gift engine as source `gift_csv`. It opens from
+  a card on the Import screen (`npmp_import_source_cards`, printed in `admin-import.php`) and isn't on Switch Plugins, since
+  it has no plugin to turn off. Its gift-engine filter goes on only inside its own handlers (`npmp_gift_csv_engine_on()`),
+  so the plugin-switch gift screen never lists it. The check pass writes an index file beside the upload in `npmp-private/`,
+  one line per donor (`email TAB byte offsets`), and the engine's cursor is a byte position in that file, so 50,000 rows
+  cost one short string per donor. Presets map only columns the tool's own help center names: Givebutter's full list
+  (help.givebutter.com article 2219206, dates UTC), Zeffy's Amount, Payment method, Payment status, and Refunded amount
+  (support.zeffy.com, the rest by generic header match), and no Donorbox preset, since its help center never lists the
+  donation export's columns. The engine has no refunded state, so refunded, disputed, failed, and unfinished rows stay out,
+  a partial refund comes in as the amount kept, unknown statuses stay out until the owner ticks them, rows with no email
+  stay out, and recurring payments come in as past gifts with their frequency and no plan. Identity: the transaction ID
+  when mapped, else email, UTC date, amount, and currency. Uploads still expire three hours after the last step. Unit
+  `tests/test-gift-csv.php` (fixtures in `tests/fixtures/gift-csv-*.csv`), rig `tests/rig/gift-csv.php` (and `big` for
+  50,000 rows), run with Pro on and off.
 - **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
   `sugar-calendar-source.php`). One engine for event plugins other than TEC: sources register on
   `npmp_event_import_sources` and hand back one item per date, and the engine writes npmp_event posts with
@@ -302,6 +317,7 @@ Free (`readme.txt`):
 - Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
 - Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
 - Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
+- Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
 
 Pro (licence server changelog):
 - (none)

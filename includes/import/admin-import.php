@@ -968,6 +968,10 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Connect to Constant Contact and import a list.', 'nonprofit-manager' ); ?></span>
 				</label>
 				<?php endif; ?>
+				<?php
+				/** Other importers add a link card here, such as past gifts from a file (includes/import/gift-csv-source.php). */
+				do_action( 'npmp_import_source_cards' );
+				?>
 			</div>
 
 			<!-- Source-specific inputs -->
