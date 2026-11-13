@@ -1141,7 +1141,9 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 	$incoming = npmp_mailpoet_map_status( $row->status );
 	$added    = npmp_mailpoet_pick_added( $row->created, $row->confirmed );
 	$member   = $existing ? $members->get_member_by_id( (int) $existing['id'] ) : null;
-	$tags     = isset( $row->tags ) && is_array( $row->tags ) ? $row->tags : array();
+	// MailPoet's own tags only. Other callers of this writer (FluentCRM) set
+	// $row->tags and merge them themselves, so they count what changed.
+	$tags     = isset( $row->mailpoet_tags ) && is_array( $row->mailpoet_tags ) ? $row->mailpoet_tags : array();
 
 	if ( ! $member ) {
 		$data = array(
@@ -1323,7 +1325,7 @@ function npmp_mailpoet_migrate_batch_locked( $limit = NPMP_MAILPOET_BATCH ) {
 		$tags        = npmp_mailpoet_read_tags( wp_list_pluck( $rows, 'id' ) );
 
 		foreach ( $rows as $row ) {
-			$row->tags = $tags[ (int) $row->id ] ?? array();
+			$row->mailpoet_tags = $tags[ (int) $row->id ] ?? array();
 			if ( isset( $skip[ npmp_mailpoet_status_key( $row->status ) ] ) ) {
 				++$stage['results']['left'];
 			} elseif ( (int) $stage['handled'] >= $max ) {

@@ -211,6 +211,7 @@ check( 'no tags from MailPoet: leave the field alone', '', npmp_mailpoet_merge_t
 check( 'a comma inside a tag name cannot split it in two', 'Donor,Friends of the Park', npmp_mailpoet_merge_tags( 'Donor', array( 'Friends, of the Park' ) ) );
 check( 'blank names drop out', 'Board', npmp_mailpoet_merge_tags( '', array( ' ', '', 'Board' ) ) );
 check( 'existing tags never get dropped', 'A,B,C,D', npmp_mailpoet_merge_tags( 'A;B,C', array( 'D', 'a' ) ) );
+check( 'the writer reads only MailPoet\'s own tags, so FluentCRM\'s $row->tags stays its own', true, false !== strpos( $src, 'isset( $row->mailpoet_tags )' ) && false === strpos( $src, 'isset( $row->tags )' ) );
 check( 'the migrate step reads tags per batch', true, false !== strpos( $src, '$tags        = npmp_mailpoet_read_tags(' ) );
 check( 'tags come from mailpoet_tags and mailpoet_subscriber_tag', true, false !== strpos( $src, "npmp_mailpoet_table( 'subscriber_tag' )" ) && false !== strpos( $src, "npmp_mailpoet_table( 'tags' )" ) );
 check( 'the review step shows the tag count', true, false !== strpos( $src, "MailPoet tags into each contact\\'s Tags field" ) );
