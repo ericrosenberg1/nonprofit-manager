@@ -68,7 +68,12 @@ $base  = array(
 	),
 	'aws'             => array( 'region' => 'us-west-2', 'port' => 587 ),
 );
-$core_from = 'WordPress <wordpress@npmp-rig.test>';
+// WordPress builds its own From from the site address, not the request host.
+$core_host = strtolower( (string) wp_parse_url( network_home_url(), PHP_URL_HOST ) );
+if ( 0 === strpos( $core_host, 'www.' ) ) {
+	$core_host = substr( $core_host, 4 );
+}
+$core_from = 'WordPress <wordpress@' . $core_host . '>';
 
 try {
 	echo "== Custom SMTP, defaults ==\n";
@@ -87,7 +92,7 @@ try {
 	rig_check( 'core mail: reached the same SMTP server', true, $r['received'] );
 	rig_check( 'core mail: logged in to the SMTP server', true, $r['auth'] );
 	rig_check( 'core mail: keeps WordPress From header', $core_from, $r['from'] );
-	rig_check( 'core mail: envelope sender is WordPress From', 'wordpress@npmp-rig.test', $r['envelope'] );
+	rig_check( 'core mail: envelope sender is WordPress From', 'wordpress@' . $core_host, $r['envelope'] );
 
 	echo "\n== Send all site email from this address ==\n";
 	update_option( 'npmp_email_settings', array_merge( $base, array( 'from_all_mail' => 1 ) ) );
@@ -95,7 +100,7 @@ try {
 	rig_check( 'core mail: takes the configured From', 'Rig Council <hello@npmp-rig.test>', $r['from'] );
 	rig_check( 'core mail: still over SMTP', true, $r['received'] );
 } finally {
-	update_option( 'npmp_email_settings', $saved );
+	false === $saved ? delete_option( 'npmp_email_settings' ) : update_option( 'npmp_email_settings', $saved );
 }
 
 printf( "\n%d passed, %d failed\n", $GLOBALS['rig_pass'], $GLOBALS['rig_fail'] );

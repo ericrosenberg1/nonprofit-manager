@@ -14,7 +14,7 @@
  * permalinks, and the site served at its home URL (php -S works):
  *   wp eval-file tests/rig/newsletter-archive.php
  * Run it twice, with Pro active and inactive. It deletes every newsletter and
- * contact first.
+ * contact first, and deletes the pages it made on exit.
  */
 
 $fails = 0;
@@ -45,9 +45,31 @@ echo $pro ? "Pro is active\n" : "Pro is inactive\n";
 global $wpdb;
 // phpcs:disable WordPress.DB -- Throwaway rig.
 $wpdb->query( "DELETE FROM {$wpdb->prefix}npmp_newsletter_queue" );
-foreach ( get_posts( array( 'post_type' => array( 'npmp_newsletter', 'npmp_contact', 'page' ), 'numberposts' => -1, 'post_status' => 'any', 'fields' => 'ids' ) ) as $rig_id ) {
+foreach ( get_posts( array( 'post_type' => array( 'npmp_newsletter', 'npmp_contact' ), 'numberposts' => -1, 'post_status' => 'any', 'fields' => 'ids' ) ) as $rig_id ) {
 	wp_delete_post( $rig_id, true );
 }
+// The site's own pages stay. Every page this run makes carries _npmp_rig_page,
+// so a later run (or this one's exit) deletes only those, and the form
+// settings that point at pages go back the way they were.
+$rig_drop_pages = static function () {
+	foreach ( get_posts( array( 'post_type' => 'page', 'numberposts' => -1, 'post_status' => 'any', 'fields' => 'ids', 'meta_key' => '_npmp_rig_page' ) ) as $rig_id ) {
+		wp_delete_post( $rig_id, true );
+	}
+};
+$rig_drop_pages();
+add_action(
+	'save_post_page',
+	static function ( $rig_id ) {
+		update_post_meta( $rig_id, '_npmp_rig_page', 1 );
+	}
+);
+$rig_forms = get_option( 'npmp_membership_form_settings', null );
+register_shutdown_function(
+	static function () use ( $rig_forms, $rig_drop_pages ) {
+		$rig_drop_pages();
+		null === $rig_forms ? delete_option( 'npmp_membership_form_settings' ) : update_option( 'npmp_membership_form_settings', $rig_forms );
+	}
+);
 wp_cache_flush();
 // Tracking goes on for this run and back the way it was on exit, so a rig run
 // after this one (event-email-content compares bodies) sees the site's own

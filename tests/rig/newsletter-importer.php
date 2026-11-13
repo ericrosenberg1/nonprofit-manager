@@ -55,6 +55,15 @@ if ( 0 === strpos( $phase, 'import:' ) ) {
 		++$mails;
 		return true;
 	} );
+	// The parent narrows the free total with NPMP_IMPORT_FREE_MAX_ROWS, which
+	// is also the row limit for one job. Keep the limit on but wide, so on a
+	// new site with no contacts the job still reads every rig row.
+	add_filter(
+		'npmp_import_max_rows',
+		static function () {
+			return 100000;
+		}
+	);
 	npmp_tnp_start( array(), $settings );
 	$state = npmp_tnp_run( 60, 3 );
 	echo 'JSON ', wp_json_encode( array( 'state' => $state, 'lists' => $lists, 'mails' => $mails, 'left' => npmp_import_free_remaining(), 'active' => is_plugin_active( 'newsletter/plugin.php' ) ) ), "\n";
@@ -210,7 +219,8 @@ $get = function ( $key ) use ( $members, $domain ) {
 $ada = $get( 'ada' );
 $ok( 'ada is subscribed', $ada && 'subscribed' === $ada->status, $ada ? $ada->status : 'missing' );
 $ok( 'ada has her full name', $ada && 'Ada Lovelace' === $ada->name );
-$ok( 'ada keeps her signup date', $ada && 0 === strpos( (string) $ada->created_at, '2024-01-15 10:00' ), $ada ? $ada->created_at : '' );
+// Newsletter keeps UTC, a contact keeps the site's own time.
+$ok( 'ada keeps her signup date', $ada && 0 === strpos( (string) $ada->created_at, get_date_from_gmt( '2024-01-15 10:00:00', 'Y-m-d H:i' ) ), $ada ? $ada->created_at : '' );
 $ok( 'ada came from The Newsletter Plugin', $ada && 'newsletter' === $ada->source );
 $ok( 'ada list reaches the import hook', array( 'Rig Members' ) === ( $r['lists'][ 'ada@' . $domain ][0] ?? null ), $r['lists'][ 'ada@' . $domain ] ?? '' );
 $ok( 'ada groups cell for Pro', 'Rig Members;' === ( $r['lists'][ 'ada@' . $domain ][1] ?? null ) );
@@ -274,5 +284,15 @@ update_option( 'npmp_email_settings', $saved_email );
 update_option( 'npmp_membership_form_settings', $saved_forms );
 false === $saved_name ? delete_option( 'npmp_email_from_name' ) : update_option( 'npmp_email_from_name', $saved_name );
 false === $saved_addr ? delete_option( 'npmp_email_from_email' ) : update_option( 'npmp_email_from_email', $saved_addr );
+
+// Leave no rig contacts or subscribers behind (import-cap-total counts imported contacts).
+foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = 'npmp_email' AND meta_value LIKE %s", '%@' . $wpdb->esc_like( $domain ) ) ) as $old_id ) {
+	wp_delete_post( (int) $old_id, true );
+}
+if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'newsletter' ) ) ) {
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}newsletter WHERE email LIKE %s", '%@' . $wpdb->esc_like( $domain ) ) );
+}
+delete_option( 'npmp_tnp_import' );
+delete_option( 'npmp_tnp_imported' );
 
 printf( "\n%s: %d failed\n", $fails ? 'FAIL' : 'OK', $fails );

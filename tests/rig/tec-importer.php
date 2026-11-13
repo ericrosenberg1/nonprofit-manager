@@ -6,8 +6,9 @@
  * add-ons, confirm TEC's data survived, and follow the old URLs over HTTP.
  *
  * Needs a throwaway WordPress with this plugin and The Events Calendar active,
- * pretty permalinks, home_url at http://127.0.0.1:10199, and port 10199 free.
- * The expected times assume the site runs on London time, so it sets that:
+ * and pretty permalinks. It follows old URLs at home_url, and starts php -S
+ * there when nothing answers yet. The expected times assume London time, so
+ * it sets that and puts the timezone and modules back at the end:
  *   wp plugin install the-events-calendar --activate
  *   wp rewrite structure '/%postname%/'
  *   wp eval-file tests/rig/tec-importer.php
@@ -29,7 +30,18 @@ if ( ! function_exists( 'tribe_create_event' ) ) {
 }
 
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
-// Every expected local time below is London time.
+// Every expected local time below is London time. Put back what the site had.
+$rig_saved = array();
+foreach ( array( 'timezone_string', 'gmt_offset', 'npmp_enabled_features', 'npmp_calendar_default_view' ) as $rig_opt ) {
+	$rig_saved[ $rig_opt ] = get_option( $rig_opt, null );
+}
+register_shutdown_function(
+	static function () use ( $rig_saved ) {
+		foreach ( $rig_saved as $rig_opt => $rig_val ) {
+			null === $rig_val ? delete_option( $rig_opt ) : update_option( $rig_opt, $rig_val );
+		}
+	}
+);
 update_option( 'timezone_string', 'Europe/London' );
 update_option( 'gmt_offset', '' );
 require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -281,10 +293,15 @@ $ok( 'TEC event meta still there', '2027-04-10 18:30:00' === get_post_meta( $e_g
 $ok( 'TEC categories still there', 3 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE taxonomy = 'tribe_events_cat'" ) );
 
 echo "Old URLs over HTTP (php -S)\n";
-$pid = (int) shell_exec( sprintf( 'php -S 127.0.0.1:10199 -t %s > /dev/null 2>&1 & echo $!', escapeshellarg( untrailingslashit( ABSPATH ) ) ) );
 $get = function ( $url ) {
 	return trim( (string) shell_exec( 'curl -s -o /dev/null --max-time 20 -w "%{http_code} %{redirect_url}" ' . escapeshellarg( $url ) ) );
 };
+// Serve the site at its home URL, unless something already does.
+$pid = 0;
+if ( '000' === substr( $get( home_url( '/wp-login.php' ) ), 0, 3 ) ) {
+	$home = wp_parse_url( home_url() );
+	$pid  = (int) shell_exec( sprintf( 'php -S %s -t %s > /dev/null 2>&1 & echo $!', escapeshellarg( $home['host'] . ':' . ( $home['port'] ?? 80 ) ), escapeshellarg( untrailingslashit( ABSPATH ) ) ) );
+}
 for ( $i = 0; $i < 50 && '000' === substr( $get( home_url( '/wp-login.php' ) ), 0, 3 ); $i++ ) {
 	usleep( 100000 );
 }
@@ -303,9 +320,9 @@ $hit = $get( get_permalink( $new_gala ) );
 $ok( 'new event page answers 200', 0 === strpos( $hit, '200' ), $hit );
 if ( $pid ) {
 	posix_kill( $pid, SIGTERM );
+	usleep( 200000 );
+	$ok( 'php -S stopped', '000' === substr( $get( home_url( '/' ) ), 0, 3 ) );
 }
-usleep( 200000 );
-$ok( 'php -S stopped', '000' === substr( $get( home_url( '/' ) ), 0, 3 ) );
 
 foreach ( array_keys( $fakes ) as $rel ) {
 	unlink( $plugins_dir . '/' . $rel );

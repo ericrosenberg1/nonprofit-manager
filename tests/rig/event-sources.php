@@ -18,14 +18,15 @@
  *   Rig SC Trashed    in the trash (stays behind)
  *
  * Needs a throwaway WordPress with this plugin, Events Manager, and Sugar
- * Calendar Lite active, Pro inactive, the site timezone Europe/London, `wp`
+ * Calendar Lite active, Pro inactive, `wp`
  * and `curl` on PATH, and the site served at its home URL (php -S works).
  * Visit wp-admin once first so both plugins create their tables. Verified on
  * SQLite with Events Manager 7.4.14 and Sugar Calendar Lite 3.17.0:
  *   wp plugin install events-manager sugar-calendar-lite --activate
  *   wp eval-file tests/rig/event-sources.php
  *
- * It turns both plugins off at the end. Turn them on again for another run.
+ * It runs on London time and puts the site's timezone back at the end. It
+ * turns both plugins off at the end. Turn them on again for another run.
  * A second run reuses the seeded events.
  */
 
@@ -108,6 +109,18 @@ echo "Setup\n";
 $ok( 'Events Manager is active', is_plugin_active( $plugin_files['events-manager'] ) );
 $ok( 'Sugar Calendar is active', is_plugin_active( $plugin_files['sugar-calendar'] ) );
 $ok( 'Pro is inactive', ! is_plugin_active( 'nonprofit-manager-pro/nonprofit-manager-pro.php' ) );
+// Every expected time below is London time. The child phases read it from
+// the database, so set it there and put the site's own back at the end.
+$rig_tz  = get_option( 'timezone_string' );
+$rig_gmt = get_option( 'gmt_offset' );
+register_shutdown_function(
+	static function () use ( $rig_tz, $rig_gmt ) {
+		update_option( 'timezone_string', $rig_tz );
+		update_option( 'gmt_offset', $rig_gmt );
+	}
+);
+update_option( 'timezone_string', 'Europe/London' );
+update_option( 'gmt_offset', '' );
 $ok( 'site timezone is Europe/London', 'Europe/London' === wp_timezone_string() );
 $ok( 'both event sources registered', isset( npmp_event_import_sources()['events-manager'], npmp_event_import_sources()['sugar-calendar'] ) );
 $ok( 'EM tables exist', '' !== npmp_em_table( 'em_events' ) && '' !== npmp_em_table( 'em_event_recurrences' ) );
@@ -140,7 +153,8 @@ $em_ids = function ( $title ) use ( $wpdb ) {
 if ( ! $em_ids( 'Rig EM Gala' ) ) {
 	update_option( 'dbem_event_status_enabled', 1 );
 	$parent = wp_insert_term( 'Rig Community', 'event-categories', array( 'slug' => 'rig-community' ) );
-	$child  = wp_insert_term( 'Rig Fundraisers', 'event-categories', array( 'slug' => 'rig-fundraisers', 'parent' => $parent['term_id'], 'description' => 'Money nights' ) );
+	// Not $child: that name holds the closure that runs each child phase.
+	$sub_cat = wp_insert_term( 'Rig Fundraisers', 'event-categories', array( 'slug' => 'rig-fundraisers', 'parent' => $parent['term_id'], 'description' => 'Money nights' ) );
 
 	$loc = new EM_Location();
 	$loc->location_name     = 'Rig Town Hall';
@@ -171,7 +185,7 @@ if ( ! $em_ids( 'Rig EM Gala' ) ) {
 			'event_timezone'   => 'America/New_York',
 			'event_timeranges' => array( array( 'start' => '18:00', 'end' => '20:30' ) ),
 			'location_id'      => $loc->location_id,
-			'event_categories' => array( $child['term_id'] ),
+			'event_categories' => array( $sub_cat['term_id'] ),
 		)
 	);
 	$save(

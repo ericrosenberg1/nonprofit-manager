@@ -78,6 +78,12 @@ function rig_body_class( $html ) {
 	return preg_match( '/<body class="([^"]*)"/', $html, $m ) ? $m[1] : '';
 }
 
+// Put back what was active, the features, and the org type when the rig ends.
+$rig_restore_plugins  = array_values( array_filter( array( 'nonprofit-manager/nonprofit-manager.php', 'nonprofit-manager-pro/nonprofit-manager-pro.php' ), 'is_plugin_active' ) );
+$rig_restore_options  = array();
+foreach ( array( 'npmp_org_type', 'npmp_setup_completed', 'npmp_pro_setup_completed', 'npmp_enabled_features' ) as $rig_opt ) {
+	$rig_restore_options[ $rig_opt ] = get_option( $rig_opt, null );
+}
 foreach ( array( 'nonprofit-manager/nonprofit-manager.php', 'nonprofit-manager-pro/nonprofit-manager-pro.php' ) as $plugin ) {
 	if ( ! is_plugin_active( $plugin ) ) {
 		activate_plugin( $plugin );
@@ -245,6 +251,12 @@ wp_delete_post( $page_id, true );
 wp_delete_post( $contact_id, true );
 wp_delete_user( $staff_id );
 wp_delete_user( $admin_id );
+foreach ( $rig_restore_options as $rig_opt => $rig_val ) {
+	null === $rig_val ? delete_option( $rig_opt ) : update_option( $rig_opt, $rig_val );
+}
+if ( ! in_array( 'nonprofit-manager-pro/nonprofit-manager-pro.php', $rig_restore_plugins, true ) ) {
+	deactivate_plugins( 'nonprofit-manager-pro/nonprofit-manager-pro.php', true );
+}
 
 printf( "\n%d passed, %d failed\n", $GLOBALS['rig_pass'], $GLOBALS['rig_fail'] );
 exit( $GLOBALS['rig_fail'] ? 1 : 0 );

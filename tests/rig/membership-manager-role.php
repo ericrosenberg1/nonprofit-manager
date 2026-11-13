@@ -112,7 +112,20 @@ function rig_user( $login, $role, $password ) {
 	return (int) $id;
 }
 
-// Every module on, so every screen and handler exists.
+// Pro's handlers are on the list below, so stop early with a reason instead
+// of a fatal on an undefined function.
+if ( ! function_exists( 'npmp_is_pro' ) || ! npmp_is_pro() ) {
+	echo "  FAIL  needs Pro active. Run: wp plugin activate nonprofit-manager-pro\n";
+	exit( 1 );
+}
+// Every module on, so every screen and handler exists (from the next request
+// on). Put the site's own choice back when the rig ends, even on a failure.
+$rig_features = get_option( 'npmp_enabled_features', null );
+register_shutdown_function(
+	static function () use ( $rig_features ) {
+		null === $rig_features ? delete_option( 'npmp_enabled_features' ) : update_option( 'npmp_enabled_features', $rig_features );
+	}
+);
 update_option( 'npmp_enabled_features', array( 'members' => true, 'newsletters' => true, 'donations' => true, 'calendar' => true, 'social' => true ) );
 
 global $wpdb;
