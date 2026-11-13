@@ -50,6 +50,8 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * One-click unsubscribe with RFC 8058 List-Unsubscribe headers, which Gmail and Yahoo now expect
 * Tell subscribers about new posts and events instantly or in an automatic weekly digest, and let them pick their own preferences
 * Schedule one email for each event, such as a reminder the day before, and send any newsletter later from the Scheduled Emails screen
+* List past newsletters on any page with the Newsletters block or `[npmp_newsletters]`. You pick which ones go public
+* Past newsletters for one group on that group's page, with `[npmp_newsletters group="computing"]`*
 * As many scheduled emails as you want for the whole organization, each group, and each event*
 * Email automation workflows: welcome emails, donation receipts, and expiry reminders*
 * Send through Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or any SMTP server*
@@ -128,6 +130,10 @@ Yes. Nonprofit Manager works with any properly coded WordPress theme, and its fo
 = Can I move my events from The Events Calendar? =
 
 Yes. Go to Events > Import from TEC. You can import your events, review each one, and then switch over. Anyone who follows an old event URL lands on the new event page.
+
+= Can I show past newsletters on my site? =
+
+Yes. Open a sent newsletter, tick "Show in the public archive" in the sidebar, and click Update. Then add the Newsletters block or `[npmp_newsletters]` to any page. You can set `limit`, `order="asc"`, `layout="grid"` or `"cards"`, `topic`, `date="no"`, `excerpt="no"`, and `pagination="no"`, and with Pro, `group="computing"` lists only that group's newsletters. You decide which newsletters go public, and we leave the box unticked on every newsletter, old and new. On the public copy, we fill name tags with their defaults and leave out unsubscribe links and tracking. Search engines skip the page unless you turn on indexing under Newsletter Settings.
 
 = Can I print my calendar? =
 
