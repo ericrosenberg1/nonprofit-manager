@@ -195,6 +195,7 @@ class NPMP_Newsletter_Manager {
 		// used below to decide the completion milestone.
 		$touched = array();
 		$bodies  = array();
+		$gone    = array();
 
 		foreach ( $batch as $row ) {
 			$queue_id      = (int) $row->id;
@@ -228,8 +229,14 @@ class NPMP_Newsletter_Manager {
 			}
 			if ( null === $bodies[ $newsletter_id ] ) {
 				// The newsletter was deleted after it was queued. Mailing an
-				// empty body with only the footer helps nobody.
-				$sent = false;
+				// empty body with only the footer helps nobody, and writing its
+				// status would leave meta on a post that no longer exists. Clear
+				// every row it still has waiting, this one included.
+				if ( ! isset( $gone[ $newsletter_id ] ) ) {
+					$wpdb->delete( $table, array( 'newsletter_id' => $newsletter_id, 'status' => 'pending' ), array( '%d', '%s' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+					$gone[ $newsletter_id ] = true;
+				}
+				continue;
 			} else {
 				$content = self::personalize_content( $bodies[ $newsletter_id ], $newsletter_id, false, $user_id, $email );
 				$subject = self::personalize_subject( get_the_title( $newsletter_id ), $user_id, $email );
@@ -261,6 +268,9 @@ class NPMP_Newsletter_Manager {
 		// only inside a successful send, as before) also stops a newsletter
 		// whose final recipient fails from being stuck in the "queued" state.
 		foreach ( $touched as $newsletter_id => $any_sent ) {
+			if ( isset( $gone[ $newsletter_id ] ) || 'npmp_newsletter' !== get_post_type( $newsletter_id ) ) {
+				continue;
+			}
 			$pending = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
 				$wpdb->prepare(
 					"SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = 'pending'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
