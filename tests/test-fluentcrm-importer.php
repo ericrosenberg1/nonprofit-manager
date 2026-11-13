@@ -81,6 +81,7 @@ check( 'the shared writer runs with the source', 1, substr_count( $code, "npmp_m
 check( 'the free total is asked before each new contact', 1, substr_count( $code, 'npmp_import_free_remaining() < 1' ) );
 check( 'runs take the lock', 1, substr_count( $code, "npmp_mail_queue_lock( 'import_fluent-crm', 120 )" ) );
 check( 'no wp_mail', 0, substr_count( $code, 'wp_mail(' ) );
+check( 'the tag write runs as an import, so no tag automation fires', 1, substr_count( $code, 'npmp_import_run_as_import( $write )' ) );
 check( 'never reads the WordPress user', 0, preg_match( '/get_user(data|_by)|wp_update_user|\{\$wpdb->users\}/', $code ) );
 check( 'data removal is unavailable', false, (bool) preg_match( "/'batch'\s*=>/", $code ) );
 $main = file_get_contents( $root . '/nonprofit-manager.php' );

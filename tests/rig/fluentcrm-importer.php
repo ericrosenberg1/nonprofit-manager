@@ -57,6 +57,17 @@ add_filter(
 		return true;
 	}
 );
+// Every Tags write during the import has to run as an import, or Pro's
+// "tag added" automations would email each contact.
+$tag_writes_outside = 0;
+$watch_tags         = false;
+$tag_watch          = function ( $meta_id, $object_id, $meta_key ) use ( &$tag_writes_outside, &$watch_tags ) {
+	if ( $watch_tags && 'npmp_tags' === $meta_key && ! ( function_exists( 'npmp_is_importing' ) && npmp_is_importing() ) ) {
+		++$tag_writes_outside;
+	}
+};
+add_action( 'updated_post_meta', $tag_watch, 1, 3 );
+add_action( 'added_post_meta', $tag_watch, 1, 3 );
 echo $pro ? "Pro active\n" : "Pro inactive\n";
 
 echo "Setup\n";
@@ -205,18 +216,20 @@ $ok( 'import step hands back the screen', is_array( $res ) && false !== strpos( 
 // ---------------------------------------------------------------------
 echo "\nImport\n";
 // ---------------------------------------------------------------------
-$run = function ( $settings = array() ) use ( $by ) {
+$run = function ( $settings = array() ) use ( $by, &$watch_tags ) {
 	npmp_fcrm_start( array(), $settings );
 	$_POST['npmp_extra_on']     = array( $by['rig_shirt'][0], $by['rig_skills'][0], $by['rig_birthday'][0], $by['rig_last_call'][0], $by['rig_years'][0], $by['rig_bio'][0] );
 	$_POST['npmp_extra_target'] = array();
 	do_action( 'npmp_import_extra_fields_save', 'fluent-crm' );
 	unset( $_POST['npmp_extra_on'], $_POST['npmp_extra_target'] );
 	npmp_import_extra_request_counts( null, true );
-	$guard = 0;
+	$guard      = 0;
+	$watch_tags = true;
 	do {
 		$state = npmp_fcrm_run( 60, 3 );
 		++$guard;
 	} while ( $state['running'] && $guard < 30 );
+	$watch_tags = false;
 	return array( $state, npmp_import_extra_request_counts( null, true ) );
 };
 list( $state, $cf ) = $run( array( 'from_name', 'from_email' ) );
@@ -224,6 +237,7 @@ $r = $state['results'];
 $ok( 'finished', ! $state['running'] && $state['finished_at'] > 0, $state );
 $ok( 'eight new, two joined contacts you had', 8 === (int) $r['created'] && 2 === (int) ( $r['updated'] + $r['unchanged'] ), $r );
 $ok( 'no email sent', 0 === $mails, $mails );
+$ok( 'every tag write ran as an import', 0 === $tag_writes_outside, $tag_writes_outside );
 $want = array(
 	'sub' => 'subscribed',
 	'pen' => 'pending',

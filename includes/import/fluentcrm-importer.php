@@ -617,7 +617,7 @@ function npmp_fcrm_run_locked( $seconds = NPMP_FCRM_SECONDS, $limit = NPMP_FCRM_
 
 /**
  * Add FluentCRM tags to a contact's Tags field. Tags you already gave the
- * contact stay.
+ * contact stay. The write runs as an import, so Pro's automations stay quiet.
  *
  * @param NPMP_Member_Manager $members   Member manager.
  * @param int                 $member_id Contact ID.
@@ -634,7 +634,12 @@ function npmp_fcrm_add_tags( $members, $member_id, array $tags ) {
 	if ( strtolower( $merged ) === strtolower( npmp_fcrm_merge_tags( $current, array() ) ) ) {
 		return false;
 	}
-	return ! is_wp_error( $members->update_member( $member_id, array( 'tags' => $merged ) ) );
+	// As an import, so Pro's "tag added" automations send nobody an email.
+	$write = static function () use ( $members, $member_id, $merged ) {
+		return $members->update_member( $member_id, array( 'tags' => $merged ) );
+	};
+	$done  = function_exists( 'npmp_import_run_as_import' ) ? npmp_import_run_as_import( $write ) : $write();
+	return ! is_wp_error( $done );
 }
 
 /**
