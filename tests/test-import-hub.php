@@ -136,7 +136,7 @@ foreach ( glob( dirname( __DIR__ ) . '/includes/import/*-importer.php' ) as $pat
 		check( basename( $path ) . ' with a hub source says when its import is running', 1, min( 1, substr_count( file_get_contents( $path ), "'import_running'" ) ) );
 	}
 }
-foreach ( array( 'mailpoet-importer.php', 'tec-importer.php', 'newsletter-importer.php', 'pmpro-importer.php', 'gift-importer.php', 'event-importer.php', 'ultimate-member-importer.php' ) as $importer ) {
+foreach ( array( 'mailpoet-importer.php', 'tec-importer.php', 'newsletter-importer.php', 'pmpro-importer.php', 'gift-importer.php', 'event-importer.php', 'ultimate-member-importer.php', 'fluentcrm-importer.php' ) as $importer ) {
 	check( "$importer links back with the hub's step", 1, substr_count( file_get_contents( dirname( __DIR__ ) . '/includes/import/' . $importer ), 'npmp_import_hub_back_link(' ) );
 }
 

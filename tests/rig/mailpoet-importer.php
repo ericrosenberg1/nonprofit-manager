@@ -61,11 +61,10 @@ if ( ! function_exists( 'npmp_mailpoet_stage_batch' ) ) {
 }
 
 global $wpdb;
-// The rig writes a stub over mailpoet/mailpoet.php and drops MailPoet's tables,
-// so it refuses a site where the real MailPoet lives (rig mailpoet-hub.php covers that).
-$real_mailpoet = file_exists( WP_PLUGIN_DIR . '/mailpoet/mailpoet.php' ) && false === strpos( (string) file_get_contents( WP_PLUGIN_DIR . '/mailpoet/mailpoet.php' ), '0.0.1-rig' );
-if ( $real_mailpoet || npmp_mailpoet_has_table() ) {
-	echo "This site has the real MailPoet's files or tables. Run this rig on a site without them.\n";
+// The sweep drops MailPoet's tables, so it refuses a site where a real
+// MailPoet left its tables (the file check for the plugin itself is below).
+if ( npmp_mailpoet_has_table() ) {
+	echo "Refusing: this site has MailPoet's tables, and this rig drops them. Use a site without them.\n";
 	exit( 1 );
 }
 $admins = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
