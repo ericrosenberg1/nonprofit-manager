@@ -974,10 +974,22 @@ function npmp_um_count_left_behind( array $roles ) {
 	if ( ! $roles ) {
 		return 0;
 	}
+	// Two flat reads and a lookup in PHP. A correlated subquery on the
+	// unindexed meta_value took a minute at 20,000 members.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Admin-only count.
+	$known = $wpdb->get_col( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact' AND p.post_status = 'publish'" );
+	$known = array_flip( array_map( 'strtolower', $known ) );
 	list( $where, $args ) = npmp_um_roles_where( $roles );
 	array_unshift( $args, npmp_um_caps_key() );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared -- Built from placeholders.
-	return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(DISTINCT u.ID) FROM {$wpdb->usermeta} c INNER JOIN {$wpdb->users} u ON u.ID = c.user_id WHERE c.meta_key = %s AND {$where} AND NOT EXISTS ( SELECT 1 FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND LOWER(pm.meta_value) = LOWER(u.user_email) AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' )", $args ) );
+	$emails = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT u.user_email FROM {$wpdb->usermeta} c INNER JOIN {$wpdb->users} u ON u.ID = c.user_id WHERE c.meta_key = %s AND {$where}", $args ) );
+	$left   = 0;
+	foreach ( $emails as $email ) {
+		if ( ! isset( $known[ strtolower( (string) $email ) ] ) ) {
+			++$left;
+		}
+	}
+	return $left;
 }
 
 /**
@@ -1246,6 +1258,8 @@ function npmp_um_enqueue( $hook ) {
 	$ver  = function_exists( 'npmp_get_asset_version' ) ? npmp_get_asset_version( 'assets/js/npmp-import-hub.js' ) : '1';
 	wp_enqueue_style( 'npmp-import-hub', $base . 'assets/css/npmp-import-hub.css', array(), $ver );
 	wp_enqueue_style( 'npmp-tec-import', $base . 'assets/css/npmp-tec-import.css', array(), $ver );
+	// The roles table keeps its level boxes inside a phone-width screen.
+	wp_add_inline_style( 'npmp-import-hub', '.npmp-um-roles th label{display:flex;gap:6px;align-items:flex-start}.npmp-um-roles th input{margin-top:0}.npmp-um-roles input[type=text]{width:100%;max-width:25em;box-sizing:border-box}' );
 	wp_enqueue_script( 'npmp-import-hub', $base . 'assets/js/npmp-import-hub.js', array(), $ver, true );
 }
 
