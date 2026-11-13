@@ -318,6 +318,7 @@ Free (`readme.txt`):
 - Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
 - Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
 - Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
+- Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
 
 Pro (licence server changelog):
 - (none)
