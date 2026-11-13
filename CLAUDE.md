@@ -170,7 +170,8 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **Never look contacts up by email one row at a time in an import.** `npmp_email` meta has no index, so
   50,000 MailPoet rows took 1,415 seconds that way. Call `NPMP_Member_Manager::lookup_emails()` once per
   batch. It fills a request-scoped index that `get_member_by_email()` reads, and `add_member()`,
-  `update_member()`, `delete_member()`, and any `npmp_email` meta write keep it right.
+  `update_member()`, `delete_member()`, and any `npmp_email` meta write keep it right. Rig `tests/rig/import-email-lookups.php`.
+  With Pro, MailPoet and Newsletter batches also defer term counting, so a group is counted once per batch.
 - **Free imports fill in passes** (`npmp_import_fill_passes()`: subscribed, pending, rest). MailPoet and
   Newsletter save the pass with the cursor and reset the cursor between passes, so a reload resumes in
   the right pass. CSV and API imports keep file or provider order.
