@@ -314,3 +314,38 @@ function npmp_newsletter_archive_path( $id, $slug ) {
 	$slug = trim( (string) $slug, '/' );
 	return 'newsletter/' . (int) $id . '/' . ( '' !== $slug ? $slug . '/' : '' );
 }
+
+/**
+ * Which newsletters a "Show in the public archive" or "Hide from the public
+ * archive" bulk action changes.
+ *
+ * Show only ticks a newsletter that went out (send status 'sent'), so a
+ * draft can't reach the public page early. Hide unticks anything ticked.
+ *
+ * @param array  $rows   Each: id, send_status, public (the meta value).
+ * @param string $action 'show' or 'hide'.
+ * @return array{change:int[],unsent:int[],already:int[]}
+ */
+function npmp_newsletter_public_bulk_plan( array $rows, $action ) {
+	$plan = array(
+		'change'  => array(),
+		'unsent'  => array(),
+		'already' => array(),
+	);
+	$show = 'show' === $action;
+	foreach ( $rows as $row ) {
+		$id = (int) ( $row['id'] ?? 0 );
+		if ( $id <= 0 ) {
+			continue;
+		}
+		$is_public = '1' === (string) ( $row['public'] ?? '' );
+		if ( $show && 'sent' !== (string) ( $row['send_status'] ?? '' ) ) {
+			$plan['unsent'][] = $id;
+		} elseif ( $show === $is_public ) {
+			$plan['already'][] = $id;
+		} else {
+			$plan['change'][] = $id;
+		}
+	}
+	return $plan;
+}

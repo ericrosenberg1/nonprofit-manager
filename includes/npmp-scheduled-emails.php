@@ -1887,6 +1887,10 @@ function npmp_scheduled_emails_process_list_row( $row, $now ) {
 		npmp_scheduled_emails_update_row( $row->id, array( 'status' => 'cancelled', 'note' => __( 'The newsletter is gone or in the trash.', 'nonprofit-manager' ) ) );
 		return 'cancelled';
 	}
+	if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $newsletter_id ) ) {
+		npmp_scheduled_emails_update_row( $row->id, array( 'status' => 'cancelled', 'note' => __( 'You imported this newsletter after it went out from your old plugin, so it never sends from here.', 'nonprofit-manager' ) ) );
+		return 'cancelled';
+	}
 	if ( ! apply_filters( 'npmp_scheduled_email_can_send', 'all' === $row->audience_type, $row ) ) {
 		npmp_scheduled_emails_release( $row->id, 'all' === $row->audience_type ? '' : __( 'Sending to a group takes Nonprofit Manager Pro.', 'nonprofit-manager' ) );
 		return 'pending';
@@ -2666,6 +2670,9 @@ function npmp_scheduled_emails_list_row( $newsletter_id ) {
  * @return void
  */
 function npmp_scheduled_emails_render_send_later( $post ) {
+	if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $post->ID ) ) {
+		return;
+	}
 	$row     = npmp_scheduled_emails_list_row( $post->ID );
 	$pending = $row && 'pending' === $row->status;
 	$value   = $pending ? wp_date( 'Y-m-d\TH:i', npmp_scheduled_emails_utc_to_ts( $row->send_at ) ) : '';
@@ -2713,6 +2720,9 @@ function npmp_scheduled_emails_ajax_send_later() {
 	if ( ! empty( $_POST['cancel'] ) ) {
 		npmp_scheduled_emails_cancel_target( 'list', $post_id, __( 'You cancelled the schedule.', 'nonprofit-manager' ) );
 		wp_send_json_success( array( 'message' => __( 'You cancelled the schedule, so nothing goes out.', 'nonprofit-manager' ) ) );
+	}
+	if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $post_id ) ) {
+		wp_send_json_error( array( 'message' => __( 'You imported this newsletter after it went out from your old plugin, so you can\'t send it again. Duplicate it to send a new copy.', 'nonprofit-manager' ) ) );
 	}
 
 	$at = isset( $_POST['at'] ) ? npmp_scheduled_emails_parse_local_input( sanitize_text_field( wp_unslash( $_POST['at'] ) ) ) : 0;

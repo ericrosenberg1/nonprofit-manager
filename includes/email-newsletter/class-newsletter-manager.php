@@ -72,6 +72,10 @@ class NPMP_Newsletter_Manager {
 		global $wpdb;
 
 		$newsletter_id = absint( $newsletter_id );
+		// A newsletter imported from another plugin already went out from there.
+		if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $newsletter_id ) ) {
+			return 0;
+		}
 		$recipients    = self::apply_recipient_filter( self::get_recipient_list( $newsletter_id ), $newsletter_id );
 		$table         = $wpdb->prefix . 'npmp_newsletter_queue';
 		$queued        = 0;
@@ -218,7 +222,9 @@ class NPMP_Newsletter_Manager {
 			// Render the shared body once per newsletter per batch. It used to
 			// run the_content filters and the template for every recipient.
 			if ( ! array_key_exists( $newsletter_id, $bodies ) ) {
-				$bodies[ $newsletter_id ] = self::render_base_content( $newsletter_id );
+				// An imported newsletter never mails, even from a row someone added by hand.
+				$imported                 = function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $newsletter_id );
+				$bodies[ $newsletter_id ] = $imported ? null : self::render_base_content( $newsletter_id );
 			}
 			if ( null === $bodies[ $newsletter_id ] ) {
 				// The newsletter was deleted after it was queued. Mailing an

@@ -79,6 +79,12 @@ $keep = array();
 foreach ( array( 'npmp_email_settings', 'npmp_email_from_name', 'npmp_email_from_email', 'npmp_membership_form_settings', 'timezone_string', 'sidebars_widgets', 'npmp_mailpoet_imported' ) as $option ) {
 	$keep[ $option ] = get_option( $option, null );
 }
+// The stubs below overwrite mailpoet/mailpoet.php and the sweep drops
+// MailPoet's tables, so a real MailPoet on this site would be wrecked.
+if ( is_dir( WP_PLUGIN_DIR . '/mailpoet/lib' ) ) {
+	echo "Refusing: the real MailPoet is installed here, and this rig overwrites its files and tables. Use a site without it (tests/rig/past-newsletters.php and mailpoet-hub.php run on the real one).\n";
+	exit( 1 );
+}
 $stubs = array(
 	'mailpoet/mailpoet.php'                 => "<?php\n/**\n * Plugin Name: MailPoet\n * Version: 0.0.1-rig\n */\nif ( ! defined( 'MAILPOET_VERSION' ) ) {\n\tdefine( 'MAILPOET_VERSION', '0.0.1-rig' );\n}\n",
 	'mailpoet-premium/mailpoet-premium.php' => "<?php\n/**\n * Plugin Name: MailPoet Premium\n * Version: 0.0.1-rig\n */\n",
@@ -296,7 +302,7 @@ rig_check( 'MailPoet reads as active', true, npmp_mailpoet_is_active() );
 rig_check( 'importer is visible', true, npmp_mailpoet_importer_visible() );
 rig_check( 'subscribers table found', true, npmp_mailpoet_has_table() );
 rig_check( '12 subscribers to read, the trashed one left out', 12, npmp_mailpoet_count_subscribers() );
-rig_has( 'intro names what stays in MailPoet', 'You leave past newsletters, automations, stats, and WooCommerce segments in MailPoet.', rig_render( 'npmp_mailpoet_render_import', npmp_mailpoet_get_stage() ) );
+rig_has( 'intro names what stays in MailPoet', 'You leave drafts, automations, stats, and WooCommerce segments in MailPoet.', rig_render( 'npmp_mailpoet_render_import', npmp_mailpoet_get_stage() ) );
 
 $batches = 0;
 $restart = true;

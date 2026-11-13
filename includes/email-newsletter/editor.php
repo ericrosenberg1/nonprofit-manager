@@ -225,14 +225,26 @@ function npmp_render_newsletter_archive() {
     echo '</div>';
     echo '</form>';
 
+    if (function_exists('npmp_newsletter_public_bulk_notices')) {
+        npmp_newsletter_public_bulk_notices();
+    }
+
     if ($query->have_posts()) {
+        // Show in or hide from the public archive, for whoever can send.
+        $bulk = function_exists('npmp_newsletter_public_bulk_controls') && npmp_newsletter_public_bulk_controls();
+        // Scrolls sideways on a phone instead of pushing the whole screen wider.
+        echo '<div class="npmp-archive-table-wrap" style="overflow-x:auto">';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
+        if ($bulk) {
+            echo npmp_newsletter_public_bulk_header(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
+        }
         echo '<th scope="col">' . esc_html__('Title', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Topics', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Audience', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Last Sent', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Recipients', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Public', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
         echo '</tr></thead><tbody>';
 
@@ -264,17 +276,21 @@ function npmp_render_newsletter_archive() {
             );
 
             echo '<tr>';
+            if ($bulk) {
+                echo npmp_newsletter_public_bulk_checkbox($post_id, get_the_title()); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
+            }
             echo '<td><a href="' . esc_url(get_edit_post_link($post_id)) . '">' . esc_html(get_the_title()) . '</a>' . (function_exists('npmp_newsletter_scheduled_badge') ? npmp_newsletter_scheduled_badge($post_id) : '') . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The badge is escaped where it's built.
             echo '<td>' . esc_html($topic_labels ? implode(', ', $topic_labels) : '—') . '</td>';
             echo '<td>' . esc_html($audience) . '</td>';
             echo '<td>' . esc_html($sent_at ? mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $sent_at) : '—') . '</td>';
             echo '<td>' . esc_html($recipient_total) . '</td>';
+            echo '<td>' . esc_html('1' === (string) get_post_meta($post_id, NPMP_NEWSLETTER_PUBLIC_META, true) ? __('Yes', 'nonprofit-manager') : __('No', 'nonprofit-manager')) . '</td>';
             echo '<td><a class="button button-small" href="' . esc_url(get_preview_post_link($post_id)) . '" target="_blank" rel="noopener">' . esc_html__('Preview', 'nonprofit-manager') . '</a> ';
             echo '<a class="button button-small" href="' . esc_url($duplicate_url) . '">' . esc_html__('Duplicate', 'nonprofit-manager') . '</a></td>';
             echo '</tr>';
         }
 
-        echo '</tbody></table>';
+        echo '</tbody></table></div>';
 
         $pagination = paginate_links(
             [
@@ -313,6 +329,10 @@ add_action('add_meta_boxes', function () {
 });
 
 function npmp_newsletter_send_controls_html($post) {
+    // Imported from another plugin after it went out there: no send controls.
+    if (function_exists('npmp_newsletter_imported_notice_html') && npmp_newsletter_imported_notice_html($post)) {
+        return;
+    }
     $send_nonce        = wp_create_nonce('npmp_send_newsletter_' . $post->ID);
     $test_nonce        = wp_create_nonce('npmp_send_test_' . $post->ID);
     $meta_nonce        = wp_create_nonce('npmp_save_newsletter_meta_' . $post->ID);
@@ -522,6 +542,9 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
     ) {
         wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
     }
+    if (function_exists('npmp_newsletter_is_imported') && npmp_newsletter_is_imported($post_id)) {
+        wp_send_json_error(esc_html__('You imported this newsletter after it went out from your old plugin, so you can\'t send it again. Duplicate it to send a new copy.', 'nonprofit-manager'));
+    }
 
     $levels    = array_key_exists('levels', $_POST) ? array_map('sanitize_text_field', (array) wp_unslash($_POST['levels'])) : null;
     $preheader = array_key_exists('preheader', $_POST) ? sanitize_textarea_field(wp_unslash($_POST['preheader'])) : null;
@@ -555,6 +578,13 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
  * @return string
  */
 function npmp_newsletter_get_audience_label($post_id) {
+    // An imported newsletter keeps the lists it went to in the old plugin.
+    if (function_exists('npmp_newsletter_is_imported') && npmp_newsletter_is_imported($post_id)) {
+        $stored = (string) get_post_meta($post_id, '_npmp_newsletter_audience_label', true);
+        if ('' !== $stored) {
+            return $stored;
+        }
+    }
     $levels = get_post_meta($post_id, '_npmp_newsletter_levels', true);
     return NPMP_Newsletter_Manager::describe_audience($levels);
 }
