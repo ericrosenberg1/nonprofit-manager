@@ -219,7 +219,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed event lists and the Events block dropping the paragraph breaks in an event's text.
 
 Pro (licence server changelog):
 - (none)

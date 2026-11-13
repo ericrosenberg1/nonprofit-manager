@@ -168,9 +168,76 @@ function npmp_events_loop_direction( $order, $past ) {
 }
 
 /**
+ * Normalise plain excerpt text. Runs of spaces and tabs collapse to one
+ * space, a single newline stays a line break, and a blank line stays a
+ * paragraph break, so npmp_events_loop_render() can print one <p> per
+ * paragraph instead of running the whole body together.
+ *
+ * @param string $text Plain text, tags already gone.
+ * @return string
+ */
+function npmp_events_loop_normalize_text( $text ) {
+	$text = (string) $text;
+	// Horizontal whitespace only: \n and \r are the breaks we keep.
+	$text = (string) preg_replace( '/[^\S\n\r]+/u', ' ', $text );
+	$text = (string) preg_replace( '/\r\n?/', "\n", $text );
+	$text = (string) preg_replace( '/ *\n */', "\n", $text );
+	$text = (string) preg_replace( '/\n{3,}/', "\n\n", $text );
+
+	return trim( $text );
+}
+
+/**
+ * Trim to a word limit without flattening the breaks. wp_trim_words() turns
+ * every newline into a space, which is why the excerpt used to lose its
+ * paragraphs (Pete at U3A, 2026-11-13).
+ *
+ * @param string $text  Normalised plain text.
+ * @param int    $words Word limit.
+ * @return string
+ */
+function npmp_events_loop_trim_words( $text, $words ) {
+	$words = max( 5, (int) $words );
+	$parts = preg_split( '/(\s+)/u', (string) $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+	if ( ! is_array( $parts ) ) {
+		return trim( (string) $text );
+	}
+
+	$kept  = 0;
+	$out   = '';
+	foreach ( $parts as $i => $part ) {
+		if ( 0 === $i % 2 ) {
+			// A word.
+			if ( '' === $part ) {
+				continue;
+			}
+			if ( $kept >= $words ) {
+				return rtrim( $out ) . '…';
+			}
+			++$kept;
+			$out .= $part;
+			continue;
+		}
+		// The whitespace that followed it, reduced to the break it carried.
+		if ( false !== strpos( $part, "\n\n" ) ) {
+			$out .= "\n\n";
+		} elseif ( false !== strpos( $part, "\n" ) ) {
+			$out .= "\n";
+		} else {
+			$out .= ' ';
+		}
+	}
+
+	return trim( $out );
+}
+
+/**
  * Plain text of an event's body for an auto-excerpt. Headings, media, forms
  * and shortcodes are dropped, so a meeting that opens with its date and an
  * "Agenda" heading excerpts from the first paragraph or list item instead.
+ *
+ * Paragraph and list boundaries come back as blank lines and newlines, so the
+ * excerpt keeps the shape the author wrote.
  *
  * @param string $content Post content.
  * @return string
@@ -178,38 +245,66 @@ function npmp_events_loop_direction( $order, $past ) {
 function npmp_events_loop_text_from_content( $content ) {
 	$content = (string) $content;
 	$content = preg_replace( '/<!--.*?-->/s', '', $content );
-	$content = preg_replace( '#<(h[1-6]|figure|iframe|script|style|table|form|noscript)\b[^>]*>.*?</\1>#is', ' ', $content );
+	$content = preg_replace( '#<(h[1-6]|figure|iframe|script|style|table|form|noscript)\b[^>]*>.*?</\1>#is', "\n\n", $content );
 	$content = strip_shortcodes( $content );
-	$content = preg_replace( '#</(p|li|div|blockquote)>|<br\s*/?>#i', ' ', $content );
+	$content = preg_replace( '#</(p|div|blockquote)>#i', "\n\n", $content );
+	$content = preg_replace( '#</li>|<br\s*/?>#i', "\n", $content );
 	$text    = wp_strip_all_tags( $content );
 	$text    = html_entity_decode( $text, ENT_QUOTES, 'UTF-8' );
 
-	return trim( (string) preg_replace( '/\s+/u', ' ', $text ) );
+	return npmp_events_loop_normalize_text( $text );
 }
 
 /**
  * Excerpt for one event: the manual excerpt when there is one, otherwise the
- * first words of the body.
+ * first words of the body. Blank lines in the text are paragraph breaks and
+ * single newlines are line breaks.
  *
  * @param WP_Post|object $post  Event post.
  * @param int            $words Word limit.
- * @return string Plain text.
+ * @return string Plain text, which may hold newlines.
  */
 function npmp_events_loop_excerpt( $post, $words ) {
 	$manual = isset( $post->post_excerpt ) ? trim( (string) $post->post_excerpt ) : '';
 	$text   = '' !== $manual
-		? trim( (string) preg_replace( '/\s+/u', ' ', wp_strip_all_tags( $manual ) ) )
+		? npmp_events_loop_normalize_text( wp_strip_all_tags( $manual ) )
 		: npmp_events_loop_text_from_content( isset( $post->post_content ) ? $post->post_content : '' );
 
-	$text = wp_trim_words( $text, max( 5, (int) $words ), '…' );
+	$text = npmp_events_loop_trim_words( $text, $words );
 
 	/**
 	 * Filter an event's excerpt in the events loop.
 	 *
-	 * @param string $text Plain text excerpt.
+	 * @param string $text Plain text excerpt. A blank line is a paragraph
+	 *                     break and a single newline is a line break.
 	 * @param object $post Event post.
 	 */
 	return (string) apply_filters( 'npmp_events_loop_excerpt', $text, $post );
+}
+
+/**
+ * Escaped markup for an excerpt: one <p> per paragraph, <br> for a single
+ * line break. The text is escaped before any tag is added.
+ *
+ * @param string $text Plain text excerpt from npmp_events_loop_excerpt().
+ * @return string HTML, or '' when there is nothing to show.
+ */
+function npmp_events_loop_excerpt_html( $text ) {
+	$text = trim( (string) $text );
+	if ( '' === $text ) {
+		return '';
+	}
+
+	$html = '';
+	foreach ( preg_split( '/\n{2,}/', $text ) as $para ) {
+		$para = trim( $para );
+		if ( '' === $para ) {
+			continue;
+		}
+		$html .= '<p>' . nl2br( esc_html( $para ) ) . '</p>';
+	}
+
+	return $html;
 }
 
 /**
@@ -467,9 +562,10 @@ function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, 
 		}
 
 		if ( $settings['excerpt'] ) {
-			$excerpt = npmp_events_loop_excerpt( $post, $settings['excerpt_length'] );
+			$excerpt = npmp_events_loop_excerpt_html( npmp_events_loop_excerpt( $post, $settings['excerpt_length'] ) );
 			if ( '' !== $excerpt ) {
-				echo '<div class="npmp-event-excerpt"><p>' . esc_html( $excerpt ) . '</p></div>';
+				// Built by npmp_events_loop_excerpt_html(), which escapes the text first.
+				echo '<div class="npmp-event-excerpt">' . wp_kses_post( $excerpt ) . '</div>';
 			}
 		}
 
