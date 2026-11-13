@@ -201,16 +201,26 @@ if ( ! function_exists( 'npmp_review_nudge_lead' ) ) {
 			case 'newsletter':
 				return __( 'Your first newsletter went out through Nonprofit Manager.', 'nonprofit-manager' );
 			case 'events':
+				// The site's own count, which keeps growing after the milestone.
+				// The threshold only decides when the nudge opens.
+				$events = npmp_review_nudge_count_published( 'npmp_event' );
+				if ( $events < 1 ) {
+					return __( 'You\'re publishing your events with Nonprofit Manager.', 'nonprofit-manager' );
+				}
 				return sprintf(
-					/* translators: %d: number of published events. */
-					__( 'You\'ve published %d events with Nonprofit Manager.', 'nonprofit-manager' ),
-					NPMP_REVIEW_NUDGE_EVENTS
+					/* translators: %s: number of published events. */
+					_n( 'You\'ve published %s event with Nonprofit Manager.', 'You\'ve published %s events with Nonprofit Manager.', $events, 'nonprofit-manager' ),
+					number_format_i18n( $events )
 				);
 			case 'contacts':
+				$contacts = npmp_review_nudge_count_published( 'npmp_contact' );
+				if ( $contacts < 1 ) {
+					return __( 'You\'re keeping your contacts in Nonprofit Manager.', 'nonprofit-manager' );
+				}
 				return sprintf(
-					/* translators: %d: number of contacts. */
-					__( 'You\'re keeping %d contacts in Nonprofit Manager.', 'nonprofit-manager' ),
-					NPMP_REVIEW_NUDGE_CONTACTS
+					/* translators: %s: number of contacts. */
+					_n( 'You\'re keeping %s contact in Nonprofit Manager.', 'You\'re keeping %s contacts in Nonprofit Manager.', $contacts, 'nonprofit-manager' ),
+					number_format_i18n( $contacts )
 				);
 			case 'tenure':
 				return __( 'You\'ve been running Nonprofit Manager for a month.', 'nonprofit-manager' );
