@@ -263,6 +263,36 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **Every plugin importer runs inside `npmp_import_run_as_import()`**, so `npmp_is_importing()` is true and Pro's
   "someone signs up" automation and the Mailer's member_joined event skip imported contacts. PMPro, MailPoet, The
   Newsletter Plugin, and past gifts lacked it until the Ultimate Member work, and Pro queued welcome emails.
+- **Custom fields as an import target** (`includes/import/extra-fields.php`, Pro's `includes/custom-fields/import-target.php`).
+  Free offers the columns no contact field takes and Pro writes them through four filters: `npmp_import_extra_fields_supported`,
+  `_targets`, `_prepare` (makes the fields), and `_write` (validates and saves, returns written, unchanged, and skipped counts). The
+  wizard's mapping values are `cf_new` and `cf:<field id>`. A staged source (MailPoet, FluentCRM) registers on
+  `npmp_import_extra_field_sources` and its screen fires `npmp_import_extra_fields_choices`, `_save`, and `_results` with the source
+  key. Nothing gets made until the first imported row, and Pro remembers what it made in `npmp_pro_import_made_fields` so a rerun
+  reuses the field. A value that doesn't fit is skipped and counted, an empty value never clears a field, and a single checkbox
+  stays one yes-or-no box. Without Pro the controls show locked with the `import_custom_fields` link and nothing is written. Unit
+  `tests/test-import-extra-fields.php`, rig `tests/rig/extra-fields.php` (CSV plus MailPoet, run with Pro on and off).
+- **An existing unsubscribe always wins in the wizard.** `NPMP_Import_Manager::keep_unsubscribe()` drops a row's status on the
+  Update path when the contact is unsubscribed here (`tests/test-import-keep-unsubscribe.php`). The staged importers get the same
+  rule from `npmp_mailpoet_merge_status()`.
+- **FluentCRM** (`includes/import/fluentcrm-importer.php`, hub source `fluent-crm`, 3.3.1 verified). Reads `fc_subscribers`,
+  `fc_lists`, `fc_tags`, the pivot `fc_subscriber_pivot` (object_type `FluentCrm\App\Models\Lists` or
+  `...\Tag`), and `fc_subscriber_meta`, and custom field definitions from `fc_meta` (`key` is a reserved word, so backtick it). `created_at` is site-local.
+  Goes through the MailPoet writer with source `fluent-crm`: pending stays Pending, transactional comes over as Inactive, and
+  bounced, complained, and spammed come over as Unsubscribed. Tags join the free Tags field (your letter case wins, a comma in a
+  tag becomes a space), lists become Pro groups. Settings: only `fluentcrm-global-settings['email_settings']` from name, from email,
+  and reply-to. Double opt-in is per form and list in FluentCRM, so nothing maps. FluentCRM deletes nothing on deactivation or
+  deletion, and FluentCRM Pro and its add-ons share the `fc_` tables, so step 5 is unavailable. A WordPress user linked to a
+  contact stays untouched. Unit `tests/test-fluentcrm-importer.php`, rig `tests/rig/fluentcrm-importer.php`.
+- **Brevo API import** (`includes/import/brevo-api.php`, a source on the Import screen). Never run against the live Brevo API: rig
+  `tests/rig/brevo-import.php` drives the real AJAX handlers through a `pre_http_request` fake (pagination, 401, 403, 429, a
+  timeout). The pasted key goes only in Brevo's `api-key` header with redirects off. Between requests the site keeps it sealed with
+  sodium secretbox in transient `npmp_import_brevo_<token>` (15 minutes, refreshed each step, deleted on finish or stop), and only
+  the browser holds the secret (`brevo_secret`), so the database alone never has the key. A preview someone abandons leaves the
+  sealed box until the transient expires. Every error message is ours and never quotes Brevo. A 429 (waits `x-sib-ratelimit-reset`
+  seconds), a timeout, or a 5xx keeps the job and answers `code: retry`, and the wizard retries five times and then offers Resume.
+  The step forces the status column, so a blocklisted address, or one that left the list you import, always comes over
+  Unsubscribed. Transactional, calculated, and global attributes stay behind. `createdAt` becomes Added.
 - **Editor boxes go in the sidebar** (since 2026.11.8). In the block editor a meta box with context `normal`
   lands in the collapsed "Meta Boxes" panel under the content, which Pete at U3A read as a different screen
   from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
@@ -337,9 +367,15 @@ Free (`readme.txt`):
 - Added an importer for MailPoet past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
 - Added an importer for The Newsletter Plugin past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
 - Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
+- Added custom fields to imports: with Pro, you can bring extra CSV and Excel columns, Mailchimp merge fields, Constant Contact custom fields, and MailPoet custom fields into your own custom fields.
+- Added an importer for FluentCRM: contacts, statuses, signup dates, lists as groups, tags, custom fields, and sender settings.
+- Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and the date each contact joined.
+- Fixed imports with "Update existing contacts," which resubscribed contacts who had unsubscribed.
+- Fixed the import message about the Email column, which showed &quot; on screen.
 
 Pro (licence server changelog):
 - Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.
+- Added custom fields to imports: you can bring extra columns and old custom fields into your own custom fields, and we skip and count any value that doesn't fit.
 
 ## Releasing: three systems, always in this order
 

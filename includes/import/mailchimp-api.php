@@ -134,7 +134,11 @@ function npmp_mailchimp_get_members( $api_key, $list_id, $offset = 0, $count = 1
  *
  * @param string $api_key Mailchimp API key.
  * @param string $list_id Audience ID.
- * @return array|WP_Error Array of { tag, name, type, required } or WP_Error.
+ * Choices and date_format come from each field's options
+ * (https://mailchimp.com/developer/marketing/api/list-merges/list-merge-fields/),
+ * so an extra field keeps its dropdown choices and reads dates the right way round.
+ *
+ * @return array|WP_Error Array of { tag, name, type, required, choices, date_format } or WP_Error.
  */
 function npmp_mailchimp_get_merge_fields( $api_key, $list_id ) {
 	$dc = npmp_mailchimp_datacenter( $api_key );
@@ -143,7 +147,7 @@ function npmp_mailchimp_get_merge_fields( $api_key, $list_id ) {
 	}
 
 	$url = sprintf(
-		'https://%s.api.mailchimp.com/3.0/lists/%s/merge-fields?count=100&fields=merge_fields.tag,merge_fields.name,merge_fields.type,merge_fields.required',
+		'https://%s.api.mailchimp.com/3.0/lists/%s/merge-fields?count=100&fields=merge_fields.tag,merge_fields.name,merge_fields.type,merge_fields.required,merge_fields.options',
 		$dc,
 		rawurlencode( $list_id )
 	);
@@ -185,11 +189,42 @@ function npmp_mailchimp_get_merge_fields( $api_key, $list_id ) {
 				'name'     => isset( $mf['name'] ) ? (string) $mf['name'] : '',
 				'type'     => isset( $mf['type'] ) ? (string) $mf['type'] : 'text',
 				'required' => ! empty( $mf['required'] ),
+				'choices'  => isset( $mf['options']['choices'] ) && is_array( $mf['options']['choices'] ) ? array_values( array_map( 'strval', $mf['options']['choices'] ) ) : array(),
+				'date_format' => isset( $mf['options']['date_format'] ) ? (string) $mf['options']['date_format'] : '',
 			);
 		}
 	}
 
 	return $fields;
+}
+
+/**
+ * The custom field type and choices for a Mailchimp merge field.
+ *
+ * Birthdays have no year (MM/DD), so they come over as text.
+ *
+ * @param array $mf Merge field from npmp_mailchimp_get_merge_fields().
+ * @return array{type:string,options:array,hints:array}
+ */
+function npmp_mailchimp_extra_field_type( array $mf ) {
+	$type  = strtolower( (string) ( $mf['type'] ?? 'text' ) );
+	$map   = array(
+		'date'     => 'date',
+		'number'   => 'number',
+		'url'      => 'url',
+		'imageurl' => 'url',
+		'dropdown' => 'dropdown',
+		'radio'    => 'dropdown',
+	);
+	$hints = array();
+	if ( 'date' === $type && 0 === stripos( (string) ( $mf['date_format'] ?? '' ), 'DD' ) ) {
+		$hints['date_order'] = 'dmy';
+	}
+	return array(
+		'type'    => $map[ $type ] ?? 'text',
+		'options' => isset( $map[ $type ] ) && 'dropdown' === $map[ $type ] ? array_values( (array) ( $mf['choices'] ?? array() ) ) : array(),
+		'hints'   => $hints,
+	);
 }
 
 /**

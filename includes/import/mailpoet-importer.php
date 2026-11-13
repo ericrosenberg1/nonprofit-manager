@@ -1593,6 +1593,7 @@ function npmp_mailpoet_post_review() {
 	$statuses = array_map( 'sanitize_key', (array) wp_unslash( $_POST['npmp_mailpoet_statuses'] ?? array() ) );
 	$lists    = npmp_mailpoet_clean_ids( array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['npmp_mailpoet_lists'] ?? array() ) ) );
 	npmp_mailpoet_set_review( $statuses, $lists );
+	do_action( 'npmp_import_extra_fields_save', 'mailpoet' ); // Custom field picks (extra-fields.php).
 	wp_safe_redirect( npmp_mailpoet_page_url( 3 ) );
 	exit;
 }
@@ -1997,6 +1998,7 @@ function npmp_mailpoet_render_review( array $stage ) {
 		echo '</tbody></table></details>';
 	}
 
+	do_action( 'npmp_import_extra_fields_choices', 'mailpoet' ); // Custom fields checklist (extra-fields.php).
 	echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Continue', 'nonprofit-manager' ) . '</button></p></form>';
 }
 
@@ -2227,6 +2229,7 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 		}
 	}
 	echo '</ul>';
+	do_action( 'npmp_import_extra_fields_results', 'mailpoet' ); // Custom field counts (extra-fields.php).
 
 	if ( $r['cap_reached'] ) {
 		$max = function_exists( 'npmp_import_max_rows' ) ? npmp_import_max_rows() : 0;
