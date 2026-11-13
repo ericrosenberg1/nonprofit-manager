@@ -46,6 +46,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-rate-limit.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-general-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scripts.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-forms-accent.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/activation-hooks.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-captcha.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-types.php';

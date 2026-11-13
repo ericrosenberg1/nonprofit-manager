@@ -471,8 +471,7 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 			continue;
 		}
 
-		$name      = trim( (string) get_the_title( $contact_id ) );
-		$prefs_url = npmp_get_preferences_url( $email );
+		$name = trim( (string) get_the_title( $contact_id ) );
 
 		// A contact saved without a name has the address as its title. "Hi
 		// there" reads better than "Hi jane@example.org" or "Hi ,".
@@ -486,7 +485,10 @@ function npmp_process_post_notification( $post_id, $meta_key, $after_id = 0 ) {
 		$body .= '<p>' . esc_html( $excerpt ) . '</p>';
 		$body .= '<p><a href="' . esc_url( $url ) . '">' . esc_html__( 'Read more', 'nonprofit-manager' ) . '</a></p>';
 		$body .= '<hr style="margin:20px 0;border:none;border-top:1px solid #eee;">';
-		$body .= '<p style="font-size:12px;color:#999;"><a href="' . esc_url( $prefs_url ) . '">' . esc_html__( 'Manage your email preferences', 'nonprofit-manager' ) . '</a></p>';
+		// The newsletter footer with this reader's own links: postal address,
+		// unsubscribe, and preferences. Until the release after 2026.11.8 a
+		// notification carried only the preferences link.
+		$body .= '<div style="font-size:12px;color:#6b7280;">' . npmp_email_recipient_footer( $email ) . '</div>';
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {
@@ -765,10 +767,9 @@ function npmp_drain_digest_batch() {
 	foreach ( $batch as $row ) {
 		$email = sanitize_email( $row->email );
 
-		$prefs_url     = npmp_get_preferences_url( $email );
 		$personal_body = $content;
 		$personal_body .= '<hr style="margin:20px 0;border:none;border-top:1px solid #eee;">';
-		$personal_body .= '<p style="font-size:12px;color:#999;"><a href="' . esc_url( $prefs_url ) . '">' . esc_html__( 'Manage your email preferences', 'nonprofit-manager' ) . '</a></p>';
+		$personal_body .= '<div style="font-size:12px;color:#6b7280;">' . npmp_email_recipient_footer( $email ) . '</div>';
 
 		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
 		if ( function_exists( 'npmp_get_list_unsubscribe_headers' ) ) {

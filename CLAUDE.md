@@ -39,8 +39,10 @@ secondary #0f766e, link hover #059669, heading #111827, text #1f2937, Playfair D
 Inter body, radius 8. White text on #10B981 fails WCAG AA (2.5:1), so filled buttons, links and focus
 rings in the plugin use #0f766e (5.5:1), hover #115e59, tint #ecfdf5, tint border #a7f3d0, and
 #10B981 stays decorative (notice borders, glows). Leave WordPress's own `.button-primary` on the
-admin color scheme. Front-end forms read `--npmp-accent` and `--npmp-accent-dark` so a theme can
-override them. The calendar's unsaved highlight falls back to #0f766e, and
+admin color scheme. Front-end forms read `--npmp-accent`, `--npmp-accent-dark` and
+`--npmp-accent-text` so a theme can override them. The site owner's Form color (option
+`npmp_forms_accent`, `includes/npmp-forms-accent.php`) prints those three only when it differs from
+#0f766e, derives the hover shade, and switches the label to dark text when white fails 4.5:1. The calendar's unsaved highlight falls back to #0f766e, and
 `npmp_maybe_pin_legacy_calendar_accent()` saves the old blue once on sites that upgraded from
 before 2026.10.11 so their public calendars don't change. Change a color here and on the site,
 Pro and `~/Code/nonprofit-mailer/edge/src/index.js` in the same pass.
@@ -208,6 +210,12 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
   Pro stacks its tables there with `td[data-label]`. Every admin h1 needs `hr.wp-header-end` within two
   lines or core puts notices above the title (`tests/test-admin-ui.php` scans for it).
+- **Every marketing email to a contact ends with `npmp_email_recipient_footer( $email )`** (newsletter
+  footer with that reader's unsubscribe link, plus the preferences link) and carries
+  `npmp_get_list_unsubscribe_headers()`. Notifications and the digest use it, and Pro's automation engine
+  uses it and skips a contact whose status is `unsubscribed` at send time. Confirmation, unsubscribe,
+  receipt, and admin mail stay without it. Unit `tests/test-signup-welcome-emails.php`, rig
+  `tests/rig/signup-welcome-emails.php`, Pro rig `tests/rig/automation-footer.php`.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -219,10 +227,15 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Post and event notifications and the weekly digest now end with your newsletter footer and the reader's own unsubscribe link.
+- New Form color setting under Membership Settings sets the button color on every front-end form and keeps the label readable.
+- The please-confirm email can list what the person signed up for (Pro fills in their groups).
 
 Pro (licence server changelog):
-- (none)
+- Automation emails now end with your newsletter footer and unsubscribe link, and people who unsubscribed get none.
+- New [groups] tag lists the groups each reader belongs to, with [groups default="..."] for someone in no group.
+- The please-confirm email lists the groups the person asked to join.
+- New checked="yes" or checked="no" on the email signup form sets whether the group boxes start ticked.
 
 ## Releasing: three systems, always in this order
 
