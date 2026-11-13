@@ -154,7 +154,7 @@ npmp_render_setup_wizard();
 $html = ob_get_clean();
 $link = npmp_get_upgrade_url( 'setup_wizard' );
 rig_has( 'the note is on the page', 'Want more features?', $html );
-rig_has( 'it names what Pro adds', 'recurring donations, dues billing', $html );
+rig_has( 'it names what Pro adds', 'groups, recurring gifts, dues billing', $html );
 rig_has( 'the campaign-tagged link is in the markup', esc_url( $link ), $html );
 rig_check( 'the tagged link names this screen', true, false !== strpos( $link, 'utm_campaign=setup_wizard' ) );
 preg_match( '#<a[^>]*href="' . preg_quote( esc_url( $link ), '#' ) . '"[^>]*>(.*?)</a>#s', $html, $m );
