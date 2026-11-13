@@ -1455,6 +1455,27 @@ function npmp_scheduled_emails_get_body( $body_id ) {
 }
 
 /**
+ * The template an event's email is wrapped in. The event's own choice wins,
+ * then the body's, then '' for the site default. 'none' means send the body
+ * on its own.
+ *
+ * The event's choice comes from the Email Template box on the event editor
+ * (includes/email-newsletter/templates.php), so one event can use a different
+ * wrapper from the body every other event shares (Peter Lord, 2026-11-13).
+ *
+ * @param int   $event_id Event ID.
+ * @param array $body     Body from npmp_scheduled_emails_get_body().
+ * @return string '' for the default, 'none' for none, or a template ID.
+ */
+function npmp_scheduled_emails_pick_template( $event_id, $body ) {
+	$own = (string) get_post_meta( (int) $event_id, '_npmp_event_email_template', true );
+	if ( '' !== $own ) {
+		return $own;
+	}
+	return (string) $body['template'];
+}
+
+/**
  * The subject for a row: its own, then the body's, then the event title.
  *
  * @param string $own  Row or form subject.
@@ -1565,8 +1586,9 @@ function npmp_scheduled_emails_build_newsletter( $row, $event_id, $prefix = '' )
 	} else {
 		update_post_meta( $newsletter_id, '_npmp_newsletter_levels', array( '__all__' ) );
 	}
-	if ( '' !== $body['template'] ) {
-		update_post_meta( $newsletter_id, '_npmp_newsletter_template', $body['template'] );
+	$template = npmp_scheduled_emails_pick_template( $event_id, $body );
+	if ( '' !== $template ) {
+		update_post_meta( $newsletter_id, '_npmp_newsletter_template', $template );
 	}
 	update_post_meta( $newsletter_id, '_npmp_newsletter_scheduled_row', (int) $row->id );
 	update_post_meta( $newsletter_id, '_npmp_newsletter_scheduled_event', (int) $event_id );
@@ -1598,8 +1620,10 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $emai
 	$body = npmp_scheduled_emails_get_body( $body_id );
 	$map  = npmp_scheduled_emails_placeholders( $event_id, is_object( $row ) ? $row : null );
 	$html = npmp_email_the_content( npmp_scheduled_emails_fill( $body['content'], $map, true ) );
-	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $body['template'] ) {
-		$html = is_numeric( $body['template'] ) ? npmp_apply_newsletter_template( $html, absint( $body['template'] ) ) : npmp_apply_newsletter_template( $html );
+	// The template a real send would use, so the test shows the same wrapper.
+	$template = npmp_scheduled_emails_pick_template( $event_id, $body );
+	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $template ) {
+		$html = is_numeric( $template ) ? npmp_apply_newsletter_template( $html, absint( $template ) ) : npmp_apply_newsletter_template( $html );
 	}
 	// Same image handling the queue gets, so the test matches what sends
 	// (ROS-4261).
