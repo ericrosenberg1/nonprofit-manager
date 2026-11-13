@@ -288,7 +288,8 @@ function npmp_scheduled_emails_placeholder_help() {
 		'[join_link]'      => __( 'The event link (a meeting link, say), or the event page', 'nonprofit-manager' ),
 		'[ical_link]'      => sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'A calendar file %s can add to their calendar', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
 		'[event_image]'    => __( 'The event\'s featured image', 'nonprofit-manager' ),
-		'[event_excerpt]'  => __( 'The start of the event description. [event_excerpt words="200"] sets the length (55 words if you leave it out)', 'nonprofit-manager' ),
+		'[event_excerpt]'  => __( 'The start of the event description, with its paragraph breaks. [event_excerpt words="200"] sets the length (55 words if you leave it out)', 'nonprofit-manager' ),
+		'[event_description]' => __( 'The whole event description, with its paragraphs, headings, lists, links, and images', 'nonprofit-manager' ),
 		'[first_name]'     => __( 'Each reader\'s first name. [first_name default="Member"] fills in a word for contacts with no name. [last_name] and [name] work the same way', 'nonprofit-manager' ),
 	);
 	/**
@@ -326,16 +327,31 @@ function npmp_scheduled_emails_fill( $text, $map, $html = true ) {
 	}
 	if ( array_key_exists( '[event_excerpt]', $map ) ) {
 		$source = (string) $map['[event_excerpt]'];
-		$text   = (string) preg_replace_callback(
-			'/\[event_excerpt(?:\s+words\s*=\s*(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?(\d+)(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?)?\s*\]/u',
+		$tag    = '\[event_excerpt(?:\s+words\s*=\s*(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?(\d+)(?:["\'\x{201C}\x{201D}\x{2018}\x{2019}\x{2032}\x{2033}]|&quot;|&#0?\d+;)?)?\s*\]';
+		// A tag alone in its paragraph becomes one paragraph per paragraph of
+		// the description. Anywhere else the breaks become <br> tags.
+		$text = (string) preg_replace_callback(
+			'/(<p\b[^>]*>)?(\s*)' . $tag . '(\s*)(<\/p>)?/u',
 			function ( $m ) use ( $source, $html ) {
-				$words   = isset( $m[1] ) ? max( 1, min( 2000, (int) $m[1] ) ) : 55;
+				$words   = isset( $m[3] ) && '' !== $m[3] ? max( 1, min( 2000, (int) $m[3] ) ) : 55;
 				$excerpt = npmp_scheduled_emails_trim_words( $source, $words );
-				return $html ? esc_html( $excerpt ) : $excerpt;
+				$open    = $m[1] ?? '';
+				$close   = $m[5] ?? '';
+				if ( ! $html ) {
+					return $open . $m[2] . trim( (string) preg_replace( '/\s+/u', ' ', $excerpt ) ) . ( $m[4] ?? '' ) . $close;
+				}
+				if ( '' !== $open && '' !== $close ) {
+					return npmp_scheduled_emails_text_to_html( $excerpt, $open );
+				}
+				return $open . $m[2] . npmp_scheduled_emails_text_to_html( $excerpt ) . ( $m[4] ?? '' ) . $close;
 			},
 			$text
 		);
 		unset( $map['[event_excerpt]'] );
+	}
+	if ( array_key_exists( '[event_description]', $map ) ) {
+		$text = npmp_scheduled_emails_fill_description( $text, $map['[event_description]'], $html );
+		unset( $map['[event_description]'] );
 	}
 
 	$pairs = array();
@@ -397,16 +413,85 @@ function npmp_scheduled_emails_image( $event_id ) {
  * @return string
  */
 function npmp_scheduled_emails_trim_words( $text, $words ) {
-	$parts = preg_split( '/\s+/u', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
-	if ( count( $parts ) <= $words ) {
-		return implode( ' ', $parts );
+	$parts = preg_split( '/(\s+)/u', trim( (string) $text ), -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY );
+	$out   = '';
+	$count = 0;
+	foreach ( (array) $parts as $part ) {
+		if ( '' === trim( $part ) ) {
+			// A blank line stays a paragraph break and a newline a line break,
+			// so the excerpt keeps the description's paragraphs.
+			$newlines = substr_count( $part, "\n" );
+			$out     .= $newlines >= 2 ? "\n\n" : ( $newlines ? "\n" : ' ' );
+			continue;
+		}
+		if ( $count >= $words ) {
+			return rtrim( $out, ".,;:!? -\n" ) . "\u{2026}";
+		}
+		$out .= $part;
+		++$count;
 	}
-	return rtrim( implode( ' ', array_slice( $parts, 0, $words ) ), ".,;:!? -" ) . "\u{2026}";
+	return trim( $out );
+}
+
+/**
+ * Plain text with blank lines between paragraphs, as HTML: one paragraph per
+ * paragraph when $p_open is a <p> tag to repeat, <br> tags otherwise. Every
+ * piece of text is escaped, square brackets included.
+ *
+ * @param string $text   Plain text.
+ * @param string $p_open Opening <p> tag, '' for inline.
+ * @return string
+ */
+function npmp_scheduled_emails_text_to_html( $text, $p_open = '' ) {
+	$paras = preg_split( '/\n\s*\n/u', trim( (string) $text ), -1, PREG_SPLIT_NO_EMPTY );
+	$html  = array();
+	foreach ( (array) $paras as $para ) {
+		$html[] = implode( '<br>', array_map( 'esc_html', array_map( 'trim', explode( "\n", trim( $para ) ) ) ) );
+	}
+	// Brackets as entities, so the email's the_content pass can't run a
+	// shortcode the description only showed as text ([[tag]] on the page).
+	$html = str_replace( array( '[', ']' ), array( '&#91;', '&#93;' ), $html );
+	if ( '' === $p_open ) {
+		return implode( '<br><br>', $html );
+	}
+	return $html ? $p_open . implode( '</p>' . $p_open, $html ) . '</p>' : '';
+}
+
+/**
+ * Text from HTML that keeps its paragraphs: a blank line after each block
+ * (paragraph, heading, list, quote), a newline for each <br> and list item,
+ * and single spaces everywhere else.
+ *
+ * @param string $html HTML or plain text.
+ * @return string
+ */
+function npmp_scheduled_emails_text_with_breaks( $html ) {
+	$html = str_replace( array( "\r\n", "\r" ), "\n", (string) $html );
+	// Whitespace between two tags is layout, unless it holds a blank line,
+	// which the classic editor turns into a new paragraph.
+	$html = (string) preg_replace_callback(
+		'/>(\s+)</u',
+		function ( $m ) {
+			return substr_count( $m[1], "\n" ) >= 2 ? ">\n\n<" : '> <';
+		},
+		$html
+	);
+	$html = (string) preg_replace( '/<br\s*\/?>/i', "\n", $html );
+	$html = (string) preg_replace( '#</(?:li|tr|dt|dd|figcaption)\s*>#i', "\n", $html );
+	$html = (string) preg_replace( '#</(?:p|div|h[1-6]|blockquote|ul|ol|pre|figure|table|section|article|header|footer|details)\s*>#i', "\n\n", $html );
+	$text = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$text = str_replace( "\u{00A0}", ' ', $text );
+	$lines = array();
+	foreach ( explode( "\n", $text ) as $line ) {
+		$lines[] = trim( (string) preg_replace( '/[^\S\n]+/u', ' ', $line ) );
+	}
+	return trim( (string) preg_replace( "/\n{3,}/", "\n\n", implode( "\n", $lines ) ) );
 }
 
 /**
  * The plain-text source for [event_excerpt]: the event's excerpt when it has
- * one, otherwise its description without blocks, shortcodes or markup.
+ * one, otherwise its description without blocks, shortcodes or markup. Blank
+ * lines mark its paragraphs.
  *
  * @param int $event_id Event ID.
  * @return string
@@ -420,8 +505,200 @@ function npmp_scheduled_emails_excerpt_source( $event_id ) {
 		}
 		$raw = strip_shortcodes( $raw );
 	}
-	$text = html_entity_decode( wp_strip_all_tags( $raw ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-	return trim( (string) preg_replace( '/\s+/u', ' ', $text ) );
+	return npmp_scheduled_emails_text_with_breaks( $raw );
+}
+
+/**
+ * Swap [event_description] for the event's whole description. Alone in its
+ * paragraph, the tag gives way to the description's own blocks, so its
+ * paragraphs don't end up inside one <p>.
+ *
+ * @param string     $text  Body or subject.
+ * @param int|string $value Event ID to render, or finished HTML.
+ * @param bool       $html  True for the body.
+ * @return string
+ */
+function npmp_scheduled_emails_fill_description( $text, $value, $html ) {
+	if ( false === strpos( (string) $text, '[event_description]' ) ) {
+		return (string) $text;
+	}
+	$event_id = is_array( $value ) ? (int) ( $value['event_id'] ?? 0 ) : 0;
+	if ( ! $html ) {
+		$plain = $event_id ? npmp_scheduled_emails_excerpt_source( $event_id ) : npmp_scheduled_emails_text_with_breaks( (string) $value );
+		return str_replace( '[event_description]', trim( (string) preg_replace( '/\s+/u', ' ', $plain ) ), (string) $text );
+	}
+	$description = $event_id ? npmp_scheduled_emails_description_html( $event_id ) : (string) $value;
+	return (string) preg_replace_callback(
+		'/<!--\s*wp:paragraph(?:\s[^>]*)?-->\s*<p\b[^>]*>\s*\[event_description\]\s*<\/p>\s*<!--\s*\/wp:paragraph\s*-->|<p\b[^>]*>\s*\[event_description\]\s*<\/p>|\[event_description\]/',
+		function () use ( $description ) {
+			return $description;
+		},
+		(string) $text
+	);
+}
+
+/**
+ * The event's description as email HTML, through the same the_content pass a
+ * newsletter body gets (npmp_email_the_content()), without what a mail app
+ * can't use: scripts, styles, forms, players and embeds (an embed becomes a
+ * link to what it showed), inline SVG, and editor comments. The calendar's
+ * Event Details box stays out too (npmp_email_browser_only_content_filters()).
+ * Square brackets come back as entities, so the newsletter's own the_content
+ * pass can't run a shortcode the description only showed as text.
+ *
+ * @param int $event_id Event ID.
+ * @return string
+ */
+function npmp_scheduled_emails_description_html( $event_id ) {
+	$raw = (string) get_post_field( 'post_content', $event_id, 'raw' );
+	if ( '' === trim( $raw ) ) {
+		return '';
+	}
+	if ( function_exists( 'parse_blocks' ) && function_exists( 'serialize_blocks' ) && function_exists( 'has_blocks' ) && has_blocks( $raw ) ) {
+		$raw = serialize_blocks( npmp_scheduled_emails_email_blocks( parse_blocks( $raw ) ) );
+	}
+
+	// Blocks that read "the current post" read the event.
+	$had_post = array_key_exists( 'post', $GLOBALS );
+	$old_post = $had_post ? $GLOBALS['post'] : null;
+	$event    = get_post( $event_id );
+	if ( $event ) {
+		$GLOBALS['post'] = $event; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Put back right after the render.
+		setup_postdata( $event );
+	}
+	// A bare URL on its own line would become a video player.
+	$embed    = isset( $GLOBALS['wp_embed'] ) && is_object( $GLOBALS['wp_embed'] ) ? $GLOBALS['wp_embed'] : null;
+	$embed_at = $embed ? has_filter( 'the_content', array( $embed, 'autoembed' ) ) : false;
+	if ( false !== $embed_at ) {
+		remove_filter( 'the_content', array( $embed, 'autoembed' ), $embed_at );
+	}
+
+	$html = npmp_email_the_content( $raw );
+
+	if ( false !== $embed_at ) {
+		add_filter( 'the_content', array( $embed, 'autoembed' ), $embed_at );
+	}
+	if ( $had_post ) {
+		$GLOBALS['post'] = $old_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring the caller's post.
+		if ( $old_post instanceof WP_Post ) {
+			setup_postdata( $old_post );
+		}
+	} else {
+		unset( $GLOBALS['post'] );
+	}
+
+	return npmp_scheduled_emails_email_safe_html( $html );
+}
+
+/**
+ * Event blocks fit for an email: an embed (a video, a post) becomes a link to
+ * what it showed, and blocks that only work on a web page go.
+ *
+ * @param array[] $blocks Parsed blocks.
+ * @return array[]
+ */
+function npmp_scheduled_emails_email_blocks( $blocks ) {
+	$out = array();
+	foreach ( (array) $blocks as $block ) {
+		$block = npmp_scheduled_emails_email_block( $block );
+		if ( null !== $block ) {
+			$out[] = $block;
+		}
+	}
+	return $out;
+}
+
+/**
+ * One block made fit for an email, or null when it only works on a web page.
+ *
+ * @param array $block Parsed block.
+ * @return array|null
+ */
+function npmp_scheduled_emails_email_block( $block ) {
+	/**
+	 * Filter the blocks [event_description] leaves out of an email, since
+	 * they only work on a web page.
+	 *
+	 * @param string[] $names Block names.
+	 */
+	$web_only = (array) apply_filters(
+		'npmp_scheduled_email_web_only_blocks',
+		array( 'core/search', 'core/loginout', 'core/comments', 'core/post-comments-form', 'core/latest-comments', 'core/video', 'core/audio', 'core/rss', 'core/navigation', 'core/social-links', 'core/calendar', 'core/archives' )
+	);
+	$name = (string) ( $block['blockName'] ?? '' );
+	if ( in_array( $name, $web_only, true ) ) {
+		return null;
+	}
+	if ( 0 === strpos( $name, 'core/embed' ) || 0 === strpos( $name, 'core-embed/' ) ) {
+		$url = esc_url( (string) ( $block['attrs']['url'] ?? '' ) );
+		if ( '' === $url ) {
+			return null;
+		}
+		$link = '<p><a href="' . $url . '">' . esc_html( (string) ( $block['attrs']['url'] ?? '' ) ) . '</a></p>';
+		return array(
+			'blockName'    => 'core/paragraph',
+			'attrs'        => array(),
+			'innerBlocks'  => array(),
+			'innerHTML'    => $link,
+			'innerContent' => array( $link ),
+		);
+	}
+	if ( empty( $block['innerBlocks'] ) ) {
+		return $block;
+	}
+	// innerContent holds a null where each inner block goes, in order, so a
+	// block that goes takes its null with it.
+	$inner   = array();
+	$content = array();
+	$index   = 0;
+	foreach ( (array) ( $block['innerContent'] ?? array() ) as $chunk ) {
+		if ( null !== $chunk ) {
+			$content[] = $chunk;
+			continue;
+		}
+		$kept = isset( $block['innerBlocks'][ $index ] ) ? npmp_scheduled_emails_email_block( $block['innerBlocks'][ $index ] ) : null;
+		++$index;
+		if ( null !== $kept ) {
+			$inner[]   = $kept;
+			$content[] = null;
+		}
+	}
+	$block['innerBlocks']  = $inner;
+	$block['innerContent'] = $content;
+	return $block;
+}
+
+/**
+ * Take what a mail app can't use out of rendered HTML: scripts, styles,
+ * forms and their fields, frames, players, inline SVG, editor comments, and
+ * the empty figures they leave. Then kses keeps only post markup (no event
+ * handlers).
+ *
+ * @param string $html Rendered HTML.
+ * @return string
+ */
+function npmp_scheduled_emails_email_safe_html( $html ) {
+	$html = (string) preg_replace( '/<!--.*?-->/s', '', (string) $html );
+	$tags = 'script|style|noscript|template|form|iframe|object|video|audio|select|textarea|button|canvas|svg|map|dialog';
+	do {
+		$before = $html;
+		$html   = (string) preg_replace( '#<(' . $tags . ')\b[^>]*>.*?</\1\s*>#is', '', $html );
+	} while ( $before !== $html );
+	$html = (string) preg_replace( '#<(?:' . $tags . '|embed|input|source|track|link|meta|label|fieldset|legend|option)\b[^>]*/?>|</(?:' . $tags . '|label|fieldset|legend|option)\s*>#i', '', $html );
+	$html = (string) preg_replace( '#<figure\b[^>]*>(?:\s|<div\b[^>]*>\s*</div>)*</figure>#i', '', $html );
+	if ( function_exists( 'wp_kses_post' ) ) {
+		$html = wp_kses_post( $html );
+	}
+	// Keep newlines out, so a body without blocks doesn't get <br> tags from
+	// wpautop when the email renders. <pre> keeps its own.
+	$html = (string) preg_replace_callback(
+		'#(<pre\b.*?</pre>)|\s*\n\s*#is',
+		function ( $m ) {
+			return '' !== ( $m[1] ?? '' ) ? $m[1] : ' ';
+		},
+		$html
+	);
+	return trim( str_replace( array( '[', ']' ), array( '&#91;', '&#93;' ), $html ) );
 }
 
 /**
@@ -448,7 +725,8 @@ function npmp_scheduled_emails_ical_url( $event_id ) {
  * @param int         $event_id Event ID.
  * @param object|null $row      Scheduled email row, when there is one.
  * @return array<string,mixed> Strings, except [event_image], which is
- *                             array{url:string,width:int}.
+ *                             array{url:string,width:int}, and
+ *                             [event_description], array{event_id:int}.
  */
 function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 	$event_id = (int) $event_id;
@@ -468,6 +746,8 @@ function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 		'[ical_link]'      => npmp_scheduled_emails_ical_url( $event_id ),
 		'[event_image]'    => npmp_scheduled_emails_image( $event_id ),
 		'[event_excerpt]'  => npmp_scheduled_emails_excerpt_source( $event_id ),
+		// Rendered only when a body uses it (npmp_scheduled_emails_fill_description()).
+		'[event_description]' => array( 'event_id' => $event_id ),
 	);
 
 	return (array) apply_filters( 'npmp_scheduled_email_placeholders', $map, $event_id, $row );
@@ -1296,16 +1576,27 @@ function npmp_scheduled_emails_build_newsletter( $row, $event_id, $prefix = '' )
 
 /**
  * The finished HTML of an event email, for "Send a test to me". It goes
- * through the same content filters and template wrapper as a newsletter.
+ * through the same content filters, template wrapper, image and link passes
+ * as a newsletter, and fills the tags a real send fills for each member
+ * ([first_name], [last_name], [name], and any an add-on adds) for the person
+ * the test goes to. With the row, add-on placeholders ([group_name]) match
+ * that row's email.
  *
- * @param int    $event_id Event ID.
- * @param int    $body_id  Body ID.
- * @param string $subject  Subject override.
+ * @param int         $event_id Event ID.
+ * @param int         $body_id  Body ID.
+ * @param string      $subject  Subject override.
+ * @param string      $email    Address the test goes to. Defaults to the
+ *                              current user's.
+ * @param object|null $row      Scheduled email row (or one with a rule_key)
+ *                              the test stands in for.
  * @return array{subject:string,html:string}
  */
-function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject ) {
+function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $email = '', $row = null ) {
+	if ( '' === (string) $email && function_exists( 'wp_get_current_user' ) ) {
+		$email = (string) wp_get_current_user()->user_email;
+	}
 	$body = npmp_scheduled_emails_get_body( $body_id );
-	$map  = npmp_scheduled_emails_placeholders( $event_id );
+	$map  = npmp_scheduled_emails_placeholders( $event_id, is_object( $row ) ? $row : null );
 	$html = npmp_email_the_content( npmp_scheduled_emails_fill( $body['content'], $map, true ) );
 	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $body['template'] ) {
 		$html = is_numeric( $body['template'] ) ? npmp_apply_newsletter_template( $html, absint( $body['template'] ) ) : npmp_apply_newsletter_template( $html );
@@ -1318,9 +1609,22 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject ) {
 	if ( function_exists( 'npmp_email_prepare_links' ) ) {
 		$html = npmp_email_prepare_links( $html );
 	}
-	$html .= do_shortcode( '[npmp_can_spam]' );
+	$subject = npmp_scheduled_emails_fill( npmp_scheduled_emails_pick_subject( $subject, $body ), $map, false );
+	// A real send's subject is the newsletter title, which get_the_title()
+	// curls the quotes of before the queue decodes it.
+	if ( function_exists( 'wptexturize' ) ) {
+		$subject = html_entity_decode( wptexturize( $subject ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	}
+	if ( class_exists( 'NPMP_Newsletter_Manager' ) && method_exists( 'NPMP_Newsletter_Manager', 'fill_test_recipient_tags' ) ) {
+		$html    = NPMP_Newsletter_Manager::fill_test_recipient_tags( $html, (string) $email, true );
+		$subject = NPMP_Newsletter_Manager::fill_test_recipient_tags( $subject, (string) $email, false );
+	}
+	// The footer a member gets, with the unsubscribe link for this address.
+	$html .= function_exists( 'npmp_can_spam_shortcode' )
+		? npmp_can_spam_shortcode( array( 'email' => (string) $email ) )
+		: do_shortcode( '[npmp_can_spam]' );
 	return array(
-		'subject' => npmp_scheduled_emails_fill( npmp_scheduled_emails_pick_subject( $subject, $body ), $map, false ),
+		'subject' => $subject,
 		'html'    => $html,
 	);
 }
@@ -1983,8 +2287,11 @@ function npmp_scheduled_emails_event_default_row( $event_id ) {
  * @param object|null $row Row.
  * @return string Plain text.
  */
-function npmp_scheduled_emails_row_summary( $row ) {
+function npmp_scheduled_emails_row_summary( $row, $event_id = 0 ) {
 	if ( ! $row ) {
+		if ( $event_id ) {
+			return npmp_scheduled_emails_planned_summary( (int) $event_id );
+		}
 		return __( 'Nothing scheduled yet. Save the event to schedule its email.', 'nonprofit-manager' );
 	}
 	$text = sprintf(
@@ -2001,6 +2308,154 @@ function npmp_scheduled_emails_row_summary( $row ) {
 }
 
 /**
+ * When one planned email goes, for an event that has none on the schedule
+ * yet: "1 day before the event", or with a start date, "1 day before the
+ * event, Thursday 12 November 2026 7:30 pm (Europe/London)".
+ *
+ * @param int    $minutes     Minutes before the start.
+ * @param string $start_local Event start ("Y-m-d H:i:s", site time), '' when
+ *                            the event has no date yet.
+ * @return string
+ */
+function npmp_scheduled_emails_planned_when( $minutes, $start_local ) {
+	$when = sprintf(
+		/* translators: %s: offset, such as "1 day before". */
+		__( '%s the event', 'nonprofit-manager' ),
+		npmp_scheduled_emails_describe_minutes( (int) $minutes )
+	);
+	$send = '' !== (string) $start_local && npmp_scheduled_emails_local_to_ts( $start_local ) ? npmp_scheduled_emails_utc_to_ts( npmp_scheduled_emails_send_at_utc( (string) $start_local, (int) $minutes, wp_timezone() ) ) : 0;
+	if ( ! $send ) {
+		return $when;
+	}
+	return sprintf(
+		/* translators: 1: "1 day before the event", 2: send date and time, 3: timezone. */
+		__( '%1$s, %2$s (%3$s)', 'nonprofit-manager' ),
+		$when,
+		wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $send ),
+		wp_timezone_string()
+	);
+}
+
+/**
+ * What the event still needs before its emails go on the schedule, or '' when
+ * it has everything (a save puts them there).
+ *
+ * @param int $event_id Event ID.
+ * @return string
+ */
+function npmp_scheduled_emails_planned_needs( $event_id ) {
+	$status   = (string) get_post_status( $event_id );
+	$details  = npmp_scheduled_emails_event_details( $event_id );
+	$has_date = '' !== $details['start'] && npmp_scheduled_emails_local_to_ts( $details['start'] );
+	if ( 'publish' !== $status && ! $has_date ) {
+		return __( 'Add a start date and publish the event to put it on the schedule. You\'ll see the send time here after you save.', 'nonprofit-manager' );
+	}
+	if ( 'publish' !== $status ) {
+		return __( 'Publish the event to put it on the schedule.', 'nonprofit-manager' );
+	}
+	if ( ! $has_date ) {
+		return __( 'Add a start date to put it on the schedule.', 'nonprofit-manager' );
+	}
+	return __( 'Save the event to put it on the schedule.', 'nonprofit-manager' );
+}
+
+/**
+ * Free's box before the event's email is on the schedule: the email the
+ * site's settings plan for it, and what the event still needs.
+ *
+ * @param int $event_id Event ID.
+ * @return string Plain text.
+ */
+function npmp_scheduled_emails_planned_summary( $event_id ) {
+	$rules = npmp_scheduled_emails_free_rules( $event_id );
+	if ( ! $rules ) {
+		return __( 'Emails for this event are off.', 'nonprofit-manager' );
+	}
+	$details = npmp_scheduled_emails_event_details( $event_id );
+	return sprintf(
+		/* translators: 1: when, such as "1 day before the event", 2: what the event still needs. */
+		__( 'Planned for %1$s, to every subscribed member. %2$s', 'nonprofit-manager' ),
+		npmp_scheduled_emails_planned_when( (int) $rules[0]['minutes_before'], $details['start'] ),
+		npmp_scheduled_emails_planned_needs( $event_id )
+	);
+}
+
+/**
+ * The link under both event boxes to every scheduled email on the site.
+ *
+ * @return string HTML, '' for someone who can't open the screen.
+ */
+function npmp_scheduled_emails_all_link() {
+	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- The Scheduled Emails screen's own capability.
+	if ( ! current_user_can( 'edit_npmp_newsletters' ) ) {
+		return '';
+	}
+	return '<p><a href="' . esc_url( admin_url( 'admin.php?page=npmp_scheduled_emails' ) ) . '">' . esc_html__( 'See every scheduled email', 'nonprofit-manager' ) . '</a></p>';
+}
+
+/**
+ * The part of the event box that changes when the event saves: the send time
+ * or plan, and the buttons. The block editor saves without reloading the
+ * page, so the box script asks for this again after each save
+ * (npmp_scheduled_emails_ajax_box_status()).
+ *
+ * @param WP_Post $post Event.
+ * @return void
+ */
+function npmp_scheduled_emails_render_event_status( $post ) {
+	$row      = npmp_scheduled_emails_event_default_row( $post->ID );
+	$key      = npmp_scheduled_emails_row_key( 'default', 'all', 0 );
+	$skipped  = $row && 'skipped' === $row->status && in_array( $key, npmp_scheduled_emails_admin_skips( $post->ID ), true );
+	$can_send = current_user_can( npmp_scheduled_emails_send_cap() );
+
+	echo '<p class="npmp-sched-status"><strong>' . esc_html( $row ? __( 'Send time', 'nonprofit-manager' ) : __( 'Email plan', 'nonprofit-manager' ) ) . '</strong><br><span class="npmp-sched-summary">' . esc_html( npmp_scheduled_emails_row_summary( $row, $post->ID ) ) . '</span></p>';
+
+	$nonce = wp_create_nonce( 'npmp_sched_email_' . $post->ID );
+	echo '<p class="npmp-sched-actions" data-event="' . esc_attr( (string) $post->ID ) . '" data-nonce="' . esc_attr( $nonce ) . '">';
+	echo '<button type="button" class="button npmp-sched-action" data-op="test">' . esc_html__( 'Send a test to me', 'nonprofit-manager' ) . '</button> ';
+	if ( $can_send && $row && 'pending' === $row->status ) {
+		echo '<button type="button" class="button npmp-sched-action" data-op="skip">' . esc_html__( 'Skip this email', 'nonprofit-manager' ) . '</button> ';
+	}
+	if ( $can_send && $skipped ) {
+		echo '<button type="button" class="button npmp-sched-action" data-op="unskip">' . esc_html__( 'Send it after all', 'nonprofit-manager' ) . '</button> ';
+	}
+	if ( $can_send && $row && 'sent' === $row->status ) {
+		echo '<button type="button" class="button npmp-sched-action" data-op="update" data-confirm="' . esc_attr__( 'Email everyone this event\'s details again, marked as an update?', 'nonprofit-manager' ) . '">' . esc_html__( 'Send an update', 'nonprofit-manager' ) . '</button> ';
+	}
+	echo '</p><p class="npmp-sched-message" role="status" aria-live="polite"></p>';
+	echo npmp_scheduled_emails_all_link(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in npmp_scheduled_emails_all_link().
+}
+
+/**
+ * AJAX: the event box's changing part, fresh after a save in the block
+ * editor. Free's box and Pro's both ask through here, each with its own
+ * nonce, through the npmp_scheduled_email_box_status filter.
+ *
+ * @return void
+ */
+function npmp_scheduled_emails_ajax_box_status() {
+	$event_id = isset( $_POST['event_id'] ) ? absint( $_POST['event_id'] ) : 0;
+	$nonce    = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+	if ( ! $event_id || 'npmp_event' !== get_post_type( $event_id ) || ! current_user_can( 'edit_post', $event_id ) || ! wp_verify_nonce( $nonce, 'npmp_sched_email_' . $event_id ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied', 'nonprofit-manager' ) ) );
+	}
+	$post = get_post( $event_id );
+	ob_start();
+	if ( apply_filters( 'npmp_event_emails_box_handled', false, $post ) ) {
+		/**
+		 * Draw an add-on's own event box part for a refresh after a save.
+		 *
+		 * @param WP_Post $post Event.
+		 */
+		do_action( 'npmp_scheduled_email_box_status', $post );
+	} else {
+		npmp_scheduled_emails_render_event_status( $post );
+	}
+	wp_send_json_success( array( 'html' => (string) ob_get_clean() ) );
+}
+add_action( 'wp_ajax_npmp_sched_email_box_status', 'npmp_scheduled_emails_ajax_box_status' );
+
+/**
  * Render the event's Scheduled Email box.
  *
  * @param WP_Post $post Event.
@@ -2009,10 +2464,6 @@ function npmp_scheduled_emails_row_summary( $row ) {
 function npmp_scheduled_emails_render_event_box( $post ) {
 	$defaults = npmp_scheduled_email_defaults();
 	$own      = npmp_scheduled_emails_event_settings( $post->ID );
-	$row      = npmp_scheduled_emails_event_default_row( $post->ID );
-	$key      = npmp_scheduled_emails_row_key( 'default', 'all', 0 );
-	$skipped  = $row && 'skipped' === $row->status && in_array( $key, npmp_scheduled_emails_admin_skips( $post->ID ), true );
-	$can_send = current_user_can( npmp_scheduled_emails_send_cap() );
 
 	wp_nonce_field( 'npmp_sched_email_box_' . $post->ID, 'npmp_sched_email_box_nonce' );
 
@@ -2044,21 +2495,9 @@ function npmp_scheduled_emails_render_event_box( $post ) {
 	echo '<p><label for="npmp-sched-subject"><strong>' . esc_html__( 'Subject (optional)', 'nonprofit-manager' ) . '</strong></label>';
 	echo '<input type="text" class="widefat" id="npmp-sched-subject" name="npmp_sched_email[subject]" value="' . esc_attr( $own['subject'] ) . '" placeholder="' . esc_attr__( 'Uses the body\'s subject', 'nonprofit-manager' ) . '"></p>';
 
-	echo '<p class="npmp-sched-status"><strong>' . esc_html__( 'Send time', 'nonprofit-manager' ) . '</strong><br><span class="npmp-sched-summary">' . esc_html( npmp_scheduled_emails_row_summary( $row ) ) . '</span></p>';
-
-	$nonce = wp_create_nonce( 'npmp_sched_email_' . $post->ID );
-	echo '<p class="npmp-sched-actions" data-event="' . esc_attr( (string) $post->ID ) . '" data-nonce="' . esc_attr( $nonce ) . '">';
-	echo '<button type="button" class="button npmp-sched-action" data-op="test">' . esc_html__( 'Send a test to me', 'nonprofit-manager' ) . '</button> ';
-	if ( $can_send && $row && 'pending' === $row->status ) {
-		echo '<button type="button" class="button npmp-sched-action" data-op="skip">' . esc_html__( 'Skip this email', 'nonprofit-manager' ) . '</button> ';
-	}
-	if ( $can_send && $skipped ) {
-		echo '<button type="button" class="button npmp-sched-action" data-op="unskip">' . esc_html__( 'Send it after all', 'nonprofit-manager' ) . '</button> ';
-	}
-	if ( $can_send && $row && 'sent' === $row->status ) {
-		echo '<button type="button" class="button npmp-sched-action" data-op="update" data-confirm="' . esc_attr__( 'Email everyone this event\'s details again, marked as an update?', 'nonprofit-manager' ) . '">' . esc_html__( 'Send an update', 'nonprofit-manager' ) . '</button> ';
-	}
-	echo '</p><p class="npmp-sched-message" role="status" aria-live="polite"></p>';
+	echo '<div class="npmp-sched-live" data-event="' . esc_attr( (string) $post->ID ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'npmp_sched_email_' . $post->ID ) ) . '">';
+	npmp_scheduled_emails_render_event_status( $post );
+	echo '</div>';
 
 	npmp_scheduled_emails_pro_teaser();
 }
@@ -2117,8 +2556,8 @@ function npmp_scheduled_emails_ajax_event() {
 		$body_id  = isset( $_POST['body_id'] ) && '' !== $_POST['body_id'] ? absint( $_POST['body_id'] ) : ( '' !== $own['body_id'] ? (int) $own['body_id'] : (int) $defaults['body_id'] );
 		$subject  = isset( $_POST['subject'] ) ? sanitize_text_field( wp_unslash( $_POST['subject'] ) ) : '';
 		$subject  = '' !== $subject ? $subject : ( '' !== $own['subject'] ? $own['subject'] : $defaults['subject'] );
-		$email    = npmp_scheduled_emails_render_test( $event_id, $body_id, $subject );
 		$user     = wp_get_current_user();
+		$email    = npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, (string) $user->user_email, npmp_scheduled_emails_event_default_row( $event_id ) );
 		/* translators: %s: email subject. */
 		$sent = NPMP_Newsletter_Manager::send_email( $user->user_email, sprintf( __( '[Test] %s', 'nonprofit-manager' ), $email['subject'] ), $email['html'] );
 		if ( ! $sent ) {

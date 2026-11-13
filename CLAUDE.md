@@ -242,6 +242,11 @@ Free (`readme.txt`):
 - New Form color setting under Membership Settings sets the button color on every front-end form and keeps the label readable.
 - The please-confirm email can list what the person signed up for (Pro fills in their groups).
 - Added the Newsletters block and `[npmp_newsletters]` shortcode to list past newsletters you choose to make public.
+- Added the [event_description] tag for event emails, with the whole description, its headings, lists, links, and images.
+- Fixed [event_excerpt] running the description's paragraphs into one line.
+- Fixed test emails leaving [first_name], [last_name], and [name] unfilled in the body and subject.
+- Added the planned emails and their send times to a new event's email box, before the first save.
+- Fixed the event email box showing the old status after a save in the block editor.
 
 Pro (licence server changelog):
 - Automation emails now end with your newsletter footer and unsubscribe link, and people who unsubscribed get none.
@@ -249,6 +254,8 @@ Pro (licence server changelog):
 - The please-confirm email lists the groups the person asked to join.
 - New checked="yes" or checked="no" on the email signup form sets whether the group boxes start ticked.
 - Added `group` to `[npmp_newsletters]` and a Groups panel to the Newsletters block for per-group newsletter lists.
+- Added the planned emails for each group to a new event's email box, before the first save.
+- Fixed test emails for group events leaving [first_name] unfilled and missing the group's sender name, Reply-To, and leave link.
 
 ## Releasing: three systems, always in this order
 

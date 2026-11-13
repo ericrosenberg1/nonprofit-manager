@@ -130,7 +130,7 @@ class Rig_Unrelated {
 }
 
 $listed = npmp_email_browser_only_content_filters();
-check( 'the default list names Creative Commons', array( array( 'CreativeCommonsImage', 'add_attribution_boxes' ) ), $listed );
+check( 'the default list names Creative Commons and the Event Details box', array( array( 'CreativeCommonsImage', 'add_attribution_boxes' ), 'npmp_append_event_details_to_content' ), $listed );
 
 check( 'object callback matches', true, npmp_email_callback_is_listed( array( new CreativeCommonsImage(), 'add_attribution_boxes' ), $listed ) );
 check( 'static-style callback matches', true, npmp_email_callback_is_listed( array( 'CreativeCommonsImage', 'add_attribution_boxes' ), $listed ) );
@@ -141,6 +141,7 @@ check( 'the same method on another class does not', false, npmp_email_callback_i
 check( 'a plain function does not', false, npmp_email_callback_is_listed( 'wpautop', $listed ) );
 check( 'a closure does not', false, npmp_email_callback_is_listed( static function ( $c ) { return $c; }, $listed ) );
 check( 'a listed function name matches', true, npmp_email_callback_is_listed( 'some_share_buttons', array( 'Some_Share_Buttons' ) ) );
+check( 'the calendar\'s Event Details box matches', true, npmp_email_callback_is_listed( 'npmp_append_event_details_to_content', $listed ) );
 check( 'an empty list matches nothing', false, npmp_email_callback_is_listed( array( new CreativeCommonsImage(), 'add_attribution_boxes' ), array() ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
