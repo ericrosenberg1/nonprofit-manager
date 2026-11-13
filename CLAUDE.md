@@ -262,7 +262,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `UM()->form()->usermeta_whitelist` filled when no form posts. Unit `tests/test-ultimate-member-importer.php`.
 - **Every plugin importer runs inside `npmp_import_run_as_import()`**, so `npmp_is_importing()` is true and Pro's
   "someone signs up" automation and the Mailer's member_joined event skip imported contacts. PMPro, MailPoet, The
-  Newsletter Plugin, and past gifts lacked it until the Ultimate Member work, and Pro queued welcome emails.
+  Newsletter Plugin, and past gifts lacked it in 2026.11.10, and Pro queued a welcome for every new contact they made.
+  Unit `tests/test-import-as-import.php` scans `includes/import/` and fails on any function that creates a contact
+  without the flag (it sets the flag itself, or every caller does). Pro rig `tests/rig/import-no-welcome.php` proves it on
+  a real site.
 - **Custom fields as an import target** (`includes/import/extra-fields.php`, Pro's `includes/custom-fields/import-target.php`).
   Free offers the columns no contact field takes and Pro writes them through four filters: `npmp_import_extra_fields_supported`,
   `_targets`, `_prepare` (makes the fields), and `_write` (validates and saves, returns written, unchanged, and skipped counts). The
@@ -348,20 +351,6 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed cancelled and postponed events from The Events Calendar, which you got as published events instead of drafts.
-- Fixed past gifts from GiveWP and Charitable changing Active and Pending contacts to Donor, which took them off your newsletter.
-- Fixed MailPoet imports leaving a Donor who subscribed in MailPoet off your newsletter.
-- Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
-- Fixed Switch Plugins timing out on sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
-- Fixed "Start the import" on a plugin you never turned on, which led to an empty import.
-- Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
-- Added the GiveWP and PMPro delete-data warning to the turn-off step, while you can still change the setting.
-- Fixed the MailPoet limit wording, which called the site total a limit per import.
-- Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
-- Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
-- Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
-- Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
-- Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
 - Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
 - Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
 - Added an importer for MailPoet past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
