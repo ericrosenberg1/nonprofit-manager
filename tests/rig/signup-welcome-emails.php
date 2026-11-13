@@ -307,6 +307,24 @@ if ( $pro ) {
 		wp_delete_term( $gid, NPMP_PRO_GROUP_TAXONOMY );
 	}
 }
+echo "-- Signup attributes only Pro supports\n";
+// Pete at U3A pasted groups="" choose="yes" onto a form and got a plain form
+// with no word about why. Without Pro an admin now reads which attributes the
+// form left out. A visitor never does, and with Pro on there is nothing to say.
+wp_set_current_user( 1 );
+$pro_atts = do_shortcode( '[npmp_email_signup groups="" choose="yes"]' );
+if ( $pro ) {
+	rig_check( 'Pro on: no note about Pro attributes', ! rig_has( $pro_atts, 'Only administrators see this note.' ) );
+	rig_check( 'Pro on: a misspelled attribute still gets named', rig_has( do_shortcode( '[npmp_email_signup grups="art"]' ), 'without the attribute grups.' ) );
+} else {
+	rig_check( 'Pro off: the admin reads that groups and choose were left out', rig_has( $pro_atts, 'Visitors get this form without the attributes groups, choose.' ) );
+	rig_check( 'Pro off: the note sits before the form', strpos( $pro_atts, 'Only administrators see this note.' ) < strpos( $pro_atts, '<form' ) );
+}
+rig_check( 'a plain form has no note', ! rig_has( do_shortcode( '[npmp_email_signup]' ), 'Only administrators see this note.' ) );
+wp_set_current_user( 0 );
+rig_check( 'a visitor never sees the note', ! rig_has( do_shortcode( '[npmp_email_signup groups="" choose="yes" grups="x"]' ), 'Only administrators' ) );
+wp_set_current_user( 1 );
+
 wp_delete_post( $prefs_page, true );
 foreach ( $keep_options as $opt => $value ) {
 	if ( null === $value ) {

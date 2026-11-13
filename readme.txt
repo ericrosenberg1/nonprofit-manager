@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.9
+Stable tag: 2026.11.10
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.10 =
+* Fixed paragraph breaks in event text on event lists, the Events block, and the events archive.
+* Added a note for administrators on the signup form about attributes only Pro supports.
 
 = 2026.11.9 =
 * Added your newsletter footer and unsubscribe link to post and event notifications and the weekly digest.
@@ -526,6 +530,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.10 =
+Keep the paragraphs in your event text on event lists and the events archive.
 
 = 2026.11.9 =
 Add your newsletter footer to every notification, and list past newsletters on your site.

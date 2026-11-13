@@ -120,7 +120,12 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   excerpt come from option `npmp_events_loop`, then shortcode attributes or block attributes. The block
   skips its wrapper attributes inside a REST request, because the editor already puts the block
   supports on its own wrapper. Core writes block gap only for blocks with a layout, so the loop
-  writes `gap` itself (`npmp_events_loop_gap_css()`). Real-WordPress check: `tests/rig/events-loop.php`.
+  writes `gap` itself (`npmp_events_loop_gap_css()`). The excerpt keeps paragraph and line breaks (since
+  2026.11.10): `npmp_events_loop_excerpt()` returns plain text with blank lines and
+  `npmp_events_loop_excerpt_html()` prints one `<p>` per paragraph. On the theme's own `/events/` and event
+  category archives, `npmp_events_archive_excerpt()` (`get_the_excerpt` at 11) hands a classic theme's
+  `the_excerpt()` the same text, so it prints paragraphs. Block themes' Post Excerpt block strips breaks itself.
+  Real-WordPress check: `tests/rig/events-loop.php`.
 - **Email bodies render through `npmp_email_the_content()`, never bare `apply_filters( 'the_content' )`**
   (since 2026.11.5). It takes browser-only callbacks from other plugins off the filter for the
   render and puts them back (list in `npmp_email_browser_only_content_filters()`, today Creative
