@@ -25,6 +25,7 @@ $npmp_newsletter_files = [
     'can-spam-shortcode.php',
     'archive-pure.php',
     'archive.php',
+    'imported.php',
 ];
 
 foreach ($npmp_newsletter_files as $npmp_newsletter_file) {

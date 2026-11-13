@@ -1844,7 +1844,7 @@ function npmp_mailpoet_render_import( array $stage ) {
 			number_format_i18n( $total )
 		)
 	) . '</p>';
-	echo '<p>' . esc_html__( 'You bring over each subscriber\'s email, name, status, and signup date, plus your lists and your sender settings. You leave past newsletters, automations, stats, and WooCommerce segments in MailPoet.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html__( 'You bring over each subscriber\'s email, name, status, and signup date, plus your lists and your sender settings. You can bring your sent newsletters too. You leave drafts, automations, stats, and WooCommerce segments in MailPoet.', 'nonprofit-manager' ) . '</p>';
 	echo '<p>' . esc_html__( 'First you count your subscribers and lists. Nothing moves yet, and MailPoet keeps all of its data. You pick what moves on the next screen.', 'nonprofit-manager' ) . '</p>';
 	if ( ! npmp_mailpoet_is_active() ) {
 		echo '<p class="description">' . esc_html__( 'MailPoet is off, so you read its data straight from your database.', 'nonprofit-manager' ) . '</p>';
@@ -2131,6 +2131,9 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	}
 	echo '<p class="description">' . esc_html__( 'You never copy MailPoet\'s sending method, SMTP password, or API keys. Set up sending under Email Settings.', 'nonprofit-manager' ) . '</p>';
 
+	/** Fires inside an importer's approve form. Past newsletters adds its checkbox (past-newsletters.php). */
+	do_action( 'npmp_import_approve_parts', 'mailpoet' );
+
 	echo '<p><a class="button" href="' . esc_url( npmp_mailpoet_page_url( 2 ) ) . '">' . esc_html__( 'Back to review', 'nonprofit-manager' ) . '</a> ';
 	echo '<button type="submit" class="button button-primary">' . esc_html(
 		sprintf(
@@ -2244,6 +2247,8 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 		}
 		echo '</ul></div>';
 	}
+	/** Fires after an importer's results. Past newsletters runs here, after contacts (past-newsletters.php). */
+	do_action( 'npmp_import_after_migrate', 'mailpoet' );
 	echo '<p><a class="button" href="' . esc_url( npmp_mailpoet_members_url() ) . '">' . esc_html__( 'See your contacts', 'nonprofit-manager' ) . '</a> ';
 	echo '<a class="button button-primary" href="' . esc_url( npmp_mailpoet_page_url( 5 ) ) . '">' . esc_html__( 'Continue', 'nonprofit-manager' ) . '</a></p>';
 }

@@ -292,6 +292,21 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
   empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
   site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
+- **Past newsletters from MailPoet and The Newsletter Plugin** (`includes/import/past-newsletters.php`, pure parts in
+  `past-newsletters-pure.php`, imported-newsletter guards in `includes/email-newsletter/imported.php`). A box on each importer's
+  Approve step (hooks `npmp_import_approve_parts` and `npmp_import_after_migrate`) runs after contacts. Only MailPoet `standard`
+  + `sent` + not deleted, and TNP `message` + `sent`, come over, as `npmp_newsletter` posts with status `sent`, `_npmp_import_key`
+  `<source>:<id>` (a rerun skips them), no stats, and `_npmp_newsletter_public` unset. MailPoet's stored rendered HTML
+  (`sending_queues.newsletter_rendered_body`, cleared after 30 days) wins over the JSON blocks, and the block converter reports which
+  newsletters lost formatting. Never run MailPoet or TNP code to render. `npmp_past_nl_sanitize()` strips scripts, forms, pixels, the
+  plugins' tracking (restoring the real link from MailPoet's `newsletter_links` or TNP's `nltr` and `/tnp/l/`), and unsubscribe, manage,
+  and view-in-browser links, and turns personal tags into `[first_name default="..."]`. An imported newsletter can never send:
+  `queue_newsletter()` returns 0, the drain empties its body, and the editor, Send now, and Send later all refuse
+  (`npmp_newsletter_is_imported()`). The runner sends the source in the ajax action name (`npmp_past_newsletters_<slug>`), since
+  `npmp-tec-import.js` posts only action, nonce, and restart. Pro's `includes/groups/past-newsletters.php` matches list names to existing
+  groups and never creates one. Unit `tests/test-past-newsletters.php` and `tests/test-newsletter-public-bulk.php`, rig
+  `tests/rig/past-newsletters.php` (real MailPoet 5.45.2 and Newsletter 9.5.7 together, `NPMP_RIG_SINK` set to `tests/rig/smtp-sink.py`'s
+  output, Pro on and off). The stub-based `tests/rig/mailpoet-importer.php` overwrites a real MailPoet, so it refuses to run beside one.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -319,9 +334,12 @@ Free (`readme.txt`):
 - Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
 - Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
 - Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
+- Added an importer for MailPoet past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
+- Added an importer for The Newsletter Plugin past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
+- Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
 
 Pro (licence server changelog):
-- (none)
+- Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.
 
 ## Releasing: three systems, always in this order
 

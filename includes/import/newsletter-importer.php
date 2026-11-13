@@ -726,6 +726,8 @@ function npmp_tnp_render_page() {
 	if ( $state['finished_at'] ) {
 		echo '<div class="notice notice-success"><p>' . esc_html__( 'Your import is done.', 'nonprofit-manager' ) . '</p></div>';
 		npmp_tnp_render_results( $state['results'] );
+		/** This action is documented in includes/import/mailpoet-importer.php. */
+		do_action( 'npmp_import_after_migrate', 'newsletter' );
 		echo '<p><a class="button button-primary" href="' . esc_url( npmp_import_hub_url( 'newsletter' ) ) . '">' . esc_html__( 'Finish on Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
 	}
 
@@ -807,8 +809,11 @@ function npmp_tnp_render_page() {
 	}
 	echo '</ul>';
 
+	/** This action is documented in includes/import/mailpoet-importer.php. */
+	do_action( 'npmp_import_approve_parts', 'newsletter' );
+
 	echo '<h2>' . esc_html__( 'What you leave in the old plugin', 'nonprofit-manager' ) . '</h2><ul class="npmp-hub-checklist">';
-	echo '<li>' . esc_html__( 'Sent newsletters, open and click stats, and signups that never finished.', 'nonprofit-manager' ) . '</li>';
+	echo '<li>' . esc_html__( 'Open and click stats, drafts, automatic emails, and signups that never finished.', 'nonprofit-manager' ) . '</li>';
 	echo '<li>' . esc_html__( 'Delivery settings, license keys, and add-on settings.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
