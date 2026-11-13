@@ -162,3 +162,66 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 }
+
+/* One newsletter inside the theme's page template. The email keeps its own
+   inline styles, so these keep its width and images inside the theme's
+   content column. */
+.npmp-newsletter-view {
+	--npmp-nl-accent: var(--npmp-accent, #0f766e);
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.npmp-nlv-back {
+	margin: 0 0 0.5em;
+}
+
+.npmp-nlv-back a {
+	color: var(--npmp-nl-accent);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.npmp-nlv-back a:hover,
+.npmp-nlv-back a:focus {
+	color: var(--npmp-accent-dark, #115e59);
+	text-decoration: underline;
+}
+
+.npmp-nlv-date {
+	margin: 0 0 1.25em;
+	color: var(--npmp-nl-accent);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.npmp-nlv-body {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.npmp-nlv-body img {
+	max-width: 100% !important;
+	height: auto !important;
+}
+
+.npmp-nlv-body table,
+.npmp-nlv-body [style*="width"] {
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+/* Email layouts are tables sized for a 600px inbox. On a phone, stack their
+   cells the way responsive email does, so nothing runs past the column. */
+@media (max-width: 600px) {
+	.npmp-nlv-body table,
+	.npmp-nlv-body tbody,
+	.npmp-nlv-body tr,
+	.npmp-nlv-body td,
+	.npmp-nlv-body th {
+		display: block;
+		width: auto !important;
+		max-width: 100% !important;
+		box-sizing: border-box;
+	}
+}

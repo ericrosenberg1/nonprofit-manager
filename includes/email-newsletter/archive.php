@@ -17,8 +17,10 @@
  * no footer, unsubscribe link, open pixel, or tracked link.
  * npmp_newsletter_archive_scrub() then strips any token a pasted link
  * carried. Pages answer at /newsletter/<id>/<slug>/ (or ?npmp_newsletter=<id>
- * on plain permalinks), carry noindex unless the owner turns on indexing
- * under Newsletter Settings, and answer 404 for anything not listable.
+ * on plain permalinks) inside the theme's page template, carry noindex unless
+ * the owner turns on indexing under Newsletter Settings, and answer 404 for
+ * anything not listable. A theme whose template never prints the content
+ * gets the standalone page instead (npmp_newsletter_archive_template_redirect()).
  *
  * Groups (Pro): group="..." needs a handler on
  * `npmp_newsletter_archive_groups_supported` and
@@ -300,7 +302,74 @@ function npmp_newsletter_archive_page_css() {
 }
 
 /**
+ * The page content inside the theme: the back link, the send date, and the
+ * scrubbed body.
+ *
+ * @param int $id Newsletter ID.
+ * @return string
+ */
+function npmp_newsletter_archive_theme_content( $id ) {
+	$sent_at = npmp_newsletter_archive_sent_at( $id );
+	$back    = npmp_newsletter_archive_back_link();
+
+	$out  = '<div class="npmp-newsletter-view">';
+	$out .= '<p class="npmp-nlv-back"><a href="' . esc_url( $back['url'] ) . '">&larr; ' . esc_html( $back['label'] ) . '</a></p>';
+	if ( '' !== $sent_at ) {
+		$out .= '<p class="npmp-nlv-date"><time datetime="' . esc_attr( mysql2date( 'Y-m-d', $sent_at ) ) . '">' . esc_html(
+			sprintf(
+				/* translators: %s: date the newsletter went out. */
+				__( 'Sent %s', 'nonprofit-manager' ),
+				mysql2date( get_option( 'date_format' ), $sent_at )
+			)
+		) . '</time></p>';
+	}
+	$out .= '<div class="npmp-nlv-body">' . npmp_newsletter_archive_body( $id ) . '</div>';
+	$out .= '</div>';
+	return $out;
+}
+
+/**
+ * The newsletter the theme is showing on this request, and its finished
+ * content. Empty outside a public newsletter page.
+ *
+ * @param array|null $set { id: int, html: string, printed: bool } to store, or null to read.
+ * @return array
+ */
+function npmp_newsletter_archive_view( $set = null ) {
+	static $view = array();
+	if ( is_array( $set ) ) {
+		$view = $set;
+	}
+	return $view;
+}
+
+/**
+ * Whether the theme should host the page. On by default. Return false from
+ * the `npmp_newsletter_archive_use_theme` filter to serve the standalone page.
+ *
+ * @param int $id Newsletter ID.
+ * @return bool
+ */
+function npmp_newsletter_archive_use_theme( $id ) {
+	/**
+	 * Filter whether a public newsletter shows inside the theme.
+	 *
+	 * @param bool $use_theme True to use the theme's page template.
+	 * @param int  $id        Newsletter ID.
+	 */
+	return (bool) apply_filters( 'npmp_newsletter_archive_use_theme', true, (int) $id );
+}
+
+/**
  * Answer the public page, or a 404 for anything that isn't public.
+ *
+ * Inside the theme, the main query becomes one page whose ID is the
+ * newsletter's and whose content is a marker. The finished content (built
+ * here, before the query changes, so the body passes the_content once, as
+ * the email's did) replaces whatever the_content made of the marker, so
+ * comments, share buttons, related posts, and the plugin's own page
+ * injections never reach the page. If the theme's template never prints the
+ * content, the standalone page goes out instead.
  *
  * @return void
  */
@@ -309,8 +378,8 @@ function npmp_newsletter_archive_template_redirect() {
 	if ( ! $id ) {
 		return;
 	}
+	global $wp_query;
 	if ( ! npmp_newsletter_archive_is_public( $id ) ) {
-		global $wp_query;
 		$wp_query->set_404();
 		status_header( 404 );
 		nocache_headers();
@@ -322,10 +391,256 @@ function npmp_newsletter_archive_template_redirect() {
 	if ( ! npmp_newsletter_archive_indexable() && ! headers_sent() ) {
 		header( 'X-Robots-Tag: noindex, follow' );
 	}
-	echo npmp_newsletter_archive_page_html( $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts and the scrubbed newsletter body.
-	exit;
+
+	if ( ! npmp_newsletter_archive_use_theme( $id ) ) {
+		echo npmp_newsletter_archive_page_html( $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts and the scrubbed newsletter body.
+		exit;
+	}
+
+	$html = npmp_newsletter_archive_theme_content( $id );
+	npmp_newsletter_archive_view(
+		array(
+			'id'      => $id,
+			'html'    => $html,
+			'printed' => false,
+		)
+	);
+
+	$source = get_post( $id );
+	$sent   = npmp_newsletter_archive_sent_at( $id );
+	$date   = '' !== $sent ? $sent : $source->post_date;
+	$page   = new WP_Post(
+		(object) array(
+			'ID'                    => $id,
+			'post_author'           => 0,
+			'post_date'             => $date,
+			'post_date_gmt'         => get_gmt_from_date( $date ),
+			'post_content'          => '<!-- npmp-newsletter-view -->',
+			'post_title'            => npmp_newsletter_archive_title( $id ),
+			'post_excerpt'          => '',
+			'post_status'           => 'publish',
+			'comment_status'        => 'closed',
+			'ping_status'           => 'closed',
+			'post_password'         => '',
+			// Not the title's slug, so a theme's page-{slug} template never catches it.
+			'post_name'             => 'newsletter-' . $id,
+			'to_ping'               => '',
+			'pinged'                => '',
+			'post_modified'         => $date,
+			'post_modified_gmt'     => get_gmt_from_date( $date ),
+			'post_content_filtered' => '',
+			'post_parent'           => 0,
+			'guid'                  => npmp_newsletter_archive_url( $id ),
+			'menu_order'            => 0,
+			'post_type'             => 'page',
+			'post_mime_type'        => '',
+			'comment_count'         => 0,
+			'filter'                => 'raw',
+		)
+	);
+
+	$wp_query->init_query_flags();
+	$wp_query->posts             = array( $page );
+	$wp_query->post              = $page;
+	$wp_query->post_count        = 1;
+	$wp_query->found_posts       = 1;
+	$wp_query->max_num_pages     = 1;
+	$wp_query->current_post      = -1;
+	$wp_query->is_page           = true;
+	$wp_query->is_singular       = true;
+	$wp_query->queried_object    = $page;
+	$wp_query->queried_object_id = $id;
+	$GLOBALS['post']             = $page; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- The page the theme renders.
+
+	// Core would 301 a page whose permalink differs from the request, print
+	// a canonical, shortlink, and REST link for the stored newsletter, and
+	// ask for comments. None of that applies to this page.
+	remove_action( 'template_redirect', 'redirect_canonical' );
+	remove_action( 'wp_head', 'rel_canonical' );
+	remove_action( 'wp_head', 'wp_shortlink_wp_head', 10 );
+	remove_action( 'wp_head', 'rest_output_link_wp_head', 10 );
+	remove_action( 'wp_head', 'adjacent_posts_rel_link_wp_head', 10 );
+	remove_action( 'template_redirect', 'wp_shortlink_header', 11 );
+	remove_action( 'template_redirect', 'rest_output_link_header', 11 );
+
+	add_filter( 'the_content', 'npmp_newsletter_archive_filter_content', PHP_INT_MAX );
+	add_filter( 'the_title', 'npmp_newsletter_archive_filter_title', 10, 2 );
+	add_filter( 'comments_open', 'npmp_newsletter_archive_filter_closed', PHP_INT_MAX, 2 );
+	add_filter( 'pings_open', 'npmp_newsletter_archive_filter_closed', PHP_INT_MAX, 2 );
+	add_filter( 'comments_array', 'npmp_newsletter_archive_filter_no_comments', PHP_INT_MAX, 2 );
+	add_filter( 'get_comments_number', 'npmp_newsletter_archive_filter_no_count', PHP_INT_MAX, 2 );
+	add_filter( 'post_type_link', 'npmp_newsletter_archive_filter_link', 10, 2 );
+	add_filter( 'page_link', 'npmp_newsletter_archive_filter_link', 10, 2 );
+	add_filter( 'wp_robots', 'npmp_newsletter_archive_filter_robots', PHP_INT_MAX );
+	add_filter( 'template_include', 'npmp_newsletter_archive_template_include', PHP_INT_MAX );
+	add_action( 'wp_head', 'npmp_newsletter_archive_canonical' );
+	add_action( 'wp_enqueue_scripts', 'npmp_newsletter_archive_enqueue_view' );
 }
 add_action( 'template_redirect', 'npmp_newsletter_archive_template_redirect', 1 );
+
+/**
+ * Whether an ID is the newsletter on this page.
+ *
+ * @param mixed $id Post ID or post.
+ * @return bool
+ */
+function npmp_newsletter_archive_is_view_id( $id ) {
+	$view = npmp_newsletter_archive_view();
+	if ( empty( $view['id'] ) ) {
+		return false;
+	}
+	if ( $id instanceof WP_Post ) {
+		$id = $id->ID;
+	}
+	return (int) $id === (int) $view['id'];
+}
+
+/**
+ * Put the finished content in place of what the_content made of the marker.
+ * Only the page itself is replaced, never another post's content.
+ *
+ * @param string $content Filtered content.
+ * @return string
+ */
+function npmp_newsletter_archive_filter_content( $content ) {
+	$post = get_post();
+	if ( ! $post || 'page' !== $post->post_type || ! npmp_newsletter_archive_is_view_id( $post ) ) {
+		return $content;
+	}
+	$view            = npmp_newsletter_archive_view();
+	$view['printed'] = true;
+	npmp_newsletter_archive_view( $view );
+	return $view['html'];
+}
+
+/**
+ * The newsletter's title, tags filled, wherever the theme asks for it by ID.
+ *
+ * @param string $title Title.
+ * @param int    $id    Post ID.
+ * @return string
+ */
+function npmp_newsletter_archive_filter_title( $title, $id = 0 ) {
+	return npmp_newsletter_archive_is_view_id( $id ) ? esc_html( npmp_newsletter_archive_title( (int) $id ) ) : $title;
+}
+
+/**
+ * No comments or pings on a newsletter page.
+ *
+ * @param bool  $open Open.
+ * @param mixed $id   Post ID.
+ * @return bool
+ */
+function npmp_newsletter_archive_filter_closed( $open, $id = 0 ) {
+	return npmp_newsletter_archive_is_view_id( $id ) ? false : $open;
+}
+
+/**
+ * No comments listed on a newsletter page.
+ *
+ * @param array $comments Comments.
+ * @param int   $id       Post ID.
+ * @return array
+ */
+function npmp_newsletter_archive_filter_no_comments( $comments, $id = 0 ) {
+	return npmp_newsletter_archive_is_view_id( $id ) ? array() : $comments;
+}
+
+/**
+ * A comment count of zero on a newsletter page.
+ *
+ * @param int $count Count.
+ * @param int $id    Post ID.
+ * @return int
+ */
+function npmp_newsletter_archive_filter_no_count( $count, $id = 0 ) {
+	return npmp_newsletter_archive_is_view_id( $id ) ? 0 : $count;
+}
+
+/**
+ * The public URL wherever the theme links the page.
+ *
+ * @param string      $link Link.
+ * @param WP_Post|int $post Post.
+ * @return string
+ */
+function npmp_newsletter_archive_filter_link( $link, $post ) {
+	return npmp_newsletter_archive_is_view_id( $post ) ? npmp_newsletter_archive_url( npmp_newsletter_archive_view()['id'] ) : $link;
+}
+
+/**
+ * Robots meta through core's wp_robots: noindex unless the owner allows it.
+ *
+ * @param array $robots Directives.
+ * @return array
+ */
+function npmp_newsletter_archive_filter_robots( $robots ) {
+	if ( npmp_newsletter_archive_indexable() ) {
+		return $robots;
+	}
+	unset( $robots['index'] );
+	$robots['noindex'] = true;
+	$robots['follow']  = true;
+	return $robots;
+}
+
+/**
+ * The canonical link for the page.
+ *
+ * @return void
+ */
+function npmp_newsletter_archive_canonical() {
+	$view = npmp_newsletter_archive_view();
+	if ( ! empty( $view['id'] ) ) {
+		echo '<link rel="canonical" href="' . esc_url( npmp_newsletter_archive_url( $view['id'] ) ) . '" />' . "\n";
+	}
+}
+
+/**
+ * The page's stylesheet.
+ *
+ * @return void
+ */
+function npmp_newsletter_archive_enqueue_view() {
+	npmp_newsletter_archive_register_style();
+	wp_enqueue_style( 'npmp-newsletter-archive' );
+}
+
+/**
+ * Run the theme's template inside archive-theme-template.php, which falls
+ * back to the standalone page when the template never prints the content.
+ *
+ * @param string $template Template path.
+ * @return string
+ */
+function npmp_newsletter_archive_template_include( $template ) {
+	$view = npmp_newsletter_archive_view();
+	if ( empty( $view['id'] ) || ! is_string( $template ) || '' === $template ) {
+		return $template;
+	}
+	$view['template'] = $template;
+	npmp_newsletter_archive_view( $view );
+	return __DIR__ . '/archive-theme-template.php';
+}
+
+/**
+ * Print the buffered theme page, or the standalone page when the theme's
+ * template never printed the newsletter.
+ *
+ * @param string $html The theme's page.
+ * @return void
+ */
+function npmp_newsletter_archive_finish( $html ) {
+	$view = npmp_newsletter_archive_view();
+	if ( ! empty( $view['printed'] ) ) {
+		echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The theme's own page.
+		return;
+	}
+	if ( ! headers_sent() ) {
+		header( 'X-NPMP-Newsletter-View: standalone' );
+	}
+	echo npmp_newsletter_archive_page_html( (int) $view['id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts and the scrubbed newsletter body.
+}
 
 /* ---------------------------------------------------------------------
  * The list

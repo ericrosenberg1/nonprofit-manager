@@ -30,6 +30,16 @@ if ( ! class_exists( 'NPMP_Member_Manager' ) || ! class_exists( 'NPMP_Newsletter
 	exit( 1 );
 }
 $pro = function_exists( 'npmp_pro_get_groups' );
+
+/**
+ * A response's headers and body as one string.
+ *
+ * @param array|WP_Error $res Response.
+ * @return string
+ */
+function npmp_rig_headers_and_body( $res ) {
+	return (string) wp_remote_retrieve_header( $res, 'x-robots-tag' ) . "\n" . (string) wp_remote_retrieve_body( $res );
+}
 echo $pro ? "Pro is active\n" : "Pro is inactive\n";
 
 global $wpdb;
@@ -208,27 +218,125 @@ $ok( 'the owner can let search engines in', false !== strpos( npmp_newsletter_ar
 delete_option( 'npmp_newsletter_archive_index' );
 
 echo "Public page over HTTP\n";
-$url  = npmp_newsletter_archive_url( $a );
-$res  = wp_remote_get( $url, array( 'timeout' => 20 ) );
-$code = (int) wp_remote_retrieve_response_code( $res );
-$http = (string) wp_remote_retrieve_body( $res );
-$ok( 'the pretty URL answers 200: ' . $url, 200 === $code );
-$ok( 'X-Robots-Tag noindex header', false !== stripos( (string) wp_remote_retrieve_header( $res, 'x-robots-tag' ), 'noindex' ) );
-$ok( 'the page over HTTP has the body and no token, address, or tracking', false !== strpos( $http, 'Hi Friend' ) && false === strpos( $http, 'npmp_token' ) && false === strpos( $http, 'pat.reader' ) && false === strpos( $http, 'npmp_track' ) );
-$ok( '?npmp_newsletter= works too', 200 === (int) wp_remote_retrieve_response_code( wp_remote_get( add_query_arg( 'npmp_newsletter', $a, home_url( '/' ) ) ) ) );
-foreach ( array( 'not ticked' => $b, 'draft never sent' => $c, 'Send later' => $d, 'trashed' => $t, 'group, not ticked' => $g2 ) as $why => $id ) {
-	$r = wp_remote_get( home_url( '/newsletter/' . $id . '/x/' ), array( 'redirection' => 0 ) );
-	$ok( "a $why newsletter answers 404", 404 === (int) wp_remote_retrieve_response_code( $r ) );
+// php -S serves one request at a time, and the first front-end hit on a new
+// site also spawns wp-cron on that same server, so every request gets a long
+// timeout (5 seconds, the default, timed out on a brand-new rig).
+$get = function ( $url, $args = array() ) {
+	return wp_remote_get( $url, array_merge( array( 'timeout' => 60 ), $args ) );
+};
+
+// A stand-in for the plugins and themes that hang things off the_content:
+// share buttons, related posts, comment prompts. Like the real ones it adds
+// them on a singular page in the main loop, and it counts how many times
+// the_content saw the newsletter's body.
+$mu_dir = WP_CONTENT_DIR . '/mu-plugins';
+if ( ! is_dir( $mu_dir ) ) {
+	wp_mkdir_p( $mu_dir );
 }
-$ok( 'a made-up ID answers 404', 404 === (int) wp_remote_retrieve_response_code( wp_remote_get( home_url( '/newsletter/987654/' ), array( 'redirection' => 0 ) ) ) );
-$ok( 'a ticked group newsletter has a page', 200 === (int) wp_remote_retrieve_response_code( wp_remote_get( npmp_newsletter_archive_url( $g ) ) ) );
+$mu = $mu_dir . '/npmp-rig-content-extras.php';
+file_put_contents(
+	$mu,
+	'<?php
+$GLOBALS["npmp_rig_body_runs"] = 0;
+add_filter( "the_content", function ( $c ) {
+	if ( false !== strpos( $c, "our walk is on Friday" ) ) {
+		$GLOBALS["npmp_rig_body_runs"]++;
+	}
+	if ( is_singular() && in_the_loop() && is_main_query() ) {
+		$c .= "<div class=\"rig-share\">RIG-SHARE-BUTTONS</div><div class=\"rig-related\">RIG-RELATED-POSTS</div>";
+	}
+	return $c;
+}, 20 );
+add_action( "wp_footer", function () {
+	echo "<!-- rig-body-runs:" . (int) $GLOBALS["npmp_rig_body_runs"] . " -->";
+} );
+add_filter( "template_include", function ( $t ) {
+	if ( get_option( "npmp_rig_contentless_theme" ) ) {
+		return __FILE__ . ".blank";
+	}
+	return $t;
+}, 99 );
+'
+);
+file_put_contents( $mu . '.blank', '<?php echo "<html><body>A template that never prints the content</body></html>";' );
+
+// The plugin's own page injections, pointed at this newsletter's ID.
+$form_before = (array) get_option( 'npmp_membership_form_settings', array() );
+update_option( 'npmp_membership_form_settings', array_merge( $form_before, array( 'signup_page_id' => $a, 'unsubscribe_page_id' => $a ) ) );
+update_option( 'npmp_calendar_page_id', $a );
+update_option( 'npmp_donation_page_id', $a );
+
+$url    = npmp_newsletter_archive_url( $a );
+$themes = array_values( array_filter( array( 'twentytwentyfive', 'twentytwentyone' ), function ( $s ) {
+	return wp_get_theme( $s )->exists();
+} ) );
+$ok( 'a block theme and a classic theme to test with (' . implode( ', ', $themes ) . ')', 2 === count( $themes ) );
+$theme_before = get_stylesheet();
+
+foreach ( $themes as $theme ) {
+	switch_theme( $theme );
+	$kind = wp_is_block_theme() ? 'block theme' : 'classic theme';
+	echo "  -- $theme ($kind)\n";
+	$res  = $get( $url );
+	$code = (int) wp_remote_retrieve_response_code( $res );
+	$http = (string) wp_remote_retrieve_body( $res );
+	$ok( "$theme: the pretty URL answers 200", 200 === $code );
+	$ok( "$theme: X-Robots-Tag noindex header", false !== stripos( (string) wp_remote_retrieve_header( $res, 'x-robots-tag' ), 'noindex' ) );
+	$ok( "$theme: robots meta from wp_robots says noindex", 1 === preg_match( "#<meta name=['\"]robots['\"] content=['\"][^'\"]*noindex#", $http ) && 1 === substr_count( $http, 'name=\'robots\'' ) + substr_count( $http, 'name="robots"' ) );
+	$ok( "$theme: inside the theme (its stylesheet and the site title)", false !== strpos( $http, 'themes/' . $theme . '/' ) && false !== strpos( $http, get_bloginfo( 'name' ) ) && false === strpos( (string) wp_remote_retrieve_header( $res, 'x-npmp-newsletter-view' ), 'standalone' ) );
+	$ok( "$theme: the newsletter title is the page title", false !== strpos( $http, '<title>March news for members' ) && 1 === preg_match( '#<h1[^>]*>\s*March news for members\s*</h1>#', $http ) );
+	$ok( "$theme: send date, body, and back link in the content", false !== strpos( $http, 'npmp-nlv-date' ) && false !== strpos( $http, 'Hi Friend, our walk is on Friday.' ) && false !== strpos( $http, 'class="npmp-nlv-back"' ) );
+	$ok( "$theme: the page stylesheet is enqueued", false !== strpos( $http, 'npmp-newsletter-archive.css' ) );
+	$ok( "$theme: one canonical, the newsletter's URL", 1 === substr_count( $http, 'rel="canonical"' ) && false !== strpos( $http, 'rel="canonical" href="' . esc_url( $url ) . '"' ) );
+	$ok( "$theme: no token, address, name, or tracking", false === strpos( $http, 'npmp_token' ) && false === strpos( $http, 'pat.reader' ) && false === strpos( $http, 'Patricia' ) && false === strpos( $http, 'npmp_track' ) && false === strpos( $http, '_npmp=' ) );
+	$ok( "$theme: no share buttons or related posts", false === strpos( $http, 'RIG-SHARE-BUTTONS' ) && false === strpos( $http, 'RIG-RELATED-POSTS' ) );
+	$ok( "$theme: no comment form or comments", false === stripos( $http, 'id="respond"' ) && false === stripos( $http, 'comment-form' ) && false === stripos( $http, 'wp-block-comments' ) );
+	$injected = array_filter( array( 'npmp-email-signup', 'npmp-unsubscribe', 'npmp-calendar-wrapper', 'npmp-donation-form' ), function ( $needle ) use ( $http ) {
+		return false !== strpos( $http, $needle );
+	} );
+	$ok( "$theme: no signup, unsubscribe, calendar, or donation form injected" . ( $injected ? ' (found ' . implode( ', ', $injected ) . ')' : '' ), ! $injected );
+	$ok( "$theme: the_content ran over the body once (the email render), never again", false !== strpos( $http, '<!-- rig-body-runs:1 -->' ) );
+	$ok( "$theme: no shortlink or REST link for the stored newsletter", false === strpos( $http, "rel='shortlink'" ) && false === strpos( $http, 'wp-json/wp/v2/pages/' . $a ) && false === strpos( $http, 'wp-json/wp/v2/npmp_newsletter' ) );
+	$res = $get( add_query_arg( array( 'npmp_email' => 'pat.reader@example.org', 'npmp_token' => 'feedface', 'uid' => '9' ), $url ) );
+	$ok( "$theme: a visitor's own token in the URL never reaches the page", 200 === (int) wp_remote_retrieve_response_code( $res ) && false === strpos( (string) wp_remote_retrieve_body( $res ), 'feedface' ) && false === strpos( (string) wp_remote_retrieve_body( $res ), 'pat.reader' ) );
+	$ok( "$theme: ?npmp_newsletter= works too", 200 === (int) wp_remote_retrieve_response_code( $get( add_query_arg( 'npmp_newsletter', $a, home_url( '/' ) ) ) ) );
+	foreach ( array( 'not ticked' => $b, 'draft never sent' => $c, 'Send later' => $d, 'trashed' => $t, 'group, not ticked' => $g2 ) as $why => $id ) {
+		$r = $get( home_url( '/newsletter/' . $id . '/x/' ), array( 'redirection' => 0 ) );
+		$ok( "$theme: a $why newsletter answers 404", 404 === (int) wp_remote_retrieve_response_code( $r ) && false === strpos( (string) wp_remote_retrieve_body( $r ), 'our walk is on Friday' ) );
+	}
+	$ok( "$theme: a made-up ID answers 404", 404 === (int) wp_remote_retrieve_response_code( $get( home_url( '/newsletter/987654/' ), array( 'redirection' => 0 ) ) ) );
+	$ok( "$theme: a ticked group newsletter has a page", 200 === (int) wp_remote_retrieve_response_code( $get( npmp_newsletter_archive_url( $g ) ) ) );
+	update_option( 'npmp_newsletter_archive_index', 1 );
+	$res = $get( $url );
+	$ok( "$theme: the owner can let search engines in (no noindex anywhere)", false === stripos( (string) npmp_rig_headers_and_body( $res ), 'noindex' ) );
+	delete_option( 'npmp_newsletter_archive_index' );
+}
+
+echo "  -- a theme whose template never prints the content\n";
+update_option( 'npmp_rig_contentless_theme', 1 );
+$res  = $get( $url );
+$http = (string) wp_remote_retrieve_body( $res );
+$ok( 'falls back to the standalone page', 200 === (int) wp_remote_retrieve_response_code( $res ) && 'standalone' === wp_remote_retrieve_header( $res, 'x-npmp-newsletter-view' ) && false !== strpos( $http, '<h1 class="npmp-nlv-title">March news for members</h1>' ) && false === strpos( $http, 'never prints the content' ) );
+$ok( 'the fallback keeps noindex, and no token or tracking', false !== strpos( $http, 'content="noindex, follow"' ) && false === strpos( $http, 'npmp_token' ) && false === strpos( $http, 'npmp_track' ) );
+delete_option( 'npmp_rig_contentless_theme' );
+
+add_filter( 'npmp_newsletter_archive_use_theme', '__return_false' );
+$ok( 'the npmp_newsletter_archive_use_theme filter is read', false === npmp_newsletter_archive_use_theme( $a ) );
+remove_filter( 'npmp_newsletter_archive_use_theme', '__return_false' );
+
+switch_theme( $theme_before );
+update_option( 'npmp_membership_form_settings', $form_before );
+delete_option( 'npmp_calendar_page_id' );
+delete_option( 'npmp_donation_page_id' );
+wp_delete_file( $mu );
+wp_delete_file( $mu . '.blank' );
 
 $list_page = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Computing Group', 'post_content' => '[npmp_newsletters]' ) );
-$res       = wp_remote_get( get_permalink( $list_page ) );
+$res       = $get( get_permalink( $list_page ) );
 $ok( 'a page with the shortcode lists them over HTTP', false !== strpos( (string) wp_remote_retrieve_body( $res ), 'March news for members' ) );
 $ok( 'the stylesheet is on that page', false !== strpos( (string) wp_remote_retrieve_body( $res ), 'npmp-newsletter-archive.css' ) );
 $ok( 'links carry the back-link page', false !== strpos( (string) wp_remote_retrieve_body( $res ), 'npmp_from=' . $list_page ) );
-$back = (string) wp_remote_retrieve_body( wp_remote_get( npmp_newsletter_archive_url( $a, $list_page ) ) );
+$back = (string) wp_remote_retrieve_body( $get( npmp_newsletter_archive_url( $a, $list_page ) ) );
 $ok( 'the public page links back to the list page', false !== strpos( $back, 'Back to Computing Group' ) );
 
 echo "Empty site\n";
