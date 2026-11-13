@@ -291,20 +291,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed cancelled and postponed events from The Events Calendar, which you got as published events instead of drafts.
-- Fixed past gifts from GiveWP and Charitable changing Active and Pending contacts to Donor, which took them off your newsletter.
-- Fixed MailPoet imports leaving a Donor who subscribed in MailPoet off your newsletter.
-- Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
-- Fixed Switch Plugins timing out on sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
-- Fixed "Start the import" on a plugin you never turned on, which led to an empty import.
-- Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
-- Added the GiveWP and PMPro delete-data warning to the turn-off step, while you can still change the setting.
-- Fixed the MailPoet limit wording, which called the site total a limit per import.
-- Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
-- Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
-- Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
-- Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
-- Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
+- (none)
 
 Pro (licence server changelog):
 - (none)

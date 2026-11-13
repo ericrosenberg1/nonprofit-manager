@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.10
+Stable tag: 2026.11.11
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,22 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.11 =
+* Fixed welcome emails going to contacts brought in by the MailPoet, Newsletter, Paid Memberships Pro, and donation importers.
+* Added an importer for Ultimate Member: members by role, account status, membership levels from roles, join dates, phone, and country.
+* Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
+* Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
+* Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
+* Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
+* Added the GiveWP and Paid Memberships Pro delete-data warning to the turn-off step.
+* Fixed The Events Calendar import so you get cancelled and postponed events as drafts.
+* Fixed the GiveWP and Charitable gift import so Active and Pending contacts keep their status.
+* Fixed the MailPoet import so a Donor who subscribed in MailPoet gets your newsletter.
+* Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
+* Fixed time-outs on Switch Plugins for sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
+* Fixed the empty import you got from "Start the import" on a plugin you never turned on.
+* Fixed the MailPoet screen's wording of the free limit as a total for your site.
 
 = 2026.11.10 =
 * Fixed paragraph breaks in event text on event lists, the Events block, and the events archive.
@@ -530,6 +546,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.11 =
+Update before you import a list from MailPoet, Newsletter, Paid Memberships Pro, GiveWP, or Charitable, so none of those contacts gets your Pro welcome email.
 
 = 2026.11.10 =
 Keep the paragraphs in your event text on event lists and the events archive.
