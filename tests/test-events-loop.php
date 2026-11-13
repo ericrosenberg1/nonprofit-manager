@@ -43,6 +43,29 @@ function wp_trim_words( $text, $num_words = 55, $more = null ) {
 	return count( $words ) > $num_words ? implode( ' ', array_slice( $words, 0, $num_words ) ) . $more : implode( ' ', $words );
 }
 
+$GLOBALS['t_hooks'] = array();
+function add_filter( $hook, $callback, $priority = 10, $args = 1 ) {
+	$GLOBALS['t_hooks'][] = array( $hook, $callback, $priority, $args );
+	return true;
+}
+// Which page WordPress is rendering, for the archive excerpt.
+$GLOBALS['t_view'] = array( 'archive' => true, 'tax' => false, 'admin' => false, 'feed' => false, 'protected' => false );
+function is_post_type_archive( $type = '' ) {
+	return $GLOBALS['t_view']['archive'] && 'npmp_event' === $type;
+}
+function is_tax( $tax = '' ) {
+	return $GLOBALS['t_view']['tax'] && 'npmp_event_category' === $tax;
+}
+function is_admin() {
+	return $GLOBALS['t_view']['admin'];
+}
+function is_feed() {
+	return $GLOBALS['t_view']['feed'];
+}
+function post_password_required( $post = null ) {
+	return $GLOBALS['t_view']['protected'];
+}
+
 require_once dirname( __DIR__ ) . '/includes/npmp-events-loop.php';
 
 echo "Defaults keep an unsaved site as it was\n";
@@ -135,6 +158,36 @@ check( 'the text is escaped before any tag is added', '<p>&lt;script&gt;x&lt;/sc
 check( 'horizontal whitespace still collapses', 'a b', npmp_events_loop_normalize_text( "a  \t b" ) );
 check( 'three blank lines become one paragraph break', "a\n\nb", npmp_events_loop_normalize_text( "a\n\n\n\nb" ) );
 check( 'the word limit has a floor of five', "one two three four five…", npmp_events_loop_trim_words( 'one two three four five six', 1 ) );
+
+echo "The theme's event archive keeps the paragraphs too\n";
+check( 'the archive excerpt runs after core trims it', array( 'get_the_excerpt', 'npmp_events_archive_excerpt', 11, 2 ), $GLOBALS['t_hooks'][0] );
+$event = (object) array( 'post_type' => 'npmp_event', 'post_excerpt' => '', 'post_content' => $walk );
+check( 'two paragraphs come back with a blank line between them', "We meet at the hall at 10am.\n\nBring stout shoes and a packed lunch.", npmp_events_archive_excerpt( 'core flat text', $event ) );
+$event->post_content = '<p>One &lt;b&gt; two & three</p><p>four</p>';
+check( 'the text is escaped', "One &lt;b&gt; two &amp; three\n\nfour", npmp_events_archive_excerpt( 'core', $event ) );
+$event->post_content = '<p>' . str_repeat( 'word ', 60 ) . '</p>';
+check( 'a long body is cut at 55 words with core\'s more text', str_repeat( 'word ', 54 ) . 'word [&hellip;]', npmp_events_archive_excerpt( 'core', $event ) );
+$event->post_content = $walk;
+$event->post_excerpt = 'Written by hand.';
+check( 'a manual excerpt keeps core\'s excerpt', 'core', npmp_events_archive_excerpt( 'core', $event ) );
+$event->post_excerpt = '';
+check( 'a post that is not an event is left alone', 'core', npmp_events_archive_excerpt( 'core', (object) array( 'post_type' => 'post', 'post_excerpt' => '', 'post_content' => $walk ) ) );
+check( 'no post object is left alone', 'core', npmp_events_archive_excerpt( 'core', null ) );
+$GLOBALS['t_view']['archive'] = false;
+check( 'outside the event archive core\'s excerpt stays', 'core', npmp_events_archive_excerpt( 'core', $event ) );
+$GLOBALS['t_view']['tax'] = true;
+check( 'an event category page counts as the archive', true, 'core' !== npmp_events_archive_excerpt( 'core', $event ) );
+$GLOBALS['t_view'] = array( 'archive' => true, 'tax' => false, 'admin' => false, 'feed' => true, 'protected' => false );
+check( 'a feed keeps core\'s excerpt', 'core', npmp_events_archive_excerpt( 'core', $event ) );
+$GLOBALS['t_view']['feed']      = false;
+$GLOBALS['t_view']['protected'] = true;
+check( 'a protected event keeps core\'s excerpt', 'core', npmp_events_archive_excerpt( 'core', $event ) );
+$GLOBALS['t_view']['protected'] = false;
+$GLOBALS['t_view']['admin']     = true;
+check( 'wp-admin keeps core\'s excerpt', 'core', npmp_events_archive_excerpt( 'core', $event ) );
+$GLOBALS['t_view']['admin'] = false;
+$event->post_content        = '<h2>Only a heading</h2>';
+check( 'nothing left after the headings keeps core\'s excerpt', 'core', npmp_events_archive_excerpt( 'core', $event ) );
 
 echo "Settings save leaves unchecked boxes off\n";
 $GLOBALS['t_options'] = array();

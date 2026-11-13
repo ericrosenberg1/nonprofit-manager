@@ -140,7 +140,30 @@ foreach ( array( 'npmp_events_loop[layout]', 'npmp_events_loop[columns]', 'npmp_
 	$ok( 'field ' . $name, false !== strpos( $rows, 'name="' . $name . '"' ) );
 }
 
-foreach ( array( $a, $b, $c, $d ) as $id ) {
+echo "The theme's /events/ archive keeps an event's paragraphs\n";
+// Pete at U3A, 2026-11-13: a classic theme's archive prints the_excerpt(),
+// and core's excerpt ran every paragraph together.
+$walk = $make( 'Rig Walk', '2099-02-10 10:00:00', "<!-- wp:paragraph -->\n<p>We meet at the hall at 10am.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>Bring stout shoes &amp; a packed lunch.</p>\n<!-- /wp:paragraph -->" );
+$saved_query      = $GLOBALS['wp_query'];
+$GLOBALS['wp_query'] = new WP_Query( array( 'post_type' => 'npmp_event', 'p' => 0, 'posts_per_page' => 20 ) );
+$ok( 'the query reads as the event archive', is_post_type_archive( 'npmp_event' ) );
+$archive_html = '';
+while ( have_posts() ) {
+	the_post();
+	if ( get_the_ID() === $walk ) {
+		ob_start();
+		the_excerpt();
+		$archive_html = ob_get_clean();
+	}
+}
+wp_reset_postdata();
+$ok( 'the_excerpt() prints two paragraphs on the archive', false !== strpos( $archive_html, "<p>We meet at the hall at 10am.</p>\n<p>Bring stout shoes &amp; a packed lunch.</p>" ) );
+$ok( 'the archive excerpt still skips the headings', false === strpos( (string) get_the_excerpt( $a ), 'Wednesday, September' ) );
+$GLOBALS['wp_query'] = new WP_Query( array( 'p' => $walk, 'post_type' => 'npmp_event' ) );
+$ok( 'outside the archive, core\'s excerpt stays as it was', false === strpos( get_the_excerpt( $walk ), "\n" ) );
+$GLOBALS['wp_query'] = $saved_query;
+
+foreach ( array( $a, $b, $c, $d, $walk ) as $id ) {
 	wp_delete_post( $id, true );
 }
 echo $fails ? "\n$fails FAILED\n" : "\nALL PASSED\n";

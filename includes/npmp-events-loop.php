@@ -194,9 +194,10 @@ function npmp_events_loop_normalize_text( $text ) {
  *
  * @param string $text  Normalised plain text.
  * @param int    $words Word limit.
+ * @param string $more  What to add after a trimmed text.
  * @return string
  */
-function npmp_events_loop_trim_words( $text, $words ) {
+function npmp_events_loop_trim_words( $text, $words, $more = '…' ) {
 	$words = max( 5, (int) $words );
 	$parts = preg_split( '/(\s+)/u', (string) $text, -1, PREG_SPLIT_DELIM_CAPTURE );
 	if ( ! is_array( $parts ) ) {
@@ -212,7 +213,7 @@ function npmp_events_loop_trim_words( $text, $words ) {
 				continue;
 			}
 			if ( $kept >= $words ) {
-				return rtrim( $out ) . '…';
+				return rtrim( $out ) . $more;
 			}
 			++$kept;
 			$out .= $part;
@@ -306,6 +307,54 @@ function npmp_events_loop_excerpt_html( $text ) {
 
 	return $html;
 }
+
+/**
+ * Keep an event's paragraphs on the theme's own event archive.
+ *
+ * /events/ and the event category pages go through the theme's template,
+ * which asks WordPress for an excerpt. Core's wp_trim_excerpt() flattens the
+ * body into one run of text, so an event list built on the archive lost its
+ * paragraph breaks the same way [npmp_events] did (Pete at U3A,
+ * 2026-11-13). For an event with no manual excerpt this hands back the same
+ * text the events loop uses, escaped, with a blank line between paragraphs.
+ * A classic theme's the_excerpt() then prints one <p> per paragraph. Block
+ * themes' Post Excerpt block strips line breaks itself, so it still prints
+ * one paragraph. A manual excerpt, a protected post, a feed, and the REST
+ * API keep core's excerpt.
+ *
+ * @param string       $excerpt Excerpt from earlier filters (core's wp_trim_excerpt()).
+ * @param WP_Post|null $post    The post.
+ * @return string
+ */
+function npmp_events_archive_excerpt( $excerpt, $post = null ) {
+	if ( ! is_object( $post ) || ! isset( $post->post_type ) || 'npmp_event' !== $post->post_type ) {
+		return $excerpt;
+	}
+	if ( '' !== trim( (string) ( isset( $post->post_excerpt ) ? $post->post_excerpt : '' ) ) ) {
+		return $excerpt;
+	}
+	if ( is_admin() || is_feed() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) || post_password_required( $post ) ) {
+		return $excerpt;
+	}
+	if ( ! is_post_type_archive( 'npmp_event' ) && ! is_tax( 'npmp_event_category' ) ) {
+		return $excerpt;
+	}
+
+	$text = npmp_events_loop_text_from_content( isset( $post->post_content ) ? $post->post_content : '' );
+	if ( '' === $text ) {
+		return $excerpt;
+	}
+
+	/** This filter is documented in wp-includes/formatting.php */
+	$length  = (int) apply_filters( 'excerpt_length', 55 );
+	$trimmed = npmp_events_loop_trim_words( $text, $length, '' );
+	$cut     = count( preg_split( '/\s+/u', $trimmed, -1, PREG_SPLIT_NO_EMPTY ) ) < count( preg_split( '/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY ) );
+	/** This filter is documented in wp-includes/formatting.php */
+	$more = $cut ? (string) apply_filters( 'excerpt_more', ' [&hellip;]' ) : '';
+
+	return esc_html( $trimmed ) . $more;
+}
+add_filter( 'get_the_excerpt', 'npmp_events_archive_excerpt', 11, 2 );
 
 /**
  * Query arguments for the loop.
