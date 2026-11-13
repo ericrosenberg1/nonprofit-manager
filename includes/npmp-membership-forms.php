@@ -626,15 +626,56 @@ function npmp_signup_atts_from_token( $token ) {
 }
 
 /**
+ * A line only a site admin sees, naming attributes [npmp_email_signup] was
+ * given that nothing on this site accepts.
+ *
+ * Add-ons register their attributes through npmp_signup_form_default_atts,
+ * and shortcode_atts() drops the rest without a word. So a shortcode copied
+ * from an add-on's docs onto a site without that add-on renders a plain form
+ * and looks like a bug (wordpress.org thread "Some minors in subscribe and
+ * unsubscribe process", on groups="" choose="yes"). Say so, to the one
+ * person who can act on it.
+ *
+ * @param array $unknown Attribute names the form ignored.
+ * @return string HTML, or '' for a visitor or nothing to report.
+ */
+function npmp_signup_form_unknown_atts_note( $unknown ) {
+	$names = array();
+	foreach ( (array) $unknown as $name ) {
+		if ( is_string( $name ) && '' !== $name ) {
+			$names[] = sanitize_key( $name );
+		}
+	}
+	if ( ! $names || ! current_user_can( 'manage_options' ) ) {
+		return '';
+	}
+	return '<p class="npmp-form-admin-note"><em>' . esc_html(
+		sprintf(
+			/* translators: %s: comma-separated shortcode attribute names, for example "groups, choose". */
+			_n(
+				'Only logged-in administrators see this line. The signup form ignored the attribute %s, because no plugin active on this site accepts it.',
+				'Only logged-in administrators see this line. The signup form ignored the attributes %s, because no plugin active on this site accepts them.',
+				count( $names ),
+				'nonprofit-manager'
+			),
+			implode( ', ', $names )
+		)
+	) . '</em></p>';
+}
+
+/**
  * Render the email signup form.
  *
  * @param array|string $atts Shortcode attributes.
  * @return string
  */
 function npmp_email_signup_shortcode( $atts = array() ) {
-	$atts = shortcode_atts( npmp_signup_form_default_atts(), is_array( $atts ) ? $atts : array(), 'npmp_email_signup' );
-	$s    = npmp_get_membership_form_settings();
-	$html = npmp_get_banner_html( 'npmp_signup', $s );
+	$raw      = is_array( $atts ) ? $atts : array();
+	$defaults = npmp_signup_form_default_atts();
+	$atts     = shortcode_atts( $defaults, $raw, 'npmp_email_signup' );
+	$s        = npmp_get_membership_form_settings();
+	$html     = npmp_signup_form_unknown_atts_note( array_keys( array_diff_key( $raw, $defaults ) ) );
+	$html    .= npmp_get_banner_html( 'npmp_signup', $s );
 
 	$fields = '
 		<p><label>' . esc_html( $s['name_label'] ) . '<br><input type="text" name="npmp_name" required></label></p>
@@ -1134,14 +1175,15 @@ function npmp_signup_fields_to_keep( $post ) {
  * @return void
  */
 function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts_token, $is_new ) {
-	$key = wp_generate_password( 32, false );
+	$key  = wp_generate_password( 32, false );
+	$kept = npmp_signup_fields_to_keep( $post );
 	update_post_meta(
 		(int) $contact_id,
 		'_npmp_signup_confirm',
 		array(
 			'key'    => $key,
 			'name'   => (string) $name,
-			'post'   => npmp_signup_fields_to_keep( $post ),
+			'post'   => $kept,
 			'atts'   => (string) $atts_token,
 			'is_new' => (bool) $is_new,
 			'time'   => time(),
@@ -1161,17 +1203,44 @@ function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts
 		__( 'Please confirm your subscription to %s', 'nonprofit-manager' ),
 		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
 	);
-	$body = sprintf(
-		/* translators: 1: site name, 2: confirmation URL. */
-		__( "Thanks for signing up for email from %1\$s.
+	$lines = array(
+		sprintf(
+			/* translators: %s: site name. */
+			__( 'Thanks for signing up for email from %s.', 'nonprofit-manager' ),
+			wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
+		),
+	);
 
-To confirm, open this link and press the button:
-%2\$s
+	/**
+	 * Filter the paragraphs that tell the subscriber what they signed up
+	 * for, between the opening line and the confirmation link.
+	 *
+	 * The email used to say only "thanks for signing up", so a subscriber
+	 * who ticked groups on the form had no way to check what they had
+	 * asked for before confirming (wordpress.org thread "Some minors in
+	 * subscribe and unsubscribe process"). Pro adds the groups they chose.
+	 * Each entry is one paragraph of plain text, joined by a blank line.
+	 *
+	 * @param string[] $details    Paragraphs, in order. Empty by default.
+	 * @param int      $contact_id Contact ID.
+	 * @param array    $post       The signup fields kept until they confirm.
+	 * @param array    $atts       The form's attributes, after defaults.
+	 */
+	$details = apply_filters( 'npmp_signup_confirmation_details', array(), (int) $contact_id, $kept, npmp_signup_atts_from_token( (string) $atts_token ) );
+	foreach ( (array) $details as $detail ) {
+		if ( is_string( $detail ) && '' !== trim( $detail ) ) {
+			$lines[] = trim( $detail );
+		}
+	}
 
-If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofit-manager' ),
-		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+	$lines[] = sprintf(
+		/* translators: %s: confirmation URL. */
+		__( "To confirm, open this link and press the button:\n%s", 'nonprofit-manager' ),
 		$url
 	);
+	$lines[] = __( "If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofit-manager' );
+
+	$body = implode( "\n\n", $lines );
 	if ( function_exists( 'npmp_send_mail' ) ) {
 		npmp_send_mail( $email, $subject, $body );
 	}

@@ -49,6 +49,22 @@ check( 'Pro can start its automation on confirm', 1, substr_count( $confirm, "do
 check( 'Both logged-in and logged-out visitors', 2, preg_match_all( "/add_action\( 'admin_post_(nopriv_)?npmp_confirm_signup', 'npmp_handle_confirm_signup' \);/", $forms ) );
 check( 'Mail goes through npmp_send_mail', 1, substr_count( section( $forms, 'function npmp_send_signup_confirmation', 'function npmp_handle_confirm_signup' ), 'npmp_send_mail( $email, $subject, $body );' ) );
 
+echo "What the email says you signed up for\n";
+$mail = section( $forms, 'function npmp_send_signup_confirmation', 'add_action( \'admin_post_nopriv_npmp_confirm_signup\'' );
+check( 'Add-ons can name what the subscriber chose', 1, substr_count( $mail, "apply_filters( 'npmp_signup_confirmation_details'" ) );
+check( 'The filter gets the same fields the confirm link will replay', 1, substr_count( $mail, '$kept, npmp_signup_atts_from_token( (string) $atts_token )' ) );
+check( 'Detail paragraphs land between the opening line and the link', true, strpos( $mail, "apply_filters( 'npmp_signup_confirmation_details'" ) < strpos( $mail, 'To confirm, open this link' ) );
+check( 'Only non-empty strings are used, so a bad filter cannot blank the body', 1, substr_count( $mail, "if ( is_string( \$detail ) && '' !== trim( \$detail ) ) {" ) );
+check( 'The link and the ignore-it line are always last', true, strpos( $mail, 'To confirm, open this link' ) < strpos( $mail, "If you didn't sign up" ) );
+check( 'Paragraphs are joined, not concatenated', 1, substr_count( $mail, '$body = implode( "\\n\\n", $lines );' ) );
+
+echo "Attributes nothing accepts\n";
+$note = section( $forms, 'function npmp_signup_form_unknown_atts_note', 'function npmp_email_signup_shortcode' );
+check( 'Only an administrator sees the note', 1, substr_count( $note, "if ( ! \$names || ! current_user_can( 'manage_options' ) ) {" ) );
+check( 'Attribute names are escaped and keyed', true, false !== strpos( $note, 'sanitize_key( $name )' ) && false !== strpos( $note, 'esc_html(' ) );
+$shortcode = section( $forms, 'function npmp_email_signup_shortcode', 'add_shortcode( \'npmp_email_signup\'' );
+check( 'The note names what shortcode_atts dropped', 1, substr_count( $shortcode, 'npmp_signup_form_unknown_atts_note( array_keys( array_diff_key( $raw, $defaults ) ) )' ) );
+
 echo "Kept fields\n";
 // Load the one pure helper and run it.
 eval( '?>' . '<?php ' . section( $forms, 'function npmp_signup_fields_to_keep', '/**' ) );
