@@ -352,6 +352,25 @@ function npmp_tnp_start( array $skip, array $settings ) {
  * @return array State after the run.
  */
 function npmp_tnp_run( $seconds = NPMP_TNP_SECONDS, $limit = NPMP_TNP_BATCH ) {
+	// One run at a time. Two tabs, or a reload while a batch was still
+	// running, read the same rows and wrote each new record twice.
+	if ( ! npmp_mail_queue_lock( 'import_newsletter', 120 ) ) {
+		return npmp_tnp_state();
+	}
+	try {
+		return npmp_tnp_run_locked( $seconds, $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_newsletter' );
+	}
+}
+
+/**
+ * The body of npmp_tnp_run(), run while holding its lock.
+ *
+ * @see npmp_tnp_run()
+ * @return array State after the run.
+ */
+function npmp_tnp_run_locked( $seconds = NPMP_TNP_SECONDS, $limit = NPMP_TNP_BATCH ) {
 	$state = npmp_tnp_state();
 	if ( ! $state['running'] || ! class_exists( 'NPMP_Member_Manager' ) ) {
 		return $state;
@@ -454,7 +473,7 @@ function npmp_tnp_count_left_behind() {
 		return 0;
 	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name from $wpdb->prefix, no input.
-	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} s WHERE s.status <> 'T' AND NOT EXISTS ( SELECT 1 FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND LOWER(pm.meta_value) = LOWER(s.email) AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' )" );
+	return npmp_import_count_emails_not_on_contacts( "SELECT s.email FROM {$table} s WHERE s.status <> 'T'" );
 }
 
 // =====================================================================

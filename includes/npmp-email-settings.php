@@ -1742,6 +1742,24 @@ class NPMP_Member_Manager {
 	}
 
 	/**
+	 * A contact's status after they give.
+	 *
+	 * Newsletters go to Active (subscribed) contacts only, and Active is also
+	 * what a current member is, so a gift keeps whatever status a contact
+	 * already has and only fills in Donor when there is none. Until this
+	 * change a gift turned an Active, Pending, Volunteer, or Partner contact
+	 * into a Donor, and a past-gift import took every giving subscriber off
+	 * the newsletter without a word.
+	 *
+	 * @param string $current Status now.
+	 * @return string
+	 */
+	public static function status_after_gift( $current ) {
+		$current = (string) $current;
+		return '' === $current ? 'donor' : $current;
+	}
+
+	/**
 	 * Record a donation against the CRM.
 	 *
 	 * @param array $donation Donation data.
@@ -1782,8 +1800,9 @@ class NPMP_Member_Manager {
 				$update['name'] = $donor_name;
 			}
 
-			if ( ! in_array( $member->status, array( 'unsubscribed', 'inactive' ), true ) ) {
-				$update['status'] = 'donor';
+			$after = self::status_after_gift( $member->status );
+			if ( $after !== $member->status ) {
+				$update['status'] = $after;
 			}
 
 			if ( $gateway && empty( $member->source ) ) {

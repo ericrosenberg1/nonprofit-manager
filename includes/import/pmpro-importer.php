@@ -621,6 +621,25 @@ function npmp_pmpro_start( array $skip ) {
  * @return array State after the run.
  */
 function npmp_pmpro_run( $seconds = NPMP_PMPRO_SECONDS, $limit = NPMP_PMPRO_BATCH ) {
+	// One run at a time. Two tabs, or a reload while a batch was still
+	// running, read the same rows and wrote each new record twice.
+	if ( ! npmp_mail_queue_lock( 'import_pmpro', 120 ) ) {
+		return npmp_pmpro_state();
+	}
+	try {
+		return npmp_pmpro_run_locked( $seconds, $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_pmpro' );
+	}
+}
+
+/**
+ * The body of npmp_pmpro_run(), run while holding its lock.
+ *
+ * @see npmp_pmpro_run()
+ * @return array State after the run.
+ */
+function npmp_pmpro_run_locked( $seconds = NPMP_PMPRO_SECONDS, $limit = NPMP_PMPRO_BATCH ) {
 	$state = npmp_pmpro_state();
 	if ( ! $state['running'] || ! class_exists( 'NPMP_Member_Manager' ) ) {
 		return $state;
@@ -709,7 +728,7 @@ function npmp_pmpro_count_left_behind() {
 		return 0;
 	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb, no input.
-	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users} u WHERE u.ID IN ( SELECT user_id FROM {$table} ) AND NOT EXISTS ( SELECT 1 FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND LOWER(pm.meta_value) = LOWER(u.user_email) AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' )" );
+	return npmp_import_count_emails_not_on_contacts( "SELECT u.user_email FROM {$wpdb->users} u WHERE u.ID IN ( SELECT user_id FROM {$table} )" );
 }
 
 /**

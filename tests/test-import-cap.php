@@ -65,5 +65,16 @@ $screen = (string) file_get_contents( $root . '/includes/import/admin-import.php
 check( 'the import screen falls back to the constant', true, false !== strpos( $screen, 's.cap_max_rows || <?php echo (int) NPMP_IMPORT_FREE_MAX_ROWS; ?>' ) );
 check( 'no typed 50 fallback left', false, strpos( $screen, 's.cap_max_rows || 50' ) );
 
+// Left-behind counts: one lookup in PHP, case and spaces ignored.
+check( 'every old address on a contact leaves none behind', 0, npmp_import_count_missing_emails( array( 'A@x.org', 'b@x.org ' ), array( 'a@X.org', 'B@x.org' ) ) );
+check( 'an address on no contact counts once', 1, npmp_import_count_missing_emails( array( 'a@x.org', 'c@x.org' ), array( 'a@x.org' ) ) );
+check( 'no contacts leaves everyone behind', 2, npmp_import_count_missing_emails( array( 'a@x.org', 'c@x.org' ), array() ) );
+$hub_src = '';
+foreach ( array( 'mailpoet-hub-source.php', 'newsletter-importer.php', 'pmpro-importer.php' ) as $f ) {
+	$hub_src .= file_get_contents( $root . '/includes/import/' . $f );
+}
+check( 'no left-behind count runs a LOWER() = LOWER() subquery', 0, preg_match_all( '/LOWER\(pm\.meta_value\) = LOWER\(/', $hub_src ) );
+check( 'all three left-behind counts use the PHP lookup', 3, substr_count( $hub_src, 'npmp_import_count_emails_not_on_contacts(' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

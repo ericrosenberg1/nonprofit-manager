@@ -59,7 +59,9 @@ check( 'MailPoet unsubscribe wins over donor', 'unsubscribed', npmp_mailpoet_mer
 check( 'MailPoet unsubscribe wins over pending', 'unsubscribed', npmp_mailpoet_merge_status( 'pending', 'unsubscribed' ) );
 check( 'pending here, confirmed in MailPoet', 'subscribed', npmp_mailpoet_merge_status( 'pending', 'subscribed' ) );
 check( 'subscribed here, unconfirmed in MailPoet: no downgrade', '', npmp_mailpoet_merge_status( 'subscribed', 'pending' ) );
-check( 'donor here stays donor', '', npmp_mailpoet_merge_status( 'donor', 'subscribed' ) );
+check( 'donor here, confirmed in MailPoet: subscribed, so newsletters reach them', 'subscribed', npmp_mailpoet_merge_status( 'donor', 'subscribed' ) );
+check( 'donor here, unconfirmed in MailPoet: stays donor', '', npmp_mailpoet_merge_status( 'donor', 'pending' ) );
+check( 'volunteer here stays volunteer', '', npmp_mailpoet_merge_status( 'volunteer', 'subscribed' ) );
 check( 'inactive here stays inactive', '', npmp_mailpoet_merge_status( 'inactive', 'subscribed' ) );
 check( 'subscribed here, inactive in MailPoet: no change', '', npmp_mailpoet_merge_status( 'subscribed', 'inactive' ) );
 check( 'no status row reads as subscribed', 'unsubscribed', npmp_mailpoet_merge_status( '', 'unsubscribed' ) );
@@ -194,6 +196,12 @@ check( 'lists reach groups through the import row hook', 1, preg_match_all( "/do
 check( 'nothing is deleted from MailPoet', 0, preg_match( '/DELETE FROM|DROP TABLE|UPDATE \{\$(table|segments|links|subscribers)\}|delete_plugins/i', $src ) );
 check( 'post content is never rewritten', 0, preg_match( '/wp_update_post|wp_insert_post/', $src ) );
 check( 'the free import cap applies', 1, substr_count( $src, '(int) $stage[\'handled\'] >= $max' ) );
+
+echo "Free limit words\n";
+$mp_src = file_get_contents( dirname( __DIR__ ) . '/includes/import/mailpoet-importer.php' );
+check( 'after the move, the limit reads as a total, not one import', false, strpos( $mp_src, 'subscribers in one import, so the rest are still in MailPoet' ) );
+check( 'approve names how many stay in MailPoet', true, false !== strpos( $mp_src, 'so %3$s of the %4$s new contacts here stay in MailPoet' ) );
+check( 'free step 5 points at Pro, not at moving the rest', true, false !== strpos( $mp_src, 'past the free limit. Add Pro and run the import again' ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

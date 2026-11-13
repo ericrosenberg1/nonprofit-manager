@@ -59,6 +59,11 @@
 					} else {
 						show( d.read, d.total );
 					}
+					// Another tab holds the run. Wait, then ask again.
+					if ( d.busy ) {
+						window.setTimeout( step, 2000 );
+						return;
+					}
 					if ( d.done ) {
 						window.location.href = root.getAttribute( 'data-next' );
 						return;

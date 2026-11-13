@@ -299,6 +299,25 @@ function npmp_event_import_settings( array $source ) {
  * @return array State after the run.
  */
 function npmp_event_import_run( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25 ) {
+	// One run at a time. Two tabs, or a reload while a batch was still
+	// running, read the same rows and wrote each new record twice.
+	if ( ! npmp_mail_queue_lock( 'import_event_' . $slug, 120 ) ) {
+		return npmp_event_import_state( $slug );
+	}
+	try {
+		return npmp_event_import_run_locked( $slug, $seconds, $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_event_' . $slug );
+	}
+}
+
+/**
+ * The body of npmp_event_import_run(), run while holding its lock.
+ *
+ * @see npmp_event_import_run()
+ * @return array State after the run.
+ */
+function npmp_event_import_run_locked( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25 ) {
 	$sources = npmp_event_import_sources();
 	if ( ! isset( $sources[ $slug ] ) ) {
 		return npmp_event_import_state( $slug );
@@ -456,7 +475,10 @@ function npmp_event_hub_source( $slug, $name, array $folders, $installed, array 
 		'is_imported'       => function () use ( $slug ) {
 			return npmp_event_import_state( $slug )['finished_at'] > 0;
 		},
-		'can_import'        => true,
+		'can_import'        => function () use ( $slug, $name ) {
+			$sources = npmp_event_import_sources();
+			return npmp_import_hub_can_import_when( isset( $sources[ $slug ] ) && (bool) call_user_func( $sources[ $slug ]['has_data'] ), $name );
+		},
 		'import_url'        => function () use ( $slug ) {
 			return npmp_event_import_url( $slug );
 		},

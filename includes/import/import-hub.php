@@ -227,6 +227,28 @@ function npmp_import_hub_step_states( array $facts ) {
 }
 
 /**
+ * Step 1's answer for a source that reads the old plugin's own tables.
+ *
+ * A plugin someone installed and never turned on has no tables yet, so
+ * there's nothing to read and step 1 says why instead of offering an empty
+ * import.
+ *
+ * @param bool   $has_data Anything of the old plugin's in the database.
+ * @param string $name     Old plugin name.
+ * @return true|string True, or why not.
+ */
+function npmp_import_hub_can_import_when( $has_data, $name ) {
+	if ( $has_data ) {
+		return true;
+	}
+	return sprintf(
+		/* translators: %s: old plugin name. */
+		__( 'You have nothing from %s to import yet. If you use it, turn it on once so it sets up its tables, and come back to this screen.', 'nonprofit-manager' ),
+		$name
+	);
+}
+
+/**
  * Can this step run now?
  *
  * @param string $step   Step ID.
@@ -901,6 +923,7 @@ function npmp_import_hub_render_page() {
 	) . '</p>';
 
 	npmp_import_hub_render_message();
+	npmp_import_hub_render_free_total();
 
 	if ( ! $groups['here'] ) {
 		echo '<p class="npmp-hub-empty">' . esc_html__( 'None of the plugins we can import from are on this site.', 'nonprofit-manager' ) . '</p>';
@@ -931,6 +954,57 @@ function npmp_import_hub_render_page() {
 		echo '</ul><p class="description">' . esc_html__( 'You see each one above once you install its plugin on this site.', 'nonprofit-manager' ) . '</p></details>';
 	}
 	echo '</div>';
+}
+
+/**
+ * The words for the free import total on this screen, or '' with Pro.
+ *
+ * Every source that brings people over shares one total, so the owner reads
+ * it here before the first import, not on the third importer's last screen.
+ *
+ * @param bool $capped Whether the free limit is on.
+ * @param int  $total  The free total, 100.
+ * @param int  $left   Places left.
+ * @return string
+ */
+function npmp_import_hub_free_total_text( $capped, $total, $left ) {
+	if ( ! $capped ) {
+		return '';
+	}
+	if ( $left < 1 ) {
+		return sprintf(
+			/* translators: %s: the free import total, such as 100. */
+			__( 'You used all %s free contact places. You can still import events and update contacts you have, but new people stay in the old plugin until you add Pro.', 'nonprofit-manager' ),
+			number_format_i18n( $total )
+		);
+	}
+	return sprintf(
+		/* translators: 1: the free import total, such as 100, 2: places left. */
+		__( 'In the free version you can bring over %1$s new contacts in total, from every plugin on this screen and every file you import, and you have %2$s places left. Contacts you already have and events don\'t use a place. Anyone past the limit stays in the old plugin.', 'nonprofit-manager' ),
+		number_format_i18n( $total ),
+		number_format_i18n( $left )
+	);
+}
+
+/**
+ * The free import total, above the plugins.
+ *
+ * @return void
+ */
+function npmp_import_hub_render_free_total() {
+	if ( ! function_exists( 'npmp_import_is_capped' ) ) {
+		return;
+	}
+	$capped = npmp_import_is_capped();
+	$text   = npmp_import_hub_free_total_text( $capped, NPMP_IMPORT_FREE_MAX_ROWS, $capped ? npmp_import_free_remaining() : 0 );
+	if ( '' === $text ) {
+		return;
+	}
+	echo '<div class="notice notice-info inline"><p>' . esc_html( $text );
+	if ( function_exists( 'npmp_get_upgrade_url' ) ) {
+		echo ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_hub' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a>';
+	}
+	echo '</p></div>';
 }
 
 /**
@@ -1179,7 +1253,7 @@ function npmp_import_hub_render_step_verify( array $source, array $facts, $state
  */
 function npmp_import_hub_render_step_deactivate( array $source, array $facts, $state, $open ) {
 	if ( 'done' === $state ) {
-		echo '<p>' . esc_html__( 'Off. You can turn the plugin back on from the Plugins screen.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html( empty( $facts['installed'] ) ? __( 'Off.', 'nonprofit-manager' ) : __( 'Off. You can turn the plugin back on from the Plugins screen.', 'nonprofit-manager' ) ) . '</p>';
 		return;
 	}
 	if ( 'locked' === $state ) {
@@ -1198,6 +1272,12 @@ function npmp_import_hub_render_step_deactivate( array $source, array $facts, $s
 		echo '<p><strong>' . esc_html( $note ) . '</strong></p>';
 	} else {
 		echo '<p>' . esc_html( _n( 'You turn off this plugin and delete nothing, so you can switch the plugin back on later.', 'You turn off these plugins together and delete nothing, so you can switch them back on later.', count( $plugins ), 'nonprofit-manager' ) ) . '</p>';
+	}
+	// The setting behind step 4's warning lives on the old plugin's own
+	// screens, which close once it's off, so the owner reads it here first.
+	$delete_note = npmp_import_hub_call( $source['delete_note'], '' );
+	if ( is_string( $delete_note ) && '' !== $delete_note ) {
+		echo '<p><strong>' . esc_html( $delete_note ) . '</strong> ' . esc_html__( 'Change that setting before you turn the plugin off, while you can still reach its screens.', 'nonprofit-manager' ) . '</p>';
 	}
 	npmp_import_hub_render_plugin_list( $plugins );
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-hub-form">';
@@ -1242,7 +1322,13 @@ function npmp_import_hub_render_step_remove_plugin( array $source, array $facts,
 	if ( is_string( $note ) && '' !== $note ) {
 		// The old plugin's own uninstall deletes its data along with its files.
 		echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server.', 'nonprofit-manager' ) . '</p>';
-		echo '<p><strong>' . esc_html( $note ) . '</strong></p>';
+		echo '<p><strong>' . esc_html( $note ) . '</strong> ' . esc_html(
+			sprintf(
+				/* translators: %1$s: old plugin name. */
+				__( 'To change that setting, turn %1$s back on from the Plugins screen, change the setting, and turn %1$s off again.', 'nonprofit-manager' ),
+				$source['name']
+			)
+		) . '</p>';
 	} else {
 		echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server. Its data stays in your database until the last step.', 'nonprofit-manager' ) . '</p>';
 	}

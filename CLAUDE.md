@@ -154,6 +154,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `mailpoet_page`/`mailpoet_email` posts, and leaves Action Scheduler's rows. Verify counts MailPoet subscribers
   with no matching contact, since the free limit (`npmp_import_max_rows()`) leaves people only in MailPoet.
   Rig `tests/rig/mailpoet-hub.php` runs on real MailPoet (5.45.2 activates and takes API calls on SQLite).
+  Every import runner takes `npmp_mail_queue_lock( 'import_<source>' )` first and hands back its state while another
+  run holds it (a reload during a 47,501-row MailPoet run made 82 contacts twice). Left-behind counts go through
+  `npmp_import_count_emails_not_on_contacts()`, never a `LOWER() = LOWER()` subquery, which timed the hub out at 50,000 rows.
+  A gift keeps the contact's status (`NPMP_Member_Manager::status_after_gift()`), only a contact with none becomes Donor.
   When a source's data comes back after step 5 finished, the hub forgets the old check and removal
   (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
 - **Past gifts from GiveWP and Charitable** (`includes/import/past-gifts.php`, `gift-importer.php`,
@@ -250,7 +254,15 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed cancelled and postponed events from The Events Calendar, which you got as published events instead of drafts.
+- Fixed past gifts from GiveWP and Charitable changing Active and Pending contacts to Donor, which took them off your newsletter.
+- Fixed MailPoet imports leaving a Donor who subscribed in MailPoet off your newsletter.
+- Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
+- Fixed Switch Plugins timing out on sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
+- Fixed "Start the import" on a plugin you never turned on, which led to an empty import.
+- Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
+- Added the GiveWP and PMPro delete-data warning to the turn-off step, while you can still change the setting.
+- Fixed the MailPoet limit wording, which called the site total a limit per import.
 
 Pro (licence server changelog):
 - (none)
