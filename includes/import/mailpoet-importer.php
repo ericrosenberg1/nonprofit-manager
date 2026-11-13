@@ -152,6 +152,37 @@ function npmp_mailpoet_merge_name( $existing_name, $existing_email, $incoming_na
 }
 
 /**
+ * The Tags value to save on a contact, or '' to leave it as it is.
+ *
+ * Adds the incoming tags after the ones the contact has, so a tag you added
+ * here stays. A tag that differs only in letter case counts as the same tag.
+ * Commas and semicolons separate tags in the Tags field, so they become
+ * spaces inside a tag name.
+ *
+ * @param string   $existing Tags on the contact, comma-separated.
+ * @param string[] $incoming Tag names from the old plugin.
+ * @return string
+ */
+function npmp_mailpoet_merge_tags( $existing, array $incoming ) {
+	$have = array();
+	foreach ( preg_split( '/[,;]/', (string) $existing ) as $tag ) {
+		$tag = trim( $tag );
+		if ( '' !== $tag ) {
+			$have[ strtolower( $tag ) ] = $tag;
+		}
+	}
+	$added = false;
+	foreach ( $incoming as $tag ) {
+		$tag = trim( (string) preg_replace( '/\s+/u', ' ', str_replace( array( ',', ';' ), ' ', is_scalar( $tag ) ? (string) $tag : '' ) ) );
+		if ( '' !== $tag && ! isset( $have[ strtolower( $tag ) ] ) ) {
+			$have[ strtolower( $tag ) ] = $tag;
+			$added                      = true;
+		}
+	}
+	return $added ? implode( ',', $have ) : '';
+}
+
+/**
  * Pick the day a MailPoet subscriber first joined.
  *
  * The earlier of created_at and confirmed_at, as Unix time. A form signup has
@@ -538,6 +569,7 @@ function npmp_mailpoet_get_stage() {
 				'invalid'       => 0,
 			),
 			'lists'            => array(),
+			'tags'             => array(),
 			'settings'         => array(),
 			'sample'           => array(),
 			'skip_statuses'    => array(),
@@ -548,6 +580,7 @@ function npmp_mailpoet_get_stage() {
 			'settings_done'    => false,
 			'settings_applied' => array(),
 			'migrate_cursor'   => 0,
+			'pass'             => '',
 			'position'         => 0,
 			'handled'          => 0,
 			'migrated'         => false,
@@ -626,7 +659,7 @@ function npmp_mailpoet_read_lists() {
 		$links       = npmp_mailpoet_table( 'subscriber_segment' );
 		$subscribers = npmp_mailpoet_table( 'subscribers' );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb->prefix.
-		$counts = $wpdb->get_results( $wpdb->prepare( "SELECT ss.segment_id AS id, COUNT(*) AS n FROM {$links} ss INNER JOIN {$subscribers} s ON s.id = ss.subscriber_id WHERE ss.status = %s AND s.deleted_at IS NULL GROUP BY ss.segment_id", 'subscribed' ) );
+		$counts = $wpdb->get_results( $wpdb->prepare( "SELECT ss.segment_id AS id, COUNT(*) AS n FROM {$links} ss INNER JOIN {$subscribers} s ON s.id = ss.subscriber_id WHERE ss.status = %s AND s.deleted_at IS NULL AND s.status NOT IN ( %s, %s ) GROUP BY ss.segment_id", 'subscribed', 'unsubscribed', 'bounced' ) );
 		foreach ( (array) $counts as $row ) {
 			if ( isset( $lists[ (int) $row->id ] ) ) {
 				$lists[ (int) $row->id ]['count'] = (int) $row->n;
@@ -699,43 +732,95 @@ function npmp_mailpoet_current_plan() {
  * @return array<string,array{id:int,status:string}> Keyed by lowercase email.
  */
 function npmp_mailpoet_find_contacts( array $emails ) {
-	global $wpdb;
-	$emails = array_values( array_unique( array_filter( array_map( 'sanitize_email', array_map( 'strval', $emails ) ) ) ) );
-	if ( ! $emails ) {
-		return array();
-	}
-	$in = implode( ',', array_fill( 0, count( $emails ), '%s' ) );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $in is a placeholder list.
-	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT e.post_id AS id, e.meta_value AS email, s.meta_value AS status FROM {$wpdb->postmeta} e INNER JOIN {$wpdb->posts} p ON p.ID = e.post_id LEFT JOIN {$wpdb->postmeta} s ON s.post_id = e.post_id AND s.meta_key = 'npmp_status' WHERE e.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' AND e.meta_value IN ($in) ORDER BY e.post_id DESC", $emails ) );
-
-	$found = array();
-	foreach ( (array) $rows as $row ) {
-		// Ordered newest first, so the oldest contact for an address wins.
-		$found[ strtolower( (string) $row->email ) ] = array(
-			'id'     => (int) $row->id,
-			'status' => '' === (string) $row->status ? 'subscribed' : (string) $row->status,
-		);
-	}
-	return $found;
+	// The member manager remembers the answers for the request, so the
+	// add_member() that follows for a new address runs no lookup of its own.
+	// Without that, each new contact scanned every npmp_email row again, and
+	// 47,501 MailPoet subscribers took 12 minutes.
+	return NPMP_Member_Manager::get_instance()->lookup_emails( $emails );
 }
 
 /**
  * Read one batch of MailPoet subscribers, oldest ID first.
  *
- * @param int $after Last subscriber ID already read.
- * @param int $limit Rows to read.
+ * @param int    $after Last subscriber ID already read.
+ * @param int    $limit Rows to read.
+ * @param string $pass  '' for everyone, or a pass from npmp_import_fill_passes():
+ *                      subscribed, pending (MailPoet's unconfirmed), or rest.
  * @return object[] Rows with id, email, first_name, last_name, status, created, confirmed.
  */
-function npmp_mailpoet_read_subscribers( $after, $limit ) {
+function npmp_mailpoet_read_subscribers( $after, $limit, $pass = '' ) {
 	global $wpdb;
 	if ( ! npmp_mailpoet_has_table() ) {
 		return array();
 	}
 	$table = npmp_mailpoet_table( 'subscribers' );
+	$where = '';
+	if ( 'subscribed' === $pass ) {
+		$where = " AND status = 'subscribed'";
+	} elseif ( 'pending' === $pass ) {
+		$where = " AND status = 'unconfirmed'";
+	} elseif ( 'rest' === $pass ) {
+		$where = " AND ( status IS NULL OR status NOT IN ( 'subscribed', 'unconfirmed' ) )";
+	}
 	// UNIX_TIMESTAMP() of a TIMESTAMP column is the same instant whatever time
 	// zone the session uses. The CASE keeps an empty date at 0.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name from $wpdb->prefix.
-	return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, email, first_name, last_name, status, CASE WHEN created_at IS NULL THEN 0 ELSE UNIX_TIMESTAMP(created_at) END AS created, CASE WHEN confirmed_at IS NULL THEN 0 ELSE UNIX_TIMESTAMP(confirmed_at) END AS confirmed FROM {$table} WHERE id > %d AND deleted_at IS NULL ORDER BY id ASC LIMIT %d", (int) $after, max( 1, (int) $limit ) ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name from $wpdb->prefix, $where is fixed text.
+	return (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, email, first_name, last_name, status, CASE WHEN created_at IS NULL THEN 0 ELSE UNIX_TIMESTAMP(created_at) END AS created, CASE WHEN confirmed_at IS NULL THEN 0 ELSE UNIX_TIMESTAMP(confirmed_at) END AS confirmed FROM {$table} WHERE id > %d AND deleted_at IS NULL{$where} ORDER BY id ASC LIMIT %d", (int) $after, max( 1, (int) $limit ) ) );
+}
+
+/**
+ * Each subscriber's MailPoet tags, for one batch. MailPoet keeps tags in
+ * {prefix}mailpoet_tags (id, name) and links them in
+ * {prefix}mailpoet_subscriber_tag (subscriber_id, tag_id), both since
+ * MailPoet 4.9 (lib/Migrations/Db/Migration_20221028_105818.php in 5.45.2).
+ *
+ * @param int[] $subscriber_ids MailPoet subscriber IDs.
+ * @return array<int,string[]> Subscriber ID => tag names.
+ */
+function npmp_mailpoet_read_tags( array $subscriber_ids ) {
+	global $wpdb;
+	$subscriber_ids = npmp_mailpoet_clean_ids( $subscriber_ids );
+	if ( ! $subscriber_ids || ! npmp_mailpoet_has_table( 'tags' ) || ! npmp_mailpoet_has_table( 'subscriber_tag' ) ) {
+		return array();
+	}
+	$tags  = npmp_mailpoet_table( 'tags' );
+	$links = npmp_mailpoet_table( 'subscriber_tag' );
+	$in    = implode( ',', array_fill( 0, count( $subscriber_ids ), '%d' ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Table names from $wpdb->prefix, $in is a placeholder list.
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT st.subscriber_id, t.name FROM {$links} st INNER JOIN {$tags} t ON t.id = st.tag_id WHERE st.subscriber_id IN ($in) ORDER BY st.subscriber_id ASC, t.name ASC", $subscriber_ids ) );
+	$out  = array();
+	foreach ( (array) $rows as $row ) {
+		$name = trim( (string) $row->name );
+		if ( '' !== $name ) {
+			$out[ (int) $row->subscriber_id ][] = $name;
+		}
+	}
+	return $out;
+}
+
+/**
+ * MailPoet's tags with how many subscribers (outside the trash) carry each.
+ *
+ * @return array<string,int> Tag name => subscribers.
+ */
+function npmp_mailpoet_read_tag_counts() {
+	global $wpdb;
+	if ( ! npmp_mailpoet_has_table( 'tags' ) || ! npmp_mailpoet_has_table( 'subscriber_tag' ) ) {
+		return array();
+	}
+	$tags        = npmp_mailpoet_table( 'tags' );
+	$links       = npmp_mailpoet_table( 'subscriber_tag' );
+	$subscribers = npmp_mailpoet_table( 'subscribers' );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb->prefix.
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT t.name, COUNT(*) AS n FROM {$links} st INNER JOIN {$tags} t ON t.id = st.tag_id INNER JOIN {$subscribers} s ON s.id = st.subscriber_id WHERE s.deleted_at IS NULL GROUP BY t.id, t.name ORDER BY t.name ASC LIMIT %d", 500 ) );
+	$out  = array();
+	foreach ( (array) $rows as $row ) {
+		$name = trim( (string) $row->name );
+		if ( '' !== $name ) {
+			$out[ $name ] = (int) $row->n;
+		}
+	}
+	return $out;
 }
 
 /**
@@ -762,6 +847,7 @@ function npmp_mailpoet_stage_batch( $restart = false, $limit = NPMP_MAILPOET_BAT
 	if ( ! $stage['read'] ) {
 		$stage['total']    = npmp_mailpoet_count_subscribers();
 		$stage['lists']    = npmp_mailpoet_read_lists();
+		$stage['tags']     = npmp_mailpoet_read_tag_counts();
 		$stage['settings'] = npmp_mailpoet_read_mailpoet_settings();
 	}
 
@@ -857,8 +943,45 @@ function npmp_mailpoet_selected_lists( array $stage ) {
 	if ( ! npmp_mailpoet_groups_supported() ) {
 		return array();
 	}
-	$lists = array_diff_key( (array) $stage['lists'], array_flip( (array) $stage['skip_lists'] ) );
-	return array_filter( wp_list_pluck( $lists, 'name' ), 'strlen' );
+	return npmp_mailpoet_split_lists( (array) $stage['lists'], (array) $stage['skip_lists'] )['keep'];
+}
+
+/**
+ * Split the checked lists into the ones that become groups and the ones with
+ * no subscribed member, which stay in MailPoet so Pro never makes an empty
+ * group.
+ *
+ * @param array<int,array{name:string,count:int}> $lists Lists from npmp_mailpoet_read_lists().
+ * @param int[]                                   $skip  List IDs you unchecked.
+ * @return array{keep:array<int,string>,empty:array<int,string>} Segment ID => list name.
+ */
+function npmp_mailpoet_split_lists( array $lists, array $skip ) {
+	$out  = array(
+		'keep'  => array(),
+		'empty' => array(),
+	);
+	$skip = array_flip( array_map( 'intval', $skip ) );
+	foreach ( $lists as $id => $list ) {
+		$name = trim( (string) ( $list['name'] ?? '' ) );
+		if ( '' === $name || isset( $skip[ (int) $id ] ) ) {
+			continue;
+		}
+		$out[ (int) ( $list['count'] ?? 0 ) > 0 ? 'keep' : 'empty' ][ (int) $id ] = $name;
+	}
+	return $out;
+}
+
+/**
+ * Checked lists with no subscribed member, which stay behind. Empty without Pro.
+ *
+ * @param array $stage Stage.
+ * @return array<int,string> Segment ID => list name.
+ */
+function npmp_mailpoet_empty_lists( array $stage ) {
+	if ( ! npmp_mailpoet_groups_supported() ) {
+		return array();
+	}
+	return npmp_mailpoet_split_lists( (array) $stage['lists'], (array) $stage['skip_lists'] )['empty'];
 }
 
 /**
@@ -873,6 +996,7 @@ function npmp_mailpoet_approve( array $settings = array() ) {
 	$stage['settings_done']    = false;
 	$stage['settings_applied'] = array();
 	$stage['migrate_cursor']   = 0;
+	$stage['pass']             = '';
 	$stage['position']         = 0;
 	$stage['handled']          = 0;
 	$stage['approved']         = true;
@@ -1017,6 +1141,9 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 	$incoming = npmp_mailpoet_map_status( $row->status );
 	$added    = npmp_mailpoet_pick_added( $row->created, $row->confirmed );
 	$member   = $existing ? $members->get_member_by_id( (int) $existing['id'] ) : null;
+	// MailPoet's own tags only. Other callers of this writer (FluentCRM) set
+	// $row->tags and merge them themselves, so they count what changed.
+	$tags     = isset( $row->mailpoet_tags ) && is_array( $row->mailpoet_tags ) ? $row->mailpoet_tags : array();
 
 	if ( ! $member ) {
 		$data = array(
@@ -1027,6 +1154,10 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 		);
 		if ( '' !== $added ) {
 			$data['created_at'] = $added;
+		}
+		$new_tags = npmp_mailpoet_merge_tags( '', $tags );
+		if ( '' !== $new_tags ) {
+			$data['tags'] = $new_tags;
 		}
 		$new_id = $members->add_member( $data );
 		if ( is_wp_error( $new_id ) && 'npmp_member_exists' === $new_id->get_error_code() ) {
@@ -1051,6 +1182,10 @@ function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists =
 		}
 		if ( '' !== $new_name ) {
 			$update['name'] = $new_name;
+		}
+		$new_tags = npmp_mailpoet_merge_tags( (string) $member->tags, $tags );
+		if ( '' !== $new_tags ) {
+			$update['tags'] = $new_tags;
 		}
 		// update_member() only ever moves the Added date earlier.
 		$parsed = '' !== $added && function_exists( 'npmp_import_parse_added_date' ) ? npmp_import_parse_added_date( $added ) : null;
@@ -1138,10 +1273,15 @@ function npmp_mailpoet_migrate_batch( $limit = NPMP_MAILPOET_BATCH ) {
 			'busy'     => true,
 		);
 	}
+	// Pro puts contacts in groups, and WordPress recounts a group after
+	// every contact it gains: a COUNT that grows with the group. Count each
+	// group once at the end of the batch instead.
+	wp_defer_term_counting( true );
 	try {
 		return npmp_mailpoet_migrate_batch_locked( $limit );
 	} finally {
 		npmp_mail_queue_unlock( 'import_mailpoet' );
+		wp_defer_term_counting( false );
 	}
 }
 
@@ -1174,13 +1314,18 @@ function npmp_mailpoet_migrate_batch_locked( $limit = NPMP_MAILPOET_BATCH ) {
 	$skip   = array_flip( (array) $stage['skip_statuses'] );
 	$lists  = npmp_mailpoet_selected_lists( $stage );
 	$before = (int) $stage['results']['created'];
-	$rows   = npmp_mailpoet_read_subscribers( (int) $stage['migrate_cursor'], $limit );
+	// Subscribed people first, then unconfirmed, then the rest, so the free
+	// places go to people you can write to (npmp_import_fill_passes()).
+	$pass = in_array( (string) $stage['pass'], npmp_import_fill_passes(), true ) ? (string) $stage['pass'] : npmp_import_fill_next_pass( '' );
+	$rows = npmp_mailpoet_read_subscribers( (int) $stage['migrate_cursor'], $limit, $pass );
 
 	if ( $rows ) {
 		$existing    = npmp_mailpoet_find_contacts( wp_list_pluck( $rows, 'email' ) );
 		$memberships = npmp_mailpoet_read_memberships( wp_list_pluck( $rows, 'id' ), $lists );
+		$tags        = npmp_mailpoet_read_tags( wp_list_pluck( $rows, 'id' ) );
 
 		foreach ( $rows as $row ) {
+			$row->mailpoet_tags = $tags[ (int) $row->id ] ?? array();
 			if ( isset( $skip[ npmp_mailpoet_status_key( $row->status ) ] ) ) {
 				++$stage['results']['left'];
 			} elseif ( (int) $stage['handled'] >= $max ) {
@@ -1224,8 +1369,14 @@ function npmp_mailpoet_migrate_batch_locked( $limit = NPMP_MAILPOET_BATCH ) {
 
 	// A run that stopped at the per-run row limit ends here. One that only
 	// skipped new people at the site total read every row.
-	if ( count( $rows ) < $limit || ( $stage['results']['cap_reached'] && ! $stage['results']['over_limit'] ) ) {
+	if ( $stage['results']['cap_reached'] && ! $stage['results']['over_limit'] ) {
 		$stage['migrated'] = true;
+	} elseif ( count( $rows ) < $limit ) {
+		$stage['pass']           = npmp_import_fill_next_pass( $pass );
+		$stage['migrate_cursor'] = 0;
+		$stage['migrated']       = '' === $stage['pass'];
+	} else {
+		$stage['pass'] = $pass;
 	}
 	npmp_mailpoet_save_stage( $stage );
 
@@ -1751,8 +1902,8 @@ function npmp_mailpoet_render_page() {
 	echo '<div class="wrap npmp-tec-wrap npmp-mailpoet-wrap">';
 	echo '<h1>' . esc_html__( 'Import from MailPoet', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	if ( function_exists( 'npmp_import_hub_url' ) ) {
-		echo '<p><a href="' . esc_url( npmp_import_hub_url( 'mailpoet' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	if ( function_exists( 'npmp_import_hub_back_link' ) ) {
+		npmp_import_hub_back_link( 'mailpoet' );
 	}
 	/* translators: 1: step number, 2: total steps, 3: step name. */
 	echo '<p class="npmp-tec-progress-line">' . esc_html( sprintf( __( 'Step %1$d of %2$d: %3$s', 'nonprofit-manager' ), $step, 5, $labels[ $step ] ) ) . '</p>';
@@ -1803,7 +1954,7 @@ function npmp_mailpoet_render_page() {
  */
 function npmp_mailpoet_render_runner( $ajax_action, $post_action, $button, $next_url, $autostart = false, $restart = false ) {
 	printf(
-		'<div class="npmp-tec-runner" data-ajax-url="%1$s" data-action="%2$s" data-nonce="%3$s" data-nonce-name="npmp_mailpoet_nonce" data-next="%4$s" data-autostart="%5$s" data-restart="%6$s" data-label-progress="%7$s" data-label-error="%8$s">',
+		'<div class="npmp-tec-runner" data-ajax-url="%1$s" data-action="%2$s" data-nonce="%3$s" data-nonce-name="npmp_mailpoet_nonce" data-next="%4$s" data-autostart="%5$s" data-restart="%6$s" data-label-progress="%7$s" data-label-error="%8$s" data-thousands="%9$s">',
 		esc_url( admin_url( 'admin-ajax.php' ) ),
 		esc_attr( $ajax_action ),
 		esc_attr( wp_create_nonce( 'npmp_mailpoet_import' ) ),
@@ -1812,7 +1963,8 @@ function npmp_mailpoet_render_runner( $ajax_action, $post_action, $button, $next
 		$restart ? '1' : '0',
 		/* translators: 1: subscribers done so far, 2: total subscribers. Keep the placeholders. */
 		esc_attr__( '%1$s of %2$s subscribers', 'nonprofit-manager' ),
-		esc_attr__( 'Something went wrong. Reload the page to pick up where it stopped.', 'nonprofit-manager' )
+		esc_attr__( 'Something went wrong. Reload the page to pick up where it stopped.', 'nonprofit-manager' ),
+		esc_attr( npmp_import_thousands_separator() )
 	);
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-tec-runner-form">';
 	npmp_mailpoet_form_fields( $post_action );
@@ -1845,7 +1997,7 @@ function npmp_mailpoet_render_import( array $stage ) {
 			number_format_i18n( $total )
 		)
 	) . '</p>';
-	echo '<p>' . esc_html__( 'You bring over each subscriber\'s email, name, status, and signup date, plus your lists and your sender settings. You can bring your sent newsletters too. You leave drafts, automations, stats, and WooCommerce segments in MailPoet.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html__( 'You bring over each subscriber\'s email, name, status, signup date, and tags, plus your lists and your sender settings. You can bring your sent newsletters too. You leave drafts, automations, stats, and WooCommerce segments in MailPoet.', 'nonprofit-manager' ) . '</p>';
 	echo '<p>' . esc_html__( 'First you count your subscribers and lists. Nothing moves yet, and MailPoet keeps all of its data. You pick what moves on the next screen.', 'nonprofit-manager' ) . '</p>';
 	if ( ! npmp_mailpoet_is_active() ) {
 		echo '<p class="description">' . esc_html__( 'MailPoet is off, so you read its data straight from your database.', 'nonprofit-manager' ) . '</p>';
@@ -1964,12 +2116,17 @@ function npmp_mailpoet_render_review( array $stage ) {
 		echo '<th scope="col">' . esc_html__( 'List', 'nonprofit-manager' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'Subscribed', 'nonprofit-manager' ) . '</th>';
 		echo '</tr></thead><tbody>';
+		$empty_lists = 0;
 		foreach ( $stage['lists'] as $id => $list ) {
+			$has_members = (int) $list['count'] > 0;
+			if ( ! $has_members ) {
+				++$empty_lists;
+			}
 			printf(
 				'<tr><th scope="row" class="check-column"><input type="checkbox" name="npmp_mailpoet_lists[]" value="%1$d" %2$s %3$s aria-label="%4$s"></th><td><strong>%5$s</strong></td><td>%6$s</td></tr>',
 				(int) $id,
-				checked( $groups && ! isset( $skip_lists[ (int) $id ] ), true, false ),
-				disabled( $groups, false, false ),
+				checked( $groups && $has_members && ! isset( $skip_lists[ (int) $id ] ), true, false ),
+				disabled( $groups && $has_members, false, false ),
 				/* translators: %s: list name. */
 				esc_attr( sprintf( __( 'Turn %s into a group', 'nonprofit-manager' ), $list['name'] ) ),
 				esc_html( $list['name'] ),
@@ -1977,7 +2134,28 @@ function npmp_mailpoet_render_review( array $stage ) {
 			);
 		}
 		echo '</tbody></table></div>';
+		if ( $groups && $empty_lists ) {
+			echo '<p>' . esc_html(
+				sprintf(
+					/* translators: %s: number of lists. */
+					_n( '%s list has no subscribed members, so it stays in MailPoet and you get no empty group.', '%s lists have no subscribed members, so they stay in MailPoet and you get no empty groups.', $empty_lists, 'nonprofit-manager' ),
+					number_format_i18n( $empty_lists )
+				)
+			) . '</p>';
+		}
 		echo '<p class="description">' . esc_html__( 'You leave the WordPress Users list, WooCommerce lists, and segments in MailPoet.', 'nonprofit-manager' ) . '</p>';
+	}
+
+	if ( $stage['tags'] ) {
+		echo '<h2>' . esc_html__( 'Tags', 'nonprofit-manager' ) . '</h2>';
+		echo '<p>' . esc_html(
+			sprintf(
+				/* translators: 1: number of tags, 2: comma-separated tag names. */
+				_n( 'You bring %1$s MailPoet tag into each contact\'s Tags field: %2$s. A contact you already have keeps their own tags and gets these added.', 'You bring %1$s MailPoet tags into each contact\'s Tags field: %2$s. A contact you already have keeps their own tags and gets these added.', count( $stage['tags'] ), 'nonprofit-manager' ),
+				number_format_i18n( count( $stage['tags'] ) ),
+				implode( ', ', array_keys( $stage['tags'] ) )
+			)
+		) . '</p>';
 	}
 
 	if ( $stage['sample'] ) {
@@ -2054,6 +2232,25 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	} elseif ( $stage['lists'] && ! npmp_mailpoet_groups_supported() ) {
 		echo '<li>' . esc_html__( 'Your lists stay in MailPoet, since groups come with Pro.', 'nonprofit-manager' ) . '</li>';
 	}
+	$empty = npmp_mailpoet_empty_lists( $stage );
+	if ( $empty ) {
+		echo '<li>' . esc_html(
+			sprintf(
+				/* translators: %s: number of lists. */
+				_n( 'You skip %s list with no subscribed members.', 'You skip %s lists with no subscribed members.', count( $empty ), 'nonprofit-manager' ),
+				number_format_i18n( count( $empty ) )
+			)
+		) . '</li>';
+	}
+	if ( $stage['tags'] ) {
+		echo '<li>' . esc_html(
+			sprintf(
+				/* translators: %s: number of tags. */
+				_n( 'You bring %s tag into the Tags field.', 'You bring %s tags into the Tags field.', count( $stage['tags'] ), 'nonprofit-manager' ),
+				number_format_i18n( count( $stage['tags'] ) )
+			)
+		) . '</li>';
+	}
 	echo '<li>' . esc_html__( 'MailPoet keeps its own copy, so you can switch it back on if something looks wrong.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
@@ -2081,6 +2278,9 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	}
 	if ( '' !== $note ) {
 		echo '<div class="notice notice-warning inline"><p>' . esc_html( $note ) . ' <a href="' . esc_url( npmp_get_upgrade_url( 'import_cap' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'See Pro', 'nonprofit-manager' ) . '</a></p></div>';
+	}
+	if ( function_exists( 'npmp_import_is_capped' ) && npmp_import_is_capped() ) {
+		echo '<p class="npmp-import-fill-order">' . esc_html( npmp_import_fill_order_message() ) . '</p>';
 	}
 
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-tec-migrate-form">';
@@ -2216,6 +2416,25 @@ function npmp_mailpoet_render_migrate( array $stage ) {
 		) . '</li>';
 	} elseif ( $stage['lists'] && ! npmp_mailpoet_groups_supported() ) {
 		echo '<li>' . esc_html__( 'Your lists stayed in MailPoet, since groups come with Pro. You can run this import again after you add Pro to bring them over.', 'nonprofit-manager' ) . '</li>';
+	}
+	$empty = npmp_mailpoet_empty_lists( $stage );
+	if ( $empty ) {
+		echo '<li>' . esc_html(
+			sprintf(
+				/* translators: %s: number of lists. */
+				_n( 'You skipped %s list with no subscribed members.', 'You skipped %s lists with no subscribed members.', count( $empty ), 'nonprofit-manager' ),
+				number_format_i18n( count( $empty ) )
+			)
+		) . '</li>';
+	}
+	if ( $stage['tags'] ) {
+		echo '<li>' . esc_html(
+			sprintf(
+				/* translators: %s: comma-separated tag names. */
+				_n( 'This MailPoet tag is now in the Tags field: %s.', 'These MailPoet tags are now in the Tags field: %s.', count( $stage['tags'] ), 'nonprofit-manager' ),
+				implode( ', ', array_keys( $stage['tags'] ) )
+			)
+		) . '</li>';
 	}
 	$setting_names = array(
 		'from_name'    => __( 'From name', 'nonprofit-manager' ),

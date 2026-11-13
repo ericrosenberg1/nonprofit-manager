@@ -36,6 +36,15 @@ $GLOBALS['cap_filter'] = -5;
 check( 'a negative clamps to one', 1, npmp_import_max_rows() );
 $GLOBALS['cap_filter'] = null;
 
+echo "Fill order\n";
+check( 'three passes, people you can write to first', array( 'subscribed', 'pending', 'rest' ), npmp_import_fill_passes() );
+check( 'a fresh run starts with subscribed', 'subscribed', npmp_import_fill_next_pass( '' ) );
+check( 'then pending', 'pending', npmp_import_fill_next_pass( 'subscribed' ) );
+check( 'then the rest', 'rest', npmp_import_fill_next_pass( 'pending' ) );
+check( 'then done', '', npmp_import_fill_next_pass( 'rest' ) );
+check( 'an unknown pass ends the run', '', npmp_import_fill_next_pass( 'nope' ) );
+check( 'the approve line names the order', true, false !== strpos( npmp_import_fill_order_message(), 'subscribed people first, then people who haven\'t confirmed yet, then everyone else' ) );
+
 // The number in the copy matches the cap.
 $copy = array(
 	'readme.txt'                       => 'imports up to 100 supporters in total',

@@ -44,6 +44,7 @@ npmp_test_extract( 'includes/npmp-currency.php', 'npmp_group_totals_by_currency'
 npmp_test_extract( 'includes/npmp-dashboard-widgets.php', 'npmp_annualize_donation_amount' );
 npmp_test_extract( 'includes/npmp-dashboard-widgets.php', 'npmp_recurring_gift_is_current' );
 npmp_test_extract( 'includes/npmp-dashboard-widgets.php', 'npmp_recurring_run_rate_totals' );
+npmp_test_extract( 'includes/npmp-dashboard-widgets.php', 'npmp_recurring_latest_rows' );
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_feature_off' );
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_skip_without_members' );
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_skip_without_donations' );
@@ -87,6 +88,13 @@ foreach ( array_merge( npmp_payment_setup_gaps( array( 'paypal_link', 'venmo_lin
 
 echo "\n== 4. Recurring run rate ==\n";
 $now = strtotime( '2026-11-03 12:00:00 UTC' );
+$latest = npmp_recurring_latest_rows( array( array( 'frequency' => 'monthly', 'currency' => 'USD', 'latest' => '2026-11-01 10:00:00 1000000000042|25.50', 'gift_date' => '2026-11-01 10:00:00' ) ) );
+check( 'the latest gift\'s amount comes out of the MAX key', '25.50', $latest[0]['amount'] );
+check( 'and the row keeps the shape the totals read', array( 'frequency', 'currency', 'amount', 'gift_date' ), array_keys( $latest[0] ) );
+check( 'an amount with a pipe in it survives', '1|2', npmp_recurring_latest_rows( array( array( 'latest' => '2026-11-01 10:00:00 1000000000042|1|2' ) ) )[0]['amount'] );
+$dw_src = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-dashboard-widgets.php' );
+check( 'no GROUP_CONCAT SEPARATOR, which SQLite can\'t run', false, (bool) preg_match( '/GROUP_CONCAT\s*\(/', $dw_src ) );
+check( 'the ID is wrapped so SQLite adds before it joins', true, false !== strpos( $dw_src, "' ', ( p.ID + 1000000000000 ), '|'" ) );
 check( 'monthly gift 30 days old is current', true, npmp_recurring_gift_is_current( 'monthly', $now - 30 * 86400, $now ) );
 check( 'monthly gift 60 days old has lapsed', false, npmp_recurring_gift_is_current( 'monthly', $now - 60 * 86400, $now ) );
 check( 'weekly gift 20 days old has lapsed', false, npmp_recurring_gift_is_current( 'weekly', $now - 20 * 86400, $now ) );

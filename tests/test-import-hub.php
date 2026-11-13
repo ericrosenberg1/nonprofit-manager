@@ -113,6 +113,33 @@ check( 'blocked never runs', false, npmp_import_hub_can_run( 'import', $s ) );
 $s = npmp_import_hub_step_states( array( 'installed' => true, 'active' => false ) );
 check( 'an old plugin already off still waits on the import', 'locked', $s['deactivate'] );
 
+echo "Matching the import screen\n";
+$s = npmp_import_hub_step_states( array( 'imported' => true, 'installed' => true, 'active' => false, 'removal_available' => true ) );
+check( 'turned off on the import screen: step 3 shows done before the check', 'done', $s['deactivate'] );
+check( 'the check is still the step you are on', 'verify', npmp_import_hub_current_step( $s ) );
+check( 'deleting still waits on the check', 'locked', $s['remove_plugin'] );
+check( 'deleting can\'t run yet', false, npmp_import_hub_can_run( 'remove_plugin', $s ) );
+$s = npmp_import_hub_step_states( array( 'imported' => true, 'removal_available' => true ) );
+check( 'already deleted from Plugins: step 4 shows done', 'done', $s['remove_plugin'] );
+check( 'data removal still waits on the check', 'locked', $s['remove_data'] );
+$s = npmp_import_hub_step_states( array( 'imported' => true, 'import_running' => true, 'active' => true, 'installed' => true ) );
+check( 'a run partway through shows as in progress, not done', 'running', $s['import'] );
+check( 'and the check waits for it', 'locked', $s['verify'] );
+check( 'the hub hands back the import screen', true, npmp_import_hub_can_run( 'import', $s ) );
+check( 'In progress badge', 'In progress', npmp_import_hub_state_label( 'running' ) );
+$labels = npmp_import_hub_step_labels();
+check( 'where text: step 2', 'On Switch Plugins, MailPoet is at step 2 of 5: Check the results.', npmp_import_hub_where_text( 'MailPoet', npmp_import_hub_step_states( array( 'imported' => true, 'active' => true, 'installed' => true ) ), $labels ) );
+check( 'where text: running', 'Until you finish it here, you see your MailPoet import as in progress on Switch Plugins.', npmp_import_hub_where_text( 'MailPoet', $s, $labels ) );
+check( 'where text: finished', 'You finished switching from MailPoet.', npmp_import_hub_where_text( 'MailPoet', npmp_import_hub_step_states( array( 'imported' => true, 'verified' => true, 'data_removed' => true, 'removal_available' => true ) ), $labels ) );
+foreach ( glob( dirname( __DIR__ ) . '/includes/import/*-importer.php' ) as $path ) {
+	if ( false !== strpos( file_get_contents( $path ), 'npmp_import_sources' ) ) {
+		check( basename( $path ) . ' with a hub source says when its import is running', 1, min( 1, substr_count( file_get_contents( $path ), "'import_running'" ) ) );
+	}
+}
+foreach ( array( 'mailpoet-importer.php', 'tec-importer.php', 'newsletter-importer.php', 'pmpro-importer.php', 'gift-importer.php', 'event-importer.php', 'ultimate-member-importer.php', 'fluentcrm-importer.php' ) as $importer ) {
+	check( "$importer links back with the hub's step", 1, substr_count( file_get_contents( dirname( __DIR__ ) . '/includes/import/' . $importer ), 'npmp_import_hub_back_link(' ) );
+}
+
 echo "Grouping sources\n";
 $g = npmp_import_hub_partition(
 	array(

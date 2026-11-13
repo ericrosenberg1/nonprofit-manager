@@ -52,6 +52,16 @@ function current_user_can( $cap ) {
 function get_current_screen() {
 	return $GLOBALS['t_screen'] ? (object) array( 'id' => $GLOBALS['t_screen'] ) : null;
 }
+if ( ! function_exists( '_n' ) ) {
+	function _n( $single, $plural, $number, $domain = null ) {
+		return 1 === (int) $number ? $single : $plural;
+	}
+}
+if ( ! function_exists( 'number_format_i18n' ) ) {
+	function number_format_i18n( $number, $decimals = 0 ) {
+		return number_format( (float) $number, (int) $decimals );
+	}
+}
 function wp_count_posts( $type ) {
 	$GLOBALS['t_count_calls']++;
 	if ( ! array_key_exists( $type, $GLOBALS['t_counts'] ) ) {
@@ -139,6 +149,16 @@ t_reset( 0, 25 );
 check( 'the nudge shows', true, npmp_review_nudge_should_show() );
 check( 'milestone type is contacts', 'contacts', $GLOBALS['t_options']['npmp_first_milestone_type'] );
 check( 'the lead names the count', "You're keeping 25 contacts in Nonprofit Manager.", npmp_review_nudge_lead( 'contacts' ) );
+
+echo "\nThe lead counts the site, not the threshold\n";
+t_reset( 0, 4300 );
+check( '4,300 contacts: the lead says 4,300, with a comma', "You're keeping 4,300 contacts in Nonprofit Manager.", npmp_review_nudge_lead( 'contacts' ) );
+t_reset( 37, 0 );
+check( '37 events: the lead says 37', "You've published 37 events with Nonprofit Manager.", npmp_review_nudge_lead( 'events' ) );
+t_reset( 0, 1 );
+check( 'one contact left: singular', "You're keeping 1 contact in Nonprofit Manager.", npmp_review_nudge_lead( 'contacts' ) );
+t_reset( 0, 0 );
+check( 'no contacts left: no number', "You're keeping your contacts in Nonprofit Manager.", npmp_review_nudge_lead( 'contacts' ) );
 
 echo "\nBoth at once\n";
 t_reset( 40, 300 );

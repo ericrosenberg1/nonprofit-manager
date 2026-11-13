@@ -1073,6 +1073,9 @@ function npmp_um_register_hub_source( $sources ) {
 		'can_import'        => function () {
 			return npmp_um_has_data() ? true : __( 'This site has no Ultimate Member data to read. Install Ultimate Member, turn it on once, and come back to this screen.', 'nonprofit-manager' );
 		},
+		'import_running'    => function () {
+			return npmp_um_state()['running'];
+		},
 		'import_url'        => 'npmp_um_url',
 		'import_summary'    => function () {
 			$made = npmp_um_count_contacts();
@@ -1360,7 +1363,7 @@ function npmp_um_render_page() {
 	echo '<div class="wrap npmp-hub-wrap npmp-tec-wrap npmp-um-wrap">';
 	echo '<h1>' . esc_html__( 'Import from Ultimate Member', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'ultimate_member' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( 'ultimate_member' );
 
 	if ( ! npmp_um_has_data() ) {
 		echo '<p>' . esc_html__( 'This site has no Ultimate Member data to read.', 'nonprofit-manager' ) . '</p></div>';

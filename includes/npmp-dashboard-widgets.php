@@ -583,11 +583,17 @@ function npmp_get_annual_recurring_totals_by_currency() {
 	// donor's most recent gift by date (an import can add old gifts with
 	// new IDs, so the highest ID isn't always the latest). A gift with no
 	// email counts on its own.
+	//
+	// The latest gift is the MAX of "date, ID, |, amount": the date is a
+	// fixed 19 characters and the ID is added to 10^12 so it sorts as text,
+	// which picks the same gift ORDER BY date DESC, ID DESC would. The amount
+	// is the text after the first "|". This replaced GROUP_CONCAT ...
+	// SEPARATOR, which SQLite can't run, and needs no sort inside each group.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, nothing worth caching.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT f.meta_value AS frequency, COALESCE( c.meta_value, '' ) AS currency,
-				SUBSTRING_INDEX( GROUP_CONCAT( a.meta_value ORDER BY p.post_date_gmt DESC, p.ID DESC SEPARATOR '|' ), '|', 1 ) AS amount,
+				MAX( CONCAT( p.post_date_gmt, ' ', ( p.ID + 1000000000000 ), '|', a.meta_value ) ) AS latest,
 				MAX( p.post_date_gmt ) AS gift_date
 			 FROM {$wpdb->posts} p
 			 INNER JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s
@@ -606,7 +612,8 @@ function npmp_get_annual_recurring_totals_by_currency() {
 		ARRAY_A
 	);
 
-	$totals = npmp_recurring_run_rate_totals( is_array( $rows ) ? $rows : array(), time() );
+	$rows   = npmp_recurring_latest_rows( is_array( $rows ) ? $rows : array() );
+	$totals = npmp_recurring_run_rate_totals( $rows, time() );
 
 	/**
 	 * Filters the Dashboard's annual recurring totals.
@@ -616,6 +623,28 @@ function npmp_get_annual_recurring_totals_by_currency() {
 	 *                                    frequency, currency, amount, gift_date (UTC).
 	 */
 	return (array) apply_filters( 'npmp_annual_recurring_totals', $totals, $rows );
+}
+
+/**
+ * Take the amount out of each row's "date ID|amount" key.
+ *
+ * @param array $rows Rows with frequency, currency, latest, and gift_date.
+ * @return array Rows with frequency, currency, amount, and gift_date.
+ */
+function npmp_recurring_latest_rows( array $rows ) {
+	$out = array();
+	foreach ( $rows as $row ) {
+		$row    = (array) $row;
+		$latest = (string) ( $row['latest'] ?? '' );
+		$cut    = strpos( $latest, '|' );
+		$out[]  = array(
+			'frequency' => $row['frequency'] ?? '',
+			'currency'  => $row['currency'] ?? '',
+			'amount'    => false === $cut ? '' : substr( $latest, $cut + 1 ),
+			'gift_date' => $row['gift_date'] ?? '',
+		);
+	}
+	return $out;
 }
 
 /**

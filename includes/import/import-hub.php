@@ -45,7 +45,9 @@
  *         return $sources;
  *     } );
  *
- * Optional: 'deactivate' (callable, returns what it turned off), 'active_plugins'
+ * Optional: 'import_running' (callable, true while the importer screen is
+ * partway through a run, so step 1 says In progress instead of Done or Next),
+ * 'deactivate' (callable, returns what it turned off), 'active_plugins'
  * and 'installed_plugins' (callables returning basename => name) when a source
  * has add-ons, 'import_summary' (callable returning a sentence),
  * 'deactivate_note' (callable returning a warning, or '') for a plugin that
@@ -109,6 +111,7 @@ function npmp_import_hub_normalize_source( $slug, $source ) {
 			'plugin_folders'    => array(),
 			'has_data'          => null,
 			'is_imported'       => null,
+			'import_running'    => null,
 			'can_import'        => null,
 			'import_url'        => '',
 			'import_summary'    => null,
@@ -190,6 +193,7 @@ function npmp_import_hub_step_states( array $facts ) {
 	$f = array_merge(
 		array(
 			'imported'          => false,
+			'import_running'    => false,
 			'can_import'        => true,
 			'verified'          => false,
 			'active'            => false,
@@ -201,21 +205,33 @@ function npmp_import_hub_step_states( array $facts ) {
 	);
 
 	$states = array();
-	if ( $f['imported'] ) {
+	if ( $f['import_running'] ) {
+		// The importer screen is partway through. It says so, and so do we.
+		$states['import'] = 'running';
+	} elseif ( $f['imported'] ) {
 		$states['import'] = 'done';
 	} else {
 		$states['import'] = true === $f['can_import'] ? 'ready' : 'blocked';
 	}
 
-	$open = 'done' === $states['import'];
-	$states['verify'] = $open ? ( $f['verified'] ? 'done' : 'ready' ) : 'locked';
+	$imported = 'done' === $states['import'];
+	$states['verify'] = $imported ? ( $f['verified'] ? 'done' : 'ready' ) : 'locked';
 
-	$open = $open && 'done' === $states['verify'];
-	$states['deactivate'] = $open ? ( $f['active'] ? 'ready' : 'done' ) : 'locked';
+	// A plugin you already turned off or deleted (the MailPoet and TEC import
+	// screens have a turn-off step of their own) shows as done, so this screen
+	// matches the import screen. Each step still runs only after the check.
+	$open = $imported && 'done' === $states['verify'];
+	if ( $imported && ! $f['active'] ) {
+		$states['deactivate'] = 'done';
+	} else {
+		$states['deactivate'] = $open ? 'ready' : 'locked';
+	}
 
-	$open = $open && 'done' === $states['deactivate'];
-	$states['remove_plugin'] = $open ? ( $f['installed'] ? 'ready' : 'done' ) : 'locked';
-
+	if ( 'done' === $states['deactivate'] && ! $f['installed'] ) {
+		$states['remove_plugin'] = 'done';
+	} else {
+		$states['remove_plugin'] = $open && 'done' === $states['deactivate'] ? 'ready' : 'locked';
+	}
 	$open = $open && 'done' === $states['remove_plugin'];
 	if ( ! $open ) {
 		$states['remove_data'] = 'locked';
@@ -264,6 +280,10 @@ function npmp_import_hub_can_run( $step, array $states ) {
 	if ( 'ready' === $states[ $step ] ) {
 		return true;
 	}
+	// A running import hands back its own screen.
+	if ( 'import' === $step && 'running' === $states[ $step ] ) {
+		return true;
+	}
 	// Import and Verify can run again.
 	return 'done' === $states[ $step ] && in_array( $step, array( 'import', 'verify' ), true );
 }
@@ -281,6 +301,36 @@ function npmp_import_hub_current_step( array $states ) {
 		}
 	}
 	return 'remove_data';
+}
+
+/**
+ * Where a source stands on Switch Plugins, in one sentence for its import
+ * screen, so the two screens tell the same story.
+ *
+ * @param string $name   Old plugin name.
+ * @param array  $states From npmp_import_hub_step_states().
+ * @param array  $labels From npmp_import_hub_step_labels().
+ * @return string
+ */
+function npmp_import_hub_where_text( $name, array $states, array $labels ) {
+	if ( npmp_import_hub_finished( $states ) ) {
+		/* translators: %s: old plugin name. */
+		return sprintf( __( 'You finished switching from %s.', 'nonprofit-manager' ), $name );
+	}
+	$current = npmp_import_hub_current_step( $states );
+	$n       = (int) array_search( $current, npmp_import_hub_step_ids(), true ) + 1;
+	if ( 'import' === $current && 'running' === ( $states['import'] ?? '' ) ) {
+		/* translators: %s: old plugin name. */
+		return sprintf( __( 'Until you finish it here, you see your %s import as in progress on Switch Plugins.', 'nonprofit-manager' ), $name );
+	}
+	return sprintf(
+		/* translators: 1: old plugin name, 2: step number, 3: number of steps, 4: step name. */
+		__( 'On Switch Plugins, %1$s is at step %2$d of %3$d: %4$s.', 'nonprofit-manager' ),
+		$name,
+		$n,
+		count( npmp_import_hub_step_ids() ),
+		(string) ( $labels[ $current ] ?? '' )
+	);
 }
 
 /**
@@ -428,6 +478,26 @@ function npmp_import_hub_source( $slug ) {
 }
 
 /**
+ * The way back to Switch Plugins at the top of an import screen, with the
+ * step Switch Plugins shows for this source.
+ *
+ * @param string $slug Source slug.
+ * @return void
+ */
+function npmp_import_hub_back_link( $slug ) {
+	$source = npmp_import_hub_source( $slug );
+	$where  = '';
+	if ( $source ) {
+		$where = npmp_import_hub_where_text( $source['name'], npmp_import_hub_step_states( npmp_import_hub_facts( $source ) ), npmp_import_hub_step_labels() );
+	}
+	echo '<div class="notice notice-info inline npmp-hub-back"><p><a class="button" href="' . esc_url( npmp_import_hub_url( $slug ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a>';
+	if ( '' !== $where ) {
+		echo ' <span>' . esc_html( $where ) . '</span>';
+	}
+	echo '</p></div>';
+}
+
+/**
  * Saved hub state for one source: who verified and when, and how far data
  * removal got. One non-autoloaded option for the whole site, since every step
  * here changes the whole site.
@@ -535,6 +605,7 @@ function npmp_import_hub_facts( array $source ) {
 		'active'            => (bool) $active,
 		'has_data'          => $has_data,
 		'imported'          => $imported,
+		'import_running'    => (bool) npmp_import_hub_call( $source['import_running'], false ),
 		'can_import'        => true === $can ? true : ( is_string( $can ) && '' !== $can ? $can : false ),
 		'verified'          => ! empty( $state['verified']['at'] ),
 		'data_removed'      => ! empty( $state['removal']['done'] ) || ( $imported && ! $has_data ),
@@ -889,6 +960,7 @@ function npmp_import_hub_step_labels() {
 function npmp_import_hub_state_label( $state ) {
 	$labels = array(
 		'done'        => __( 'Done', 'nonprofit-manager' ),
+		'running'     => __( 'In progress', 'nonprofit-manager' ),
 		'ready'       => __( 'Next', 'nonprofit-manager' ),
 		'locked'      => __( 'Waiting', 'nonprofit-manager' ),
 		'blocked'     => __( 'Waiting', 'nonprofit-manager' ),
@@ -1141,6 +1213,13 @@ function npmp_import_hub_render_step_import( array $source, array $facts, $state
 		echo '<p>' . esc_html( '' !== $summary ? $summary : __( 'Imported.', 'nonprofit-manager' ) ) . '</p>';
 		if ( $url && true === $facts['can_import'] ) {
 			echo '<p><a class="button" href="' . esc_url( $url ) . '">' . esc_html__( 'Import again', 'nonprofit-manager' ) . '</a></p>';
+		}
+		return;
+	}
+	if ( 'running' === $state ) {
+		echo '<p>' . esc_html__( 'You\'re partway through your import. Finish it on the import screen, then come back here to check the results.', 'nonprofit-manager' ) . '</p>';
+		if ( $url ) {
+			echo '<p><a class="button button-primary npmp-hub-go" href="' . esc_url( $url ) . '">' . esc_html__( 'Back to the import', 'nonprofit-manager' ) . '</a></p>';
 		}
 		return;
 	}

@@ -629,8 +629,15 @@ class NPMP_Import_Manager {
 		$capped     = ( $max < PHP_INT_MAX ) && ( $source_n > $max );
 		$rows_to_do = $capped ? array_slice( $rows, 0, $max, true ) : $rows;
 
+		$records = array();
 		foreach ( $rows_to_do as $row_number => $row ) {
-			$record = $this->map_indexed_row( $row, $mapping );
+			$records[ $row_number ] = $this->map_indexed_row( $row, $mapping );
+		}
+		// One lookup for the batch instead of two meta scans per row.
+		$this->member_manager->lookup_emails( array_column( $records, 'email' ) );
+
+		foreach ( $rows_to_do as $row_number => $row ) {
+			$record = $records[ $row_number ];
 			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 2, $row, $mapping ); // +2 for 1-indexed + header offset.
 
 			$this->tally_result( $stats, $result );
@@ -668,8 +675,15 @@ class NPMP_Import_Manager {
 		$capped     = ( $max < PHP_INT_MAX ) && ( $source_n > $max );
 		$rows_to_do = $capped ? array_slice( $rows, 0, $max ) : $rows;
 
+		$records = array();
 		foreach ( $rows_to_do as $row_number => $row ) {
-			$record = $this->map_named_row( $row, $mapping );
+			$records[ $row_number ] = $this->map_named_row( $row, $mapping );
+		}
+		// One lookup for the batch instead of two meta scans per row.
+		$this->member_manager->lookup_emails( array_column( $records, 'email' ) );
+
+		foreach ( $rows_to_do as $row_number => $row ) {
+			$record = $records[ $row_number ];
 			$result = $this->import_single_record( $record, $options, $row_base + $row_number + 1, $row, $mapping );
 
 			$this->tally_result( $stats, $result );

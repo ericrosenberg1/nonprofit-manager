@@ -61,6 +61,12 @@ if ( ! function_exists( 'npmp_mailpoet_stage_batch' ) ) {
 }
 
 global $wpdb;
+// The sweep drops MailPoet's tables, so it refuses a site where a real
+// MailPoet left its tables (the file check for the plugin itself is below).
+if ( npmp_mailpoet_has_table() ) {
+	echo "Refusing: this site has MailPoet's tables, and this rig drops them. Use a site without them.\n";
+	exit( 1 );
+}
 $admins = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
 wp_set_current_user( $admins[0]->ID );
 set_current_screen( 'membership_page_npmp_mailpoet_import' );
@@ -68,7 +74,7 @@ set_current_screen( 'membership_page_npmp_mailpoet_import' );
 $mm     = NPMP_Member_Manager::get_instance();
 $pro    = npmp_mailpoet_groups_supported();
 $domain = 'rig-mailpoet.example.org';
-$tables = array( 'subscribers', 'segments', 'subscriber_segment', 'settings' );
+$tables = array( 'subscribers', 'segments', 'subscriber_segment', 'settings', 'tags', 'subscriber_tag' );
 $tax    = defined( 'NPMP_PRO_GROUP_TAXONOMY' ) ? NPMP_PRO_GROUP_TAXONOMY : '';
 printf( "Pro groups: %s\n", $pro ? 'on' : 'off' );
 
@@ -100,7 +106,7 @@ $sweep     = function () use ( $wpdb, $mm, $domain, $tables, $stubs, &$rig_posts
 	}
 	wp_cache_flush();
 	if ( $tax && taxonomy_exists( $tax ) ) {
-		foreach ( array( 'Walking Group', 'Arts, Crafts', 'Old List', 'WordPress Users' ) as $group ) {
+		foreach ( array( 'Walking Group', 'Arts, Crafts', 'Old List', 'WordPress Users', 'Nobody Left' ) as $group ) {
 			$term = get_term_by( 'name', $group, $tax );
 			if ( $term ) {
 				wp_delete_term( $term->term_id, $tax );
@@ -143,6 +149,8 @@ $t_sub  = npmp_mailpoet_table( 'subscribers' );
 $t_seg  = npmp_mailpoet_table( 'segments' );
 $t_link = npmp_mailpoet_table( 'subscriber_segment' );
 $t_set  = npmp_mailpoet_table( 'settings' );
+$t_tag  = npmp_mailpoet_table( 'tags' );
+$t_st   = npmp_mailpoet_table( 'subscriber_tag' );
 $ddl    = array(
 	"CREATE TABLE {$t_sub} (
 		id int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -214,6 +222,26 @@ $ddl    = array(
 		PRIMARY KEY  (id),
 		UNIQUE KEY name (name)
 	)",
+	// MailPoet 4.9 tags (lib/Migrations/Db/Migration_20221028_105818.php in 5.45.2).
+	"CREATE TABLE {$t_tag} (
+		id int(11) unsigned NOT NULL AUTO_INCREMENT,
+		name varchar(191) NOT NULL,
+		description text NOT NULL DEFAULT '',
+		created_at timestamp NULL,
+		updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		UNIQUE KEY name (name)
+	)",
+	"CREATE TABLE {$t_st} (
+		id int(11) unsigned NOT NULL AUTO_INCREMENT,
+		subscriber_id int(11) unsigned NOT NULL,
+		tag_id int(11) unsigned NOT NULL,
+		created_at timestamp NULL,
+		updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		UNIQUE KEY subscriber_tag (subscriber_id,tag_id),
+		KEY tag_id (tag_id)
+	)",
 );
 foreach ( $ddl as $sql ) {
 	$wpdb->query( $sql ); // phpcs:ignore
@@ -228,6 +256,7 @@ $lists = array(
 	2 => array( 'Arts, Crafts', 'default', null ),
 	3 => array( 'WordPress Users', 'wp_users', null ),
 	4 => array( 'Old List', 'default', '2024-01-01 00:00:00' ),
+	5 => array( 'Nobody Left', 'default', null ),
 );
 foreach ( $lists as $id => $l ) {
 	$wpdb->insert( $t_seg, array( 'id' => $id, 'name' => $l[0], 'type' => $l[1], 'created_at' => '2018-01-01 00:00:00', 'deleted_at' => $l[2] ) );
@@ -255,6 +284,16 @@ foreach ( $people as $id => $p ) {
 		$wpdb->insert( $t_link, array( 'subscriber_id' => $id, 'segment_id' => $segment, 'status' => $status, 'created_at' => $p[4] ) );
 	}
 }
+// Nobody Left has only people who left it or bounced, so it has no subscribed member.
+$wpdb->insert( $t_link, array( 'subscriber_id' => 3, 'segment_id' => 5, 'status' => 'unsubscribed', 'created_at' => '2020-01-10 08:00:00' ) );
+$wpdb->insert( $t_link, array( 'subscriber_id' => 4, 'segment_id' => 5, 'status' => 'subscribed', 'created_at' => '2021-03-03 03:03:03' ) );
+// Tags: Volunteer on Ada, Hal, and trashed Fay. Board on Ada and Jon. "Lunch, Tuesday" carries a comma.
+foreach ( array( 1 => 'Volunteer', 2 => 'Board', 3 => 'Lunch, Tuesday' ) as $tid => $tname ) {
+	$wpdb->insert( $t_tag, array( 'id' => $tid, 'name' => $tname, 'description' => '', 'created_at' => '2023-01-01 00:00:00' ) );
+}
+foreach ( array( array( 1, 1 ), array( 1, 2 ), array( 8, 1 ), array( 6, 1 ), array( 9, 3 ), array( 11, 2 ) ) as $pair ) {
+	$wpdb->insert( $t_st, array( 'subscriber_id' => $pair[0], 'tag_id' => $pair[1], 'created_at' => '2023-01-01 00:00:00' ) );
+}
 $settings_rows = array(
 	'sender'              => serialize( array( 'name' => 'Ventura U3A', 'address' => "news@$domain" ) ),
 	'reply_to'            => serialize( array( 'name' => 'Membership', 'address' => "members@$domain" ) ),
@@ -269,9 +308,9 @@ $mailpoet_rows_before = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$t_sub}" ) 
 rig_check( 'seeded 13 subscribers', 13, (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$t_sub}" ) );
 
 // Contacts that are already here.
-$hal_id = $mm->add_member( array( 'name' => 'Hal Existing', 'email' => "hal@$domain", 'status' => 'unsubscribed', 'source' => 'manual' ) );
+$hal_id = $mm->add_member( array( 'name' => 'Hal Existing', 'email' => "hal@$domain", 'status' => 'unsubscribed', 'source' => 'manual', 'tags' => 'Choir,volunteer' ) );
 $ivy_id = $mm->add_member( array( 'name' => '', 'email' => "ivy@$domain", 'status' => 'pending', 'source' => 'form_signup' ) );
-$jon_id = $mm->add_member( array( 'name' => 'J. Typed', 'email' => "jon@$domain", 'status' => 'donor', 'source' => 'stripe' ) );
+$jon_id = $mm->add_member( array( 'name' => 'J. Typed', 'email' => "jon@$domain", 'status' => 'donor', 'source' => 'stripe', 'tags' => 'Major donor' ) );
 rig_check( 'three contacts already here', true, $hal_id > 0 && $ivy_id > 0 && $jon_id > 0 );
 
 // Pages with MailPoet forms on them, and a MailPoet widget.
@@ -318,9 +357,11 @@ ksort( $stage['counts'] );
 rig_check( 'counts by MailPoet status', array( 'bounced' => 1, 'inactive' => 1, 'other' => 1, 'subscribed' => 6, 'unconfirmed' => 1, 'unsubscribed' => 2 ), $stage['counts'] );
 rig_check( '8 new, 3 already here, 1 bad address', array( 8, 3, 1 ), array( $stage['plan']['new'], $stage['plan']['existing'], $stage['plan']['invalid'] ) );
 rig_check( '1 already unsubscribed here stays that way', 1, (int) $stage['plan']['stay_unsubbed'] );
-rig_check( 'two lists: not the trashed one, not WordPress Users', array( 'Arts, Crafts', 'Walking Group' ), array_values( wp_list_pluck( $stage['lists'], 'name' ) ) );
+rig_check( 'three lists: not the trashed one, not WordPress Users', array( 'Arts, Crafts', 'Nobody Left', 'Walking Group' ), array_values( wp_list_pluck( $stage['lists'], 'name' ) ) );
+rig_check( 'Nobody Left counts 0 (Cy left it, Dee bounced)', 0, (int) $stage['lists'][5]['count'] );
+rig_check( 'tags read with counts, the trashed subscriber left out', array( 'Board' => 2, 'Lunch, Tuesday' => 1, 'Volunteer' => 2 ), $stage['tags'] );
 rig_check( 'Walking Group mails 5 (Ada, Bea, Gus, Hal, bad address; not Cy, not trashed Fay)', 5, (int) $stage['lists'][1]['count'] );
-rig_check( 'Arts, Crafts mails 4 (Ada, Dee, Eve, Ivy; not Gus)', 4, (int) $stage['lists'][2]['count'] );
+rig_check( 'Arts, Crafts mails 3 (Ada, Eve, Ivy; not Gus, not bounced Dee)', 3, (int) $stage['lists'][2]['count'] );
 rig_check( 'sender name read from the serialized row', 'Ventura U3A', $stage['settings']['from_name'] );
 rig_check( 'sender address', "news@$domain", $stage['settings']['from_email'] );
 rig_check( 'reply-to', "Membership <members@$domain>", $stage['settings']['reply_to'] );
@@ -336,9 +377,14 @@ $review = rig_render( 'npmp_mailpoet_render_review', $stage );
 rig_has( 'review shows the bounced row', 'Bounced', $review );
 rig_has( 'review says unconfirmed wait as Pending', 'Unconfirmed ones wait as Pending', $review );
 rig_has( $pro ? 'review says lists become groups' : 'review says lists need Pro groups', $pro ? 'Each checked list becomes a group with the same name.' : 'Lists become groups, and groups come with Pro. Your contacts still come over without their lists.', $review );
-npmp_mailpoet_set_review( npmp_mailpoet_status_keys(), array( 1, 2 ) );
+rig_has( 'review shows the tag count', 'You bring 3 MailPoet tags into each contact', $review );
+if ( $pro ) {
+	rig_has( 'review says the empty list stays behind', '1 list has no subscribed members, so it stays in MailPoet and you get no empty group.', $review );
+}
+npmp_mailpoet_set_review( npmp_mailpoet_status_keys(), array( 1, 2, 5 ) );
 $stage = npmp_mailpoet_get_stage();
 rig_check( 'every status checked', array(), $stage['skip_statuses'] );
+rig_check( 'the empty list is skipped even when ticked', $pro ? array( 5 => 'Nobody Left' ) : array(), npmp_mailpoet_empty_lists( $stage ) );
 rig_check( '12 selected', 12, npmp_mailpoet_selected_count( $stage ) );
 rig_check( $pro ? 'two lists selected' : 'no lists move without Pro', $pro ? array( 2 => 'Arts, Crafts', 1 => 'Walking Group' ) : array(), npmp_mailpoet_selected_lists( $stage ) );
 
@@ -357,6 +403,7 @@ rig_has( 'approve says credentials stay behind', 'You never copy MailPoet\'s sen
 rig_check( 'approve never prints the SMTP password', false, strpos( $approve, 'rig-smtp-secret' ) );
 
 // Tick From name only. From address and confirmation stay as they are.
+rig_has( 'approve counts the tags', 'You bring 3 tags into the Tags field.', $approve );
 $from_email_before = npmp_email_get_settings()['from_email'];
 rig_check( 'approve queues 12', 12, npmp_mailpoet_approve( array( 'from_name', 'reply_to', 'smtp_password' ) ) );
 rig_check( 'only known setting keys survive', array( 'from_name' ), npmp_mailpoet_get_stage()['apply_settings'] );
@@ -374,14 +421,29 @@ add_action(
 	5,
 	6
 );
-$batches = 0;
+$batches  = 0;
+$lookups  = array();
+$per_row  = 0;
+$watch_sql = function ( $query ) use ( &$lookups, &$per_row ) {
+	if ( false !== strpos( $query, "meta_key = 'npmp_email'" ) && false !== stripos( $query, ' IN (' ) ) {
+		$lookups[ count( $lookups ) ] = 1;
+	} elseif ( preg_match( "/meta_key\s*=\s*'npmp_email'\s+AND\s+(LOWER\()?meta_value/i", $query ) ) {
+		++$per_row;
+	}
+	return $query;
+};
+add_filter( 'query', $watch_sql );
 do {
 	$r = npmp_mailpoet_migrate_batch( 5 );
 	++$batches;
 } while ( ! $r['done'] && $batches < 20 );
+remove_filter( 'query', $watch_sql );
 $stage = npmp_mailpoet_get_stage();
 $res   = $stage['results'];
-rig_check( 'migrated in three batches', 3, $batches );
+// Subscribed (7 rows) takes two batches, unconfirmed one, everyone else two.
+rig_check( 'migrated in five batches, subscribed people first', 5, $batches );
+rig_check( 'one batched email lookup per batch at most', true, count( $lookups ) <= $batches && count( $lookups ) > 0, count( $lookups ) );
+rig_check( 'no email lookup row by row', 0, $per_row );
 rig_check( 'position reached 12', 12, (int) $stage['position'] );
 rig_check( '8 created', 8, (int) $res['created'] );
 rig_check( '3 updated (Hal date, Ivy status + name + date, Jon status)', 3, (int) $res['updated'] );
@@ -419,6 +481,11 @@ rig_check( 'Ivy: source stays form_signup', 'form_signup', $ivy ? $ivy->source :
 $jon = $get( 'jon' );
 rig_check( 'Jon: donor here, unsubscribed in MailPoet, now unsubscribed', 'unsubscribed', $jon ? $jon->status : null );
 rig_check( 'Jon: typed name stays', 'J. Typed', $jon ? $jon->name : null );
+rig_check( 'Ada: both MailPoet tags', 'Board,Volunteer', $ada ? $ada->tags : null );
+rig_check( 'Hal: own tags kept, Volunteer not doubled', 'Choir,volunteer', $hal ? $hal->tags : null );
+rig_check( 'Ivy: the comma in a tag name turns into a space', 'Lunch Tuesday', $ivy ? $ivy->tags : null );
+rig_check( 'Jon: Board added after his own tag', 'Major donor,Board', $jon ? $jon->tags : null );
+rig_check( 'Bea: no tags', '', $get( 'bea' ) ? $get( 'bea' )->tags : null );
 rig_check( '11 contacts in all, none doubled', 11, count( $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = 'npmp_email' AND meta_value LIKE %s", '%@' . $wpdb->esc_like( $domain ) ) ) ) );
 
 echo "Step 4: lists\n";
@@ -442,6 +509,8 @@ if ( $pro ) {
 	rig_check( 'no group named Arts or Crafts', false, get_term_by( 'name', 'Arts', $tax ) || get_term_by( 'name', 'Crafts', $tax ) );
 	rig_check( 'no group for the trashed list', false, (bool) get_term_by( 'name', 'Old List', $tax ) );
 	rig_check( 'no group for WordPress Users', false, (bool) get_term_by( 'name', 'WordPress Users', $tax ) );
+	rig_check( 'no empty group for Nobody Left', false, (bool) get_term_by( 'name', 'Nobody Left', $tax ) );
+	rig_has( 'result counts the skipped list', 'You skipped 1 list with no subscribed members.', rig_render( 'npmp_mailpoet_render_migrate', $stage ) );
 	rig_check( 'Ada is in both groups', array( 'Arts, Crafts', 'Walking Group' ), $group_names( $ada ) );
 	rig_check( 'Bea (pending) is in Walking Group', array( 'Walking Group' ), $group_names( $get( 'bea' ) ) );
 	rig_check( 'Cy left the list, so no group', array(), $group_names( $get( 'cy' ) ) );
@@ -451,6 +520,10 @@ if ( $pro ) {
 	rig_check( 'Hal joined no group', array(), $group_names( $hal ) );
 	rig_check( 'Ivy (already here) joined Arts, Crafts', array( 'Arts, Crafts' ), $group_names( $ivy ) );
 	rig_check( 'Lee joined no group', array(), $group_names( $get( 'lee' ) ) );
+	// The batch defers term counting, so the counts come out right once at the end.
+	clean_term_cache( array(), $tax );
+	rig_check( 'Walking Group counts its 3 contacts', 3, (int) get_term_by( 'name', 'Walking Group', $tax )->count );
+	rig_check( 'Arts, Crafts counts its 3 contacts', 3, (int) get_term_by( 'name', 'Arts, Crafts', $tax )->count );
 } else {
 	rig_check( 'without Pro no row carries lists', array(), array_filter( wp_list_pluck( $hooked, 1 ) ) );
 	rig_check( 'without Pro there is no group taxonomy', '', $tax );
@@ -522,7 +595,8 @@ do {
 npmp_mailpoet_set_review( array( 'subscribed', 'inactive', 'unsubscribed', 'bounced', 'other' ), array( 1, 2 ) );
 $stage = npmp_mailpoet_get_stage();
 rig_check( 'unconfirmed unchecked', array( 'unconfirmed' ), $stage['skip_statuses'] );
-rig_has( 'approve warns about the per-import limit', 'In the free version you can move 2 subscribers in one import.', rig_render( 'npmp_mailpoet_render_approve', $stage ) );
+$capped_approve = rig_render( 'npmp_mailpoet_render_approve', $stage );
+rig_has( 'approve warns about the per-import limit', 'In the free version you can move 2 subscribers in one import.', $capped_approve );
 npmp_mailpoet_approve( array() );
 do {
 	$r = npmp_mailpoet_migrate_batch( 5 );
@@ -530,7 +604,9 @@ do {
 $stage = npmp_mailpoet_get_stage();
 rig_check( 'stopped at the cap', true, $stage['results']['cap_reached'] );
 rig_check( 'handled exactly 2', 2, (int) $stage['handled'] );
-rig_check( 'the unchecked status was left, not counted against the cap', 1, (int) $stage['results']['left'] );
+rig_check( 'the two places went to subscribed people (Ada, Gus), not Cy', array( 2, 7 ), array( (int) $stage['position'], (int) $stage['migrate_cursor'] ) );
+rig_has( 'approve says who fills the places first', 'You fill your free places with subscribed people first', $capped_approve );
+rig_check( 'the cap came before the unconfirmed pass, so nothing was counted as left', 0, (int) $stage['results']['left'] );
 rig_has( 'result says the rest are still in MailPoet', 'so the rest are still in MailPoet.', rig_render( 'npmp_mailpoet_render_migrate', $stage ) );
 remove_filter( 'npmp_import_max_rows', $cap, PHP_INT_MAX );
 wp_cache_flush();

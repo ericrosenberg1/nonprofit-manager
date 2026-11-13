@@ -833,6 +833,9 @@ function npmp_pmpro_register_hub_source( $sources ) {
 		'is_imported'       => function () {
 			return (bool) get_option( 'npmp_pmpro_imported', 0 );
 		},
+		'import_running'    => function () {
+			return npmp_pmpro_state()['running'];
+		},
 		'can_import'        => function () {
 			return npmp_pmpro_has_tables() ? true : __( 'You need Paid Memberships Pro\'s membership tables to import, and this site doesn\'t have those tables. Install Paid Memberships Pro, turn it on once so it sets up its tables, and come back to this screen.', 'nonprofit-manager' );
 		},
@@ -1035,7 +1038,7 @@ function npmp_pmpro_render_page() {
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from Paid Memberships Pro', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'pmpro' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( 'pmpro' );
 
 	if ( ! npmp_pmpro_has_tables() ) {
 		echo '<p>' . esc_html__( 'You need Paid Memberships Pro\'s membership tables to import, and this site doesn\'t have those tables.', 'nonprofit-manager' ) . '</p></div>';

@@ -199,6 +199,10 @@ function npmp_gift_import_run_locked( $slug, $seconds = NPMP_GIFT_IMPORT_SECONDS
 	$start = microtime( true );
 	do {
 		$donors = (array) call_user_func( $source['donor_batch'], $state['cursor'], $limit );
+		if ( $donors && class_exists( 'NPMP_Member_Manager' ) ) {
+			// One lookup for the batch instead of two meta scans per new donor.
+			NPMP_Member_Manager::get_instance()->lookup_emails( array_column( array_map( 'wp_parse_args', $donors ), 'email' ) );
+		}
 		foreach ( $donors as $donor ) {
 			npmp_gift_import_donor( $slug, (array) $donor, $state['results'] );
 			$state['cursor'] = max( $state['cursor'], (int) ( $donor['cursor'] ?? 0 ) );
@@ -279,6 +283,9 @@ function npmp_gift_hub_source( $slug, $name, array $folders, $installed, array $
 		},
 		'is_imported'       => function () use ( $slug ) {
 			return npmp_gift_import_is_imported( $slug );
+		},
+		'import_running'    => function () use ( $slug ) {
+			return ! empty( npmp_gift_import_state( $slug )['running'] );
 		},
 		'can_import'        => function () use ( $slug, $name ) {
 			$sources = npmp_gift_import_sources();
@@ -445,7 +452,7 @@ function npmp_gift_import_render_page() {
 	/* translators: %s: old plugin name, such as GiveWP. */
 	echo '<h1>' . esc_html( sprintf( __( 'Import past gifts from %s', 'nonprofit-manager' ), $source['name'] ) ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( $slug ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( $slug );
 
 	if ( $state['running'] ) {
 		npmp_gift_import_render_results( $state['results'] );

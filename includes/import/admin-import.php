@@ -2040,8 +2040,8 @@ function npmp_import_render_scripts( $field_labels ) {
 
 					$('#npmp-import-progress-text').text(
 						'<?php echo esc_js( __( 'Imported', 'nonprofit-manager' ) ); ?>' +
-						' ' + d.progress + ' ' + '<?php echo esc_js( __( 'of', 'nonprofit-manager' ) ); ?>' + ' ' +
-						d.total + '...'
+						' ' + npmpNum(d.progress) + ' ' + '<?php echo esc_js( __( 'of', 'nonprofit-manager' ) ); ?>' + ' ' +
+						npmpNum(d.total) + '...'
 					);
 					// Hand back to the event loop briefly so the bar paints.
 					setTimeout(step, 50);
@@ -2056,10 +2056,10 @@ function npmp_import_render_scripts( $field_labels ) {
 		}
 
 		function renderImportResults(s) {
-			$('#npmp-stat-imported').text(s.imported || 0);
-			$('#npmp-stat-updated').text(s.updated || 0);
-			$('#npmp-stat-skipped').text(s.skipped || 0);
-			$('#npmp-stat-errors').text(s.errors || 0);
+			$('#npmp-stat-imported').text(npmpNum(s.imported));
+			$('#npmp-stat-updated').text(npmpNum(s.updated));
+			$('#npmp-stat-skipped').text(npmpNum(s.skipped));
+			$('#npmp-stat-errors').text(npmpNum(s.errors));
 
 			var extraList = $('#npmp-import-extra-lines');
 			if (!extraList.length) {
@@ -2089,9 +2089,9 @@ function npmp_import_render_scripts( $field_labels ) {
 				var template = '<?php echo esc_js( __( 'We imported the first %1$s of %2$s records. With the free version, you can import up to %3$s records at a time and %3$s new contacts in total. Upgrade to Pro to import the rest.', 'nonprofit-manager' ) ); ?>';
 				$('#npmp-import-cap-text').text(
 					template
-						.replace('%1$s', imported)
-						.replace('%2$s', total)
-						.replace('%3$s', cap)
+						.replace('%1$s', npmpNum(imported))
+						.replace('%2$s', npmpNum(total))
+						.replace(/%3\$s/g, npmpNum(cap))
 				);
 				$('#npmp-import-cap-notice').show();
 			} else {
@@ -2122,6 +2122,11 @@ function npmp_import_render_scripts( $field_labels ) {
 		}
 		function hideError(sel) {
 			$(sel).hide();
+		}
+
+		// Group digits the way number_format_i18n() does: 4300 reads 4,300.
+		function npmpNum(n) {
+			return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '<?php echo esc_js( npmp_import_thousands_separator() ); ?>');
 		}
 
 		function escHtml(str) {

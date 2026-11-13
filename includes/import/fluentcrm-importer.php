@@ -715,6 +715,9 @@ function npmp_fcrm_register_hub_source( $sources ) {
 		'can_import'        => function () {
 			return '' !== npmp_fcrm_table() ? true : __( 'You need FluentCRM\'s contact table to import, and this site doesn\'t have one. Install FluentCRM, turn it on once so it sets up its tables, and come back to this screen.', 'nonprofit-manager' );
 		},
+		'import_running'    => function () {
+			return npmp_fcrm_state()['running'];
+		},
 		'import_url'        => 'npmp_fcrm_url',
 		'import_summary'    => function () {
 			$made = npmp_fcrm_count_contacts();
@@ -906,7 +909,7 @@ function npmp_fcrm_render_page() {
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from FluentCRM', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'fluent-crm' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( 'fluent-crm' );
 
 	if ( ! npmp_fcrm_table() ) {
 		echo '<p>' . esc_html__( 'You need FluentCRM\'s contact table to import, and this site doesn\'t have one.', 'nonprofit-manager' ) . '</p></div>';

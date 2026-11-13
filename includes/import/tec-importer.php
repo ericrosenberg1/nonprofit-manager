@@ -806,6 +806,13 @@ function npmp_tec_read_venue( $venue_id ) {
  * @return array<int,array{slug:string,name:string,parent:string,description:string}>
  */
 function npmp_tec_read_categories( $post_id ) {
+	// Every parent above the event's own categories comes along too, marked
+	// 'assign' => false, so the tree survives a migrate that runs after TEC is
+	// off. Before, a parent like "Club Events" with no event of its own was
+	// looked up through TEC at migrate time and dropped when TEC was off.
+	if ( function_exists( 'npmp_event_import_post_terms' ) ) {
+		return npmp_event_import_post_terms( (int) $post_id, 'tribe_events_cat' );
+	}
 	if ( ! taxonomy_exists( 'tribe_events_cat' ) ) {
 		return array();
 	}
@@ -828,6 +835,23 @@ function npmp_tec_read_categories( $post_id ) {
 		);
 	}
 	return $out;
+}
+
+/**
+ * The categories an event carries, without the parents read only for the tree.
+ *
+ * @param array $categories From npmp_tec_read_categories().
+ * @return array
+ */
+function npmp_tec_assigned_categories( array $categories ) {
+	return array_values(
+		array_filter(
+			$categories,
+			static function ( $cat ) {
+				return ! isset( $cat['assign'] ) || $cat['assign'];
+			}
+		)
+	);
 }
 
 /**
@@ -1305,8 +1329,12 @@ function npmp_tec_migrate_item( array $item, array $options = array() ) {
 	}
 	$term_ids = array();
 	foreach ( $item['categories'] as $cat ) {
-		$slugs[]  = $cat['slug'];
-		$term_id  = npmp_tec_ensure_term( $cat, $by_slug );
+		$term_id = npmp_tec_ensure_term( $cat, $by_slug );
+		// A parent read only to keep the tree whole is made, not assigned.
+		if ( isset( $cat['assign'] ) && ! $cat['assign'] ) {
+			continue;
+		}
+		$slugs[] = $cat['slug'];
 		if ( $term_id ) {
 			$term_ids[] = $term_id;
 		}
@@ -1962,8 +1990,8 @@ function npmp_tec_render_page() {
 	echo '<div class="wrap npmp-tec-wrap">';
 	echo '<h1>' . esc_html__( 'Import from The Events Calendar', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	if ( function_exists( 'npmp_import_hub_url' ) ) {
-		echo '<p><a href="' . esc_url( npmp_import_hub_url( 'the-events-calendar' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	if ( function_exists( 'npmp_import_hub_back_link' ) ) {
+		npmp_import_hub_back_link( 'the-events-calendar' );
 	}
 	/* translators: 1: step number, 2: total steps, 3: step name. */
 	echo '<p class="npmp-tec-progress-line">' . esc_html( sprintf( __( 'Step %1$d of %2$d: %3$s', 'nonprofit-manager' ), $step, 5, $labels[ $step ] ) ) . '</p>';
@@ -2014,7 +2042,7 @@ function npmp_tec_render_page() {
  */
 function npmp_tec_render_runner( $ajax_action, $post_action, $button, $next_url, $autostart = false, $restart = false ) {
 	printf(
-		'<div class="npmp-tec-runner" data-ajax-url="%1$s" data-action="%2$s" data-nonce="%3$s" data-next="%4$s" data-autostart="%5$s" data-restart="%6$s" data-label-progress="%7$s" data-label-error="%8$s">',
+		'<div class="npmp-tec-runner" data-ajax-url="%1$s" data-action="%2$s" data-nonce="%3$s" data-next="%4$s" data-autostart="%5$s" data-restart="%6$s" data-label-progress="%7$s" data-label-error="%8$s" data-thousands="%9$s">',
 		esc_url( admin_url( 'admin-ajax.php' ) ),
 		esc_attr( $ajax_action ),
 		esc_attr( wp_create_nonce( 'npmp_tec_import' ) ),
@@ -2023,7 +2051,8 @@ function npmp_tec_render_runner( $ajax_action, $post_action, $button, $next_url,
 		$restart ? '1' : '0',
 		/* translators: 1: events done so far, 2: total events. Keep the placeholders. */
 		esc_attr__( '%1$s of %2$s events', 'nonprofit-manager' ),
-		esc_attr__( 'Something went wrong. Reload the page to pick up where it stopped.', 'nonprofit-manager' )
+		esc_attr__( 'Something went wrong. Reload the page to pick up where it stopped.', 'nonprofit-manager' ),
+		esc_attr( npmp_import_thousands_separator() )
 	);
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-tec-runner-form">';
 	npmp_tec_form_fields( $post_action );
@@ -2152,7 +2181,7 @@ function npmp_tec_render_review( array $stage ) {
 		}
 		echo '</td><td>' . esc_html( npmp_tec_display_date( $item ) ) . '</td>';
 		echo '<td>' . esc_html( $item['venue'] ) . '</td>';
-		echo '<td>' . esc_html( implode( ', ', wp_list_pluck( $item['categories'], 'name' ) ) ) . '</td></tr>';
+		echo '<td>' . esc_html( implode( ', ', wp_list_pluck( npmp_tec_assigned_categories( $item['categories'] ), 'name' ) ) ) . '</td></tr>';
 	}
 	echo '</tbody></table></div>';
 	echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Continue', 'nonprofit-manager' ) . '</button></p></form>';

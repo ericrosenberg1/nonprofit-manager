@@ -230,3 +230,54 @@ function npmp_import_count_emails_not_on_contacts( $old_sql ) {
 	$contacts = $wpdb->get_col( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact' AND p.post_status = 'publish'" );
 	return npmp_import_count_missing_emails( $old, $contacts );
 }
+
+/**
+ * The passes an import makes over a list, in the order it fills the free
+ * places: people who get your email, then people who haven't confirmed yet,
+ * then everyone else (unsubscribed, bounced, inactive). Each importer reads
+ * its list once per pass, oldest ID first, and saves the pass beside its
+ * cursor so a reload picks up where it stopped. A row belongs to one pass by
+ * its status, so a rerun still finds each person once. Whether unsubscribed
+ * people take a place at all stays the owner's choice on the Review step.
+ *
+ * @return string[]
+ */
+function npmp_import_fill_passes() {
+	return array( 'subscribed', 'pending', 'rest' );
+}
+
+/**
+ * The pass after this one, or '' after the last.
+ *
+ * @param string $pass A value from npmp_import_fill_passes(), or '' for the first.
+ * @return string
+ */
+function npmp_import_fill_next_pass( $pass ) {
+	$passes = npmp_import_fill_passes();
+	if ( '' === (string) $pass ) {
+		return $passes[0];
+	}
+	$at = array_search( (string) $pass, $passes, true );
+	return ( false === $at || ! isset( $passes[ $at + 1 ] ) ) ? '' : $passes[ $at + 1 ];
+}
+
+/**
+ * One line for an import's Approve step: the order the free places fill in.
+ *
+ * @return string
+ */
+function npmp_import_fill_order_message() {
+	return __( 'You fill your free places with subscribed people first, then people who haven\'t confirmed yet, then everyone else.', 'nonprofit-manager' );
+}
+
+/**
+ * The thousands separator number_format_i18n() uses, for import screens whose
+ * progress counter a script fills in, so 4,300 reads the same in both.
+ *
+ * @return string
+ */
+function npmp_import_thousands_separator() {
+	global $wp_locale;
+	$sep = ( $wp_locale && isset( $wp_locale->number_format['thousands_sep'] ) ) ? (string) $wp_locale->number_format['thousands_sep'] : ',';
+	return html_entity_decode( $sep, ENT_QUOTES, 'UTF-8' );
+}

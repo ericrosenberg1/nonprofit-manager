@@ -130,7 +130,27 @@ wp_delete_post( $gone, true );
 $sent = array();
 NPMP_Newsletter_Manager::process_queue();
 $ok( 'rows for a deleted newsletter send nothing', 0 === count( $sent ) );
-$ok( 'and are marked failed', 2 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = 'failed'", $gone ) ) ); // phpcs:ignore
+$ok( 'and their queued rows are cleared', 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d", $gone ) ) ); // phpcs:ignore
+$ok( 'and no status meta lands on the deleted post', 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE post_id = %d", $gone ) ) ); // phpcs:ignore
+
+// A newsletter deleted halfway through its queue: the next run sends to
+// nobody, clears what was left, and writes no status for the missing post.
+$half = wp_insert_post( array( 'post_type' => 'npmp_newsletter', 'post_status' => 'publish', 'post_title' => 'Half', 'post_content' => 'x' ) );
+update_post_meta( $half, '_npmp_newsletter_levels', array( 'Gold' ) );
+NPMP_Newsletter_Manager::queue_newsletter( $half );
+$prev_rate = get_option( 'npmp_newsletter_rate_limit', null );
+update_option( 'npmp_newsletter_rate_limit', 1 );
+$sent = array();
+NPMP_Newsletter_Manager::process_queue();
+$ok( 'half run: one of the two went out', 1 === count( $sent ) );
+wp_delete_post( $half, true );
+$sent = array();
+NPMP_Newsletter_Manager::process_queue();
+null === $prev_rate ? delete_option( 'npmp_newsletter_rate_limit' ) : update_option( 'npmp_newsletter_rate_limit', $prev_rate );
+$ok( 'after the delete: nothing sends', 0 === count( $sent ) );
+$ok( 'after the delete: no pending rows left', 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE newsletter_id = %d AND status = 'pending'", $half ) ) ); // phpcs:ignore
+$ok( 'after the delete: no meta written for the missing post', 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE post_id = %d", $half ) ) ); // phpcs:ignore
+$wpdb->delete( $table, array( 'newsletter_id' => $half ) );
 
 // ---- Sender-name override never sticks --------------------------------------
 $sent = array();
