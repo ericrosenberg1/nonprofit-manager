@@ -319,26 +319,13 @@ function npmp_email_content_placeholder_shortcode() {
 add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
 
 /**
- * Add template selector to newsletter editor
+ * Every template an editor can pick, by title: wrappers, headers and footers,
+ * but not reusable blocks, which go in by shortcode instead.
+ *
+ * @return WP_Post[]
  */
-add_action('add_meta_boxes', function () {
-    add_meta_box(
-        'npmp_newsletter_template',
-        esc_html__('Email Template', 'nonprofit-manager'),
-        'npmp_newsletter_template_meta_box',
-        'npmp_newsletter',
-        'side',
-        'default'
-    );
-});
-
-function npmp_newsletter_template_meta_box($post) {
-    $selected_template = get_post_meta($post->ID, '_npmp_newsletter_template', true);
-    $default_template = npmp_get_default_template();
-
-    wp_nonce_field('npmp_newsletter_template', 'npmp_newsletter_template_nonce');
-
-    $templates = get_posts([
+function npmp_get_pickable_templates() {
+    return get_posts([
         'post_type' => 'npmp_nl_template',
         'posts_per_page' => -1,
         'orderby' => 'title',
@@ -351,11 +338,41 @@ function npmp_newsletter_template_meta_box($post) {
             ],
         ],
     ]);
+}
+
+/**
+ * The template picker's markup. The newsletter editor and the event editor
+ * both print it, so the two screens offer the same choices and read the same
+ * (Peter Lord, 2026-11-13: the event editor had no template picker at all).
+ *
+ * Each caller owns its own nonce and its own meta key. This prints the select,
+ * the line naming the current default, and the Manage Templates button.
+ *
+ * @param array $args {
+ *     @type string $name     Field name.
+ *     @type string $id       Field id, matched by the label's `for`.
+ *     @type string $selected Saved value: '' for the default, 'none' for no
+ *                            template, or a template post ID.
+ *     @type string $note     One plain line under the select, or '' for none.
+ * }
+ * @return void
+ */
+function npmp_render_template_picker($args) {
+    $args = wp_parse_args($args, [
+        'name' => 'npmp_newsletter_template',
+        'id' => 'npmp_newsletter_template',
+        'selected' => '',
+        'note' => '',
+    ]);
+
+    $selected_template = $args['selected'];
+    $default_template = npmp_get_default_template();
+    $templates = npmp_get_pickable_templates();
 
     ?>
     <p>
-        <label for="npmp_newsletter_template"><strong><?php esc_html_e('Select Template', 'nonprofit-manager'); ?></strong></label><br>
-        <select name="npmp_newsletter_template" id="npmp_newsletter_template" class="widefat">
+        <label for="<?php echo esc_attr($args['id']); ?>"><strong><?php esc_html_e('Select Template', 'nonprofit-manager'); ?></strong></label><br>
+        <select name="<?php echo esc_attr($args['name']); ?>" id="<?php echo esc_attr($args['id']); ?>" class="widefat">
             <?php // Both of these need selected(), or a saved "No Template" reopens reading "Use Default Template" and looks unsaved. ?>
             <option value="" <?php selected($selected_template, ''); ?>><?php esc_html_e('Use Default Template', 'nonprofit-manager'); ?></option>
             <option value="none" <?php selected($selected_template, 'none'); ?>><?php esc_html_e('No Template (Plain Content)', 'nonprofit-manager'); ?></option>
@@ -386,12 +403,40 @@ function npmp_newsletter_template_meta_box($post) {
         </p>
     <?php endif; ?>
 
+    <?php if ('' !== (string) $args['note']) : ?>
+        <p class="description"><?php echo esc_html($args['note']); ?></p>
+    <?php endif; ?>
+
     <p>
         <a href="<?php echo esc_url(admin_url('admin.php?page=npmp_newsletter_templates')); ?>" class="button button-small">
             <?php esc_html_e('Manage Templates', 'nonprofit-manager'); ?>
         </a>
     </p>
     <?php
+}
+
+/**
+ * Add template selector to newsletter editor
+ */
+add_action('add_meta_boxes', function () {
+    add_meta_box(
+        'npmp_newsletter_template',
+        esc_html__('Email Template', 'nonprofit-manager'),
+        'npmp_newsletter_template_meta_box',
+        'npmp_newsletter',
+        'side',
+        'default'
+    );
+});
+
+function npmp_newsletter_template_meta_box($post) {
+    wp_nonce_field('npmp_newsletter_template', 'npmp_newsletter_template_nonce');
+
+    npmp_render_template_picker([
+        'name' => 'npmp_newsletter_template',
+        'id' => 'npmp_newsletter_template',
+        'selected' => get_post_meta($post->ID, '_npmp_newsletter_template', true),
+    ]);
 }
 
 /**
@@ -417,6 +462,66 @@ add_action('save_post_npmp_newsletter', function ($post_id) {
             update_post_meta($post_id, '_npmp_newsletter_template', $template_value);
         } else {
             update_post_meta($post_id, '_npmp_newsletter_template', absint($template_value));
+        }
+    }
+});
+
+/**
+ * Add the same template picker to the event editor.
+ *
+ * An event's email is built by npmp_scheduled_emails_build_newsletter() and
+ * wrapped by npmp_apply_newsletter_template(), so the wrapper was always
+ * applied, with nothing on any screen to choose it. Peter Lord asked for the
+ * newsletter editor's picker here too (2026-11-13).
+ *
+ * The box rides with this file, so it appears only when newsletters are on,
+ * which is also when an event can send an email at all.
+ */
+add_action('add_meta_boxes_npmp_event', function () {
+    add_meta_box(
+        'npmp_event_email_template',
+        esc_html__('Email Template', 'nonprofit-manager'),
+        'npmp_event_email_template_meta_box',
+        'npmp_event',
+        'side',
+        'default'
+    );
+});
+
+function npmp_event_email_template_meta_box($post) {
+    wp_nonce_field('npmp_event_email_template', 'npmp_event_email_template_nonce');
+
+    npmp_render_template_picker([
+        'name' => 'npmp_event_email_template',
+        'id' => 'npmp_event_email_template',
+        'selected' => get_post_meta($post->ID, '_npmp_event_email_template', true),
+        'note' => __('Wraps the email this event sends.', 'nonprofit-manager'),
+    ]);
+}
+
+/**
+ * Save the event's template choice.
+ */
+add_action('save_post_npmp_event', function ($post_id) {
+    if (!isset($_POST['npmp_event_email_template_nonce']) ||
+        !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['npmp_event_email_template_nonce'])), 'npmp_event_email_template')) {
+        return;
+    }
+
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    if (isset($_POST['npmp_event_email_template'])) {
+        $template_value = sanitize_text_field(wp_unslash($_POST['npmp_event_email_template']));
+        if ($template_value === 'none' || $template_value === '') {
+            update_post_meta($post_id, '_npmp_event_email_template', $template_value);
+        } else {
+            update_post_meta($post_id, '_npmp_event_email_template', absint($template_value));
         }
     }
 });

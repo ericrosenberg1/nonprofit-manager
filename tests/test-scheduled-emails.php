@@ -334,5 +334,26 @@ foreach ( array( 'npmp-sched-timing', 'npmp-sched-body', 'npmp-sched-default-tim
 }
 check( 'member words go through the label map', false, strpos( $src, "'Email members before" ) );
 
+echo "\nWhich template an event's email is wrapped in\n";
+// The event's own choice wins, then the body's, then the site default. Before
+// ROS-4473 only the body could carry one, and nothing on any screen set it.
+$body_default = array( 'template' => '' );
+$body_own     = array( 'template' => '31' );
+check( 'no choice anywhere: the site default', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+check( 'body with a template, event without: the body wins', '31', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 32;
+check( 'event choice beats the body', '32', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 'none';
+check( 'event can switch the wrapper off', 'none', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+// Saving "Use Default Template" writes '', which has to read as no choice
+// rather than as a choice of nothing, or the body could never be heard again.
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
+check( 'back to the default: the body is heard again', '31', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+check( 'an event with no meta at all', '', npmp_scheduled_emails_pick_template( 99, $body_default ) );
+// Two call sites: the queued send in build_newsletter() and "Send a test to
+// me" in render_test(). A test that showed a different wrapper from the send
+// is the bug this guards.
+check( 'the test send reads the same picker as the real send', 2, substr_count( $src, '= npmp_scheduled_emails_pick_template( $event_id, $body );' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

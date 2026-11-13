@@ -366,6 +366,7 @@ Free (`readme.txt`):
 - Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and the date each contact joined.
 - Fixed imports with "Update existing contacts," which resubscribed contacts who had unsubscribed.
 - Fixed the import message about the Email column, which showed &quot; on screen.
+- Added an Email Template picker to the event editor, the same one the newsletter editor has, so one event's email can go out in a different template.
 
 Pro (licence server changelog):
 - Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.
