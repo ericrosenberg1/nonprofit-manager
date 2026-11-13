@@ -113,14 +113,28 @@ check( 'gap lands in the root style', true, false !== strpos( npmp_events_loop_r
 
 echo "Auto-excerpt skips the date heading and the Agenda heading\n";
 $body = "<!-- wp:heading {\"level\":3} -->\n<h3><strong>Wednesday, September 25, 2024</strong></h3>\n<!-- /wp:heading -->\n<!-- wp:heading --><h3>Agenda</h3><!-- /wp:heading -->\n<!-- wp:list --><ul><li>Opening, Rob Corley</li><li>Police report &amp; crime stats</li></ul><!-- /wp:list -->";
-check( 'text comes from the list', 'Opening, Rob Corley Police report & crime stats', npmp_events_loop_text_from_content( $body ) );
-check( 'iframe and shortcode dropped', 'Hello world', npmp_events_loop_text_from_content( '<figure><iframe src="x"></iframe></figure>[npmp_events]<p>Hello</p><p>world</p>' ) );
+check( 'list items come back one per line', "Opening, Rob Corley\nPolice report & crime stats", npmp_events_loop_text_from_content( $body ) );
+check( 'iframe and shortcode dropped, paragraphs kept', "Hello\n\nworld", npmp_events_loop_text_from_content( '<figure><iframe src="x"></iframe></figure>[npmp_events]<p>Hello</p><p>world</p>' ) );
 $post = (object) array( 'post_excerpt' => '', 'post_content' => $body );
-check( 'trimmed to the word limit', 'Opening, Rob Corley Police report…', npmp_events_loop_excerpt( $post, 5 ) );
+check( 'trimmed to the word limit', "Opening, Rob Corley\nPolice report…", npmp_events_loop_excerpt( $post, 5 ) );
 $post = (object) array( 'post_excerpt' => '<b>Manual</b> words here', 'post_content' => $body );
 check( 'manual excerpt wins and is stripped', 'Manual words here', npmp_events_loop_excerpt( $post, 55 ) );
 $post = (object) array( 'post_excerpt' => '', 'post_content' => '<h2>Only a heading</h2>' );
 check( 'nothing left means empty', '', npmp_events_loop_excerpt( $post, 55 ) );
+
+echo "An event body keeps its paragraph breaks in the list (ROS-4428, Pete at U3A)\n";
+$walk = "<!-- wp:paragraph -->\n<p>We meet at the hall at 10am.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>Bring stout shoes and a packed lunch.</p>\n<!-- /wp:paragraph -->";
+$post = (object) array( 'post_excerpt' => '', 'post_content' => $walk );
+check( 'two paragraphs stay two', "We meet at the hall at 10am.\n\nBring stout shoes and a packed lunch.", npmp_events_loop_excerpt( $post, 55 ) );
+check( 'rendered as two <p>', '<p>We meet at the hall at 10am.</p><p>Bring stout shoes and a packed lunch.</p>', npmp_events_loop_excerpt_html( npmp_events_loop_excerpt( $post, 55 ) ) );
+$post = (object) array( 'post_excerpt' => "Line one.\n\nLine two.", 'post_content' => $walk );
+check( 'a manual excerpt keeps its break too', "Line one.\n\nLine two.", npmp_events_loop_excerpt( $post, 55 ) );
+check( 'a single newline becomes a <br>', "<p>a<br />\nb</p>", npmp_events_loop_excerpt_html( "a\nb" ) );
+check( 'empty text renders nothing', '', npmp_events_loop_excerpt_html( '   ' ) );
+check( 'the text is escaped before any tag is added', '<p>&lt;script&gt;x&lt;/script&gt;</p>', npmp_events_loop_excerpt_html( '<script>x</script>' ) );
+check( 'horizontal whitespace still collapses', 'a b', npmp_events_loop_normalize_text( "a  \t b" ) );
+check( 'three blank lines become one paragraph break', "a\n\nb", npmp_events_loop_normalize_text( "a\n\n\n\nb" ) );
+check( 'the word limit has a floor of five', "one two three four five…", npmp_events_loop_trim_words( 'one two three four five six', 1 ) );
 
 echo "Settings save leaves unchecked boxes off\n";
 $GLOBALS['t_options'] = array();

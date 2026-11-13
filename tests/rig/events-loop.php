@@ -61,7 +61,10 @@ $ok( 'archive lists newest first: D, C, B, A', array( 'Meeting D', 'Meeting C', 
 $ok( 'plain list layout', false !== strpos( $html, 'npmp-events--list' ) );
 $ok( 'no image markup by default', false === strpos( $html, 'npmp-event-media' ) );
 $ok( 'manual excerpt used for B', false !== strpos( $html, 'A written summary for B.' ) );
-$ok( 'auto excerpt skips the headings', false !== strpos( $html, 'Opening remarks from the vice chair Police report' ) && false === strpos( $html, 'Wednesday, September' ) );
+$ok( 'auto excerpt skips the headings', false !== strpos( $html, 'Opening remarks from the vice chair' ) && false !== strpos( $html, 'Police report' ) && false === strpos( $html, 'Wednesday, September' ) );
+// ROS-4428: the two list items stay on their own lines instead of running together.
+$ok( 'auto excerpt keeps the line break between list items', false !== strpos( $html, "Opening remarks from the vice chair<br />\nPolice report" ) );
+$ok( 'excerpt text sits in its own <p>', (bool) preg_match( '#<div class="npmp-event-excerpt"><p>#', $html ) );
 
 echo "Upcoming list stays soonest first\n";
 $html = do_shortcode( '[npmp_events category="meetings"]' );
