@@ -156,6 +156,12 @@ $sub = get_option( 'newsletter_subscription', array() );
 update_option( 'newsletter_subscription', array_merge( is_array( $sub ) ? $sub : array(), array( 'noconfirmation' => 0 ) ), true );
 
 $tnp  = Newsletter::instance();
+// created is a TIMESTAMP, so MySQL reads ada's literal in the session time
+// zone. Seed in UTC, then put the session back before the import runs, so a
+// server on SYSTEM time (PST on this Mac) still proves the importer reads the
+// instant, not the wall clock.
+$rig_session_tz = (string) $wpdb->get_var( 'SELECT @@session.time_zone' );
+$wpdb->query( "SET time_zone = '+00:00'" );
 $seed = array(
 	'ada' => array( 'C', 'Ada', 'Lovelace', array( 'list_1' => 1 ), '2024-01-15 10:00:00' ),
 	'ben' => array( 'S', 'Ben', '', array( 'list_2' => 1 ), '' ),
@@ -181,6 +187,7 @@ foreach ( $seed as $key => $s ) {
 	}
 	$tnp->save_user( $user );
 }
+$wpdb->query( $wpdb->prepare( 'SET time_zone = %s', $rig_session_tz ) );
 $ok( 'Newsletter saved 8 subscribers', 8 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}newsletter WHERE email LIKE %s", '%@' . $wpdb->esc_like( $domain ) ) ) );
 $ok( 'Newsletter reads the lists back', isset( $tnp->get_lists()['1'] ) && 'Rig Members' === $tnp->get_lists()['1']->name );
 $ok( 'Newsletter reads double opt-in back', $tnp->get_option( 'noconfirmation', 'subscription' ) == 0 ); // phpcs:ignore Universal.Operators.StrictComparisons -- Newsletter's own loose check.

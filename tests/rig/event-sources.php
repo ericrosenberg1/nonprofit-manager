@@ -122,6 +122,28 @@ register_shutdown_function(
 update_option( 'timezone_string', 'Europe/London' );
 update_option( 'gmt_offset', '' );
 $ok( 'site timezone is Europe/London', 'Europe/London' === wp_timezone_string() );
+// The old-link checks ask for /events/<slug>/, which a new site on plain
+// permalinks answers 200 with the home page. Use post-name links for the run
+// and put the site's own structure back at the end.
+$rig_permalinks = get_option( 'permalink_structure' );
+if ( '' === (string) $rig_permalinks ) {
+	register_shutdown_function(
+		static function () use ( $rig_permalinks ) {
+			update_option( 'permalink_structure', $rig_permalinks );
+			delete_option( 'rewrite_rules' );
+		}
+	);
+	$GLOBALS['wp_rewrite']->set_permalink_structure( '/%postname%/' );
+	// Post types registered on plain links got no permastruct, so this
+	// process's get_permalink() would still hand back ?npmp_event= links.
+	foreach ( get_post_types( array( '_builtin' => false ), 'objects' ) as $rig_type ) {
+		if ( is_array( $rig_type->rewrite ) ) {
+			$rig_type->add_rewrite_rules();
+		}
+	}
+	flush_rewrite_rules( false );
+}
+$ok( 'site uses post-name links', '' !== (string) get_option( 'permalink_structure' ) );
 $ok( 'both event sources registered', isset( npmp_event_import_sources()['events-manager'], npmp_event_import_sources()['sugar-calendar'] ) );
 $ok( 'EM tables exist', '' !== npmp_em_table( 'em_events' ) && '' !== npmp_em_table( 'em_event_recurrences' ) );
 $ok( 'Sugar tables exist', '' !== npmp_sc_table( 'sc_events' ) && '' !== npmp_sc_table( 'sc_eventmeta' ) );
