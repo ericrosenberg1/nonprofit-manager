@@ -183,32 +183,33 @@ function npmp_pmpro_merge_levels( array $existing, array $incoming ) {
  * @param string $current  The contact's level.
  * @param string $source   The contact's source.
  * @param string $incoming The member's level, '' for a past member.
+ * @param string $ours     The source this importer writes (pmpro, ultimate_member).
  * @return string
  */
-function npmp_pmpro_level_update( $current, $source, $incoming ) {
+function npmp_pmpro_level_update( $current, $source, $incoming, $ours = 'pmpro' ) {
 	$current  = trim( (string) $current );
 	$incoming = trim( (string) $incoming );
 	if ( '' === $incoming || $current === $incoming ) {
 		return '';
 	}
-	if ( '' === $current || 'pmpro' === (string) $source ) {
+	if ( '' === $current || (string) $ours === (string) $source ) {
 		return $incoming;
 	}
 	return '';
 }
 
 /**
- * Contact fields to fill from the member's billing details. Only fields the
- * contact has empty.
+ * Contact fields to fill from the member's details. Only fields the contact
+ * has empty. Ultimate Member's source shares this.
  *
  * @param object|array $member   The contact (phone, address_line1, ...).
- * @param array        $incoming The same keys from Paid Memberships Pro.
+ * @param array        $incoming Contact field => value from the old plugin.
  * @return array
  */
 function npmp_pmpro_fill_fields( $member, array $incoming ) {
 	$member = (array) $member;
 	$out    = array();
-	foreach ( npmp_pmpro_address_keys() as $field => $meta_key ) {
+	foreach ( $incoming as $field => $unused ) {
 		$value = is_scalar( $incoming[ $field ] ?? null ) ? trim( (string) $incoming[ $field ] ) : '';
 		if ( '' !== $value && '' === trim( (string) ( $member[ $field ] ?? '' ) ) ) {
 			$out[ $field ] = $value;
@@ -428,12 +429,45 @@ function npmp_pmpro_add_levels() {
 /**
  * Create or update one contact from a member.
  *
- * @param object     $row      Row from npmp_pmpro_read_rows().
+ * Ultimate Member's source writes through here too. It passes its own source
+ * key, the contact status it mapped, and how an existing contact's status
+ * changes, in $opts.
+ *
+ * The write runs as an import (npmp_import_run_as_import()), so Pro's welcome
+ * automation and the Nonprofit Mailer's member_joined event skip it, the same
+ * as a CSV import.
+ *
+ * @param object     $row      Row from npmp_pmpro_read_rows(), or the same shape.
  * @param array|null $existing array{id:int,status:string} from npmp_mailpoet_find_contacts(), or null.
+ * @param array      $opts     source (default pmpro), status (the contact status
+ *                             for a new contact, default from $row->group),
+ *                             merge_status (callable( $member ) returning a new
+ *                             status or ''), raw (extra keys for the
+ *                             npmp_import_row_imported row argument).
  * @return array{result:string,member_id:int,message:string,kept_unsubscribed:bool}
  */
-function npmp_pmpro_import_member( $row, $existing = null ) {
-	$out = array(
+function npmp_pmpro_import_member( $row, $existing = null, array $opts = array() ) {
+	if ( function_exists( 'npmp_import_run_as_import' ) ) {
+		return npmp_import_run_as_import(
+			static function () use ( $row, $existing, $opts ) {
+				return npmp_pmpro_write_member( $row, $existing, $opts );
+			}
+		);
+	}
+	return npmp_pmpro_write_member( $row, $existing, $opts );
+}
+
+/**
+ * The write behind npmp_pmpro_import_member().
+ *
+ * @param object     $row      Row.
+ * @param array|null $existing Existing contact, or null.
+ * @param array      $opts     See npmp_pmpro_import_member().
+ * @return array
+ */
+function npmp_pmpro_write_member( $row, $existing = null, array $opts = array() ) {
+	$source = sanitize_key( (string) ( $opts['source'] ?? 'pmpro' ) );
+	$out    = array(
 		'result'            => 'error',
 		'member_id'         => 0,
 		'message'           => '',
@@ -448,7 +482,7 @@ function npmp_pmpro_import_member( $row, $existing = null ) {
 
 	$members  = NPMP_Member_Manager::get_instance();
 	$name     = npmp_mailpoet_full_name( $row->first_name, $row->last_name );
-	$incoming = npmp_pmpro_contact_status( $row->group );
+	$incoming = isset( $opts['status'] ) ? (string) $opts['status'] : npmp_pmpro_contact_status( $row->group );
 	$added    = $row->created > 0 ? (string) (int) $row->created : '';
 	$member   = $existing ? $members->get_member_by_id( (int) $existing['id'] ) : null;
 
@@ -459,7 +493,7 @@ function npmp_pmpro_import_member( $row, $existing = null ) {
 				'name'             => $name,
 				'email'            => $email,
 				'status'           => $incoming,
-				'source'           => 'pmpro',
+				'source'           => $source,
 				'membership_level' => (string) $row->level,
 			)
 		);
@@ -482,9 +516,11 @@ function npmp_pmpro_import_member( $row, $existing = null ) {
 
 	if ( $member ) {
 		$update     = npmp_pmpro_fill_fields( $member, (array) $row->fields );
-		$new_status = npmp_mailpoet_merge_status( $member->status, $incoming );
+		$new_status = isset( $opts['merge_status'] ) && is_callable( $opts['merge_status'] )
+			? (string) call_user_func( $opts['merge_status'], $member )
+			: npmp_mailpoet_merge_status( $member->status, $incoming );
 		$new_name   = npmp_mailpoet_merge_name( $member->name, $member->email, $name );
-		$new_level  = npmp_pmpro_level_update( $member->membership_level ?? '', $member->source ?? '', $row->level );
+		$new_level  = npmp_pmpro_level_update( $member->membership_level ?? '', $member->source ?? '', $row->level, $source );
 		if ( '' !== $new_status ) {
 			$update['status'] = $new_status;
 		}
@@ -524,17 +560,20 @@ function npmp_pmpro_import_member( $row, $existing = null ) {
 			'name'             => $name,
 			'email'            => $email,
 			'status'           => $final_status,
-			'source'           => 'pmpro',
+			'source'           => $source,
 			'membership_level' => $final_level,
 		),
-		array(
-			'source_id' => (int) $row->id,
-			'group'     => (string) $row->group,
+		array_merge(
+			array(
+				'source_id' => (int) $row->id,
+				'group'     => (string) ( $row->group ?? '' ),
+			),
+			(array) ( $opts['raw'] ?? array() )
 		),
 		array(),
 		'created' === $out['result'] ? 'imported' : 'updated',
 		array(
-			'source'             => 'pmpro',
+			'source'             => $source,
 			'duplicate_handling' => 'update',
 		)
 	);
