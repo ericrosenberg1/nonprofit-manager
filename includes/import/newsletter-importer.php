@@ -369,10 +369,15 @@ function npmp_tnp_run( $seconds = NPMP_TNP_SECONDS, $limit = NPMP_TNP_BATCH ) {
 	if ( ! npmp_mail_queue_lock( 'import_newsletter', 120 ) ) {
 		return npmp_tnp_state();
 	}
+	// Pro puts contacts in groups, and WordPress recounts a group after
+	// every contact it gains: a COUNT that grows with the group. Count each
+	// group once at the end of the batch instead.
+	wp_defer_term_counting( true );
 	try {
 		return npmp_tnp_run_locked( $seconds, $limit );
 	} finally {
 		npmp_mail_queue_unlock( 'import_newsletter' );
+		wp_defer_term_counting( false );
 	}
 }
 

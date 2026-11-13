@@ -1271,10 +1271,15 @@ function npmp_mailpoet_migrate_batch( $limit = NPMP_MAILPOET_BATCH ) {
 			'busy'     => true,
 		);
 	}
+	// Pro puts contacts in groups, and WordPress recounts a group after
+	// every contact it gains: a COUNT that grows with the group. Count each
+	// group once at the end of the batch instead.
+	wp_defer_term_counting( true );
 	try {
 		return npmp_mailpoet_migrate_batch_locked( $limit );
 	} finally {
 		npmp_mail_queue_unlock( 'import_mailpoet' );
+		wp_defer_term_counting( false );
 	}
 }
 

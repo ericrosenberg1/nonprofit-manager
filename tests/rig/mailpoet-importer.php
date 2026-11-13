@@ -521,6 +521,10 @@ if ( $pro ) {
 	rig_check( 'Hal joined no group', array(), $group_names( $hal ) );
 	rig_check( 'Ivy (already here) joined Arts, Crafts', array( 'Arts, Crafts' ), $group_names( $ivy ) );
 	rig_check( 'Lee joined no group', array(), $group_names( $get( 'lee' ) ) );
+	// The batch defers term counting, so the counts come out right once at the end.
+	clean_term_cache( array(), $tax );
+	rig_check( 'Walking Group counts its 3 contacts', 3, (int) get_term_by( 'name', 'Walking Group', $tax )->count );
+	rig_check( 'Arts, Crafts counts its 3 contacts', 3, (int) get_term_by( 'name', 'Arts, Crafts', $tax )->count );
 } else {
 	rig_check( 'without Pro no row carries lists', array(), array_filter( wp_list_pluck( $hooked, 1 ) ) );
 	rig_check( 'without Pro there is no group taxonomy', '', $tax );
