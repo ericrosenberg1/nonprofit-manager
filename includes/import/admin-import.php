@@ -91,6 +91,121 @@ add_action( 'wp_ajax_npmp_import_execute', 'npmp_import_ajax_execute' );
 add_action( 'wp_ajax_npmp_import_step', 'npmp_import_ajax_step' );
 add_action( 'wp_ajax_npmp_import_mailchimp_lists', 'npmp_import_ajax_mc_lists' );
 add_action( 'wp_ajax_npmp_import_cc_lists', 'npmp_import_ajax_cc_lists' );
+add_action( 'wp_ajax_npmp_import_brevo_lists', 'npmp_import_ajax_brevo_lists' );
+
+/**
+ * AJAX: Fetch Brevo lists. The key goes to Brevo and nowhere else.
+ */
+function npmp_import_ajax_brevo_lists() {
+	check_ajax_referer( 'npmp_import_nonce', 'nonce' );
+	if ( ! npmp_import_user_can_source( 'brevo' ) ) {
+		wp_send_json_error( __( 'Permission denied.', 'nonprofit-manager' ) );
+	}
+	$api_key = isset( $_POST['api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['api_key'] ) ) : '';
+	if ( '' === $api_key ) {
+		wp_send_json_error( __( 'Paste your Brevo API key first.', 'nonprofit-manager' ) );
+	}
+	$lists = npmp_brevo_get_lists( $api_key );
+	if ( is_wp_error( $lists ) ) {
+		wp_send_json_error( $lists->get_error_message() );
+	}
+	wp_send_json_success( $lists );
+}
+
+/**
+ * The Brevo part of the preview: fetch the attributes, the list names, and
+ * five contacts, then keep the sealed key for the import that follows.
+ *
+ * @return array|WP_Error Preview data.
+ */
+function npmp_import_brevo_preview() {
+	// phpcs:disable WordPress.Security.NonceVerification.Missing -- npmp_import_ajax_preview() checked the nonce.
+	$api_key = isset( $_POST['brevo_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['brevo_api_key'] ) ) : '';
+	$list_id = isset( $_POST['brevo_list_id'] ) ? absint( $_POST['brevo_list_id'] ) : 0;
+	// phpcs:enable
+	if ( '' === $api_key ) {
+		return new WP_Error( 'npmp_brevo_key', __( 'Paste your Brevo API key first.', 'nonprofit-manager' ) );
+	}
+	$attributes = npmp_brevo_get_attributes( $api_key );
+	if ( is_wp_error( $attributes ) ) {
+		return $attributes;
+	}
+	$lists = npmp_brevo_get_lists( $api_key );
+	if ( is_wp_error( $lists ) ) {
+		return $lists;
+	}
+	$page = npmp_brevo_get_contacts( $api_key, $list_id, 0, 5 );
+	if ( is_wp_error( $page ) ) {
+		return $page;
+	}
+	$names   = npmp_brevo_list_names( $lists );
+	$labels  = NPMP_Import_Manager::get_instance()->get_field_labels();
+	$columns = npmp_brevo_columns( $attributes, isset( $labels['groups'] ) );
+	$rows    = array();
+	foreach ( $page['contacts'] as $contact ) {
+		$rows[] = npmp_brevo_preview_cells( npmp_brevo_contact_row( (array) $contact, $list_id, $attributes, $names ), $columns['column_order'] );
+	}
+
+	$token  = wp_generate_password( 16, false );
+	$sealed = npmp_brevo_seal( $api_key );
+	npmp_brevo_save_job(
+		$token,
+		array(
+			'box'          => $sealed['box'],
+			'list_id'      => $list_id,
+			'column_order' => $columns['column_order'],
+			'attributes'   => $attributes,
+			'list_names'   => $names,
+			'extra_known'  => $columns['extra_known'],
+		)
+	);
+
+	$extra_cols = npmp_import_extra_wizard_columns( $columns['headers'], $rows, $columns['auto_map'], $columns['extra_known'] );
+	$extra_cols = array_intersect_key( $extra_cols, $columns['extra_known'] );
+
+	return array(
+		'headers'      => $columns['headers'],
+		'rows'         => $rows,
+		'total_rows'   => (int) $page['count'],
+		'auto_map'     => $columns['auto_map'],
+		'file_token'   => $token,
+		'brevo_secret' => $sealed['secret'],
+		'source'       => 'brevo',
+		'extra'        => npmp_import_extra_wizard_payload( $extra_cols ),
+	);
+}
+
+/**
+ * Turn a Brevo failure into the step's error answer. Brevo asking us to wait,
+ * a timeout, or a Brevo outage keeps the job so the owner can resume it. A
+ * wrong key or a missing permission ends it and deletes the sealed key.
+ *
+ * @param WP_Error $error     From npmp_brevo_get().
+ * @param string   $job_token Job token.
+ * @param array    $state     Job state.
+ * @return void Sends JSON and exits.
+ */
+function npmp_import_brevo_step_error( $error, $job_token, $state ) {
+	$data = (array) $error->get_error_data();
+	if ( ! empty( $data['retry'] ) ) {
+		set_transient( 'npmp_import_job_' . $job_token, $state, NPMP_BREVO_JOB_TTL );
+		$job = get_transient( npmp_brevo_job_key( $job_token ) );
+		if ( is_array( $job ) ) {
+			npmp_brevo_save_job( $job_token, $job );
+		}
+		wp_send_json_error(
+			array(
+				'message'     => $error->get_error_message(),
+				'code'        => 'retry',
+				'retry_after' => (int) ( $data['retry_after'] ?? 5 ),
+				'progress'    => (int) $state['cursor'],
+			)
+		);
+	}
+	delete_transient( 'npmp_import_job_' . $job_token );
+	delete_transient( npmp_brevo_job_key( $job_token ) );
+	wp_send_json_error( array( 'message' => $error->get_error_message(), 'code' => 'stop' ) );
+}
 
 /**
  * AJAX: Upload a file (or fetch from URL / API) and return preview data.
@@ -147,6 +262,7 @@ function npmp_import_ajax_preview() {
 
 			$preview['file_token'] = $token;
 			$preview['source']     = $source;
+			$preview['extra']      = npmp_import_extra_wizard_payload( npmp_import_extra_wizard_columns( (array) $preview['headers'], (array) $preview['rows'], (array) $preview['auto_map'] ) );
 			wp_send_json_success( $preview );
 			break;
 
@@ -211,6 +327,7 @@ function npmp_import_ajax_preview() {
 
 			$preview['file_token'] = $token;
 			$preview['source']     = 'google_sheet';
+			$preview['extra']      = npmp_import_extra_wizard_payload( npmp_import_extra_wizard_columns( (array) $preview['headers'], (array) $preview['rows'], (array) $preview['auto_map'] ) );
 			wp_send_json_success( $preview );
 			break;
 
@@ -248,11 +365,16 @@ function npmp_import_ajax_preview() {
 				2 => 'tags',
 				3 => 'created_at',
 			);
+			$extra_known  = array();
 			foreach ( $merge_fields as $mf ) {
 				$tag                  = $mf['tag'];
 				$headers[]            = $mf['name'] ? sprintf( '%s (%s)', $mf['name'], $tag ) : $tag;
 				$column_order[]       = 'mf:' . $tag;
 				$auto_map[ count( $column_order ) - 1 ] = npmp_mailchimp_suggest_field( $tag, $mf['name'] );
+				// ADDRESS is a structured value with its own address fields, never a custom field.
+				if ( 'address' !== strtolower( (string) $mf['type'] ) ) {
+					$extra_known[ count( $column_order ) - 1 ] = array_merge( npmp_mailchimp_extra_field_type( $mf ), array( 'label' => $mf['name'] ? $mf['name'] : $tag ) );
+				}
 			}
 
 			// Build preview rows aligned to column_order.
@@ -299,9 +421,13 @@ function npmp_import_ajax_preview() {
 					'list_id'      => $list_id,
 					'column_order' => $column_order,
 					'merge_fields' => $merge_fields,
+					'extra_known'  => $extra_known,
 				),
 				HOUR_IN_SECONDS
 			);
+			// The four Mailchimp columns and the address have homes of their own.
+			$extra_cols = npmp_import_extra_wizard_columns( $headers, $rows, $auto_map, $extra_known );
+			$extra_cols = array_intersect_key( $extra_cols, $extra_known );
 
 			wp_send_json_success(
 				array(
@@ -311,8 +437,17 @@ function npmp_import_ajax_preview() {
 					'auto_map'   => $auto_map,
 					'file_token' => $token,
 					'source'     => 'mailchimp',
+					'extra'      => npmp_import_extra_wizard_payload( $extra_cols ),
 				)
 			);
+			break;
+
+		case 'brevo':
+			$preview = npmp_import_brevo_preview();
+			if ( is_wp_error( $preview ) ) {
+				wp_send_json_error( $preview->get_error_message() );
+			}
+			wp_send_json_success( $preview );
 			break;
 
 		case 'constant_contact':
@@ -328,29 +463,43 @@ function npmp_import_ajax_preview() {
 				wp_send_json_error( $result->get_error_message() );
 			}
 
+			// Four fixed columns, then one per custom field. column_order names
+			// each column's key in npmp_cc_contact_row(), as Mailchimp's does.
+			$headers      = array( 'Email', 'First Name', 'Last Name', 'Phone' );
+			$column_order = array( 'email_address', 'first_name', 'last_name', 'phone' );
+			$extra_known  = array();
+			foreach ( npmp_cc_get_custom_fields( $access_token ) as $cf ) {
+				$headers[]      = $cf['label'];
+				$column_order[] = 'ccf:' . $cf['id'];
+				$extra_known[ count( $column_order ) - 1 ] = array(
+					'label'   => $cf['label'],
+					'type'    => $cf['type'],
+					'options' => array(),
+				);
+			}
+
 			$token = wp_generate_password( 16, false );
 			set_transient(
 				'npmp_import_cc_' . $token,
 				array(
 					'access_token' => $access_token,
 					'list_id'      => $list_id,
+					'column_order' => $column_order,
+					'extra_known'  => $extra_known,
 				),
 				HOUR_IN_SECONDS
 			);
 
-			$headers = array( 'Email', 'First Name', 'Last Name', 'Phone' );
-			$rows    = array();
+			$rows = array();
 
 			$preview_contacts = array_slice( $result['contacts'], 0, 5 );
 			foreach ( $preview_contacts as $c ) {
-				$email = npmp_cc_contact_email( $c );
-				$phone = ! empty( $c['phone_numbers'] ) ? $c['phone_numbers'][0]['phone_number'] : '';
-				$rows[] = array(
-					$email,
-					isset( $c['first_name'] ) ? $c['first_name'] : '',
-					isset( $c['last_name'] ) ? $c['last_name'] : '',
-					$phone,
-				);
+				$named = npmp_cc_contact_row( $c );
+				$row   = array();
+				foreach ( $column_order as $key ) {
+					$row[] = isset( $named[ $key ] ) ? (string) $named[ $key ] : '';
+				}
+				$rows[] = $row;
 			}
 
 			$auto_map = array(
@@ -368,6 +517,7 @@ function npmp_import_ajax_preview() {
 					'auto_map'   => $auto_map,
 					'file_token' => $token,
 					'source'     => 'constant_contact',
+					'extra'      => npmp_import_extra_wizard_payload( npmp_import_extra_wizard_columns( $headers, $rows, $auto_map, $extra_known ) ),
 				)
 			);
 			break;
@@ -445,7 +595,9 @@ function npmp_import_ajax_execute() {
 				wp_send_json_error( __( 'Constant Contact session expired. Please start over.', 'nonprofit-manager' ) );
 			}
 
-			$api_keys  = array( 'email_address', 'first_name', 'last_name', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'country', 'tags' );
+			$api_keys  = isset( $creds['column_order'] ) && is_array( $creds['column_order'] )
+				? $creds['column_order']
+				: array( 'email_address', 'first_name', 'last_name', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'country', 'tags' );
 			$named_map = array();
 			foreach ( $mapping as $idx => $field ) {
 				if ( '' !== $field && isset( $api_keys[ $idx ] ) ) {
@@ -529,7 +681,7 @@ function npmp_import_ajax_step() {
 	// First call from this job initializes the state from POST.
 	if ( ! is_array( $state ) ) {
 		$source  = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
-		$allowed = array( 'mailchimp', 'csv', 'xlsx', 'google_sheet', 'constant_contact' );
+		$allowed = array( 'mailchimp', 'csv', 'xlsx', 'google_sheet', 'constant_contact', 'brevo' );
 		if ( ! in_array( $source, $allowed, true ) ) {
 			wp_send_json_error( __( 'This import source does not support chunked import.', 'nonprofit-manager' ) );
 		}
@@ -542,6 +694,15 @@ function npmp_import_ajax_step() {
 			'default_status'     => isset( $_POST['default_status'] ) ? sanitize_key( $_POST['default_status'] ) : 'subscribed',
 			'source'             => isset( $_POST['import_source_tag'] ) ? sanitize_text_field( wp_unslash( $_POST['import_source_tag'] ) ) : '',
 		);
+
+		// Extra columns mapped to custom fields: make the new fields now, once (extra-fields.php).
+		$creds_prefix = array(
+			'mailchimp'        => 'npmp_import_mc_',
+			'constant_contact' => 'npmp_import_cc_',
+			'brevo'            => 'npmp_import_brevo_',
+		);
+		$job_creds    = isset( $creds_prefix[ $source ] ) ? get_transient( $creds_prefix[ $source ] . $job_token ) : array();
+		list( $mapping, $options ) = npmp_import_extra_start_job( $mapping, $options, is_array( $job_creds ) ? (array) ( $job_creds['extra_known'] ?? array() ) : array() );
 
 		$state = array(
 			'source'  => $source,
@@ -645,6 +806,7 @@ function npmp_import_ajax_step() {
 			);
 		}
 		$state['cursor'] = (int) $page['next_cursor'];
+		$state['totals'] = npmp_import_extra_merge_job_totals( $state['totals'] );
 
 		// Cap-reached check after this page completed.
 		$total_in_source = (int) $page['total'];
@@ -672,6 +834,90 @@ function npmp_import_ajax_step() {
 				'done'          => false,
 				'progress'      => (int) $page['next_cursor'],
 				'total'         => (int) $page['total'],
+				'partial_stats' => $state['totals'],
+			)
+		);
+	}
+
+	// ------------------------------------------------------------------
+	// Brevo: one page of contacts per request, by offset, oldest first.
+	// ------------------------------------------------------------------
+	if ( 'brevo' === $state['source'] ) {
+		$job     = get_transient( npmp_brevo_job_key( $job_token ) );
+		$secret  = isset( $_POST['brevo_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['brevo_secret'] ) ) : '';
+		$api_key = is_array( $job ) ? npmp_brevo_unseal( $job['box'] ?? '', $secret ) : '';
+		if ( '' === $api_key ) {
+			delete_transient( $state_key );
+			delete_transient( npmp_brevo_job_key( $job_token ) );
+			wp_send_json_error( array( 'message' => __( 'This Brevo import has expired. Paste the key again to start a new import. We keep the contacts you already imported, and a new run skips or updates those contacts.', 'nonprofit-manager' ), 'code' => 'stop' ) );
+		}
+
+		$column_order = (array) $job['column_order'];
+		$named_map    = array();
+		foreach ( $state['mapping'] as $idx => $field ) {
+			$idx = (int) $idx;
+			if ( '' !== $field && isset( $column_order[ $idx ] ) ) {
+				$named_map[ $column_order[ $idx ] ] = $field;
+			}
+		}
+		// Brevo's blocklist decides the status, whatever the owner mapped, so
+		// a blocklisted address can never come over as subscribed.
+		$named_map['status'] = 'status';
+
+		$max_rows  = npmp_import_max_rows();
+		$cursor    = (int) $state['cursor'];
+		$page_size = max( 1, min( 500, (int) apply_filters( 'npmp_import_brevo_page_size', 100 ) ) );
+		if ( $max_rows < PHP_INT_MAX ) {
+			$page_size = min( $page_size, max( 0, $max_rows - $cursor ) );
+		}
+
+		$page = $page_size > 0 ? npmp_brevo_get_contacts( $api_key, (int) $job['list_id'], $cursor, $page_size ) : array( 'contacts' => array(), 'count' => $cursor );
+		if ( is_wp_error( $page ) ) {
+			npmp_import_brevo_step_error( $page, $job_token, $state );
+		}
+
+		$rows = array();
+		foreach ( $page['contacts'] as $contact ) {
+			$rows[] = npmp_brevo_contact_row( (array) $contact, (int) $job['list_id'], (array) $job['attributes'], (array) $job['list_names'] );
+		}
+		$stats = $rows ? $import->process_named_rows( $rows, $named_map, $state['options'], $cursor ) : array();
+
+		$state['totals']['imported'] += isset( $stats['imported'] ) ? (int) $stats['imported'] : 0;
+		$state['totals']['updated']  += isset( $stats['updated'] ) ? (int) $stats['updated'] : 0;
+		$state['totals']['skipped']  += isset( $stats['skipped'] ) ? (int) $stats['skipped'] : 0;
+		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
+		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
+			$state['totals']['error_messages'] = array_slice( array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ), 0, 200 );
+		}
+		$state['cursor'] = $cursor + count( $page['contacts'] );
+		$state['totals'] = npmp_import_extra_merge_job_totals( $state['totals'] );
+
+		$total       = (int) $page['count'];
+		$cap_reached = ( $max_rows < PHP_INT_MAX ) && ( $state['cursor'] >= $max_rows ) && ( $total > $max_rows );
+		$done        = $cap_reached || count( $page['contacts'] ) < $page_size || $state['cursor'] >= $total;
+
+		if ( $done ) {
+			delete_transient( $state_key );
+			delete_transient( npmp_brevo_job_key( $job_token ) );
+			wp_send_json_success(
+				array(
+					'done'         => true,
+					'progress'     => $state['cursor'],
+					'total'        => max( $total, $state['cursor'] ),
+					'stats'        => $state['totals'],
+					'cap_reached'  => $cap_reached,
+					'cap_max_rows' => $max_rows,
+				)
+			);
+		}
+
+		set_transient( $state_key, $state, NPMP_BREVO_JOB_TTL );
+		npmp_brevo_save_job( $job_token, $job );
+		wp_send_json_success(
+			array(
+				'done'          => false,
+				'progress'      => $state['cursor'],
+				'total'         => $total,
 				'partial_stats' => $state['totals'],
 			)
 		);
@@ -741,6 +987,7 @@ function npmp_import_ajax_step() {
 			);
 		}
 		$state['cursor'] = (int) $page['next_cursor'];
+		$state['totals'] = npmp_import_extra_merge_job_totals( $state['totals'] );
 
 		$total_in_source = (int) $page['total'];
 		$cap_reached     = ( $max_rows < PHP_INT_MAX ) && ( $state['cursor'] >= $max_rows ) && ( $total_in_source > $max_rows );
@@ -784,9 +1031,11 @@ function npmp_import_ajax_step() {
 			wp_send_json_error( __( 'Constant Contact session expired. Please start over.', 'nonprofit-manager' ) );
 		}
 
-		// Convert the UI's index-based mapping into CC named keys (fixed order,
-		// same as the legacy execute path).
-		$api_keys  = array( 'email_address', 'first_name', 'last_name', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'country', 'tags' );
+		// Convert the UI's index-based mapping into CC named keys, in the column
+		// order the preview saved (custom fields come after the fixed ten).
+		$api_keys  = isset( $creds['column_order'] ) && is_array( $creds['column_order'] )
+			? $creds['column_order']
+			: array( 'email_address', 'first_name', 'last_name', 'phone', 'address_line1', 'city', 'state', 'postal_code', 'country', 'tags' );
 		$named_map = array();
 		foreach ( $state['mapping'] as $idx => $field ) {
 			$idx = (int) $idx;
@@ -819,6 +1068,7 @@ function npmp_import_ajax_step() {
 		}
 		$state['cursor']   += (int) $page['count'];
 		$state['cc_cursor'] = $page['next_cursor'];
+		$state['totals']   = npmp_import_extra_merge_job_totals( $state['totals'] );
 
 		// Free-plugin row cap: stop once we've processed max_rows contacts.
 		$max_rows    = npmp_import_max_rows();
@@ -967,6 +1217,13 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-title"><?php esc_html_e( 'Constant Contact', 'nonprofit-manager' ); ?></span>
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Connect to Constant Contact and import a list.', 'nonprofit-manager' ); ?></span>
 				</label>
+
+				<label class="npmp-import-source-card">
+					<input type="radio" name="import_source" value="brevo">
+					<span class="npmp-import-source-icon dashicons dashicons-email"></span>
+					<span class="npmp-import-source-title"><?php esc_html_e( 'Brevo', 'nonprofit-manager' ); ?></span>
+					<span class="npmp-import-source-desc"><?php esc_html_e( 'Paste a Brevo API key and bring over a list or every contact.', 'nonprofit-manager' ); ?></span>
+				</label>
 				<?php endif; ?>
 				<?php
 				/** Other importers add a link card here, such as past gifts from a file (includes/import/gift-csv-source.php). */
@@ -1044,6 +1301,25 @@ function npmp_import_render_page() {
 					<div id="npmp-cc-lists-wrap" style="display:none;margin-top:12px;">
 						<label for="npmp-cc-list-select"><strong><?php esc_html_e( 'Select a list:', 'nonprofit-manager' ); ?></strong></label><br>
 						<select id="npmp-cc-list-select" style="min-width:300px;"></select>
+					</div>
+				</div>
+
+				<!-- Brevo -->
+				<div class="npmp-source-panel" data-source="brevo" style="display:none;">
+					<p>
+						<label for="npmp-brevo-api-key"><strong><?php esc_html_e( 'Brevo API key', 'nonprofit-manager' ); ?></strong></label><br>
+						<span class="description">
+							<?php esc_html_e( 'In Brevo, open your name in the top corner, then SMTP & API, then API keys, and make a key for this import. We send the key to Brevo for this import only and never save the key. Delete the key in Brevo once you finish.', 'nonprofit-manager' ); ?>
+						</span>
+					</p>
+					<input type="password" id="npmp-brevo-api-key" class="regular-text" placeholder="xkeysib-..." autocomplete="off" spellcheck="false" style="width:100%;max-width:400px;">
+					<button type="button" id="npmp-brevo-fetch-lists" class="button" style="margin-top:4px;"><?php esc_html_e( 'Fetch lists', 'nonprofit-manager' ); ?></button>
+					<span id="npmp-brevo-lists-spinner" class="spinner" style="float:none;"></span>
+
+					<div id="npmp-brevo-lists-wrap" style="display:none;margin-top:12px;">
+						<label for="npmp-brevo-list-select"><strong><?php esc_html_e( 'What to bring over:', 'nonprofit-manager' ); ?></strong></label><br>
+						<select id="npmp-brevo-list-select" style="min-width:300px;max-width:100%;"></select>
+						<p class="description"><?php esc_html_e( 'Anyone on Brevo\'s blocklist, or who left the list you pick, comes over as Unsubscribed. With Pro, we turn their list names into groups. Campaigns, automations, forms, templates, and reports stay in Brevo.', 'nonprofit-manager' ); ?></p>
 					</div>
 				</div>
 			</div>
@@ -1259,6 +1535,8 @@ function npmp_import_render_styles() {
 
 		/* Preview table */
 		.npmp-import-preview-table-wrap {
+			/* Relative, so the field-type labels' screen-reader text scrolls with the table instead of widening the page. */
+			position: relative;
 			overflow-x: auto;
 			margin: 16px 0;
 		}
@@ -1442,6 +1720,32 @@ function npmp_import_render_scripts( $field_labels ) {
 		});
 
 		// -------------------------------------------------------
+		// Brevo: fetch lists
+		// -------------------------------------------------------
+		$('#npmp-brevo-fetch-lists').on('click', function() {
+			var key = $('#npmp-brevo-api-key').val().trim();
+			if (!key) { showError('#npmp-step1-error', '<?php echo esc_js( __( 'Paste your Brevo API key first.', 'nonprofit-manager' ) ); ?>'); return; }
+
+			hideError('#npmp-step1-error');
+			$('#npmp-brevo-lists-spinner').addClass('is-active');
+			$.post(ajaxUrl, { action: 'npmp_import_brevo_lists', nonce: nonce, api_key: key }, function(resp) {
+				$('#npmp-brevo-lists-spinner').removeClass('is-active');
+				if (!resp.success) { showError('#npmp-step1-error', resp.data); return; }
+				var sel = $('#npmp-brevo-list-select').empty();
+				$('<option/>').val('0').text('<?php echo esc_js( __( 'Every contact in the account', 'nonprofit-manager' ) ); ?>').appendTo(sel);
+				$.each(resp.data, function(i, l) {
+					var count = parseInt(l.member_count, 10);
+					if (isNaN(count)) { count = 0; }
+					$('<option/>')
+						.val(String(l.id == null ? '' : l.id))
+						.text(String(l.name == null ? '' : l.name) + ' (' + count + ')')
+						.appendTo(sel);
+				});
+				$('#npmp-brevo-lists-wrap').show();
+			}).fail(function(){ $('#npmp-brevo-lists-spinner').removeClass('is-active'); showError('#npmp-step1-error', 'Request failed.'); });
+		});
+
+		// -------------------------------------------------------
 		// Step 1 → Step 2 (preview)
 		// -------------------------------------------------------
 		$('#npmp-import-next-1').on('click', function() {
@@ -1463,6 +1767,10 @@ function npmp_import_render_scripts( $field_labels ) {
 			} else if (source === 'mailchimp') {
 				fd.append('mc_api_key', $('#npmp-mc-api-key').val().trim());
 				fd.append('mc_list_id', $('#npmp-mc-list-select').val());
+			} else if (source === 'brevo') {
+				if (!$('#npmp-brevo-api-key').val().trim()) { showError('#npmp-step1-error', '<?php echo esc_js( __( 'Paste your Brevo API key first.', 'nonprofit-manager' ) ); ?>'); return; }
+				fd.append('brevo_api_key', $('#npmp-brevo-api-key').val().trim());
+				fd.append('brevo_list_id', $('#npmp-brevo-list-select').val() || '0');
 			} else if (source === 'constant_contact') {
 				fd.append('cc_token', $('#npmp-cc-token').val().trim());
 				fd.append('cc_list_id', $('#npmp-cc-list-select').val());
@@ -1497,7 +1805,10 @@ function npmp_import_render_scripts( $field_labels ) {
 		function renderPreview(data) {
 			var thead = $('#npmp-preview-thead').empty(),
 				tbody = $('#npmp-preview-tbody').empty(),
-				autoMap = data.auto_map || {};
+				autoMap = data.auto_map || {},
+				extra = $.extend({ supported: false, targets: {}, columns: {}, types: {}, badge: '' }, data.extra || {});
+
+			renderExtraNote(extra);
 
 			$('.npmp-import-total-badge').text(data.total_rows + ' rows total');
 
@@ -1517,7 +1828,11 @@ function npmp_import_render_scripts( $field_labels ) {
 					headerRow += '<option value="' + key + '"' + sel + '>' + escHtml(label) + '</option>';
 				});
 
+				headerRow += extraOptions(extra, i);
 				headerRow += '</select>';
+				if (extra.supported && extra.columns[i]) {
+					headerRow += extraTypeSelect(extra, i);
+				}
 
 				if (detected) {
 					headerRow += '<span class="npmp-col-auto-detected">&#10003; Auto-detected</span>';
@@ -1548,6 +1863,59 @@ function npmp_import_render_scripts( $field_labels ) {
 		}
 
 		// -------------------------------------------------------
+		// Extra columns: Pro custom fields (extra-fields.php)
+		// -------------------------------------------------------
+		function extraOptions(extra, i) {
+			var col = extra.columns[i], html = '', label = '';
+			if (!col && (!extra.supported || $.isEmptyObject(extra.targets))) { return ''; }
+			html += '<optgroup label="<?php echo esc_js( __( 'Custom fields', 'nonprofit-manager' ) ); ?>">';
+			if (col) {
+				label = '<?php echo esc_js( __( 'New custom field: %1$s (%2$s)', 'nonprofit-manager' ) ); ?>'
+					.replace('%1$s', col.label).replace('%2$s', extra.types[col.type] || col.type);
+				if (!extra.supported) { label += ' <?php echo esc_js( __( '(needs Pro)', 'nonprofit-manager' ) ); ?>'; }
+				html += '<option value="cf_new"' + (extra.supported ? '' : ' disabled') + '>' + escHtml(label) + '</option>';
+			}
+			if (extra.supported) {
+				$.each(extra.targets, function(id, t) {
+					label = '<?php echo esc_js( __( 'Your custom field: %s', 'nonprofit-manager' ) ); ?>'.replace('%s', t.label);
+					html += '<option value="cf:' + escHtml(String(id)) + '">' + escHtml(label) + '</option>';
+				});
+			}
+			return html + '</optgroup>';
+		}
+
+		function extraTypeSelect(extra, i) {
+			var col = extra.columns[i],
+				html = '<label class="npmp-col-cf-type-wrap" style="display:none;"><span class="screen-reader-text"><?php echo esc_js( __( 'Type for the new field', 'nonprofit-manager' ) ); ?></span>';
+			html += '<select class="npmp-col-cf-type" data-col="' + i + '">';
+			$.each(extra.types, function(type, name) {
+				html += '<option value="' + escHtml(type) + '"' + (type === col.type ? ' selected' : '') + '>' + escHtml(name) + '</option>';
+			});
+			return html + '</select></label>';
+		}
+
+		function renderExtraNote(extra) {
+			var note = $('#npmp-import-extra-note'), names = [];
+			if (!note.length) {
+				note = $('<div id="npmp-import-extra-note" class="notice notice-info inline"></div>');
+				$('.npmp-import-preview-table-wrap').before(note);
+			}
+			$.each(extra.columns, function(i, col) { names.push(col.label); });
+			if (!names.length) { note.hide().empty(); return; }
+			if (extra.supported) {
+				note.html('<p></p>').find('p').text('<?php echo esc_js( __( 'Some columns have no matching contact field. To keep one, pick “New custom field” and we make a field with the name and type shown, or pick one of your own custom fields. We leave behind any column on Skip, and we skip and count any value that doesn\'t fit its field.', 'nonprofit-manager' ) ); ?>');
+			} else {
+				note.html('<p><span class="npmp-extra-text"></span> ' + extra.badge + '</p>');
+				note.find('.npmp-extra-text').text('<?php echo esc_js( __( 'These columns need Pro custom fields, so they stay behind: %s.', 'nonprofit-manager' ) ); ?>'.replace('%s', names.join(', ')));
+			}
+			note.show();
+		}
+
+		$(document).on('change', '.npmp-col-map', function() {
+			$(this).closest('th').find('.npmp-col-cf-type-wrap').toggle($(this).val() === 'cf_new');
+		});
+
+		// -------------------------------------------------------
 		// Step 2 → Run import
 		// -------------------------------------------------------
 		$('#npmp-import-run').on('click', function() {
@@ -1563,7 +1931,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			var hasEmail = false;
 			$.each(mapping, function(k, v) { if (v === 'email') hasEmail = true; });
 			if (!hasEmail) {
-				showError('#npmp-step2-error', '<?php echo esc_js( __( 'You must map at least one column to "Email".', 'nonprofit-manager' ) ); ?>');
+				showError('#npmp-step2-error', '<?php echo esc_js( __( 'You must map at least one column to “Email”.', 'nonprofit-manager' ) ); ?>');
 				return;
 			}
 
@@ -1584,8 +1952,18 @@ function npmp_import_render_scripts( $field_labels ) {
 				duplicate_handling: $('#npmp-opt-duplicates').val(),
 				default_level:      $('#npmp-opt-level').val(),
 				default_status:     $('#npmp-opt-status').val(),
-				import_source_tag:  $('#npmp-opt-source').val()
+				import_source_tag:  $('#npmp-opt-source').val(),
+				extra_label:        {},
+				extra_type:         {},
+				brevo_secret:       previewData.brevo_secret || ''
 			};
+			$.each(mapping, function(col, field) {
+				var cols = (previewData.extra && previewData.extra.columns) || {};
+				if (field === 'cf_new' && cols[col]) {
+					commonPayload.extra_label[col] = cols[col].label;
+					commonPayload.extra_type[col]  = $('.npmp-col-cf-type[data-col="' + col + '"]').val() || cols[col].type;
+				}
+			});
 
 			// Every source uses the chunked step path so a large import never
 			// hits PHP's max_execution_time or a front-end proxy timeout. Each
@@ -1599,7 +1977,16 @@ function npmp_import_render_scripts( $field_labels ) {
 		// Chunked import driver (all sources)
 		// -------------------------------------------------------
 		function runChunkedImport(jobToken, basePayload) {
-			var stopped = false;
+			var stopped = false,
+				retries = 0;
+
+			function showResume() {
+				if ($('#npmp-import-resume').length) { return; }
+				$('<button type="button" class="button" id="npmp-import-resume"></button>')
+					.text('<?php echo esc_js( __( 'Resume the import', 'nonprofit-manager' ) ); ?>')
+					.on('click', function() { retries = 0; $(this).remove(); step(); })
+					.insertAfter('#npmp-import-progress-text');
+			}
 
 			function step() {
 				if (stopped) return;
@@ -1608,11 +1995,26 @@ function npmp_import_render_scripts( $field_labels ) {
 					job_token: jobToken
 				}, basePayload), function(resp) {
 					if (!resp.success) {
+						var info = (resp.data && typeof resp.data === 'object') ? resp.data : { message: resp.data };
+						// A wait from the source, a timeout, or an outage keeps the
+						// job on the server, so the same token picks up where it was.
+						if (info.code === 'retry') {
+							retries++;
+							$('#npmp-import-progress-text').text(String(info.message || ''));
+							if (retries <= 5) {
+								setTimeout(step, Math.min(120, Math.max(1, parseInt(info.retry_after, 10) || 5)) * 1000);
+							} else {
+								showResume();
+							}
+							return;
+						}
 						stopped = true;
 						$('#npmp-step2-spinner').removeClass('is-active');
-						$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Import failed:', 'nonprofit-manager' ) ); ?> ' + resp.data);
+						$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Import failed:', 'nonprofit-manager' ) ); ?> ' + String(info.message || ''));
 						return;
 					}
+					retries = 0;
+					$('#npmp-import-resume').remove();
 
 					var d = resp.data;
 					var pct = (d.total > 0)
@@ -1644,9 +2046,9 @@ function npmp_import_render_scripts( $field_labels ) {
 					// Hand back to the event loop briefly so the bar paints.
 					setTimeout(step, 50);
 				}).fail(function() {
-					stopped = true;
-					$('#npmp-step2-spinner').removeClass('is-active');
-					$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Import request failed. Please try again.', 'nonprofit-manager' ) ); ?>');
+					// The site itself didn't answer. The job is still saved, so offer to resume it.
+					$('#npmp-import-progress-text').text('<?php echo esc_js( __( 'Your site didn\'t answer that step. Resume the import to pick up where it stopped.', 'nonprofit-manager' ) ); ?>');
+					showResume();
 				});
 			}
 
@@ -1658,6 +2060,15 @@ function npmp_import_render_scripts( $field_labels ) {
 			$('#npmp-stat-updated').text(s.updated || 0);
 			$('#npmp-stat-skipped').text(s.skipped || 0);
 			$('#npmp-stat-errors').text(s.errors || 0);
+
+			var extraList = $('#npmp-import-extra-lines');
+			if (!extraList.length) {
+				extraList = $('<ul id="npmp-import-extra-lines" class="ul-disc"></ul>');
+				$('#npmp-import-error-details').before(extraList);
+			}
+			extraList.empty();
+			$.each(s.extra_lines || [], function(i, line) { $('<li/>').text(line).appendTo(extraList); });
+			extraList.toggle(!!(s.extra_lines && s.extra_lines.length));
 
 			if (s.error_messages && s.error_messages.length) {
 				var errorTbody = $('#npmp-error-tbody').empty();
