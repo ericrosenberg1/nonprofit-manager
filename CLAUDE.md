@@ -250,12 +250,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed missing paragraph breaks in event text on event lists, the Events block, and the theme's events archive.
-- Added an admin-only note on the signup form for attributes only Pro supports.
+- (none)
 
 Pro (licence server changelog):
-- Added a staff-only note with the reason when a choose="yes" signup form has no groups to offer.
-- Fixed extra group names in the confirmation email for people already in a group or who left it by email.
+- (none)
 
 ## Releasing: three systems, always in this order
 
