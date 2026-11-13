@@ -659,15 +659,55 @@ function npmp_signup_atts_from_token( $token ) {
 }
 
 /**
+ * A note for administrators naming [npmp_email_signup] attributes that no
+ * active plugin on the site accepts.
+ *
+ * Add-ons register their attributes through npmp_signup_form_default_atts,
+ * and shortcode_atts() drops the rest without a word. So Pro's
+ * groups="" choose="yes" pasted onto a site without Pro showed a plain form
+ * and read as a bug (Pete at U3A, wordpress.org thread "Some minors in
+ * subscribing / unsubscribing"). Visitors see nothing.
+ *
+ * @param array $unknown Attribute names the form ignored.
+ * @return string HTML, or '' for a visitor or when every attribute is known.
+ */
+function npmp_signup_form_unknown_atts_note( $unknown ) {
+	$names = array();
+	foreach ( (array) $unknown as $name ) {
+		if ( is_string( $name ) && '' !== sanitize_key( $name ) ) {
+			$names[] = sanitize_key( $name );
+		}
+	}
+	if ( ! $names || ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+		return '';
+	}
+	$names = array_values( array_unique( $names ) );
+	$text  = sprintf(
+		/* translators: %s: comma-separated shortcode attribute names, for example "groups, choose". */
+		_n(
+			'Only administrators see this note. Visitors get this form without the attribute %s. To use it, you need Nonprofit Manager Pro with an active license, or check the spelling.',
+			'Only administrators see this note. Visitors get this form without the attributes %s. To use them, you need Nonprofit Manager Pro with an active license, or check the spelling.',
+			count( $names ),
+			'nonprofit-manager'
+		),
+		implode( ', ', $names )
+	);
+	return '<p class="npmp-form-admin-note"><em>' . esc_html( $text ) . '</em></p>';
+}
+
+/**
  * Render the email signup form.
  *
  * @param array|string $atts Shortcode attributes.
  * @return string
  */
 function npmp_email_signup_shortcode( $atts = array() ) {
-	$atts = shortcode_atts( npmp_signup_form_default_atts(), is_array( $atts ) ? $atts : array(), 'npmp_email_signup' );
-	$s    = npmp_get_membership_form_settings();
-	$html = npmp_get_banner_html( 'npmp_signup', $s );
+	$raw      = is_array( $atts ) ? $atts : array();
+	$defaults = npmp_signup_form_default_atts();
+	$atts     = shortcode_atts( $defaults, $raw, 'npmp_email_signup' );
+	$s        = npmp_get_membership_form_settings();
+	$html     = npmp_signup_form_unknown_atts_note( array_keys( array_diff_key( $raw, $defaults ) ) );
+	$html    .= npmp_get_banner_html( 'npmp_signup', $s );
 
 	$fields = '
 		<p><label>' . esc_html( $s['name_label'] ) . '<br><input type="text" name="npmp_name" required></label></p>
