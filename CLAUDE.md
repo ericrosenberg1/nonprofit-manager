@@ -224,10 +224,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   emails (`_npmp_newsletter_scheduled_event`) stay out of lists unless `event_emails="yes"`. The page renders
   `NPMP_Newsletter_Manager::render_base_content()` (made public for this) with tag defaults, never
   `personalize_content()`, and `npmp_newsletter_archive_scrub()` strips tokens, addresses, and tracking from
-  any pasted link. It is noindex unless Newsletter Settings says otherwise, and anything else answers 404.
+  any pasted link. It is noindex (wp_robots and an X-Robots-Tag header) unless Newsletter Settings says
+  otherwise, and anything else answers 404. The page shows inside the theme: the main query becomes one fake
+  `page` that carries the newsletter's ID and a marker as content, and `npmp_newsletter_archive_filter_content()`
+  (the_content at PHP_INT_MAX) swaps in the finished content, built before the query changes so the body passes
+  the_content once. That drops comments, share buttons, related posts, and the plugin's own page injections.
+  When the theme's template never prints the content, `archive-theme-template.php` sends the standalone page
+  (header `X-NPMP-Newsletter-View: standalone`), and the `npmp_newsletter_archive_use_theme` filter forces it.
   `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
   empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
-  site served at its home URL, run with Pro on and off).
+  site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
