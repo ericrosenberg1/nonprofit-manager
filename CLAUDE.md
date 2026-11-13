@@ -70,6 +70,11 @@ install`, symlink this repo into `wp-content/plugins/`, then `NPMP_RIG_WP=<wp di
 - Never name a top-level variable `$file` in a script that requires `wp-load.php`. Core clobbers it
   and `activate_plugin()` fails with a misleading message.
 - Fire admin hooks in a real admin context (`define('WP_ADMIN', true)` plus `set_current_screen()`).
+- You get Local's mysqld on Pacific time (SYSTEM), so you see a TIMESTAMP literal you seed come back 8 hours off. Seed under `SET time_zone = '+00:00'`, then put the session back before you run the code under test.
+- You start a new site on plain permalinks. Before you request a pretty URL from a rig, switch the site to post-name links in the rig and put the old structure back at the end (see `tests/rig/event-sources.php`).
+- When you narrow the free total with `NPMP_IMPORT_FREE_MAX_ROWS`, you also narrow one job's row limit. Widen `npmp_import_max_rows` in the import phase, or on a site with no contacts you get only the first few rows.
+- To see which options you left behind, diff `SELECT option_name, MD5(option_value) FROM wp_options` before and after the run.
+- You can run the licence server locally for a licence test: `npm run build`, a dummy `dist/server/.dev.vars`, each `migrations/*.sql` through `wrangler d1 execute --local --persist-to <dir>`, then `wrangler dev --local --persist-to <dir>`. Send Pro's `nonprofitmanager.app/api/license/` calls to the local server with a `pre_http_request` mu-plugin, and play several public sites from one rig with a `home_url` filter.
 
 For SQL, run the exact statements against cloudpanel MySQL through `wp db query` with a throwaway
 table. Anything with infra behind it: verify against the real endpoint and SHA-256 diff uploads.
