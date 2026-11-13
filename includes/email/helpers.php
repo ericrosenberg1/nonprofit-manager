@@ -1019,6 +1019,27 @@ function npmp_email_recipient_tag_values( $name ) {
 }
 
 /**
+ * More per-recipient tags for the help lines beside the name tags, as one
+ * escaped string with a leading space, or ''.
+ *
+ * Free fills only the name tags. Pro adds [groups], filled through the
+ * npmp_email_recipient_tags filter, and names it here.
+ *
+ * @return string
+ */
+function npmp_email_recipient_tag_help_suffix() {
+	/**
+	 * Filter sentences about the extra per-recipient tags an add-on fills.
+	 * Plain text, shown after the name-tag help in the newsletter editor.
+	 *
+	 * @param string[] $sentences Plain-text sentences (none in free).
+	 */
+	$sentences = function_exists( 'apply_filters' ) ? (array) apply_filters( 'npmp_email_recipient_tag_help', array() ) : array();
+	$sentences = array_values( array_filter( array_map( 'trim', array_filter( $sentences, 'is_scalar' ) ), 'strlen' ) );
+	return $sentences ? ' ' . esc_html( implode( ' ', $sentences ) ) : '';
+}
+
+/**
  * Swap per-recipient tags like [first_name default="Member"] for their values.
  *
  * Runs after the_content, which curls the quotes of a tag WordPress doesn't

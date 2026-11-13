@@ -51,6 +51,35 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'npmp_email_recipient_footer' ) ) {
+	/**
+	 * The footer for one contact's copy of an email that isn't a newsletter:
+	 * the newsletter footer (organization, postal address, and that contact's
+	 * own unsubscribe link), plus a link to their preferences page when the
+	 * site has one.
+	 *
+	 * Post and event notifications, the weekly digest, and Pro's automation
+	 * emails use it. Before this, the notifications and the digest carried a
+	 * preferences link and no postal address, and automation emails carried
+	 * no footer at all.
+	 *
+	 * @param string $email       Recipient address.
+	 * @param bool   $preferences True to add the preferences link.
+	 * @return string HTML.
+	 */
+	function npmp_email_recipient_footer( $email, $preferences = true ) {
+		$email = sanitize_email( (string) $email );
+		$html  = npmp_can_spam_shortcode( array( 'email' => $email ) );
+
+		$has_page = function_exists( 'npmp_get_preferences_page_id' ) && npmp_get_preferences_page_id();
+		if ( $preferences && $has_page && $email && function_exists( 'npmp_get_preferences_url' ) ) {
+			$html .= '<p class="npmp-footer-preferences"><a href="' . esc_url( npmp_get_preferences_url( $email ) ) . '">' . esc_html__( 'Manage your email preferences', 'nonprofit-manager' ) . '</a></p>';
+		}
+
+		return $html;
+	}
+}
+
 if ( ! function_exists( 'npmp_format_postal_address' ) ) {
 	/**
 	 * Turn the organization address from General Settings into postal lines.

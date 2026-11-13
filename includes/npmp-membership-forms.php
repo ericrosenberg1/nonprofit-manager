@@ -280,6 +280,7 @@ function npmp_render_membership_forms_page() {
 	$defaults   = npmp_membership_form_default_settings();
 	$settings   = wp_parse_args( get_option( $option_key, array() ), $defaults );
 	$message  = '';
+	$accent_note = '';
 
 	npmp_maybe_seed_membership_levels();
 	$membership_levels        = npmp_get_membership_levels_array();
@@ -320,6 +321,14 @@ function npmp_render_membership_forms_page() {
 		update_option( $option_key, $settings );
 		$settings = npmp_get_membership_form_settings( true );
 		$message = __( 'Settings saved.', 'nonprofit-manager' );
+
+		// The forms' button color. Anything that isn't a hex color saves the
+		// brand default, which prints no extra CSS.
+		if ( isset( $_POST['npmp_forms_accent'] ) && function_exists( 'npmp_forms_accent_normalize' ) ) {
+			$accent = npmp_forms_accent_normalize( sanitize_text_field( wp_unslash( $_POST['npmp_forms_accent'] ) ) );
+			update_option( 'npmp_forms_accent', '' !== $accent ? $accent : npmp_forms_accent_default() );
+			$accent_note = npmp_forms_accent_notice( npmp_forms_accent() );
+		}
 	}
 
 	/* ---------- Render ---------- */
@@ -330,6 +339,9 @@ function npmp_render_membership_forms_page() {
 
 	if ( $message ) {
 		npmp_admin_notice_success( $message );
+	}
+	if ( ! empty( $accent_note ) ) {
+		echo '<div class="notice notice-warning"><p>' . esc_html( $accent_note ) . '</p></div>';
 	}
 
 	/* ---------- Membership Levels Section ---------- */
@@ -486,6 +498,27 @@ function npmp_render_membership_forms_page() {
 		)
 	);
 	echo '<p class="description">' . esc_html__( 'Nonprofit Manager adds the form below the page\'s own content.', 'nonprofit-manager' ) . '</p></td></tr></table>';
+
+	/* Form color */
+	if ( function_exists( 'npmp_forms_accent' ) ) {
+		$accent       = npmp_forms_accent();
+		$accent_check = npmp_forms_accent_notice( $accent );
+		echo '<h2>' . esc_html__( 'Form color', 'nonprofit-manager' ) . '</h2>';
+		echo '<table class="form-table" role="presentation">';
+		echo '<tr><th scope="row"><label for="npmp_forms_accent">' . esc_html__( 'Button color', 'nonprofit-manager' ) . '</label></th><td>';
+		echo '<input type="color" name="npmp_forms_accent" id="npmp_forms_accent" value="' . esc_attr( $accent ) . '" aria-describedby="npmp_forms_accent_help">';
+		echo '<p class="description" id="npmp_forms_accent_help">' . esc_html(
+			sprintf(
+				/* translators: %s: the default color as a hex code. */
+				__( 'You can set the color of the buttons and focus outlines on your signup, unsubscribe, preferences, contact, and membership forms. The default is %s.', 'nonprofit-manager' ),
+				npmp_forms_accent_default()
+			)
+		) . '</p>';
+		if ( '' !== $accent_check ) {
+			echo '<p class="description npmp-forms-accent-warning">' . esc_html( $accent_check ) . '</p>';
+		}
+		echo '</td></tr></table>';
+	}
 
 	/* Shared labels */
 	echo '<h2>' . esc_html__( 'Shared labels and messages', 'nonprofit-manager' ) . '</h2>';
@@ -1172,6 +1205,24 @@ If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofi
 		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
 		$url
 	);
+
+	/**
+	 * Filter extra lines for the "please confirm" email, as plain text. Each
+	 * line becomes its own paragraph after the thank-you line. Pro adds the
+	 * groups the signup asked to join. Free adds nothing, so its email is
+	 * unchanged.
+	 *
+	 * @param string[] $lines      Plain-text lines ('' in free).
+	 * @param int      $contact_id Contact ID.
+	 * @param array    $fields     The signup's kept form fields (npmp_signup_fields_to_keep()).
+	 * @param array    $atts       The form's attributes, read back from its signed field.
+	 */
+	$lines = apply_filters( 'npmp_signup_confirmation_lines', array(), (int) $contact_id, npmp_signup_fields_to_keep( $post ), npmp_signup_atts_from_token( (string) $atts_token ) );
+	$lines = array_values( array_filter( array_map( 'wp_strip_all_tags', array_filter( (array) $lines, 'is_scalar' ) ), 'strlen' ) );
+	if ( $lines ) {
+		$parts = explode( "\n\n", $body, 2 );
+		$body  = $parts[0] . "\n\n" . implode( "\n\n", $lines ) . ( isset( $parts[1] ) ? "\n\n" . $parts[1] : '' );
+	}
 	if ( function_exists( 'npmp_send_mail' ) ) {
 		npmp_send_mail( $email, $subject, $body );
 	}
