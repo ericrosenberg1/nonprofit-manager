@@ -57,6 +57,15 @@ if ( 'import' === $phase ) {
 		++$mails;
 		return true;
 	} );
+	// The parent narrows the free total with NPMP_IMPORT_FREE_MAX_ROWS, which
+	// is also the row limit for one job. Keep the limit on but wide, so on a
+	// new site with no contacts the job still reads every rig row.
+	add_filter(
+		'npmp_import_max_rows',
+		static function () {
+			return 100000;
+		}
+	);
 	npmp_pmpro_start( array() );
 	$state = npmp_pmpro_run( 60, 3 );
 	echo 'JSON ', wp_json_encode( array( 'state' => $state, 'hook' => $hook, 'mails' => $mails, 'left' => npmp_import_free_remaining(), 'active' => is_plugin_active( 'paid-memberships-pro/paid-memberships-pro.php' ) ) ), "\n";
