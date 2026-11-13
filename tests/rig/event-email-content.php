@@ -125,7 +125,22 @@ function rig_parse_message( $raw, $rcpt ) {
 	);
 }
 
+// Without the sink every send fails, so say so before touching any setting.
+$rig_sock = @fsockopen( '127.0.0.1', $sink_port, $rig_errno, $rig_errstr, 2 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- A closed port is the answer we look for.
+if ( ! $rig_sock ) {
+	fwrite( STDERR, "Start the SMTP sink first: python3 tests/rig/smtp-sink.py {$sink_port} {$sink_file}\n" );
+	exit( 2 );
+}
+fclose( $rig_sock );
+
+// Put the site's mail settings back however the run ends, so a failure
+// never leaves the site sending to the sink.
 $saved_mail = get_option( 'npmp_email_settings' );
+register_shutdown_function(
+	static function () use ( $saved_mail ) {
+		false === $saved_mail ? delete_option( 'npmp_email_settings' ) : update_option( 'npmp_email_settings', $saved_mail );
+	}
+);
 update_option(
 	'npmp_email_settings',
 	array(
@@ -352,7 +367,11 @@ rig_clear( $sink_file );
 $due = npmp_scheduled_emails_utc_to_ts( $row ? $row->send_at : gmdate( 'Y-m-d H:i:s' ) ) + 60;
 add_filter( 'npmp_scheduled_emails_now', function () use ( $due ) { return $due; } );
 $sent = npmp_scheduled_emails_sweep();
-NPMP_Newsletter_Manager::process_queue();
+// One run sends the oldest rows first, up to the rate limit, so rows another
+// rig left pending can push this email past the first run. Drain the queue.
+for ( $rig_i = 0; $rig_i < 50 && (int) $GLOBALS['wpdb']->get_var( "SELECT COUNT(*) FROM {$GLOBALS['wpdb']->prefix}npmp_newsletter_queue WHERE status = 'pending'" ) > 0; $rig_i++ ) {
+	NPMP_Newsletter_Manager::process_queue();
+}
 $msgs = rig_sink_messages( $sink_file );
 $real = null;
 $ann_msg = null;
@@ -363,7 +382,10 @@ foreach ( $msgs as $m ) {
 		$ann_msg = $m;
 	}
 }
-rig_check( 'Sweep sent the email', 1, $sent );
+// The sweep is site-wide, so with Pro's default list another event left on the
+// site can be due too. Check that this event's row went, not the total.
+$row_now = $row ? npmp_scheduled_emails_get_row( (int) $row->id ) : null;
+rig_check( 'Sweep sent the email', true, $sent >= 1 && $row_now && 'sent' === $row_now->status );
 rig_check( 'Owner and Ann each got one', true, $real && $ann_msg );
 $real = $real ?? array( 'body' => '', 'subject' => '', 'headers' => array(), 'raw' => '' );
 $b    = $real['body'];
@@ -460,7 +482,7 @@ if ( $group ) {
 }
 update_user_meta( $admin->ID, 'first_name', $old_first );
 update_user_meta( $admin->ID, 'last_name', $old_last );
-update_option( 'npmp_email_settings', $saved_mail );
+false === $saved_mail ? delete_option( 'npmp_email_settings' ) : update_option( 'npmp_email_settings', $saved_mail );
 if ( false === $saved_defaults ) {
 	delete_option( 'npmp_scheduled_email_defaults' );
 } else {

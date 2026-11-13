@@ -27,6 +27,14 @@ function rig_check( $label, $expected, $actual ) {
 	printf( "  %s  %-66s %s\n", $ok ? 'PASS' : 'FAIL', $label, $ok ? '' : 'expected ' . var_export( $expected, true ) . ', got ' . var_export( $actual, true ) );
 }
 
+$rig_tz = get_option( 'timezone_string' );
+$rig_gmt = get_option( 'gmt_offset' );
+register_shutdown_function(
+	static function () use ( $rig_tz, $rig_gmt ) {
+		update_option( 'timezone_string', $rig_tz );
+		update_option( 'gmt_offset', $rig_gmt );
+	}
+);
 update_option( 'timezone_string', 'Europe/London' );
 $mm     = NPMP_Member_Manager::get_instance();
 $emails = array( 'rig-added-1@example.org', 'rig-added-2@example.org', 'rig-added-3@example.org' );

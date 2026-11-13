@@ -108,11 +108,24 @@ if ( 'main' === $phase ) {
 	$subs = npmp_mailpoet_table( 'subscribers' );
 	$segs = npmp_mailpoet_table( 'segments' );
 	$wpdb->query( $wpdb->prepare( "DELETE FROM {$subs} WHERE email LIKE %s", '%@' . $wpdb->esc_like( $domain ) ) );
+	// MailPoet copies the site's own users into its list (on a fresh site, the
+	// admin). The counts below expect only the rig's people, so drop MailPoet's
+	// copy of anyone who isn't a contact yet. The run deletes MailPoet's tables
+	// in step 5 anyway, and MailPoet copies the users again when it comes back.
+	$contacts = array_map( 'strtolower', $wpdb->get_col( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact'" ) );
+	foreach ( $wpdb->get_results( "SELECT id, email FROM {$subs}" ) as $row ) {
+		if ( ! in_array( strtolower( $row->email ), $contacts, true ) ) {
+			$wpdb->delete( npmp_mailpoet_table( 'subscriber_segment' ), array( 'subscriber_id' => (int) $row->id ) );
+			$wpdb->delete( $subs, array( 'id' => (int) $row->id ) );
+		}
+	}
 	$wpdb->query( "DELETE FROM {$segs} WHERE type = 'default' AND name LIKE 'Rig %'" );
 	npmp_mailpoet_reset_stage();
 	delete_option( 'npmp_mailpoet_imported' );
 	delete_option( 'npmp_import_hub' );
 	delete_option( 'npmp_rig_mp_hub' );
+	// Post meta already orphaned before this run (another rig's leftovers) isn't MailPoet's.
+	update_option( 'npmp_rig_mp_orphans', (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.ID IS NULL" ), false );
 
 	echo "Seed MailPoet through its own API, an add-on, and things that must survive\n";
 	$keep_settings = array();
@@ -163,7 +176,9 @@ if ( 'main' === $phase ) {
 
 	$tables_before = npmp_mailpoet_hub_existing_tables();
 	$ok( 'MailPoet built its tables', count( $tables_before ) >= 30, count( $tables_before ) );
-	$ok( 'MailPoet wrote options the matcher finds', in_array( 'mailpoet_plugin_activated', npmp_mailpoet_hub_option_names(), true ), npmp_mailpoet_hub_option_names() );
+	// Which options MailPoet writes depends on how it was turned on (its
+	// welcome screen writes mailpoet_plugin_activated, wp-cli doesn't).
+	$ok( 'MailPoet wrote options the matcher finds', (bool) npmp_mailpoet_hub_option_names(), npmp_mailpoet_hub_option_names() );
 	$ok( 'look-alike options are not on the list', ! array_intersect( array( 'my_mailpoet_bridge', 'mailpoetish' ), npmp_mailpoet_hub_option_names() ) );
 
 	echo "Registry and first look\n";
@@ -408,7 +423,7 @@ if ( 'after' === $phase ) {
 	$ok( 'no MailPoet tables', array() === npmp_mailpoet_hub_existing_tables(), npmp_mailpoet_hub_existing_tables() );
 	$ok( 'no MailPoet options', array() === npmp_mailpoet_hub_option_names(), npmp_mailpoet_hub_option_names() );
 	$ok( 'no MailPoet posts', 0 === npmp_mailpoet_hub_count_posts() );
-	$ok( 'no orphaned post meta', 0 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.ID IS NULL" ) );
+	$ok( 'no orphaned post meta', (int) get_option( 'npmp_rig_mp_orphans', 0 ) === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.ID IS NULL" ) );
 	$ok( 'has_data is false now', ! npmp_mailpoet_hub_has_data() );
 
 	echo "What stays\n";
@@ -461,5 +476,6 @@ if ( 'after' === $phase ) {
 		null === $value ? delete_option( $option ) : update_option( $option, $value );
 	}
 	delete_option( 'npmp_rig_mp_hub' );
+	delete_option( 'npmp_rig_mp_orphans' );
 	exit( $fails ? 1 : 0 );
 }

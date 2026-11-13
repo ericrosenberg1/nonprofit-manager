@@ -67,6 +67,10 @@ foreach ( $stale as $stale_id ) {
 	wp_delete_post( (int) $stale_id, true );
 }
 
+// Gold contacts another rig left on the site count too, so the level checks
+// compare against the counts before the rig's three.
+$gold_before_all  = (int) ( NPMP_Member_Manager::get_instance()->count_by_level()['Gold'] ?? 0 );
+$gold_before_subs = (int) ( NPMP_Member_Manager::get_instance()->count_by_level( 'subscribed' )['Gold'] ?? 0 );
 $a = $add( array( 'name' => 'Ann Sweep', 'email' => 'ann@sweep.test', 'status' => 'subscribed', 'membership_level' => 'Gold' ) );
 $b = $add( array( 'name' => 'Bob Sweep', 'email' => 'bob@sweep.test', 'status' => 'subscribed', 'membership_level' => 'Gold' ) );
 $c = $add( array( 'name' => 'Cy Sweep', 'email' => 'cy@sweep.test', 'status' => 'unsubscribed', 'membership_level' => 'Gold' ) );
@@ -151,8 +155,8 @@ $ok( 'a send that throws still pops its override', '' === npmp_mail_from_name_ov
 // ---- Level counts ------------------------------------------------------------
 $all  = $mm->count_by_level();
 $subs = $mm->count_by_level( 'subscribed' );
-$ok( 'count_by_level() counts every Gold contact', (int) ( $all['Gold'] ?? 0 ) >= 3 );
-$ok( "count_by_level('subscribed') leaves out the unsubscribed one", (int) ( $all['Gold'] ?? 0 ) - 1 === (int) ( $subs['Gold'] ?? 0 ) );
+$ok( 'count_by_level() counts every Gold contact', (int) ( $all['Gold'] ?? 0 ) === $gold_before_all + 3 );
+$ok( "count_by_level('subscribed') leaves out the unsubscribed one", (int) ( $subs['Gold'] ?? 0 ) === $gold_before_subs + 2 );
 $ok( 'and matches what a Gold newsletter reaches', (int) ( $subs['Gold'] ?? 0 ) === count( $mm->get_members( array( 'per_page' => -1, 'status' => 'subscribed', 'level' => 'Gold' ) ) ) );
 
 // ---- Bulk reads skip the object cache ----------------------------------------
@@ -225,18 +229,34 @@ unset( $_GET['email'], $_GET['token'] );
 // ---- Removing the default level clears it ------------------------------------
 $admin = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
 wp_set_current_user( $admin ? $admin[0]->ID : 1 );
+$rig_levels  = get_option( 'npmp_membership_levels', null );
+$rig_default = get_option( 'npmp_default_membership_level', null );
 update_option( 'npmp_membership_levels', array( 'Gold', 'Sweep Tier' ) );
 update_option( 'npmp_default_membership_level', 'Sweep Tier' );
+// The handler runs on admin_init for the Membership Forms page and ends with
+// a redirect, so call it for that page and stop at the redirect.
 $_SERVER['REQUEST_METHOD']        = 'POST';
+$_GET['page']                     = 'npmp_membership_forms';
 $_POST['npmp_remove_level_nonce'] = wp_create_nonce( 'npmp_remove_membership_level' );
 $_POST['npmp_level_to_remove']    = 'Sweep Tier';
-ob_start();
-npmp_render_membership_forms_page();
-ob_end_clean();
-unset( $_POST['npmp_remove_level_nonce'], $_POST['npmp_level_to_remove'] );
+$rig_stop = static function ( $location ) {
+	throw new RuntimeException( (string) $location );
+};
+add_filter( 'wp_redirect', $rig_stop, 999 );
+$rig_went = '';
+try {
+	npmp_membership_levels_handle_post();
+} catch ( RuntimeException $e ) {
+	$rig_went = $e->getMessage();
+}
+remove_filter( 'wp_redirect', $rig_stop, 999 );
+unset( $_POST['npmp_remove_level_nonce'], $_POST['npmp_level_to_remove'], $_GET['page'] );
 $_SERVER['REQUEST_METHOD'] = 'GET';
+$ok( 'removing a level goes back to the levels list', false !== strpos( $rig_went, 'npmp_levels=removed' ) );
 $ok( 'removing the default level clears the default', '' === get_option( 'npmp_default_membership_level' ) );
 $ok( 'and the level list stays a plain list', array( 'Gold' ) === get_option( 'npmp_membership_levels' ) );
+null === $rig_levels ? delete_option( 'npmp_membership_levels' ) : update_option( 'npmp_membership_levels', $rig_levels );
+null === $rig_default ? delete_option( 'npmp_default_membership_level' ) : update_option( 'npmp_default_membership_level', $rig_default );
 
 // ---- Unsubscribe form rate limit (HTTP) --------------------------------------
 $base = getenv( 'NPMP_RIG_URL' );

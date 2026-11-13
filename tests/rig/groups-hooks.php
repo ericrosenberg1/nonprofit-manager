@@ -13,7 +13,8 @@
  * Run inside a throwaway WordPress with members, newsletters, donations and
  * the calendar on, Pro inactive (CLAUDE.md, "Testing beyond unit tests"):
  *   wp eval-file tests/rig/groups-hooks.php
- * It deletes every event, newsletter and contact first.
+ * It deletes every event, newsletter and contact first, and turns double
+ * opt-in off for the run, then back to what it was.
  */
 
 $fails = 0;
@@ -44,6 +45,17 @@ $_SERVER['REQUEST_URI'] = '/wp-admin/admin.php';
 remove_all_filters( 'wp_redirect' );
 $admin = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
 wp_set_current_user( $admin[0]->ID );
+
+// A new site asks signups to confirm by email, and npmp_after_email_signup
+// fires only once a contact is subscribed. Turn double opt-in off for the run
+// and put the site's setting back at the end.
+$rig_form_settings = get_option( 'npmp_membership_form_settings', null );
+update_option( 'npmp_membership_form_settings', array_merge( (array) $rig_form_settings, array( 'double_optin' => 0 ) ) );
+register_shutdown_function(
+	static function () use ( $rig_form_settings ) {
+		null === $rig_form_settings ? delete_option( 'npmp_membership_form_settings' ) : update_option( 'npmp_membership_form_settings', $rig_form_settings );
+	}
+);
 
 global $wpdb;
 $queue = $wpdb->prefix . 'npmp_newsletter_queue';
@@ -181,7 +193,7 @@ $ok( 'Groups is not under the main menu', ! in_array( 'npmp_groups', wp_list_plu
 $reset_request();
 $_GET = array( 'page' => 'npmp_groups' );
 $html = $capture( 'npmp_render_pro_feature_page' );
-$ok( 'the Groups page says what groups do in one line', 1 === substr_count( $html, '<p style="font-size:14px;margin:0 0 1em;">' ) && false !== strpos( $html, 'Groups come with Nonprofit Manager Pro.' ) );
+$ok( 'the Groups page says what groups do in one line', 1 === substr_count( $html, '<p class="npmp-upsell-line">' ) && false !== strpos( $html, 'Groups come with Nonprofit Manager Pro.' ) );
 $ok( 'the Groups page links to pricing with campaign groups', 1 === $links( $html, 'groups' ) );
 
 echo "\nMember screens\n";
@@ -315,7 +327,7 @@ $ok( 'npmp_members_list_query_args gets the list args and the request', isset( $
 $ok( 'npmp_members_query_args receives group from the list', 'art' === ( end( $seen['query_args'] )['group'] ?? '' ) );
 $ok( 'a group filter narrows the list to that group', false !== strpos( $html, 'ann@example.org' ) && false === strpos( $html, 'bob@example.org' ) );
 $ok( 'npmp_members_filter_bar renders inside the filter form', false !== strpos( $html, 'id="rig-group"' ) && strpos( $html, 'rig-group' ) < strpos( $html, 'npmp-members-select-all' ) && 'art' === $seen['filter_bar']['group'] );
-$ok( 'an extra column gets a header and a cell per row', false !== strpos( $html, '<th>Rig Groups</th>' ) && false !== strpos( $html, 'cell-groups-' . $ann ) );
+$ok( 'an extra column gets a header and a cell per row', false !== strpos( $html, '<th scope="col">Rig Groups</th>' ) && false !== strpos( $html, 'cell-groups-' . $ann ) );
 $ok( 'a bulk action adds the menu, its controls and Apply', false !== strpos( $html, '<option value="add_to_group">Add to group</option>' ) && false !== strpos( $html, 'rig_bulk_group' ) && false !== strpos( $html, 'name="npmp_members_bulk_apply"' ) );
 $ok( 'the members toolbar gets the query args and request', isset( $seen['toolbar']['members']['query_args']['group'] ) && 'art' === $seen['toolbar']['members']['request']['group'] );
 $ok( 'members of a group come back from get_members()', array( $ann ) === wp_list_pluck( $members->get_members( array( 'group' => 'art', 'per_page' => -1 ) ), 'id' ) );
@@ -549,7 +561,8 @@ $signup = static function ( $email, $atts_token ) use ( $run, $reset_request ) {
 };
 $where = $signup( 'dee@example.org', $token );
 $dee   = $members->get_member_by_email( 'dee@example.org' );
-$last  = end( $seen['signup'] );
+$seen['signup'] = $seen['signup'] ?? array();
+$last           = end( $seen['signup'] );
 $ok( 'signup succeeds', false !== strpos( $where, 'npmp_signup=success' ) && $dee );
 $ok( 'npmp_after_email_signup gets the new contact ID and the request', $dee && (int) $dee->id === $last[0] && 'dee@example.org' === $last[1] );
 $ok( 'and the form attributes back from the signed field', array( 'groups' => 'art,history' ) === $last[2] );
@@ -760,6 +773,15 @@ add_filter( 'npmp_newsletter_groups_supported', '__return_true' );
 $ok( 'with group support declared, free hands Pro the subscribed list to filter', count( NPMP_Newsletter_Manager::get_recipient_list( $group_nl ) ) > 0 );
 remove_filter( 'npmp_newsletter_groups_supported', '__return_true' );
 wp_delete_post( $group_nl, true );
+
+// Take the rig's contacts back out, so Fay's import doesn't count against the
+// free total for the next rig (import-cap-total).
+foreach ( array( 'ann', 'bob', 'cat', 'dee', 'eve', 'fay' ) as $rig_name ) {
+	$rig_member = $members->get_member_by_email( $rig_name . '@example.org' );
+	if ( $rig_member ) {
+		wp_delete_post( (int) $rig_member->id, true );
+	}
+}
 
 printf( "\n%d failed\n", $fails );
 exit( $fails ? 1 : 0 );
