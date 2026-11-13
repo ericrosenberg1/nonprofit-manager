@@ -247,7 +247,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `UM()->form()->usermeta_whitelist` filled when no form posts. Unit `tests/test-ultimate-member-importer.php`.
 - **Every plugin importer runs inside `npmp_import_run_as_import()`**, so `npmp_is_importing()` is true and Pro's
   "someone signs up" automation and the Mailer's member_joined event skip imported contacts. PMPro, MailPoet, The
-  Newsletter Plugin, and past gifts lacked it until the Ultimate Member work, and Pro queued welcome emails.
+  Newsletter Plugin, and past gifts lacked it in 2026.11.10, and Pro queued a welcome for every new contact they made.
+  Unit `tests/test-import-as-import.php` scans `includes/import/` and fails on any function that creates a contact
+  without the flag (it sets the flag itself, or every caller does). Pro rig `tests/rig/import-no-welcome.php` proves it on
+  a real site.
 - **Editor boxes go in the sidebar** (since 2026.11.8). In the block editor a meta box with context `normal`
   lands in the collapsed "Meta Boxes" panel under the content, which Pete at U3A read as a different screen
   from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
