@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.8
+Stable tag: 2026.11.9
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,17 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.9 =
+* Added your newsletter footer and unsubscribe link to post and event notifications and the weekly digest.
+* Added a Form color setting under Membership Settings for the button color on every front-end form.
+* Added what the person signed up for to the please-confirm email.
+* Added the Newsletters block and [npmp_newsletters] shortcode to list past newsletters you make public.
+* Added the [event_description] tag for event emails, with the full description, headings, lists, links, and images.
+* Added the planned emails and their send times to a new event's email box, before the first save.
+* Fixed line breaks between paragraphs in [event_excerpt].
+* Fixed the first name, last name, and full name tags in the body and subject of test emails.
+* Fixed the status in the event email box after a save in the block editor.
 
 = 2026.11.8 =
 * Moved Event Details into the editor sidebar, beside the publish settings.
@@ -515,6 +526,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.9 =
+Add your newsletter footer to every notification, and list past newsletters on your site.
 
 = 2026.11.8 =
 Find Event Details in the editor sidebar, plus fixes for membership levels, Share Now, and every admin screen.
