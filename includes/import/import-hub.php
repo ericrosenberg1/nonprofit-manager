@@ -52,7 +52,8 @@
  * deletes its own data when step 3 turns it off, and 'delete_note' (the same)
  * for a plugin whose own uninstall deletes its data when step 4 deletes its
  * files. Each warning names the old plugin's setting so the owner can switch
- * it off first. Leave
+ * it off first. Set 'delete_note_setting' to false when the old plugin has no
+ * such setting, and step 3 shows the warning without asking for a change. Leave
  * 'data_removal' out, or give it 'reason' and no 'batch', and step 5 shows as
  * unavailable with that reason.
  *
@@ -118,6 +119,7 @@ function npmp_import_hub_normalize_source( $slug, $source ) {
 			'installed_plugins' => null,
 			'deactivate_note'   => null,
 			'delete_note'       => null,
+			'delete_note_setting' => true,
 			'data_removal'      => array(),
 		),
 		$source
@@ -1277,7 +1279,11 @@ function npmp_import_hub_render_step_deactivate( array $source, array $facts, $s
 	// screens, which close once it's off, so the owner reads it here first.
 	$delete_note = npmp_import_hub_call( $source['delete_note'], '' );
 	if ( is_string( $delete_note ) && '' !== $delete_note ) {
-		echo '<p><strong>' . esc_html( $delete_note ) . '</strong> ' . esc_html__( 'Change that setting before you turn the plugin off, while you can still reach its screens.', 'nonprofit-manager' ) . '</p>';
+		echo '<p><strong>' . esc_html( $delete_note ) . '</strong>';
+		if ( false !== $source['delete_note_setting'] ) {
+			echo ' ' . esc_html__( 'Change that setting before you turn the plugin off, while you can still reach its screens.', 'nonprofit-manager' );
+		}
+		echo '</p>';
 	}
 	npmp_import_hub_render_plugin_list( $plugins );
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="npmp-hub-form">';

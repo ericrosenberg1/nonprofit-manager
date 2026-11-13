@@ -130,10 +130,13 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-importer.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-hub.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-hub-source.php';
 
-// Events from Events Manager and Sugar Calendar, on TEC's helpers.
+// Events from Events Manager, Sugar Calendar, Event Organiser, My Calendar, and WP Event Manager, on TEC's helpers.
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/event-importer.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/events-manager-source.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/import/sugar-calendar-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/event-organiser-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/my-calendar-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/wp-event-manager-source.php';
 
 // Donors and past gifts from GiveWP and Charitable. Needs contacts and donations.
 if ( ! empty( $npmp_features['members'] ) && ! empty( $npmp_features['donations'] ) ) {

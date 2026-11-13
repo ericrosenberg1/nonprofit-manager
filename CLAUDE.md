@@ -193,6 +193,22 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   routes stop answering. Neither plugin has a setting that maps to ours. Unit `tests/test-event-sources.php`,
   rig `tests/rig/event-sources.php` (EM 7.4.14, Sugar Calendar Lite 3.17.0, visit wp-admin once so both make
   their tables).
+- **Event Organiser, My Calendar, and WP Event Manager** (`event-organiser-source.php`, `my-calendar-source.php`,
+  `wp-event-manager-source.php`, same engine). Engine keys added for them: `brings`, `leaves`, `warning` (lines on the
+  import screen), `query_args` (an old link like `/mc-events/x/?mc_id=12` leads to that one date), and a `settings`
+  table of checkboxes (`npmp_event_settings[]`, unticked copies nothing). The hub's `npmp_event_hub_source()` takes a
+  7th `$extra` array for `delete_note`, and a hub source sets `delete_note_setting` to false when the old plugin has
+  no setting to switch off, so step 3 shows the warning without asking for a change (Event Organiser). EO 3.12.12: `event` posts (EM uses that post type too, so `has_data` checks
+  `{prefix}eo_events`) plus `eo_events` rows in site time, all-day in `_eventorganiser_event_schedule`, venues are
+  `event-venue` terms with `eo_venuemeta`. EO's uninstall always drops its tables and terms and leaves the posts, so
+  `delete_note` is always on. My Calendar 3.8.13: tables `my_calendar` and `my_calendar_events`, `event_approved` 3 is
+  cancelled (draft), 2 trash (stays), `event_flagged` spam (stays). It deletes only when `drop_tables` is `'true'`.
+  WP Event Manager 3.4.2: `event_listing` posts, `_event_start_date` plus `_event_start_time`, a per-event time zone when
+  `event_manager_timezone_setting` is `each_event`, `_cancelled` makes a draft, `expired` is a past event. It deletes only
+  when `event_manager_delete_data_on_uninstall` is on. `event_manager_per_page` is the one setting that maps (list length).
+  None deletes on deactivation, and step 5 is unavailable for all three. Seeding: EO's `eo_insert_event` needs
+  `'venue' => array( $id )` (a bare int makes a term named after the number), MC needs a wp-admin visit first. Unit
+  `tests/test-more-event-sources.php`, rig `tests/rig/more-event-sources.php` (phase `remove` runs step 4).
 - **The Newsletter Plugin** (`includes/import/newsletter-importer.php`, loaded with the members module
   right after the MailPoet importer's files). Subscribers come from `{prefix}newsletter` (status letters C, S, U, B, P, and T for
   a signup that never finished, which stays behind) and go through the MailPoet writer,
@@ -263,6 +279,9 @@ Free (`readme.txt`):
 - Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
 - Added the GiveWP and PMPro delete-data warning to the turn-off step, while you can still change the setting.
 - Fixed the MailPoet limit wording, which called the site total a limit per import.
+- Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
+- Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
+- Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
 
 Pro (licence server changelog):
 - (none)
