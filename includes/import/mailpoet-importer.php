@@ -989,6 +989,15 @@ function npmp_mailpoet_read_memberships( array $subscriber_ids, array $lists ) {
  *               result is created, updated, unchanged, invalid, or error.
  */
 function npmp_mailpoet_import_subscriber( $row, $existing = null, array $lists = array(), $source = 'mailpoet' ) {
+	// Write as an import, so Pro's welcome automation and the Nonprofit Mailer
+	// skip every subscriber, the same as a CSV import.
+	if ( function_exists( 'npmp_import_run_as_import' ) && function_exists( 'npmp_is_importing' ) && ! npmp_is_importing() ) {
+		return npmp_import_run_as_import(
+			static function () use ( $row, $existing, $lists, $source ) {
+				return npmp_mailpoet_import_subscriber( $row, $existing, $lists, $source );
+			}
+		);
+	}
 	$source = sanitize_key( (string) $source );
 	$out = array(
 		'result'            => 'error',

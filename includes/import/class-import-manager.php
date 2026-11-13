@@ -39,6 +39,24 @@ class NPMP_Import_Manager {
 	}
 
 	/**
+	 * Run a write as an import, so npmp_is_importing() answers true while it
+	 * runs. The plugin importers (Paid Memberships Pro, Ultimate Member, and
+	 * the rest) write contacts themselves and go through here.
+	 *
+	 * @param callable $callback The write.
+	 * @return mixed What the callback returns.
+	 */
+	public static function run_as_import( callable $callback ) {
+		$was             = self::$importing;
+		self::$importing = true;
+		try {
+			return $callback();
+		} finally {
+			self::$importing = $was;
+		}
+	}
+
+	/**
 	 * Member manager reference.
 	 *
 	 * @var NPMP_Member_Manager
@@ -1187,5 +1205,18 @@ if ( ! function_exists( 'npmp_is_importing' ) ) {
 	 */
 	function npmp_is_importing() {
 		return NPMP_Import_Manager::is_importing();
+	}
+}
+
+if ( ! function_exists( 'npmp_import_run_as_import' ) ) {
+	/**
+	 * Run a contact write as an import, so Pro's automations and the Nonprofit
+	 * Mailer don't welcome every imported contact.
+	 *
+	 * @param callable $callback The write.
+	 * @return mixed What the callback returns.
+	 */
+	function npmp_import_run_as_import( callable $callback ) {
+		return NPMP_Import_Manager::run_as_import( $callback );
 	}
 }

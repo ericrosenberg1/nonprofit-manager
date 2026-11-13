@@ -159,7 +159,14 @@ function npmp_past_gift_donor( $email, $name, $source, array $extra = array() ) 
 			'source' => sanitize_key( $source ),
 		)
 	);
-	$id = $members->add_member( $record );
+	// Written as an import, so Pro's welcome automation skips the donor.
+	$id = function_exists( 'npmp_import_run_as_import' )
+		? npmp_import_run_as_import(
+			static function () use ( $members, $record ) {
+				return $members->add_member( $record );
+			}
+		)
+		: $members->add_member( $record );
 	if ( is_wp_error( $id ) || ! $id ) {
 		return array( 'result' => 'invalid', 'id' => 0 );
 	}

@@ -230,6 +230,24 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   deletion?" is Yes, and the hub's optional `delete_note` then warns in step 4. PMPro's reads use MySQL's `CONVERT_TZ()`, which
   SQLite can't parse, so rig `tests/rig/pmpro-importer.php` seeds with PMPro's writers and reads its tables directly. Unit
   `tests/test-pmpro-importer.php`.
+- **Ultimate Member** (`includes/import/ultimate-member-importer.php`, loaded right after the PMPro importer, whose
+  writer `npmp_pmpro_import_member()` it reuses with `source`, `status`, `merge_status`, and `raw` options). Version
+  2.14.2 from wordpress.org verified. UM has no tables: members are WordPress users, status is user meta
+  `account_status` (approved, awaiting_email_confirmation, awaiting_admin_review, inactive, rejected, or empty for
+  users from before UM), and its custom roles live in option `um_roles` plus `um_role_{key}_meta`, added to WordPress
+  as `um_{key}` only while UM runs. Read roles from the capabilities meta, never `wp_roles()`, or they vanish with UM
+  off. The owner ticks roles on Review (UM roles and registration roles start ticked, staff roles never). Approved
+  members come over as Inactive unless the owner says they agreed to newsletters, awaiting statuses as Pending,
+  deactivated as Inactive, rejected as Unsubscribed. Never read user meta `submitted`: UM stores the whole signup
+  form there. Custom profile fields go out through `do_action( 'npmp_import_profile_fields', ... )` and
+  `npmp_import_profile_fields_supported`, and Pro has no receiver yet. Step 5 is unavailable (UM's meta names are
+  generic and its add-ons share the `um_` prefix), and `delete_note` warns when `um_options['uninstall_on_delete']`
+  is on. UM's hourly job approves every user with no status, so rig `tests/rig/ultimate-member-importer.php` holds
+  the `doing_cron` lock. Its registration action needs `um_register_allow_nonce_verification` off and
+  `UM()->form()->usermeta_whitelist` filled when no form posts. Unit `tests/test-ultimate-member-importer.php`.
+- **Every plugin importer runs inside `npmp_import_run_as_import()`**, so `npmp_is_importing()` is true and Pro's
+  "someone signs up" automation and the Mailer's member_joined event skip imported contacts. PMPro, MailPoet, The
+  Newsletter Plugin, and past gifts lacked it until the Ultimate Member work, and Pro queued welcome emails.
 - **Editor boxes go in the sidebar** (since 2026.11.8). In the block editor a meta box with context `normal`
   lands in the collapsed "Meta Boxes" panel under the content, which Pete at U3A read as a different screen
   from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
@@ -282,6 +300,8 @@ Free (`readme.txt`):
 - Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
 - Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
 - Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
+- Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
+- Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
 
 Pro (licence server changelog):
 - (none)
