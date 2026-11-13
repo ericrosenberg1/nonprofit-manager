@@ -90,7 +90,7 @@ function npmp_cc_get_contacts( $access_token, $list_id, $cursor = null ) {
 			// ones. status=all adds deleted contacts. Unsubscribed contacts still
 			// come through and import as unsubscribed (cc-contact-map.php).
 			'limit'         => 100,
-			'include'       => 'phone_numbers,street_addresses',
+			'include'       => 'phone_numbers,street_addresses,custom_fields',
 			'lists'         => rawurlencode( $list_id ),
 		),
 		$url
@@ -143,4 +143,45 @@ function npmp_cc_get_contacts( $access_token, $list_id, $cursor = null ) {
 		'contacts' => isset( $body['contacts'] ) ? $body['contacts'] : array(),
 		'cursor'   => $next_cursor,
 	);
+}
+
+/**
+ * The account's contact custom fields, for the wizard's extra columns.
+ *
+ * GET /contact_custom_fields (https://developer.constantcontact.com/api_guide/custom_fields_get.html)
+ * returns custom_fields: [{custom_field_id, label, name, type}], where type is
+ * string or date. Constant Contact allows 100 custom fields, so one page of
+ * 100 holds them all. A failure here returns no fields rather than stopping
+ * the import, since the contact fields still come over.
+ *
+ * @param string $access_token OAuth access token.
+ * @return array<int,array{id:string,label:string,type:string}>
+ */
+function npmp_cc_get_custom_fields( $access_token ) {
+	$response = wp_remote_get(
+		NPMP_CC_API_BASE . '/contact_custom_fields?limit=100',
+		array(
+			'timeout' => 30,
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $access_token,
+				'Accept'        => 'application/json',
+			),
+		)
+	);
+	if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		return array();
+	}
+	$body   = json_decode( wp_remote_retrieve_body( $response ), true );
+	$fields = array();
+	foreach ( isset( $body['custom_fields'] ) && is_array( $body['custom_fields'] ) ? $body['custom_fields'] : array() as $cf ) {
+		if ( empty( $cf['custom_field_id'] ) ) {
+			continue;
+		}
+		$fields[] = array(
+			'id'    => (string) $cf['custom_field_id'],
+			'label' => (string) ( ! empty( $cf['label'] ) ? $cf['label'] : ( $cf['name'] ?? $cf['custom_field_id'] ) ),
+			'type'  => 'date' === strtolower( (string) ( $cf['type'] ?? '' ) ) ? 'date' : 'text',
+		);
+	}
+	return $fields;
 }

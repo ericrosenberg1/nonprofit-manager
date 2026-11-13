@@ -57,6 +57,23 @@ class NPMP_Import_Manager {
 	}
 
 	/**
+	 * An existing unsubscribe always wins. Before this, a file or API row that
+	 * said "subscribed" turned a contact who had unsubscribed here back on with
+	 * Update existing contacts picked.
+	 *
+	 * @param string $existing_status The contact's status now.
+	 * @param array  $record          The mapped row about to be written.
+	 * @return array The row, without a status when it would resubscribe.
+	 */
+	public static function keep_unsubscribe( $existing_status, $record ) {
+		$record = is_array( $record ) ? $record : array();
+		if ( 'unsubscribed' === (string) $existing_status && isset( $record['status'] ) && 'unsubscribed' !== $record['status'] ) {
+			unset( $record['status'] );
+		}
+		return $record;
+	}
+
+	/**
 	 * Member manager reference.
 	 *
 	 * @var NPMP_Member_Manager
@@ -748,6 +765,7 @@ class NPMP_Import_Manager {
 		if ( $existing ) {
 			switch ( $options['duplicate_handling'] ) {
 				case 'update':
+					$record = self::keep_unsubscribe( isset( $existing->status ) ? $existing->status : '', $record );
 					$result = $this->member_manager->update_member( $existing->id, $record );
 					if ( is_wp_error( $result ) ) {
 						return array(

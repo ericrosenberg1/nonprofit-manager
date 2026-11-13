@@ -92,6 +92,14 @@ if ( ! function_exists( 'npmp_cc_contact_row' ) ) {
 			$row['country']       = isset( $addr['country'] ) ? (string) $addr['country'] : '';
 		}
 
+		// Custom fields come back with include=custom_fields as
+		// [{custom_field_id, value}], keyed here as ccf:<id> for the wizard.
+		foreach ( isset( $contact['custom_fields'] ) && is_array( $contact['custom_fields'] ) ? $contact['custom_fields'] : array() as $cf ) {
+			if ( ! empty( $cf['custom_field_id'] ) && isset( $cf['value'] ) ) {
+				$row[ 'ccf:' . $cf['custom_field_id'] ] = is_array( $cf['value'] ) ? implode( ', ', array_map( 'strval', $cf['value'] ) ) : (string) $cf['value'];
+			}
+		}
+
 		return $row;
 	}
 }

@@ -80,8 +80,10 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	// Member import wizard (CSV / XLSX / Google Sheets / Mailchimp / Constant
 	// Contact). Row-capped in Free via npmp_import_max_rows(). Pro lifts the cap.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-cap.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/extra-fields.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/brevo-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/cc-contact-map.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/date-added.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/class-import-manager.php';
@@ -90,10 +92,12 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	// Importer for sites switching from MailPoet: contacts, lists, sender settings.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailpoet-importer.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailpoet-hub-source.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailpoet-custom-fields.php';
 
 	// Importer for sites switching from The Newsletter Plugin, on the MailPoet importer's writer.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/newsletter-importer.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/pmpro-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/fluentcrm-importer.php';
 	// Ultimate Member, on the Paid Memberships Pro importer's writer.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/ultimate-member-importer.php';
 

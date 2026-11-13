@@ -101,7 +101,7 @@ check( 'no screen hard-codes the pricing URL', array(), $hard );
 $expected = array(
 	'plugins_list', 'overview', 'setup_wizard', 'thank_you_email', 'payment_gateways', 'stripe_recurring',
 	'recurring_donations', 'membership_dues', 'email_provider', 'captcha', 'social_sharing', 'import_cap', 'scheduled_emails',
-	'groups', 'admin_print', 'import_hub',
+	'groups', 'admin_print', 'import_hub', 'import_custom_fields',
 );
 sort( $expected );
 $found = array_keys( $named );
