@@ -116,7 +116,8 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $npmp_r
 	}
 	$npmp_lines = file( $npmp_f->getPathname() );
 	foreach ( $npmp_lines as $npmp_i => $npmp_line ) {
-		if ( ! preg_match( '/<h1[ >]/', $npmp_line ) || false === strpos( $npmp_line, '</h1>' ) ) {
+		// A public page (not an admin screen) marks its h1 line "front-end h1".
+		if ( ! preg_match( '/<h1[ >]/', $npmp_line ) || false === strpos( $npmp_line, '</h1>' ) || false !== strpos( $npmp_line, 'front-end h1' ) ) {
 			continue;
 		}
 		$npmp_next = implode( '', array_slice( $npmp_lines, $npmp_i, 3 ) );

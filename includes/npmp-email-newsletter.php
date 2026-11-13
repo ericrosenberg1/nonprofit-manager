@@ -23,6 +23,8 @@ $npmp_newsletter_files = [
     'reports.php',
     'settings.php',
     'can-spam-shortcode.php',
+    'archive-pure.php',
+    'archive.php',
 ];
 
 foreach ($npmp_newsletter_files as $npmp_newsletter_file) {

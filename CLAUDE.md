@@ -216,6 +216,17 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   uses it and skips a contact whose status is `unsubscribed` at send time. Confirmation, unsubscribe,
   receipt, and admin mail stay without it. Unit `tests/test-signup-welcome-emails.php`, rig
   `tests/rig/signup-welcome-emails.php`, Pro rig `tests/rig/automation-footer.php`.
+- **Public newsletters are opt-in, one newsletter at a time** (`includes/email-newsletter/archive.php`,
+  pure parts in `archive-pure.php`). A newsletter is listed and gets a page at `/newsletter/<id>/<slug>/`
+  only when `_npmp_newsletter_status` is `sent` and someone with the send capability ticked the sidebar
+  box (meta `_npmp_newsletter_public` = `1`). Every newsletter starts unticked, older ones included. Event
+  emails (`_npmp_newsletter_scheduled_event`) stay out of lists unless `event_emails="yes"`. The page renders
+  `NPMP_Newsletter_Manager::render_base_content()` (made public for this) with tag defaults, never
+  `personalize_content()`, and `npmp_newsletter_archive_scrub()` strips tokens, addresses, and tracking from
+  any pasted link. It is noindex unless Newsletter Settings says otherwise, and anything else answers 404.
+  `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
+  empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
+  site served at its home URL, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -230,12 +241,14 @@ Free (`readme.txt`):
 - Post and event notifications and the weekly digest now end with your newsletter footer and the reader's own unsubscribe link.
 - New Form color setting under Membership Settings sets the button color on every front-end form and keeps the label readable.
 - The please-confirm email can list what the person signed up for (Pro fills in their groups).
+- Added the Newsletters block and `[npmp_newsletters]` shortcode to list past newsletters you choose to make public.
 
 Pro (licence server changelog):
 - Automation emails now end with your newsletter footer and unsubscribe link, and people who unsubscribed get none.
 - New [groups] tag lists the groups each reader belongs to, with [groups default="..."] for someone in no group.
 - The please-confirm email lists the groups the person asked to join.
 - New checked="yes" or checked="no" on the email signup form sets whether the group boxes start ticked.
+- Added `group` to `[npmp_newsletters]` and a Groups panel to the Newsletters block for per-group newsletter lists.
 
 ## Releasing: three systems, always in this order
 

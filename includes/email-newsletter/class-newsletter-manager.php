@@ -300,7 +300,7 @@ class NPMP_Newsletter_Manager {
 	 * @param int $newsletter_id Newsletter ID.
 	 * @return string|null Null when the post isn't a newsletter.
 	 */
-	private static function render_base_content( $newsletter_id ) {
+	public static function render_base_content( $newsletter_id ) {
 		$post = get_post( $newsletter_id );
 		if ( ! $post || 'npmp_newsletter' !== $post->post_type ) {
 			return null;
