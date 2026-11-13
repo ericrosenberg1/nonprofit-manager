@@ -49,6 +49,24 @@ foreach ( get_posts( array( 'post_type' => array( 'npmp_newsletter', 'npmp_conta
 	wp_delete_post( $rig_id, true );
 }
 wp_cache_flush();
+// Tracking goes on for this run and back the way it was on exit, so a rig run
+// after this one (event-email-content compares bodies) sees the site's own
+// setting.
+$rig_tracking = array(
+	'npmp_newsletter_track_opens'  => get_option( 'npmp_newsletter_track_opens', null ),
+	'npmp_newsletter_track_clicks' => get_option( 'npmp_newsletter_track_clicks', null ),
+);
+register_shutdown_function(
+	static function () use ( $rig_tracking ) {
+		foreach ( $rig_tracking as $rig_opt => $rig_value ) {
+			if ( null === $rig_value ) {
+				delete_option( $rig_opt );
+			} else {
+				update_option( $rig_opt, $rig_value );
+			}
+		}
+	}
+);
 update_option( 'npmp_newsletter_track_opens', 1 );
 update_option( 'npmp_newsletter_track_clicks', 1 );
 delete_option( 'npmp_newsletter_archive_index' );
