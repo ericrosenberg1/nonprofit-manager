@@ -22,9 +22,15 @@
  *                       start and end are site time, Y-m-d H:i:s (npmp_tec_event_times()).
  *                       cursor moves past the item. A series gives one item per date.
  *                       An item with 'skip' => true only moves the cursor.
- *         'settings' => callable, array of npmp_tec_settings_map() key => value this plugin would save.
+ *         'settings' => callable, array of npmp_tec_settings_map() key => array{tec:string,value:mixed}
+ *                       (npmp_tec_read_settings() shape). The import screen shows a checkbox for each.
  *         'series'   => false when the source brings one date per event (no repeating dates).
  *         'venues'   => false when the source has a location line but no venues.
+ *         'brings'   => optional strings, more lines under "What comes over".
+ *         'leaves'   => optional strings, more lines under "What you leave in the old plugin".
+ *         'warning'  => optional string, a warning above the Import button (paid bookings).
+ *         'query_args' => optional query argument names that pick one date on an old link
+ *                       (My Calendar's ?mc_id=). A path saved as '/x/?mc_id=5' answers only that date.
  *     );
  *
  * A second run skips every event already here (_npmp_import_key). Each old
@@ -83,6 +89,39 @@ function npmp_event_import_old_path( $slug, $post_name ) {
 		return '';
 	}
 	return npmp_tec_normalize_path( '/' . ( '' !== $slug ? $slug : 'events' ) . '/' . rawurldecode( (string) $post_name ) . '/' );
+}
+
+/**
+ * Full name of an old plugin's table when it exists, '' when it doesn't.
+ *
+ * @param string $short Name without the prefix.
+ * @return string
+ */
+function npmp_event_import_table( $short ) {
+	global $wpdb;
+	$name = $wpdb->prefix . $short;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Table check.
+	return $name === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $name ) ) ) ? $name : '';
+}
+
+/**
+ * The featured image: the post's own thumbnail, else an image URL the old
+ * plugin saved, when that URL is a file in your media library.
+ *
+ * @param int   $post_id Post that may carry _thumbnail_id.
+ * @param mixed $url     Image URL, or a list of them (the first counts).
+ * @return int Attachment ID, or 0.
+ */
+function npmp_event_import_image( $post_id, $url = '' ) {
+	$thumb = $post_id ? (int) get_post_meta( (int) $post_id, '_thumbnail_id', true ) : 0;
+	if ( $thumb ) {
+		return $thumb;
+	}
+	if ( is_array( $url ) ) {
+		$url = reset( $url );
+	}
+	$url = is_string( $url ) ? trim( $url ) : '';
+	return '' !== $url ? (int) attachment_url_to_postid( $url ) : 0;
 }
 
 /**
@@ -262,28 +301,90 @@ function npmp_event_import_item( $slug, array $item ) {
 }
 
 /**
- * Copy the source's calendar settings where yours are still on the default.
+ * Old path with the one query argument that picks a date, in the form the
+ * redirect lookup stores. npmp_tec_normalize_path() drops every other query.
+ *
+ * @param string $path  From npmp_event_import_old_path().
+ * @param string $arg   Query argument name.
+ * @param string $value Its value.
+ * @return string
+ */
+function npmp_event_import_path_with_query( $path, $arg, $value ) {
+	$arg   = strtolower( preg_replace( '/[^a-z0-9_-]/i', '', (string) $arg ) );
+	$value = strtolower( preg_replace( '/[^a-z0-9_-]/i', '', (string) $value ) );
+	if ( '' === (string) $path || '' === $arg || '' === $value ) {
+		return '';
+	}
+	return rtrim( (string) $path, '/' ) . '/?' . $arg . '=' . $value;
+}
+
+/**
+ * Paths to look up for one request, the most specific first: the path with
+ * each date-picking argument a source registered, then the plain path.
+ *
+ * @param string   $uri       Request URI.
+ * @param string   $home_path Path part of home_url().
+ * @param string[] $args      Query argument names.
+ * @return string[]
+ */
+function npmp_event_import_request_paths( $uri, $home_path, array $args ) {
+	$path  = npmp_tec_normalize_path( $uri, $home_path );
+	$out   = array();
+	$query = (string) parse_url( (string) $uri, PHP_URL_QUERY ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pure helper, unit tested without WordPress.
+	if ( '' !== $query && $args ) {
+		parse_str( $query, $given );
+		foreach ( $args as $arg ) {
+			if ( isset( $given[ $arg ] ) && is_scalar( $given[ $arg ] ) ) {
+				$with = npmp_event_import_path_with_query( $path, $arg, (string) $given[ $arg ] );
+				if ( '' !== $with ) {
+					$out[] = $with;
+				}
+			}
+		}
+	}
+	$out[] = $path;
+	return $out;
+}
+
+/**
+ * Setting rows for the import screen: the source's settings beside yours,
+ * ticked when yours is still on the default (npmp_tec_settings_rows()).
  *
  * @param array $source Source.
+ * @return array
+ */
+function npmp_event_import_setting_rows( array $source ) {
+	if ( ! is_callable( $source['settings'] ?? null ) ) {
+		return array();
+	}
+	$staged  = (array) call_user_func( $source['settings'] );
+	$current = array();
+	foreach ( npmp_tec_settings_map() as $map ) {
+		$current[ $map['target'] ] = get_option( $map['target'], null );
+	}
+	return npmp_tec_settings_rows( $staged, $current );
+}
+
+/**
+ * Copy the source's calendar settings you ticked.
+ *
+ * @param array         $source Source.
+ * @param string[]|null $picked Setting keys you ticked. Null takes the boxes
+ *                              the screen ticks for you: settings still on
+ *                              the default here.
  * @return int Settings copied.
  */
-function npmp_event_import_settings( array $source ) {
-	if ( ! is_callable( $source['settings'] ?? null ) ) {
+function npmp_event_import_settings( array $source, $picked = null ) {
+	$rows = npmp_event_import_setting_rows( $source );
+	if ( ! $rows ) {
 		return 0;
 	}
 	$map    = npmp_tec_settings_map();
 	$copied = 0;
-	foreach ( (array) call_user_func( $source['settings'] ) as $id => $value ) {
-		if ( ! isset( $map[ $id ] ) ) {
-			continue;
-		}
-		$value = npmp_tec_convert_setting( $id, $value );
-		if ( null === $value ) {
-			continue;
-		}
-		$current = get_option( $map[ $id ]['target'], null );
-		if ( npmp_tec_setting_on_default( $id, $current ) && $value !== $map[ $id ]['default'] ) {
-			update_option( $map[ $id ]['target'], $value );
+	foreach ( $rows as $id => $row ) {
+		$wanted = null === $picked ? $row['checked'] : in_array( $id, (array) $picked, true );
+		if ( $wanted && ! $row['same'] ) {
+			update_option( $map[ $id ]['target'], $row['value'] );
 			++$copied;
 		}
 	}
@@ -293,19 +394,20 @@ function npmp_event_import_settings( array $source ) {
 /**
  * Run batches until the source runs out or the time is up.
  *
- * @param string $slug    Source slug.
- * @param int    $seconds Time budget.
- * @param int    $limit   Items per batch.
+ * @param string        $slug    Source slug.
+ * @param int           $seconds Time budget.
+ * @param int           $limit   Items per batch.
+ * @param string[]|null $picked  Settings you ticked when a new run starts (npmp_event_import_settings()).
  * @return array State after the run.
  */
-function npmp_event_import_run( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25 ) {
+function npmp_event_import_run( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25, $picked = null ) {
 	// One run at a time. Two tabs, or a reload while a batch was still
 	// running, read the same rows and wrote each new record twice.
 	if ( ! npmp_mail_queue_lock( 'import_event_' . $slug, 120 ) ) {
 		return npmp_event_import_state( $slug );
 	}
 	try {
-		return npmp_event_import_run_locked( $slug, $seconds, $limit );
+		return npmp_event_import_run_locked( $slug, $seconds, $limit, $picked );
 	} finally {
 		npmp_mail_queue_unlock( 'import_event_' . $slug );
 	}
@@ -317,7 +419,7 @@ function npmp_event_import_run( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $li
  * @see npmp_event_import_run()
  * @return array State after the run.
  */
-function npmp_event_import_run_locked( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25 ) {
+function npmp_event_import_run_locked( $slug, $seconds = NPMP_EVENT_IMPORT_SECONDS, $limit = 25, $picked = null ) {
 	$sources = npmp_event_import_sources();
 	if ( ! isset( $sources[ $slug ] ) ) {
 		return npmp_event_import_state( $slug );
@@ -332,7 +434,7 @@ function npmp_event_import_run_locked( $slug, $seconds = NPMP_EVENT_IMPORT_SECON
 			'finished_at' => $state['finished_at'],
 			'results'     => npmp_event_import_empty_results(),
 		);
-		$state['results']['settings'] = npmp_event_import_settings( $source );
+		$state['results']['settings'] = npmp_event_import_settings( $source, $picked );
 	}
 
 	$start = microtime( true );
@@ -432,8 +534,18 @@ function npmp_event_import_maybe_redirect() {
 		return;
 	}
 	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_tec_normalize_path() strips it to a path, and the lookup is prepared.
-	$uri    = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
-	$target = npmp_event_import_find_redirect( npmp_tec_normalize_path( $uri, npmp_tec_home_path() ) );
+	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
+	$args = array();
+	foreach ( npmp_event_import_sources() as $source ) {
+		$args = array_merge( $args, array_map( 'strval', (array) ( $source['query_args'] ?? array() ) ) );
+	}
+	$target = 0;
+	foreach ( npmp_event_import_request_paths( $uri, npmp_tec_home_path(), array_unique( $args ) ) as $path ) {
+		$target = npmp_event_import_find_redirect( $path );
+		if ( $target ) {
+			break;
+		}
+	}
 	if ( ! $target ) {
 		return;
 	}
@@ -458,10 +570,11 @@ add_action( 'template_redirect', 'npmp_event_import_maybe_redirect', 1 );
  * @param callable $installed Installed plugins callable.
  * @param string[] $checklist Verify checklist.
  * @param string   $reason    Why step 5 is unavailable.
+ * @param array    $extra     More hub keys, such as 'delete_note' or 'deactivate_note'.
  * @return array
  */
-function npmp_event_hub_source( $slug, $name, array $folders, $installed, array $checklist, $reason ) {
-	return array(
+function npmp_event_hub_source( $slug, $name, array $folders, $installed, array $checklist, $reason, array $extra = array() ) {
+	return $extra + array(
 		'name'              => $name,
 		'covers'            => __( 'Events, venues, and categories', 'nonprofit-manager' ),
 		'feature'           => __( 'Events', 'nonprofit-manager' ),
@@ -595,12 +708,15 @@ function npmp_event_import_post() {
 	if ( ! isset( npmp_event_import_sources()[ $slug ] ) ) {
 		wp_die( esc_html__( 'We can\'t import events from that plugin.', 'nonprofit-manager' ), 400 );
 	}
+	$picked = null;
 	if ( ! empty( $_POST['restart'] ) ) {
 		$state            = npmp_event_import_state( $slug );
 		$state['running'] = false;
 		npmp_event_import_save_state( $slug, $state );
+		// Only the boxes you ticked. An unticked box sends nothing.
+		$picked = isset( $_POST['npmp_event_settings'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_POST['npmp_event_settings'] ) ) : array();
 	}
-	npmp_event_import_run( $slug );
+	npmp_event_import_run( $slug, NPMP_EVENT_IMPORT_SECONDS, 25, $picked );
 	wp_safe_redirect( npmp_event_import_url( $slug ) );
 	exit;
 }
@@ -681,13 +797,20 @@ function npmp_event_import_render_page() {
 		echo '<li>' . esc_html__( 'Each event keeps its location line and its categories.', 'nonprofit-manager' ) . '</li>';
 	}
 	echo '<li>' . esc_html__( 'Each old event link leads to the new event once you turn the old plugin off.', 'nonprofit-manager' ) . '</li>';
-	if ( is_callable( $source['settings'] ?? null ) ) {
-		echo '<li>' . esc_html__( 'Your calendar\'s default view and list length, where yours are still on the default.', 'nonprofit-manager' ) . '</li>';
+	foreach ( array_filter( (array) ( $source['brings'] ?? array() ), 'is_string' ) as $line ) {
+		echo '<li>' . esc_html( $line ) . '</li>';
+	}
+	$setting_rows = npmp_event_import_setting_rows( $source );
+	if ( $setting_rows ) {
+		echo '<li>' . esc_html__( 'The calendar settings you tick below.', 'nonprofit-manager' ) . '</li>';
 	}
 	echo '</ul>';
 
 	echo '<h2>' . esc_html__( 'What you leave in the old plugin', 'nonprofit-manager' ) . '</h2><ul class="npmp-hub-checklist">';
 	echo '<li>' . esc_html__( 'Bookings, tickets, and attendee lists.', 'nonprofit-manager' ) . '</li>';
+	foreach ( array_filter( (array) ( $source['leaves'] ?? array() ), 'is_string' ) as $line ) {
+		echo '<li>' . esc_html( $line ) . '</li>';
+	}
 	if ( $counts['skipped'] ) {
 		echo '<li>' . esc_html(
 			sprintf(
@@ -700,14 +823,69 @@ function npmp_event_import_render_page() {
 	echo '<li>' . esc_html__( 'Map keys, keys for paid add-ons, and payment settings.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
 
+	if ( ! empty( $source['warning'] ) && is_string( $source['warning'] ) ) {
+		echo '<div class="notice notice-warning inline"><p>' . esc_html( $source['warning'] ) . '</p></div>';
+	}
+
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 	npmp_event_import_form_fields( $slug );
 	echo '<input type="hidden" name="restart" value="1">';
+	if ( $setting_rows ) {
+		npmp_event_import_render_settings( $source['name'], $setting_rows );
+	}
 	echo '<p><button type="submit" class="button button-primary">' . esc_html( $state['finished_at'] ? __( 'Import again', 'nonprofit-manager' ) : __( 'Import events', 'nonprofit-manager' ) ) . '</button></p>';
 	if ( $state['finished_at'] ) {
 		echo '<p class="description">' . esc_html__( 'Running it again adds only events you don\'t have here yet.', 'nonprofit-manager' ) . '</p>';
 	}
 	echo '</form></div>';
+}
+
+/**
+ * The settings table, a checkbox per setting, inside the import form.
+ *
+ * @param string $name Old plugin name.
+ * @param array  $rows Rows from npmp_event_import_setting_rows().
+ * @return void
+ */
+function npmp_event_import_render_settings( $name, array $rows ) {
+	echo '<h2>' . esc_html__( 'Calendar settings', 'nonprofit-manager' ) . '</h2>';
+	echo '<p>' . esc_html(
+		sprintf(
+			/* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */
+			__( 'Check the box for each setting you want. You start with a checked box where %s is still on its default, and an unchecked box where you already picked your own value.', 'nonprofit-manager' ),
+			npmp_label( 'app_name' )
+		)
+	) . '</p>';
+	echo '<table class="widefat striped npmp-tec-settings"><thead><tr>';
+	echo '<td class="check-column"><span class="screen-reader-text">' . esc_html__( 'Bring over', 'nonprofit-manager' ) . '</span></td>';
+	echo '<th scope="col">' . esc_html__( 'Setting', 'nonprofit-manager' ) . '</th>';
+	/* translators: %s: old plugin name. */
+	echo '<th scope="col">' . esc_html( sprintf( __( 'In %s', 'nonprofit-manager' ), $name ) ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Current value', 'nonprofit-manager' ) . '</th>';
+	echo '</tr></thead><tbody>';
+	foreach ( $rows as $id => $row ) {
+		$label = npmp_tec_setting_label( $id );
+		echo '<tr><th scope="row" class="check-column">';
+		if ( $row['same'] ) {
+			echo '<input type="checkbox" disabled aria-label="' . esc_attr__( 'Already the same', 'nonprofit-manager' ) . '">';
+		} else {
+			printf(
+				'<input type="checkbox" name="npmp_event_settings[]" value="%1$s" %2$s aria-label="%3$s">',
+				esc_attr( $id ),
+				checked( $row['checked'], true, false ),
+				/* translators: %s: setting name. */
+				esc_attr( sprintf( __( 'Bring over %s', 'nonprofit-manager' ), $label ) )
+			);
+		}
+		echo '</th><td><strong>' . esc_html( $label ) . '</strong></td>';
+		echo '<td>' . esc_html( npmp_tec_setting_display( $id, $row['value'] ) ) . '</td>';
+		echo '<td>' . esc_html( npmp_tec_setting_display( $id, $row['current'] ) );
+		if ( $row['same'] ) {
+			echo ' <span class="npmp-tec-status">' . esc_html__( 'Already the same', 'nonprofit-manager' ) . '</span>';
+		}
+		echo '</td></tr>';
+	}
+	echo '</tbody></table>';
 }
 
 /**
