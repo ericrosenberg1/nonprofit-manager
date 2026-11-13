@@ -354,15 +354,24 @@ add_action(
 				// (WordPress.org requires any data leaving the site to be
 				// opt-in). The "Powered by" link is no longer offered here. It
 				// is asked once after the first donation (npmp-credit-ask.php).
+				// The result rides on the redirect so the welcome screen can
+				// say whether the confirmation email is on its way.
+				$optin_result = '';
 				if ( isset( $_POST['npmp_setup_email_optin'] ) && isset( $_POST['npmp_setup_email'] ) ) {
 					$wizard_email = sanitize_email( wp_unslash( $_POST['npmp_setup_email'] ) );
 					if ( is_email( $wizard_email ) && function_exists( 'npmp_subscribe_to_newsletter' ) ) {
 						$current_user = wp_get_current_user();
-						npmp_subscribe_to_newsletter( $wizard_email, $current_user ? $current_user->display_name : '' );
+						$optin_result = npmp_subscribe_to_newsletter( $wizard_email, $current_user ? $current_user->display_name : '' ) ? 'sent' : 'failed';
+					} else {
+						$optin_result = 'invalid';
 					}
 				}
 
-				wp_safe_redirect( admin_url( 'admin.php?page=npmp_main&setup_complete=1' ) );
+				$done_url = admin_url( 'admin.php?page=npmp_main&setup_complete=1' );
+				if ( '' !== $optin_result ) {
+					$done_url = add_query_arg( 'npmp_optin', $optin_result, $done_url );
+				}
+				wp_safe_redirect( $done_url );
 				exit;
 			}
 		}
@@ -373,7 +382,17 @@ add_action(
  * Render the setup wizard
  */
 function npmp_render_setup_wizard() {
-	$version = npmp_get_version();
+	$version  = npmp_get_version();
+	$features = wp_parse_args(
+		(array) get_option( 'npmp_enabled_features', array() ),
+		array(
+			'members'     => true,
+			'newsletters' => false,
+			'donations'   => true,
+			'calendar'    => false,
+			'social'      => false,
+		)
+	);
 	?>
 	<div class="wrap">
 		<style>
@@ -414,10 +433,21 @@ function npmp_render_setup_wizard() {
 				border-color: #0f766e;
 				background-color: #ecfdf5;
 			}
-			.npmp-setup-wizard .feature-card input[type="checkbox"] {
+			.npmp-setup-wizard .npmp-wizard-step {
+				margin: 0;
+				padding: 0;
+				border: 0;
+			}
+			.npmp-setup-wizard .npmp-wizard-step legend {
+				padding: 0;
+			}
+			.npmp-setup-wizard .feature-card input[type="checkbox"],
+			.npmp-setup-wizard .feature-card input[type="radio"] {
 				margin-right: 10px;
 			}
-			.npmp-setup-wizard .feature-card h3 {
+			.npmp-setup-wizard .feature-card__title {
+				display: block;
+				font-weight: 600;
 				margin: 0 0 10px 0;
 				font-size: 18px;
 			}
@@ -474,6 +504,20 @@ function npmp_render_setup_wizard() {
 				border-color: #115e59;
 				color: #fff;
 			}
+			@media (max-width: 600px) {
+				.npmp-setup-wizard {
+					margin: 16px auto;
+					padding: 20px 16px;
+				}
+				.npmp-setup-wizard .feature-grid {
+					grid-template-columns: 1fr;
+					gap: 12px;
+					margin: 20px 0;
+				}
+				.npmp-setup-wizard .subtitle {
+					margin-bottom: 24px;
+				}
+			}
 			.npmp-version-badge {
 				display: inline-block;
 				background: #0f766e;
@@ -488,7 +532,7 @@ function npmp_render_setup_wizard() {
 
 		<div class="npmp-setup-wizard">
 			<h1>
-				<?php esc_html_e( 'Welcome to Nonprofit Manager', 'nonprofit-manager' ); ?>
+				<?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Welcome to %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?>
 				<?php if ( 'pro' === $version ) : ?>
 					<span class="npmp-version-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 				<?php endif; ?>
@@ -496,9 +540,9 @@ function npmp_render_setup_wizard() {
 			<p class="subtitle">
 				<?php
 				if ( 'pro' === $version ) {
-					esc_html_e( 'Thank you for upgrading to Pro! Let\'s set up your site.', 'nonprofit-manager' );
+					esc_html_e( 'Thanks for upgrading to Pro. You can set up your site in two steps.', 'nonprofit-manager' );
 				} else {
-					esc_html_e( 'Let\'s get started by choosing which features you need.', 'nonprofit-manager' );
+					esc_html_e( 'You can set up your site in two steps. Both stay easy to change later.', 'nonprofit-manager' );
 				}
 				?>
 			</p>
@@ -507,7 +551,8 @@ function npmp_render_setup_wizard() {
 				<?php wp_nonce_field( 'npmp_setup_wizard', 'npmp_setup_nonce' ); ?>
 				<input type="hidden" name="npmp_setup_step" value="complete">
 
-				<h2><?php esc_html_e( 'What kind of group is this?', 'nonprofit-manager' ); ?></h2>
+				<fieldset class="npmp-wizard-step">
+				<legend><h2><?php esc_html_e( 'Step 1: What kind of group do you run?', 'nonprofit-manager' ); ?></h2></legend>
 				<p><?php esc_html_e( 'Pick the closest match, and you\'ll see words that fit your group, like Supporters instead of Donors. You can change it later in General Settings.', 'nonprofit-manager' ); ?></p>
 
 				<div class="feature-grid npmp-org-type-grid">
@@ -518,10 +563,10 @@ function npmp_render_setup_wizard() {
 						?>
 						<div class="feature-card<?php echo $current_type === $type_slug ? ' selected' : ''; ?>">
 							<label>
-								<h3>
+								<span class="feature-card__title">
 									<input type="radio" name="npmp_org_type" value="<?php echo esc_attr( $type_slug ); ?>" <?php checked( $current_type, $type_slug ); ?> onchange="npmpSelectOrgType(this)">
 									<?php echo esc_html( $type_label ); ?>
-								</h3>
+								</span>
 								<p>
 									<?php
 									echo esc_html(
@@ -539,58 +584,73 @@ function npmp_render_setup_wizard() {
 						</div>
 					<?php endforeach; ?>
 				</div>
+				</fieldset>
 
-				<h2><?php esc_html_e( 'Select Your Features', 'nonprofit-manager' ); ?></h2>
-				<p><?php esc_html_e( 'Choose the features you want to activate. You can change these later.', 'nonprofit-manager' ); ?></p>
+				<fieldset class="npmp-wizard-step">
+				<legend><h2><?php esc_html_e( 'Step 2: Which parts do you want?', 'nonprofit-manager' ); ?></h2></legend>
+				<p><?php esc_html_e( 'Tick the parts you\'ll use. You can turn any of them on or off later on the Overview screen.', 'nonprofit-manager' ); ?></p>
 
+				<?php $npmp_feature_names = npmp_feature_names(); ?>
 				<div class="feature-grid">
-					<div class="feature-card selected">
+					<div class="feature-card<?php echo ! empty( $features['members'] ) ? ' selected' : ''; ?>">
 						<label>
-							<h3>
-								<input type="checkbox" name="npmp_feature_members" checked onchange="npmpToggleFeatureCard(this)">
-								<?php esc_html_e( 'Member Tracking', 'nonprofit-manager' ); ?>
-							</h3>
-							<p><?php esc_html_e( 'Track members, manage contacts, and capture signups through customizable forms.', 'nonprofit-manager' ); ?></p>
+							<span class="feature-card__title">
+								<input type="checkbox" name="npmp_feature_members" id="npmp_feature_members" <?php checked( ! empty( $features['members'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
+								<?php echo esc_html( $npmp_feature_names['members'] ); ?>
+							</span>
+							<p><?php esc_html_e( 'A contact list with membership levels, plus signup forms you can put on any page.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 
-					<div class="feature-card">
+					<div class="feature-card<?php echo ! empty( $features['newsletters'] ) ? ' selected' : ''; ?>">
 						<label>
-							<h3>
-								<input type="checkbox" name="npmp_feature_newsletters" onchange="npmpToggleFeatureCard(this)">
-								<?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?>
-							</h3>
-							<p><?php esc_html_e( 'Send newsletters to your members. Requires Member Tracking.', 'nonprofit-manager' ); ?></p>
+							<span class="feature-card__title">
+								<input type="checkbox" name="npmp_feature_newsletters" id="npmp_feature_newsletters" <?php checked( ! empty( $features['newsletters'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
+								<?php echo esc_html( $npmp_feature_names['newsletters'] ); ?>
+							</span>
+							<p><?php esc_html_e( 'Send newsletters and one scheduled email per event to your members. Needs Member Tracking, so ticking this ticks it too.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 
-					<div class="feature-card selected">
+					<div class="feature-card<?php echo ! empty( $features['donations'] ) ? ' selected' : ''; ?>">
 						<label>
-							<h3>
-								<input type="checkbox" name="npmp_feature_donations" checked onchange="npmpToggleFeatureCard(this)">
-								<?php esc_html_e( 'Online Payments', 'nonprofit-manager' ); ?>
-							</h3>
-							<p><?php esc_html_e( 'Take donations, gifts or contributions online and keep a record of each one.', 'nonprofit-manager' ); ?></p>
+							<span class="feature-card__title">
+								<input type="checkbox" name="npmp_feature_donations" id="npmp_feature_donations" <?php checked( ! empty( $features['donations'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
+								<?php echo esc_html( $npmp_feature_names['donations'] ); ?>
+							</span>
+							<p><?php esc_html_e( 'Take gifts online through Stripe, PayPal, or Venmo. Stripe gifts land in your records.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 
-					<div class="feature-card">
+					<div class="feature-card<?php echo ! empty( $features['calendar'] ) ? ' selected' : ''; ?>">
 						<label>
-							<h3>
-								<input type="checkbox" name="npmp_feature_calendar" onchange="npmpToggleFeatureCard(this)">
-								<?php esc_html_e( 'Event Calendar', 'nonprofit-manager' ); ?>
-							</h3>
-							<p><?php esc_html_e( 'Manage events with a public calendar and iCal feed.', 'nonprofit-manager' ); ?></p>
+							<span class="feature-card__title">
+								<input type="checkbox" name="npmp_feature_calendar" id="npmp_feature_calendar" <?php checked( ! empty( $features['calendar'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
+								<?php echo esc_html( $npmp_feature_names['calendar'] ); ?>
+							</span>
+							<p><?php esc_html_e( 'A public event calendar with an iCal feed and a print button.', 'nonprofit-manager' ); ?></p>
+						</label>
+					</div>
+
+					<div class="feature-card<?php echo ! empty( $features['social'] ) ? ' selected' : ''; ?>">
+						<label>
+							<span class="feature-card__title">
+								<input type="checkbox" name="npmp_feature_social" id="npmp_feature_social" <?php checked( ! empty( $features['social'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
+								<?php echo esc_html( $npmp_feature_names['social'] ); ?>
+							</span>
+							<p><?php esc_html_e( 'Share each new post and event to Facebook and X as you publish.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 				</div>
+
+				</fieldset>
 
 				<?php if ( 'free' === $version ) : ?>
 					<?php /* The only Pro offer a new install meets. Its link is the setup_wizard campaign in GA4. */ ?>
 					<div class="npmp-pro-note">
 						<h3><?php esc_html_e( 'Want more features?', 'nonprofit-manager' ); ?></h3>
-						<p><?php esc_html_e( 'Nonprofit Manager Pro adds recurring donations, dues billing, email automations, custom fields and segments.', 'nonprofit-manager' ); ?></p>
-						<a class="button npmp-pro-note-link" href="<?php echo esc_url( npmp_get_upgrade_url( 'setup_wizard' ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'See what Pro adds', 'nonprofit-manager' ); ?></a>
+						<p><?php esc_html_e( 'With Nonprofit Manager Pro, you also get groups, recurring gifts, dues billing, email automations, custom fields, and segments.', 'nonprofit-manager' ); ?></p>
+						<a class="button npmp-pro-note-link" href="<?php echo esc_url( npmp_get_upgrade_url( 'setup_wizard' ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?></a>
 					</div>
 				<?php endif; ?>
 
@@ -601,6 +661,7 @@ function npmp_render_setup_wizard() {
 						<?php esc_html_e( 'Email me setup tips and Nonprofit Manager product updates.', 'nonprofit-manager' ); ?>
 					</label>
 					<br>
+					<label for="npmp-setup-email" class="screen-reader-text"><?php esc_html_e( 'Email address for setup tips', 'nonprofit-manager' ); ?></label>
 					<input
 						type="email"
 						id="npmp-setup-email"
@@ -619,7 +680,7 @@ function npmp_render_setup_wizard() {
 						<?php esc_html_e( 'Skip setup for now', 'nonprofit-manager' ); ?>
 					</button>
 					<br>
-					<span class="description"><?php esc_html_e( 'Keeps the default features. You can change them any time in Settings.', 'nonprofit-manager' ); ?></span>
+					<span class="description"><?php esc_html_e( 'Keeps the features you have now. You can change them any time on the Overview screen.', 'nonprofit-manager' ); ?></span>
 				</p>
 			</form>
 		</div>
@@ -632,11 +693,24 @@ function npmp_render_setup_wizard() {
 			radio.closest('.feature-card').classList.add('selected');
 		}
 		function npmpToggleFeatureCard(checkbox) {
-			const card = checkbox.closest('.feature-card');
+			var card = checkbox.closest('.feature-card');
 			if (checkbox.checked) {
 				card.classList.add('selected');
 			} else {
 				card.classList.remove('selected');
+			}
+			// Newsletters need Member Tracking. Ticking Newsletters ticks
+			// Member Tracking, and unticking Member Tracking unticks
+			// Newsletters, so the saved result matches the screen.
+			var members = document.getElementById('npmp_feature_members');
+			var letters = document.getElementById('npmp_feature_newsletters');
+			if (checkbox === letters && letters.checked && ! members.checked) {
+				members.checked = true;
+				npmpToggleFeatureCard(members);
+			}
+			if (checkbox === members && ! members.checked && letters.checked) {
+				letters.checked = false;
+				npmpToggleFeatureCard(letters);
 			}
 		}
 		</script>

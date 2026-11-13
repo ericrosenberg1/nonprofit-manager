@@ -7,7 +7,7 @@
  * Every "Upgrade to Pro" link in the plugin carries utm_source=plugin,
  * utm_medium=upsell and a utm_campaign naming the screen, so GA4 can say
  * which screen sells. Pinned here: the default for callers that pass
- * nothing, how a campaign is cleaned, that the three preview pages are the
+ * nothing, how a campaign is cleaned, that the preview pages are the
  * Pro screens by slug, and a source scan proving no call site in the plugin
  * still asks for the untagged link or hard-codes the pricing URL.
  *
@@ -20,6 +20,12 @@ function add_action( ...$args ) {}
 function add_filter( ...$args ) {}
 
 require_once dirname( __DIR__ ) . '/includes/npmp-version.php';
+if ( ! function_exists( 'get_option' ) ) {
+	function get_option( $name, $default = false ) {
+		return $default;
+	}
+}
+require_once dirname( __DIR__ ) . '/includes/npmp-org-type.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-pro-feature-pages.php';
 
 $base = 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=upsell&utm_campaign=';
@@ -49,8 +55,9 @@ check( 'exactly three query parameters', 3, count( $q ) );
 
 echo "\nPro menu previews\n";
 $pages = npmp_pro_feature_pages();
-check( 'three previews', 3, count( $pages ) );
-check( 'slugs are the Pro screens', array( 'npmp_automations', 'npmp_custom_fields', 'npmp_segments' ), array_keys( $pages ) );
+check( 'four previews', 4, count( $pages ) );
+check( 'slugs are the Pro screens', array( 'npmp_automations', 'npmp_custom_fields', 'npmp_segments', 'npmp_groups' ), array_keys( $pages ) );
+check( 'Groups sits under the Membership menu', 'npmp_membership', $pages['npmp_groups']['parent'] ?? '' );
 foreach ( $pages as $slug => $page ) {
 	check( "$slug has a menu label", true, '' !== trim( $page['menu'] ) );
 	check( "$slug has a heading", true, '' !== trim( $page['title'] ) );
@@ -93,7 +100,8 @@ check( 'no untagged upgrade link remains', array(), $bare );
 check( 'no screen hard-codes the pricing URL', array(), $hard );
 $expected = array(
 	'plugins_list', 'overview', 'setup_wizard', 'thank_you_email', 'payment_gateways', 'stripe_recurring',
-	'recurring_donations', 'membership_dues', 'email_provider', 'captcha', 'social_sharing', 'import_cap',
+	'recurring_donations', 'membership_dues', 'email_provider', 'captcha', 'social_sharing', 'import_cap', 'scheduled_emails',
+	'groups', 'admin_print', 'import_hub',
 );
 sort( $expected );
 $found = array_keys( $named );

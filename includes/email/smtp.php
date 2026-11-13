@@ -64,7 +64,7 @@ function npmp_email_apply_transport( $phpmailer ) {
 	}
 
 	$from_email = $settings['from_email'];
-	$from_name  = $settings['from_name'];
+	$from_name  = npmp_mail_from_name_override() ? npmp_mail_from_name_override() : $settings['from_name'];
 
 	if ( $from_email && $from_name ) {
 		$phpmailer->setFrom( $from_email, $from_name, false );
@@ -120,6 +120,13 @@ function npmp_email_filter_from_name( $value ) {
 
 	if ( empty( $settings['from_all_mail'] ) && empty( $settings['force_from'] ) ) {
 		return $value;
+	}
+
+	// A sender name passed to npmp_send_mail() (a group's, in Pro) wins over
+	// the configured one. The address above still follows the settings.
+	$override = npmp_mail_from_name_override();
+	if ( '' !== $override ) {
+		return $override;
 	}
 
 	$name = trim( wp_strip_all_tags( $settings['from_name'] ) );
@@ -199,7 +206,13 @@ function npmp_email_admin_notices() {
 	}
 
 	echo '<div class="notice notice-warning"><p>';
-	echo esc_html__( 'Nonprofit Manager email is set to SMTP, but the connection details are incomplete. Messages will fall back to wp_mail until you finish configuring the SMTP settings.', 'nonprofit-manager' );
+	printf(
+		/* translators: 1: admin menu name, such as Nonprofit Manager, 2: opening link tag to Email Settings, 3: closing link tag. */
+		esc_html__( '%1$s is set to send email over SMTP, but the host, port, username, or password is missing. Until you fill them in on %2$sEmail Settings%3$s, email goes out through WordPress\'s built-in mailer.', 'nonprofit-manager' ),
+		esc_html( function_exists( 'npmp_label' ) ? npmp_label( 'app_name' ) : 'Nonprofit Manager' ),
+		'<a href="' . esc_url( admin_url( 'admin.php?page=npmp_email_settings' ) ) . '">',
+		'</a>'
+	);
 	echo '</p></div>';
 }
 add_action( 'admin_notices', 'npmp_email_admin_notices' );

@@ -70,16 +70,18 @@ jQuery(function ($) {
 
         button.prop('disabled', true).text(workingText);
 
-        return $.post(
-            ajaxurl,
-            {
-                action: action,
-                post_id: button.data('postid'),
-                nonce: button.data('nonce'),
-                levels: levels,
-                preheader: payload.preheader
-            }
-        ).always(function () {
+        // Add-on audience inputs (Pro's Groups picker) ride along, so the
+        // send saves them too. Disabled inputs (the free preview) never do.
+        const extra = $('.npmp-newsletter-audience-extra :input').serialize();
+        const data = $.param({
+            action: action,
+            post_id: button.data('postid'),
+            nonce: button.data('nonce'),
+            levels: levels,
+            preheader: payload.preheader
+        }) + (extra ? '&' + extra : '');
+
+        return $.post(ajaxurl, data).always(function () {
             button.prop('disabled', false).text(defaultText);
         });
     };

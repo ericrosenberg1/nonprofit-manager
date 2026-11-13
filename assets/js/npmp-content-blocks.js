@@ -22,10 +22,16 @@
 	var ToggleControl     = components.ToggleControl;
 	var avail             = window.npmpContentBlocks || { signup: true, unsubscribe: true, donation: true };
 
+	var useBlockProps     = blockEditor.useBlockProps;
+
+	// Every block's edit calls this once per render, so useBlockProps runs
+	// in the same order each time, as hooks must. apiVersion 3 blocks put
+	// the block props on their own wrapper, which lets the editor run in an
+	// iframe.
 	function preview( block, attributes ) {
 		return el(
 			'div',
-			{ className: 'npmp-block-preview' },
+			useBlockProps( { className: 'npmp-block-preview' } ),
 			el( ServerSideRender, { block: block, attributes: attributes || {} } )
 		);
 	}
@@ -33,6 +39,7 @@
 	/* ---- Email signup (wraps [npmp_email_signup]) ---------------------- */
 	if ( avail.signup ) {
 		blocks.registerBlockType( 'nonprofit-manager/email-signup', {
+			apiVersion: 3,
 			title: __( 'Email Signup Form', 'nonprofit-manager' ),
 			description: __( 'Your newsletter signup form, styled to match your theme.', 'nonprofit-manager' ),
 			icon: 'email-alt',
@@ -47,6 +54,7 @@
 	/* ---- Unsubscribe (wraps [npmp_email_unsubscribe]) ------------------ */
 	if ( avail.unsubscribe ) {
 		blocks.registerBlockType( 'nonprofit-manager/email-unsubscribe', {
+			apiVersion: 3,
 			title: __( 'Email Unsubscribe Form', 'nonprofit-manager' ),
 			description: __( 'A one-field form for people to unsubscribe from your emails.', 'nonprofit-manager' ),
 			icon: 'dismiss',
@@ -62,6 +70,7 @@
 	if ( avail.donation ) {
 		var words = avail.labels || {};
 		blocks.registerBlockType( 'nonprofit-manager/donation-form', {
+			apiVersion: 3,
 			title: words.donationForm || __( 'Donation Form', 'nonprofit-manager' ),
 			description: words.donationDescription || __( 'Your donation form with the payment options you have enabled.', 'nonprofit-manager' ),
 			icon: 'heart',
@@ -75,6 +84,7 @@
 
 	/* ---- Social share (new) -------------------------------------------- */
 	blocks.registerBlockType( 'nonprofit-manager/social-share', {
+		apiVersion: 3,
 		title: __( 'Social Share', 'nonprofit-manager' ),
 		description: __( 'Let visitors share the current page on their own social networks.', 'nonprofit-manager' ),
 		icon: 'share',
@@ -118,6 +128,7 @@
 
 	/* ---- Contact form (new) -------------------------------------------- */
 	blocks.registerBlockType( 'nonprofit-manager/contact-form', {
+		apiVersion: 3,
 		title: __( 'Contact Form', 'nonprofit-manager' ),
 		description: __( 'A simple contact form that emails your organization.', 'nonprofit-manager' ),
 		icon: 'email',

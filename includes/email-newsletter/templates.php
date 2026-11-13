@@ -6,17 +6,7 @@ defined('ABSPATH') || exit;
  */
 add_action('init', function () {
     register_post_type('npmp_nl_template', [
-        'labels' => [
-            'name' => 'Newsletter Templates',
-            'singular_name' => 'Newsletter Template',
-            'add_new_item' => 'Add New Template',
-            'edit_item' => 'Edit Template',
-            'new_item' => 'New Template',
-            'view_item' => 'View Template',
-            'search_items' => 'Search Templates',
-            'not_found' => 'No templates found',
-            'not_found_in_trash' => 'No templates found in trash',
-        ],
+        'labels' => npmp_post_type_labels('npmp_nl_template'),
         'public' => false,
         'show_ui' => true,
         'show_in_menu' => false, // We'll manually register the menu
@@ -73,7 +63,7 @@ function npmp_template_settings_meta_box($post) {
             <?php esc_html_e('Set as default template', 'nonprofit-manager'); ?>
         </label>
         <br>
-        <span class="description"><?php esc_html_e('This template will be automatically applied to new newsletters.', 'nonprofit-manager'); ?></span>
+        <span class="description"><?php esc_html_e('New newsletters start with this template.', 'nonprofit-manager'); ?></span>
     </p>
 
     <script>
@@ -148,18 +138,18 @@ function npmp_render_newsletter_templates() {
 
     npmp_admin_page_header(
         __('Newsletter Templates', 'nonprofit-manager'),
-        __('Create reusable email templates with headers and footers. Edit them visually with Gutenberg blocks.', 'nonprofit-manager'),
+        __('Reusable email layouts with headers and footers. You edit them in the block editor.', 'nonprofit-manager'),
         array(
-            __('Create New Template', 'nonprofit-manager') => admin_url('post-new.php?post_type=npmp_nl_template')
+            __('Add Template', 'nonprofit-manager') => admin_url('post-new.php?post_type=npmp_nl_template')
         )
     );
 
-    echo '<div class="notice notice-info inline" style="margin: 20px 0;"><p>';
-    echo '<strong>' . esc_html__('Template Types:', 'nonprofit-manager') . '</strong><br>';
-    echo '<strong>' . esc_html__('Full Email Wrapper:', 'nonprofit-manager') . '</strong> ' . esc_html__('Contains both header and footer with [email_content] placeholder', 'nonprofit-manager') . '<br>';
-    echo '<strong>' . esc_html__('Header Only:', 'nonprofit-manager') . '</strong> ' . esc_html__('Top section with [email_content] placeholder at the end', 'nonprofit-manager') . '<br>';
-    echo '<strong>' . esc_html__('Footer Only:', 'nonprofit-manager') . '</strong> ' . esc_html__('Bottom section appended after content', 'nonprofit-manager') . '<br>';
-    echo '<strong>' . esc_html__('Reusable Block:', 'nonprofit-manager') . '</strong> ' . esc_html__('Insert anywhere using [npmp_nl_template id="123"]', 'nonprofit-manager');
+    echo '<div class="notice notice-info inline npmp-template-types"><p>';
+    echo '<strong>' . esc_html__('Template types:', 'nonprofit-manager') . '</strong><br>';
+    echo '<strong>' . esc_html__('Full Email Wrapper:', 'nonprofit-manager') . '</strong> ' . esc_html__('A header and a footer, with the [email_content] placeholder between them.', 'nonprofit-manager') . '<br>';
+    echo '<strong>' . esc_html__('Header Only:', 'nonprofit-manager') . '</strong> ' . esc_html__('A top section, with the [email_content] placeholder at the end.', 'nonprofit-manager') . '<br>';
+    echo '<strong>' . esc_html__('Footer Only:', 'nonprofit-manager') . '</strong> ' . esc_html__('A bottom section added after the content.', 'nonprofit-manager') . '<br>';
+    echo '<strong>' . esc_html__('Reusable Block:', 'nonprofit-manager') . '</strong> ' . esc_html__('You can put it anywhere with [npmp_nl_template id="123"].', 'nonprofit-manager');
     echo '</p></div>';
 
     $templates = get_posts([
@@ -169,42 +159,48 @@ function npmp_render_newsletter_templates() {
         'order' => 'DESC',
     ]);
 
+    $trashed = function_exists('wp_count_posts') ? (int) (wp_count_posts('npmp_nl_template')->trash ?? 0) : 0;
+    if ($trashed) {
+        echo '<ul class="subsubsub"><li><a href="' . esc_url(admin_url('edit.php?post_status=trash&post_type=npmp_nl_template')) . '">' . esc_html(sprintf(/* translators: %s: number of templates in the Trash. */ __('Trash (%s)', 'nonprofit-manager'), number_format_i18n($trashed))) . '</a></li></ul>';
+    }
+
     if ($templates) {
+        $date_format = get_option('date_format') . ' ' . get_option('time_format');
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Template Name', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Type', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Default', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Last Modified', 'nonprofit-manager') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Template Name', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Type', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Default', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Last Modified', 'nonprofit-manager') . '</th>';
+        echo '<th scope="col">' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
         echo '</tr></thead><tbody>';
+
+        $type_labels = [
+            'wrapper' => __('Full Email Wrapper', 'nonprofit-manager'),
+            'header' => __('Header Only', 'nonprofit-manager'),
+            'footer' => __('Footer Only', 'nonprofit-manager'),
+            'block' => __('Reusable Block', 'nonprofit-manager'),
+        ];
 
         foreach ($templates as $template) {
             $type = get_post_meta($template->ID, '_npmp_template_type', true);
             $is_default = get_post_meta($template->ID, '_npmp_is_default_template', true);
 
-            $type_labels = [
-                'wrapper' => __('Full Email Wrapper', 'nonprofit-manager'),
-                'header' => __('Header Only', 'nonprofit-manager'),
-                'footer' => __('Footer Only', 'nonprofit-manager'),
-                'block' => __('Reusable Block', 'nonprofit-manager'),
-            ];
-
             echo '<tr>';
-            echo '<td><strong>' . esc_html($template->post_title) . '</strong></td>';
+            echo '<td><strong><a href="' . esc_url(get_edit_post_link($template->ID)) . '">' . esc_html($template->post_title) . '</a></strong></td>';
             echo '<td>' . esc_html($type_labels[$type] ?? __('Not Set', 'nonprofit-manager')) . '</td>';
-            echo '<td>' . ($is_default === '1' ? '<span class="dashicons dashicons-yes-alt" style="color: #00a32a;"></span>' : '—') . '</td>';
-            echo '<td>' . esc_html(get_the_date('M j, Y g:i A', $template)) . '</td>';
+            echo '<td>' . ($is_default === '1' ? '<span class="dashicons dashicons-yes-alt npmp-status-icon--ok" aria-hidden="true"></span> ' . esc_html__('Default', 'nonprofit-manager') : '<span aria-hidden="true">—</span><span class="screen-reader-text">' . esc_html__('Not the default', 'nonprofit-manager') . '</span>') . '</td>';
+            echo '<td>' . esc_html(get_the_modified_date($date_format, $template)) . '</td>';
             echo '<td>';
             echo '<a href="' . esc_url(get_edit_post_link($template->ID)) . '" class="button button-small">' . esc_html__('Edit', 'nonprofit-manager') . '</a> ';
-            echo '<a href="' . esc_url(get_delete_post_link($template->ID)) . '" class="button button-small">' . esc_html__('Delete', 'nonprofit-manager') . '</a>';
+            echo '<a href="' . esc_url(get_delete_post_link($template->ID)) . '" class="button button-small button-link-delete" onclick="return window.confirm(\'' . esc_js(sprintf(/* translators: %s: template name. */ __('Move "%s" to the Trash? You can restore it from the Trash later.', 'nonprofit-manager'), $template->post_title)) . '\');">' . esc_html__('Trash', 'nonprofit-manager') . '</a>';
             echo '</td>';
             echo '</tr>';
         }
 
         echo '</tbody></table>';
     } else {
-        echo '<p>' . esc_html__('No templates found. Create your first template to get started!', 'nonprofit-manager') . '</p>';
+        echo '<p>' . esc_html__('No templates yet.', 'nonprofit-manager') . ' <a href="' . esc_url(admin_url('post-new.php?post_type=npmp_nl_template')) . '">' . esc_html__('Add a template', 'nonprofit-manager') . '</a></p>';
     }
 
     npmp_admin_page_footer();
@@ -253,16 +249,32 @@ function npmp_apply_newsletter_template($content, $template_id = null) {
     }
 
     $template_type = get_post_meta($template_id, '_npmp_template_type', true);
-    $template_content = apply_filters('the_content', $template->post_content);
+
+    // [email_content] is a shortcode so the template *preview* can show where
+    // the body lands. Expanding it here would be fatal: the_content() runs
+    // do_shortcode(), which turns the token into that preview box, and the
+    // str_replace() below then finds nothing to replace. The newsletter body,
+    // images and all, never reached the sent email (ROS-4261). So render the
+    // template with the shortcode switched off and the token still intact.
+    $placeholder_was_registered = shortcode_exists('email_content');
+    if ($placeholder_was_registered) {
+        remove_shortcode('email_content');
+    }
+    $template_content = npmp_email_the_content($template->post_content);
+    if ($placeholder_was_registered) {
+        add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
+    }
 
     // Handle different template types
     switch ($template_type) {
         case 'wrapper':
-            // Replace [email_content] placeholder with actual content
-            return str_replace('[email_content]', $content, $template_content);
-
         case 'header':
-            // Add content after header
+            // Replace [email_content] with the body. A template that never got
+            // the token would otherwise drop the body on the floor, so fall
+            // back to putting it after the template.
+            if (false === strpos($template_content, '[email_content]')) {
+                return $template_content . $content;
+            }
             return str_replace('[email_content]', $content, $template_content);
 
         case 'footer':
@@ -291,14 +303,20 @@ add_shortcode('npmp_nl_template', function ($atts) {
 });
 
 /**
- * Add [email_content] shortcode for template preview
+ * The [email_content] shortcode: a visible marker for where the newsletter
+ * body lands, shown when a template is previewed on its own. Named rather
+ * than a closure so npmp_apply_newsletter_template() can take it off and put
+ * it back while it renders the template.
+ *
+ * @return string
  */
-add_shortcode('email_content', function () {
+function npmp_email_content_placeholder_shortcode() {
     return '<div style="background: #f0f0f0; border: 2px dashed #666; padding: 20px; text-align: center; margin: 20px 0;">' .
            '<strong>' . esc_html__('Newsletter content will appear here', 'nonprofit-manager') . '</strong><br>' .
            '<span style="color: #666;">' . esc_html__('This placeholder is replaced with your newsletter content when sent.', 'nonprofit-manager') . '</span>' .
            '</div>';
-});
+}
+add_shortcode('email_content', 'npmp_email_content_placeholder_shortcode');
 
 /**
  * Add template selector to newsletter editor
@@ -338,8 +356,9 @@ function npmp_newsletter_template_meta_box($post) {
     <p>
         <label for="npmp_newsletter_template"><strong><?php esc_html_e('Select Template', 'nonprofit-manager'); ?></strong></label><br>
         <select name="npmp_newsletter_template" id="npmp_newsletter_template" class="widefat">
-            <option value=""><?php esc_html_e('Use Default Template', 'nonprofit-manager'); ?></option>
-            <option value="none"><?php esc_html_e('No Template (Plain Content)', 'nonprofit-manager'); ?></option>
+            <?php // Both of these need selected(), or a saved "No Template" reopens reading "Use Default Template" and looks unsaved. ?>
+            <option value="" <?php selected($selected_template, ''); ?>><?php esc_html_e('Use Default Template', 'nonprofit-manager'); ?></option>
+            <option value="none" <?php selected($selected_template, 'none'); ?>><?php esc_html_e('No Template (Plain Content)', 'nonprofit-manager'); ?></option>
             <?php foreach ($templates as $template) : ?>
                 <option value="<?php echo esc_attr($template->ID); ?>" <?php selected($selected_template, $template->ID); ?>>
                     <?php echo esc_html($template->post_title); ?>

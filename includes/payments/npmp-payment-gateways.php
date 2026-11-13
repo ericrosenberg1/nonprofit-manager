@@ -77,7 +77,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
 			<input type="email" name="email" id="npmp-donation-email" required style="width:100%;"></label></p>
 
-			<p><strong><?php esc_html_e( 'Choose Payment Method:', 'nonprofit-manager' ); ?></strong></p>
+			<p><strong><?php esc_html_e( 'Choose a payment method', 'nonprofit-manager' ); ?></strong></p>
 
 			<div class="npmp-payment-buttons" style="margin-top:20px;">
 				<?php foreach ( $gateways as $gateway ) : ?>
@@ -88,7 +88,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 							if ( $paypal_email ) :
 								?>
 								<div style="margin-bottom: 10px;">
-									<button type="button" class="npmp-paypal-button" data-gateway="paypal_link" style="background-color: #0070BA; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;"><svg style="height: 20px; vertical-align: middle; margin-right: 8px; fill: white;" viewBox="0 0 24 24"><path d="M20.905 9.5c.21-1.342.09-2.252-.431-3.216C19.657 5.132 18.278 4.5 16.297 4.5H9.5c-.508 0-.944.368-1.025.866l-3.02 19.14c-.06.378.222.72.606.72h4.42l1.11-7.033-.035.222c.081-.498.515-.866 1.022-.866h2.128c4.182 0 7.456-1.699 8.412-6.614.028-.147.052-.29.073-.43.276-1.765.004-2.963-.812-4.005h-.474z"/></svg>Pay with PayPal</button>
+									<button type="button" class="npmp-paypal-button" data-gateway="paypal_link" style="background-color: #0070BA; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;"><svg style="height: 20px; vertical-align: middle; margin-right: 8px; fill: white;" viewBox="0 0 24 24"><path d="M20.905 9.5c.21-1.342.09-2.252-.431-3.216C19.657 5.132 18.278 4.5 16.297 4.5H9.5c-.508 0-.944.368-1.025.866l-3.02 19.14c-.06.378.222.72.606.72h4.42l1.11-7.033-.035.222c.081-.498.515-.866 1.022-.866h2.128c4.182 0 7.456-1.699 8.412-6.614.028-.147.052-.29.073-.43.276-1.765.004-2.963-.812-4.005h-.474z"/></svg><?php esc_html_e( 'Pay with PayPal', 'nonprofit-manager' ); ?></button>
 								</div>
 							<?php endif; ?>
 							<?php break; ?>
@@ -103,7 +103,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 										<svg style="height: 20px; vertical-align: middle; margin-right: 8px; fill: white;" viewBox="0 0 24 24">
 											<path d="M19.83 4.18c1.26 2.01 1.84 4.23 1.84 7.07 0 6.74-5.74 14.6-10.38 14.6H0L3.14.55h6.88l-1.95 15.56c1.51-2.5 4.25-7.23 4.25-10.61 0-1.66-.35-2.87-.92-3.83l7.43-1.49z"/>
 										</svg>
-										Pay with Venmo
+										<?php esc_html_e( 'Pay with Venmo', 'nonprofit-manager' ); ?>
 									</button>
 								</div>
 							<?php endif; ?>
@@ -121,7 +121,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 									<svg style="height: 20px; vertical-align: middle; margin-right: 8px; fill: white;" viewBox="0 0 60 25">
 										<path d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"/>
 									</svg>
-									Pay with Stripe
+									<?php esc_html_e( 'Pay with Stripe', 'nonprofit-manager' ); ?>
 								</button>
 							</div>
 							<?php break; ?>
@@ -162,6 +162,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			paypalButtons.forEach(function(button) {
 				button.addEventListener('click', function(e) {
 					e.preventDefault();
+					npmpClearMultiError();
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
@@ -191,6 +192,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			venmoButtons.forEach(function(button) {
 				button.addEventListener('click', function(e) {
 					e.preventDefault();
+					npmpClearMultiError();
 					var amount = parseFloat(amountInput.value);
 					var email = emailInput.value;
 
@@ -624,7 +626,7 @@ function npmp_render_paypal_api_form() {
 			<?php endif; ?>
 
 			<div id="paypal-button-container" style="margin-top:20px;"></div>
-			<div id="npmp-paypal-error" style="color: red; margin-top: 10px; display: none;"></div>
+			<div id="npmp-paypal-error" role="alert" style="color: #d63638; margin-top: 10px; display: none;"></div>
 		</form>
 	</div>
 
@@ -922,6 +924,11 @@ function npmp_ajax_log_donation() {
 			$currency = npmp_currency();
 		}
 
+		// Record what PayPal captured, when PayPal was asked. The browser's
+		// figure is the typed amount, which can differ from the order value
+		// (a yen gift is rounded to whole units before the order is made).
+		$amount = npmp_paypal_recorded_amount( $amount, $paypal_order_data );
+
 		// Log donation
 		$donation_id       = $donation_manager->log_donation(
 			array(
@@ -992,6 +999,49 @@ function npmp_ajax_log_donation() {
 		npmp_payment_debug_log( 'donation processing exception: ' . $e->getMessage() );
 		wp_send_json_error( array( 'message' => __( 'An unexpected error occurred. Please try again.', 'nonprofit-manager' ) ) );
 	}
+}
+
+/**
+ * The amount to record for a PayPal API gift.
+ *
+ * The captured amount when PayPal's order was read during verification, and
+ * the amount the browser reported otherwise (no API secret saved, so there
+ * was nothing to read).
+ *
+ * @param float      $reported   Amount the browser sent.
+ * @param array|null $order_data Decoded PayPal order, or null when unverified.
+ * @return float
+ */
+function npmp_paypal_recorded_amount( $reported, $order_data ) {
+	if ( ! is_array( $order_data ) ) {
+		return (float) $reported;
+	}
+	$unit     = $order_data['purchase_units'][0] ?? array();
+	$captured = $unit['payments']['captures'][0]['amount']['value'] ?? ( $unit['amount']['value'] ?? null );
+	if ( ! is_numeric( $captured ) || (float) $captured <= 0 ) {
+		return (float) $reported;
+	}
+	return (float) $captured;
+}
+
+/**
+ * The message a donor sees when Stripe refuses to create a checkout.
+ *
+ * Stripe's own text goes to the donor for problems with the gift itself. A
+ * 401 or 403 means the site's API key is wrong or lacks access, and Stripe's
+ * text for that quotes part of the key, so the donor gets a plain message.
+ *
+ * @param int   $status HTTP status from Stripe.
+ * @param mixed $body   Decoded response body.
+ * @return string
+ */
+function npmp_stripe_session_error_message( $status, $body ) {
+	if ( 401 === (int) $status || 403 === (int) $status ) {
+		return __( 'This site can\'t connect to Stripe right now. Please contact the site administrator.', 'nonprofit-manager' );
+	}
+	$message = is_array( $body ) && isset( $body['error']['message'] ) ? (string) $body['error']['message'] : __( 'Unknown error', 'nonprofit-manager' );
+	/* translators: %s: error message from Stripe. */
+	return sprintf( __( 'Stripe error: %s', 'nonprofit-manager' ), $message );
 }
 
 /**
@@ -1122,18 +1172,23 @@ function npmp_ajax_create_stripe_session() {
 	$body          = json_decode( wp_remote_retrieve_body( $response ), true );
 
 	if ( 200 !== $response_code && 201 !== $response_code ) {
-		$error_message = $body['error']['message'] ?? __( 'Unknown error', 'nonprofit-manager' );
 		npmp_payment_debug_log( 'stripe API error HTTP ' . (int) $response_code );
-		/* translators: %s: error message from Stripe. */
-		wp_send_json_error( sprintf( __( 'Stripe error: %s', 'nonprofit-manager' ), $error_message ) );
+		wp_send_json_error( npmp_stripe_session_error_message( $response_code, $body ) );
 	}
 
-	if ( isset( $body['id'] ) ) {
+	if ( isset( $body['id'] ) && ! empty( $body['url'] ) ) {
 		// Nothing is recorded yet. The donation is logged only after Stripe
 		// confirms payment, when the donor returns to the success URL (see
 		// npmp_maybe_finalize_stripe_donation). Logging here booked every
-		// abandoned checkout as a completed gift.
-		wp_send_json_success( $body );
+		// abandoned checkout as a completed gift. The browser needs only the
+		// checkout URL, so the rest of the session (customer email, metadata,
+		// amounts) stays on the server.
+		wp_send_json_success(
+			array(
+				'id'  => (string) $body['id'],
+				'url' => (string) $body['url'],
+			)
+		);
 	} else {
 		npmp_payment_debug_log( 'stripe session creation failed: malformed response' );
 		wp_send_json_error( $body['error']['message'] ?? __( 'Failed to create checkout session.', 'nonprofit-manager' ) );
@@ -1586,12 +1641,37 @@ function npmp_payment_return_base( $raw_url ) {
  * @return array
  */
 function npmp_get_donation_form_options() {
+	$defaults = npmp_donation_form_default_labels();
+	$opts     = array(
+		'title'      => get_option( 'npmp_donation_form_title', $defaults['title'] ),
+		'intro'      => get_option( 'npmp_donation_form_intro', $defaults['intro'] ),
+		'amount_lbl' => get_option( 'npmp_donation_amount_label', $defaults['amount_lbl'] ),
+		'email_lbl'  => get_option( 'npmp_donation_email_label', $defaults['email_lbl'] ),
+		'btn_lbl'    => get_option( 'npmp_donation_button_label', $defaults['btn_lbl'] ),
+	);
+	// A label saved empty on the Donation Settings screen left the form
+	// with an unlabeled field and a blank button. Fall back to the default.
+	foreach ( array( 'title', 'amount_lbl', 'email_lbl', 'btn_lbl' ) as $key ) {
+		if ( '' === trim( (string) $opts[ $key ] ) ) {
+			$opts[ $key ] = $defaults[ $key ];
+		}
+	}
+	return $opts;
+}
+
+/**
+ * The donation form's built-in labels, translated.
+ *
+ * @return array{title:string,intro:string,amount_lbl:string,email_lbl:string,btn_lbl:string}
+ */
+function npmp_donation_form_default_labels() {
 	return array(
-		'title'      => get_option( 'npmp_donation_form_title', 'Support Our Mission' ),
-		'intro'      => get_option( 'npmp_donation_form_intro', 'Your gift supports our work.' ),
-		'amount_lbl' => get_option( 'npmp_donation_amount_label', 'Donation Amount' ),
-		'email_lbl'  => get_option( 'npmp_donation_email_label', 'Your Email' ),
-		'btn_lbl'    => get_option( 'npmp_donation_button_label', 'Donate Now' ),
+		'title'      => __( 'Support Our Mission', 'nonprofit-manager' ),
+		'intro'      => __( 'Your gift supports our work.', 'nonprofit-manager' ),
+		/* translators: %s: singular word for a donation, such as Donation or Contribution. */
+		'amount_lbl' => sprintf( __( '%s Amount', 'nonprofit-manager' ), npmp_label( 'donation' ) ),
+		'email_lbl'  => __( 'Your Email', 'nonprofit-manager' ),
+		'btn_lbl'    => __( 'Donate Now', 'nonprofit-manager' ),
 	);
 }
 
@@ -1675,8 +1755,9 @@ function npmp_send_thank_you_email( $donation_data ) {
 	}
 
 	// Get email template
-	$subject = get_option( 'npmp_thank_you_subject', 'Thank You for Your Donation!' );
-	$message = get_option( 'npmp_thank_you_message', "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}" );
+	$defaults = npmp_thank_you_defaults();
+	$subject  = get_option( 'npmp_thank_you_subject', $defaults['subject'] );
+	$message  = get_option( 'npmp_thank_you_message', $defaults['message'] );
 
 	// Replace shortcodes
 	$frequency_labels = array(
@@ -1767,7 +1848,12 @@ function npmp_paypal_verification_admin_notice() {
 		return;
 	}
 
-	// Only the PayPal REST gateway routes through npmp_paypal_verify_order().
+	// Only the PayPal REST gateway routes through npmp_paypal_verify_order(),
+	// and its form renders only with Pro active. A site that turned Pro off
+	// takes no PayPal API gifts, so there is nothing to warn about.
+	if ( ! npmp_is_pro() ) {
+		return;
+	}
 	$enabled = get_option( 'npmp_enabled_payment_gateways', array() );
 	if ( ! is_array( $enabled ) || ! in_array( 'paypal_api', $enabled, true ) ) {
 		return;
@@ -1784,10 +1870,23 @@ function npmp_paypal_verification_admin_notice() {
 
 	printf(
 		'<div class="notice notice-warning"><p><strong>%1$s</strong> %2$s</p><p><a href="%3$s">%4$s</a></p></div>',
-		esc_html__( 'Nonprofit Manager: PayPal donations are not being verified.', 'nonprofit-manager' ),
-		esc_html__( 'No PayPal API secret is saved, so donations cannot be checked against PayPal before they are recorded. Genuine donations are still logged, but a fake donation record can also be submitted without a real payment behind it. Adding your PayPal API secret turns verification on.', 'nonprofit-manager' ),
+		esc_html__( 'Nonprofit Manager can\'t check your PayPal donations.', 'nonprofit-manager' ),
+		esc_html__( 'You haven\'t saved a PayPal API secret, so the plugin records each PayPal donation without asking PayPal about it first. You\'ll still get every genuine gift, but someone could also submit a fake one. Add your PayPal API secret in Payment Settings to turn the check on.', 'nonprofit-manager' ),
 		esc_url( admin_url( 'admin.php?page=npmp_payment_settings' ) ),
 		esc_html__( 'Open Payment Settings', 'nonprofit-manager' )
 	);
 }
 add_action( 'admin_notices', 'npmp_paypal_verification_admin_notice' );
+
+/**
+ * Default thank-you email subject and message, translated.
+ *
+ * @return array{subject:string,message:string}
+ */
+function npmp_thank_you_defaults() {
+	return array(
+		'subject' => __( 'Thank You for Your Donation!', 'nonprofit-manager' ),
+		/* translators: Keep the placeholders in braces as they are. */
+		'message' => __( "Dear {donor_name},\n\nThank you for your generous donation of {donation_amount} on {donation_date}.\n\nYour support keeps our work going.\n\nBest regards,\n{site_name}", 'nonprofit-manager' ),
+	);
+}

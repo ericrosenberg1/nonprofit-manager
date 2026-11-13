@@ -1,0 +1,227 @@
+/**
+ * Public newsletter list: [npmp_newsletters] and the Newsletters block.
+ *
+ * Same look as the events list (npmp-calendar.css): an accent rule on the
+ * left, an 8px radius, and grid or cards in columns that drop to one on
+ * phones. Colors read --npmp-accent so a theme can override them, and a
+ * block color wins over the accent through :where().
+ */
+.npmp-newsletters {
+	--npmp-nl-accent: var(--npmp-accent, #0f766e);
+	--npmp-nl-border: #dcdfe3;
+	--npmp-nl-muted: #6a7178;
+	--npmp-nl-radius: 8px;
+	box-sizing: border-box;
+}
+
+.npmp-newsletters *,
+.npmp-newsletters *::before,
+.npmp-newsletters *::after {
+	box-sizing: border-box;
+}
+
+.npmp-newsletters-items {
+	display: grid;
+	gap: 1rem;
+}
+
+.npmp-newsletter-item {
+	min-width: 0;
+	padding: 1rem 1.15rem;
+	border: 1px solid var(--npmp-nl-border);
+	border-left: 4px solid var(--npmp-nl-accent);
+	border-radius: var(--npmp-nl-radius);
+	background: #fff;
+	overflow-wrap: anywhere;
+}
+
+.wp-block-nonprofit-manager-newsletters.has-background .npmp-newsletter-item {
+	background: transparent;
+}
+
+.npmp-newsletter-title {
+	margin: 0 0 0.25rem;
+	font-size: 1.2em;
+	line-height: 1.3;
+}
+
+.npmp-newsletter-title a {
+	text-decoration: none;
+}
+
+:where(.npmp-newsletter-title a) {
+	color: inherit;
+}
+
+.npmp-newsletter-title a:hover,
+.npmp-newsletter-title a:focus {
+	color: var(--npmp-nl-accent);
+	text-decoration: underline;
+}
+
+.npmp-newsletter-date {
+	margin: 0 0 0.35rem;
+	font-weight: 600;
+	color: var(--npmp-nl-accent);
+	white-space: nowrap;
+}
+
+.wp-block-nonprofit-manager-newsletters.has-background .npmp-newsletter-date,
+.wp-block-nonprofit-manager-newsletters.has-text-color .npmp-newsletter-date {
+	color: inherit;
+}
+
+.npmp-newsletter-excerpt p {
+	margin: 0.35rem 0 0;
+}
+
+.npmp-newsletter-more {
+	margin: 0.5rem 0 0;
+	font-weight: 600;
+}
+
+.npmp-newsletter-more a {
+	text-decoration: underline;
+}
+
+/* Grid and cards share a column grid. */
+.npmp-newsletters--grid .npmp-newsletters-items,
+.npmp-newsletters--cards .npmp-newsletters-items {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.npmp-newsletters--cols-2.npmp-newsletters--grid .npmp-newsletters-items,
+.npmp-newsletters--cols-2.npmp-newsletters--cards .npmp-newsletters-items {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.npmp-newsletters--cols-4.npmp-newsletters--grid .npmp-newsletters-items,
+.npmp-newsletters--cols-4.npmp-newsletters--cards .npmp-newsletters-items {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Grid: open tiles with an accent rule on top. */
+.npmp-newsletters--grid .npmp-newsletter-item {
+	padding: 0.75rem 0 0;
+	border: 0;
+	border-top: 3px solid var(--npmp-nl-accent);
+	border-radius: 0;
+	background: transparent;
+}
+
+/* Cards: boxed and raised. */
+.npmp-newsletters--cards .npmp-newsletter-item {
+	border-left-width: 1px;
+	border-top: 4px solid var(--npmp-nl-accent);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.npmp-newsletters-pager {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	margin-top: 1rem;
+	font-weight: 600;
+}
+
+.npmp-newsletters-pager a {
+	color: var(--npmp-nl-accent);
+	white-space: nowrap;
+}
+
+.npmp-newsletters-next {
+	margin-left: auto;
+}
+
+.npmp-newsletters-empty {
+	padding: 1rem;
+	color: var(--npmp-nl-muted, #6a7178);
+	border: 1px dashed #dcdfe3;
+	border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+	.npmp-newsletters--cols-3.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cols-3.npmp-newsletters--cards .npmp-newsletters-items,
+	.npmp-newsletters--cols-4.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cols-4.npmp-newsletters--cards .npmp-newsletters-items {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 600px) {
+	.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cards .npmp-newsletters-items,
+	.npmp-newsletters--cols-2.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cols-2.npmp-newsletters--cards .npmp-newsletters-items,
+	.npmp-newsletters--cols-3.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cols-3.npmp-newsletters--cards .npmp-newsletters-items,
+	.npmp-newsletters--cols-4.npmp-newsletters--grid .npmp-newsletters-items,
+	.npmp-newsletters--cols-4.npmp-newsletters--cards .npmp-newsletters-items {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* One newsletter inside the theme's page template. The email keeps its own
+   inline styles, so these keep its width and images inside the theme's
+   content column. */
+.npmp-newsletter-view {
+	--npmp-nl-accent: var(--npmp-accent, #0f766e);
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.npmp-nlv-back {
+	margin: 0 0 0.5em;
+}
+
+.npmp-nlv-back a {
+	color: var(--npmp-nl-accent);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.npmp-nlv-back a:hover,
+.npmp-nlv-back a:focus {
+	color: var(--npmp-accent-dark, #115e59);
+	text-decoration: underline;
+}
+
+.npmp-nlv-date {
+	margin: 0 0 1.25em;
+	color: var(--npmp-nl-accent);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.npmp-nlv-body {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.npmp-nlv-body img {
+	max-width: 100% !important;
+	height: auto !important;
+}
+
+.npmp-nlv-body table,
+.npmp-nlv-body [style*="width"] {
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+/* Email layouts are tables sized for a 600px inbox. On a phone, stack their
+   cells the way responsive email does, so nothing runs past the column. */
+@media (max-width: 600px) {
+	.npmp-nlv-body table,
+	.npmp-nlv-body tbody,
+	.npmp-nlv-body tr,
+	.npmp-nlv-body td,
+	.npmp-nlv-body th {
+		display: block;
+		width: auto !important;
+		max-width: 100% !important;
+		box-sizing: border-box;
+	}
+}

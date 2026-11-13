@@ -38,6 +38,16 @@ defined( 'ABSPATH' ) || exit;
  * @return array
  */
 function npmp_tour_get_free_steps() {
+	$features = (array) get_option( 'npmp_enabled_features', array() );
+	$members  = ! array_key_exists( 'members', $features ) || ! empty( $features['members'] );
+	$is_pro   = function_exists( 'npmp_is_pro' ) && npmp_is_pro();
+
+	// The donations and events steps point at menu items, so they render
+	// on whichever screen the tour reached last. With Member Tracking off
+	// there is no Members or Email Settings screen, so that's General
+	// Settings.
+	$menu_page = $members ? 'membership_page_npmp_members' : 'nonprofit-manager_page_npmp_general_settings';
+
 	$steps = array(
 		array(
 			'id'        => 'welcome',
@@ -45,7 +55,7 @@ function npmp_tour_get_free_steps() {
 			'target'    => null,
 			'placement' => 'center',
 			'title'     => __( 'Welcome to Nonprofit Manager', 'nonprofit-manager' ),
-			'body'      => __( 'This short tour walks you through the basics: org identity, email delivery, importing supporters, and where everything lives. It takes about 3 minutes, and you can end the tour at any step.', 'nonprofit-manager' ),
+			'body'      => __( 'This short tour shows you the basics: your organization details, email delivery, bringing in your list, and where everything lives. It takes about three minutes, and you can end it at any step.', 'nonprofit-manager' ),
 			'advance'   => 'next',
 			'primary'   => __( 'Begin tour', 'nonprofit-manager' ),
 		),
@@ -55,7 +65,7 @@ function npmp_tour_get_free_steps() {
 			'target'    => '#toplevel_page_npmp_main a[href*="npmp_general_settings"], a[href*="page=npmp_general_settings"]',
 			'placement' => 'right',
 			'title'     => __( 'Tell the plugin who you are', 'nonprofit-manager' ),
-			'body'      => __( 'First stop: General Settings. You\'ll enter your organization name, EIN if you have one, and contact details. This data auto-fills donation receipts and email signatures.', 'nonprofit-manager' ),
+			'body'      => __( 'Start with General Settings, where you enter your organization\'s name, its EIN if you have one, and your contact details.', 'nonprofit-manager' ),
 			'advance'   => 'navigate',
 			'next_url'  => 'admin.php?page=npmp_general_settings',
 			'primary'   => __( 'Open General Settings', 'nonprofit-manager' ),
@@ -65,8 +75,8 @@ function npmp_tour_get_free_steps() {
 			'page'      => 'nonprofit-manager_page_npmp_general_settings',
 			'target'    => '#npmp_org_name, input[name="npmp_org_name"]',
 			'placement' => 'right',
-			'title'     => __( 'Org identity', 'nonprofit-manager' ),
-			'body'      => __( 'Fill in your organization name, type, EIN (optional), and mailing address. Click Save when you\'re done, and the tour continues on its own.', 'nonprofit-manager' ),
+			'title'     => __( 'Your organization', 'nonprofit-manager' ),
+			'body'      => __( 'Fill in your organization\'s name, type, EIN (optional), and mailing address, then click Save. The tour picks up again after the page reloads.', 'nonprofit-manager' ),
 			'advance'   => 'next',
 			'skip_if'   => 'option:npmp_org_settings.name',
 		),
@@ -75,40 +85,46 @@ function npmp_tour_get_free_steps() {
 			'page'      => 'nonprofit-manager_page_npmp_general_settings',
 			'target'    => 'a[href*="page=npmp_email_settings"]',
 			'placement' => 'right',
-			'title'     => __( 'Make sure email delivers', 'nonprofit-manager' ),
-			'body'      => __( "Now let's wire up email. We support five providers; AWS SES is free up to 62,000 messages/month for most nonprofits.", 'nonprofit-manager' ),
+			'title'     => __( 'Make sure email arrives', 'nonprofit-manager' ),
+			'body'      => __( 'Next, check that your email reaches people. Email Settings holds your From name and address and the service that sends your mail.', 'nonprofit-manager' ),
 			'advance'   => 'navigate',
 			'next_url'  => 'admin.php?page=npmp_email_settings',
 			'primary'   => __( 'Open Email Settings', 'nonprofit-manager' ),
+			'skip_if'   => 'npmp_tour_skip_without_members',
 		),
 		array(
 			'id'        => 'email-provider',
 			'page'      => 'nonprofit-manager_page_npmp_email_settings',
 			'target'    => '#npmp_email_provider',
 			'placement' => 'right',
-			'title'     => __( 'Pick a provider', 'nonprofit-manager' ),
-			'body'      => __( "Pick Amazon SES (free tier, best deliverability), Custom SMTP if your host gave you credentials, or WordPress Default to use the server's built-in mail. You can change this any time.", 'nonprofit-manager' ),
+			'title'     => __( 'How your email goes out', 'nonprofit-manager' ),
+			'body'      => $is_pro
+				? __( 'Pick Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or Custom SMTP if you have an account with one. WordPress Default uses your server\'s built-in mail. You can change it any time.', 'nonprofit-manager' )
+				: __( 'With the free plugin, you send through WordPress\'s built-in mail. On shared hosting that mail can land in spam, so send yourself a test first. Pro adds Amazon SES, your own SMTP server, and other services.', 'nonprofit-manager' ),
 			'advance'   => 'next',
+			'skip_if'   => 'npmp_tour_skip_without_members',
 		),
 		array(
 			'id'        => 'email-test',
 			'page'      => 'nonprofit-manager_page_npmp_email_settings',
-			'target'    => 'button[name="npmp_send_test_email"], #npmp-send-test-email',
+			'target'    => '#npmp_test_email',
 			'placement' => 'top',
 			'title'     => __( 'Send a test email', 'nonprofit-manager' ),
-			'body'      => __( "Hit Send Test Email. Check your inbox before moving on. If it doesn't arrive, fix the provider settings first.", 'nonprofit-manager' ),
+			'body'      => __( 'Click Send test email and check your inbox before you move on. If it doesn\'t arrive, fix the provider settings first.', 'nonprofit-manager' ),
 			'advance'   => 'next',
+			'skip_if'   => 'npmp_tour_skip_without_members',
 		),
 		array(
 			'id'        => 'menu-members',
 			'page'      => 'nonprofit-manager_page_npmp_email_settings',
 			'target'    => '#toplevel_page_npmp_membership, a[href*="page=npmp_members"]',
 			'placement' => 'right',
-			'title'     => __( 'Your supporters live here', 'nonprofit-manager' ),
-			'body'      => __( 'The Members menu is your central contact list. Add people one at a time, or bulk-import from Mailchimp / Constant Contact / a CSV.', 'nonprofit-manager' ),
+			'title'     => __( 'Your contact list', 'nonprofit-manager' ),
+			'body'      => __( 'Everyone you keep in touch with lives here. You can add people one at a time or import them from Mailchimp, Constant Contact, or a CSV file.', 'nonprofit-manager' ),
 			'advance'   => 'navigate',
 			'next_url'  => 'admin.php?page=npmp_members',
-			'primary'   => __( 'Open Members', 'nonprofit-manager' ),
+			'primary'   => __( 'Open the list', 'nonprofit-manager' ),
+			'skip_if'   => 'npmp_tour_skip_without_members',
 		),
 		array(
 			'id'        => 'menu-import',
@@ -116,27 +132,35 @@ function npmp_tour_get_free_steps() {
 			'target'    => 'a[href*="page=npmp_import"]',
 			'placement' => 'right',
 			'title'     => __( 'Bring your existing list', 'nonprofit-manager' ),
-			'body'      => __( "Got an audience in Mailchimp or Constant Contact already? The Import tool pulls them in with field mapping. Free plan imports up to 50 supporters per job; Pro removes the cap.", 'nonprofit-manager' ),
+			'body'      => $is_pro
+				? __( 'Have a list in Mailchimp or Constant Contact already? You can bring it in with the Import tool and match each field.', 'nonprofit-manager' )
+				: __( 'Have a list in Mailchimp or Constant Contact already? You can bring it in with the Import tool and match each field. The free plugin imports up to 100 people in total, and Pro removes the limit.', 'nonprofit-manager' ),
 			'advance'   => 'next',
+			'skip_if'   => 'npmp_tour_skip_without_members',
 		),
 		array(
 			'id'        => 'menu-donations',
-			'page'      => 'membership_page_npmp_members',
+			'page'      => $menu_page,
 			'target'    => '#toplevel_page_npmp_donations_group, a[href*="page=npmp_donation_settings"]',
 			'placement' => 'right',
 			'title'     => sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Accept %s', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ),
-			'body'      => __( 'The Donations menu is where you connect Stripe, PayPal or Venmo. Then add the donation block, or the [npmp_donation_form] shortcode, to any page. Each donor is linked to your member list.', 'nonprofit-manager' ),
+			'body'      => $is_pro
+				? __( 'Connect Stripe, PayPal, or Venmo here, then add the Donation Form block or the [npmp_donation_form] shortcode to any page.', 'nonprofit-manager' )
+				: __( 'Connect Stripe, PayPal, or Venmo here, then add the Donation Form block or the [npmp_donation_form] shortcode to any page. Stripe gifts land in your records. PayPal and Venmo gifts show up in those accounts.', 'nonprofit-manager' ),
 			'advance'   => 'next',
+			'skip_if'   => 'npmp_tour_skip_without_donations',
 		),
 		array(
 			'id'        => 'menu-events',
-			'page'      => 'membership_page_npmp_members',
+			'page'      => $menu_page,
 			'target'    => '#toplevel_page_npmp-events, a[href*="page=npmp_event_settings"]',
 			'placement' => 'right',
-			'title'     => __( 'Events + calendar', 'nonprofit-manager' ),
-			'body'      => __( 'Public events calendar with iCal feed. Drop [npmp_calendar] on a page or use the auto-injected Calendar page we create for you.', 'nonprofit-manager' ),
+			'title'     => __( 'Events and the calendar', 'nonprofit-manager' ),
+			'body'      => __( 'Add events here. Put the Events Calendar block or the [npmp_calendar] shortcode on any page, and visitors get a calendar with an iCal feed and a print button.', 'nonprofit-manager' ),
 			'advance'   => 'next',
-			'skip_if'   => 'option:npmp_enabled_features.calendar', // skip if calendar disabled
+			// This step used to skip when the calendar was on, the reverse
+			// of what its comment said.
+			'skip_if'   => 'npmp_tour_skip_without_calendar',
 		),
 		array(
 			'id'        => 'finish',
@@ -144,11 +168,54 @@ function npmp_tour_get_free_steps() {
 			'target'    => null,
 			'placement' => 'center',
 			'title'     => __( "You're set up", 'nonprofit-manager' ),
-			'body'      => __( "Everything's configured. You can rerun this tour any time from the NPM overview page. Welcome, and happy organizing.", 'nonprofit-manager' ),
+			'body'      => __( 'You can rerun this tour any time from the Overview screen.', 'nonprofit-manager' ),
 			'advance'   => 'finish',
 			'primary'   => __( 'Finish', 'nonprofit-manager' ),
 		),
 	);
 
 	return $steps;
+}
+
+/**
+ * Whether one of the plugin's features is off. A feature missing from the
+ * saved option counts with the plugin's default: members and donations on,
+ * the calendar off.
+ *
+ * @param string $feature Feature key in npmp_enabled_features.
+ * @return bool
+ */
+function npmp_tour_feature_off( $feature ) {
+	$features = (array) get_option( 'npmp_enabled_features', array() );
+	if ( ! array_key_exists( $feature, $features ) ) {
+		return ! in_array( $feature, array( 'members', 'donations' ), true );
+	}
+	return empty( $features[ $feature ] );
+}
+
+/**
+ * Tour skip predicate: the members, email, and import steps.
+ *
+ * @return bool
+ */
+function npmp_tour_skip_without_members() {
+	return npmp_tour_feature_off( 'members' );
+}
+
+/**
+ * Tour skip predicate: the donations step.
+ *
+ * @return bool
+ */
+function npmp_tour_skip_without_donations() {
+	return npmp_tour_feature_off( 'donations' );
+}
+
+/**
+ * Tour skip predicate: the events step.
+ *
+ * @return bool
+ */
+function npmp_tour_skip_without_calendar() {
+	return npmp_tour_feature_off( 'calendar' );
 }

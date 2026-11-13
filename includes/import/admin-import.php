@@ -29,7 +29,7 @@ function npmp_import_register_menu() {
 
 	add_submenu_page(
 		$parent,
-		__( 'Import Members', 'nonprofit-manager' ),
+		sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Import %s', 'nonprofit-manager' ), npmp_label( 'members' ) ),
 		__( 'Import', 'nonprofit-manager' ),
 		npmp_staff_cap(),
 		'npmp_import',
@@ -235,17 +235,18 @@ function npmp_import_ajax_preview() {
 				wp_send_json_error( $result->get_error_message() );
 			}
 
-			// Build the column order. Three Mailchimp-native columns always come
-			// first (email / status / tags), then every merge field in the order
+			// Build the column order. Four Mailchimp-native columns always come
+			// first (email / status / tags / opt-in time), then every merge field in the order
 			// Mailchimp returned them. The column_order array is also persisted
 			// in the credentials transient so the step handler can convert the
 			// UI's index-based mapping back into named keys for any merge tag.
-			$headers      = array( 'Email', 'Status', 'Tags' );
-			$column_order = array( 'email_address', 'status', 'tags' );
+			$headers      = array( 'Email', 'Status', 'Tags', 'Opted in' );
+			$column_order = array( 'email_address', 'status', 'tags', 'timestamp_opt' );
 			$auto_map     = array(
 				0 => 'email',
 				1 => 'status',
 				2 => 'tags',
+				3 => 'created_at',
 			);
 			foreach ( $merge_fields as $mf ) {
 				$tag                  = $mf['tag'];
@@ -262,6 +263,7 @@ function npmp_import_ajax_preview() {
 					isset( $m['email_address'] ) ? $m['email_address'] : '',
 					isset( $m['status'] ) ? $m['status'] : '',
 					implode( ', ', $tag_names ),
+					isset( $m['timestamp_opt'] ) ? (string) $m['timestamp_opt'] : '',
 				);
 				foreach ( $merge_fields as $mf ) {
 					$tag = $mf['tag'];
@@ -637,7 +639,7 @@ function npmp_import_ajax_step() {
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			// Cap accumulated error messages so the transient does not grow unbounded.
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -733,7 +735,7 @@ function npmp_import_ajax_step() {
 		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -810,7 +812,7 @@ function npmp_import_ajax_step() {
 		$state['totals']['errors']   += isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
 		if ( ! empty( $stats['error_messages'] ) && is_array( $stats['error_messages'] ) ) {
 			$state['totals']['error_messages'] = array_slice(
-				array_merge( $state['totals']['error_messages'], $stats['error_messages'] ),
+				array_values( array_unique( array_merge( $state['totals']['error_messages'], $stats['error_messages'] ) ) ),
 				0,
 				200
 			);
@@ -913,8 +915,14 @@ function npmp_import_render_page() {
 	$member_mgr    = NPMP_Member_Manager::get_instance();
 	?>
 	<div class="wrap npmp-import-wrap">
-		<h1><?php esc_html_e( 'Import Members', 'nonprofit-manager' ); ?></h1>
-		<p class="description"><?php esc_html_e( 'Import your members or email subscribers from a file or another service.', 'nonprofit-manager' ); ?></p>
+		<h1><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'Import %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></h1>
+		<hr class="wp-header-end">
+		<p class="description"><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Import your %s or email subscribers from a file or another service.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ); ?></p>
+
+		<?php
+		/** Other importers add an entry point here, such as The Events Calendar's (includes/import/tec-importer.php). */
+		do_action( 'npmp_import_page_notices' );
+		?>
 
 		<?php wp_nonce_field( 'npmp_import_nonce', 'npmp_import_nonce' ); ?>
 
@@ -960,6 +968,10 @@ function npmp_import_render_page() {
 					<span class="npmp-import-source-desc"><?php esc_html_e( 'Connect to Constant Contact and import a list.', 'nonprofit-manager' ); ?></span>
 				</label>
 				<?php endif; ?>
+				<?php
+				/** Other importers add a link card here, such as past gifts from a file (includes/import/gift-csv-source.php). */
+				do_action( 'npmp_import_source_cards' );
+				?>
 			</div>
 
 			<!-- Source-specific inputs -->
@@ -967,19 +979,19 @@ function npmp_import_render_page() {
 
 				<!-- CSV / XLSX upload -->
 				<div class="npmp-source-panel" data-source="csv xlsx">
-					<p><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></p>
+					<p><label for="npmp-import-file"><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></label></p>
 					<input type="file" id="npmp-import-file" accept=".csv,.xlsx,.xls">
 				</div>
 
 				<!-- Google Sheets URL -->
 				<div class="npmp-source-panel" data-source="google_sheet" style="display:none;">
 					<p>
-						<strong><?php esc_html_e( 'Published Google Sheet URL:', 'nonprofit-manager' ); ?></strong><br>
+						<label for="npmp-gsheet-url"><strong><?php esc_html_e( 'Published Google Sheet URL:', 'nonprofit-manager' ); ?></strong></label><br>
 						<span class="description">
 							<?php esc_html_e( 'Go to File > Share > Publish to web. Choose "Comma-separated values (.csv)" and copy the link.', 'nonprofit-manager' ); ?>
 						</span>
 					</p>
-					<input type="url" id="npmp-gsheet-url" class="regular-text" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" style="width:100%;max-width:600px;">
+					<input type="url" id="npmp-gsheet-url" class="regular-text npmp-import-url" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
 				</div>
 
 				<!-- Mailchimp -->
@@ -1140,12 +1152,11 @@ function npmp_import_render_page() {
 				</div>
 
 				<!-- Free-cap upsell, shown when the import was truncated at the cap. -->
-				<div id="npmp-import-cap-notice" class="notice notice-info inline" style="display:none;margin-top:20px;border-left-color:#10b981;">
-					<h3 style="margin-top:.5em;"><?php esc_html_e( 'Hit the free import limit', 'nonprofit-manager' ); ?></h3>
+				<div id="npmp-import-cap-notice" class="notice notice-info inline npmp-import-cap-notice" style="display:none;">
+					<h3 class="npmp-import-cap-title"><?php esc_html_e( 'You reached the free import limit', 'nonprofit-manager' ); ?></h3>
 					<p id="npmp-import-cap-text"></p>
 					<p>
 						<a href="<?php echo esc_url( npmp_get_upgrade_url( 'import_cap' ) ); ?>" target="_blank" rel="noopener" class="button button-primary"><?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?></a>
-						<a href="https://nonprofitmanager.app/" target="_blank" rel="noopener" style="margin-left:8px;"><?php esc_html_e( 'Learn more', 'nonprofit-manager' ); ?></a>
 					</p>
 				</div>
 
@@ -1663,8 +1674,8 @@ function npmp_import_render_scripts( $field_labels ) {
 			if (s.cap_reached) {
 				var imported = (s.imported || 0) + (s.updated || 0);
 				var total    = s.source_total || imported;
-				var cap      = s.cap_max_rows || 50;
-				var template = '<?php echo esc_js( __( 'Imported the first %1$s of %2$s records. The free version imports up to %3$s at a time. Upgrade to Pro to import the rest in one pass.', 'nonprofit-manager' ) ); ?>';
+				var cap      = s.cap_max_rows || <?php echo (int) NPMP_IMPORT_FREE_MAX_ROWS; ?>;
+				var template = '<?php echo esc_js( __( 'We imported the first %1$s of %2$s records. With the free version, you can import up to %3$s records at a time and %3$s new contacts in total. Upgrade to Pro to import the rest.', 'nonprofit-manager' ) ); ?>';
 				$('#npmp-import-cap-text').text(
 					template
 						.replace('%1$s', imported)

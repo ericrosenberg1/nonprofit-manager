@@ -20,6 +20,13 @@ set_error_handler( function ( $no, $str, $errfile, $line ) {
 } );
 require $wp_root . '/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/post.php';
+// Say what's missing instead of dying on an undefined function halfway through.
+$rig_features = (array) get_option( 'npmp_enabled_features', array() );
+$rig_missing  = array_keys( array_diff_key( array_flip( array( 'members', 'newsletters', 'donations', 'calendar', 'social' ) ), array_filter( $rig_features ) ) );
+if ( $rig_missing || ! function_exists( 'npmp_is_pro' ) || ! npmp_is_pro() ) {
+	printf( "  FAIL  needs Pro active and every module on (missing: %s). Run: wp plugin activate nonprofit-manager-pro, and turn on %s in npmp_enabled_features.\n", $rig_missing ? implode( ', ', $rig_missing ) : 'Pro', $rig_missing ? implode( ', ', $rig_missing ) : 'nothing else' );
+	exit( 1 );
+}
 // A fresh visitor address per run, so the per-visitor limits don't carry over.
 $_SERVER['REMOTE_ADDR'] = '192.0.2.' . wp_rand( 1, 250 );
 
@@ -86,8 +93,9 @@ add_filter( 'npmp_social_share_networks_pre', function ( $v ) use ( &$shared ) {
 wp_set_current_user( $contrib );
 $d2 = wp_insert_post( array( 'post_type' => 'post', 'post_title' => 'rig share', 'post_status' => 'draft', 'post_author' => $contrib ) );
 delete_post_meta( $d2, '_npmp_shared_on' );
-$_POST = array( 'npmp_share_now' => '1', 'npmp_social_manual_nonce' => wp_create_nonce( 'npmp_social_manual_share' ) );
-npmp_social_handle_manual_share( $d2 );
+$_POST = array( 'post_id' => $d2, 'nonce' => wp_create_nonce( 'npmp_social_share_now_' . $d2 ) );
+$r = rig_ajax( 'npmp_social_ajax_share_now' );
+rig_check( 'draft by contributor refused', false, $r['success'] ?? null );
 rig_check( 'draft by contributor not shared', '', (string) get_post_meta( $d2, '_npmp_shared_on', true ) );
 $_POST = array();
 

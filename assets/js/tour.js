@@ -152,6 +152,47 @@
 			state.modal.remove();
 			state.modal = null;
 		}
+		if ( state.modalKeyHandler ) {
+			document.removeEventListener( 'keydown', state.modalKeyHandler, true );
+			state.modalKeyHandler = null;
+		}
+		if ( state.modalReturnFocus && document.body.contains( state.modalReturnFocus ) ) {
+			state.modalReturnFocus.focus();
+		}
+		state.modalReturnFocus = null;
+	}
+
+	// Dialog behavior for the modal and the finished card: focus moves to
+	// the first button, Tab stays inside, Escape runs onEscape, and focus
+	// goes back where it was when the dialog closes.
+	function openDialog( card, onEscape ) {
+		state.modalReturnFocus = document.activeElement;
+		state.modalKeyHandler = function ( e ) {
+			if ( ! state.modal ) return;
+			if ( e.key === 'Escape' ) {
+				e.preventDefault();
+				onEscape();
+				return;
+			}
+			if ( e.key !== 'Tab' ) return;
+			var focusable = card.querySelectorAll( 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])' );
+			if ( ! focusable.length ) return;
+			var first = focusable[ 0 ];
+			var last = focusable[ focusable.length - 1 ];
+			if ( e.shiftKey && document.activeElement === first ) {
+				e.preventDefault();
+				last.focus();
+			} else if ( ! e.shiftKey && document.activeElement === last ) {
+				e.preventDefault();
+				first.focus();
+			} else if ( ! card.contains( document.activeElement ) ) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+		document.addEventListener( 'keydown', state.modalKeyHandler, true );
+		var btn = card.querySelector( 'button' );
+		if ( btn ) btn.focus();
 	}
 
 	function endTour( opts ) {
@@ -373,10 +414,10 @@
 	function renderModal() {
 		var root = getRoot();
 		state.modal = el( 'div', { class: 'npmp-tour-modal-overlay' } );
-		var card = el( 'div', { class: 'npmp-tour-modal', role: 'dialog', 'aria-modal': 'true' } );
-		card.appendChild( el( 'div', { class: 'npmp-tour-modal__icon', text: '🎯' } ) );
-		card.appendChild( el( 'h2', { class: 'npmp-tour-modal__title', text: T.i18n.modalTitle } ) );
-		card.appendChild( el( 'p', { class: 'npmp-tour-modal__body', text: T.i18n.modalBody } ) );
+		var card = el( 'div', { class: 'npmp-tour-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'npmp-tour-title', 'aria-describedby': 'npmp-tour-body' } );
+		card.appendChild( el( 'div', { class: 'npmp-tour-modal__icon', 'aria-hidden': 'true', text: '🎯' } ) );
+		card.appendChild( el( 'h2', { class: 'npmp-tour-modal__title', id: 'npmp-tour-title', text: T.i18n.modalTitle } ) );
+		card.appendChild( el( 'p', { class: 'npmp-tour-modal__body', id: 'npmp-tour-body', text: T.i18n.modalBody } ) );
 
 		var actions = el( 'div', { class: 'npmp-tour-modal__actions' } );
 		actions.appendChild( el( 'button', {
@@ -413,9 +454,13 @@
 
 		state.modal.appendChild( card );
 		root.appendChild( state.modal );
+		openDialog( card, function () {
+			clearModal();
+			saveProgress( { dismissed: true } );
+		} );
 
 		requestAnimationFrame( function () {
-			state.modal.classList.add( 'is-visible' );
+			if ( state.modal ) state.modal.classList.add( 'is-visible' );
 		} );
 	}
 
@@ -423,22 +468,23 @@
 		var root = getRoot();
 		clearModal();
 		state.modal = el( 'div', { class: 'npmp-tour-modal-overlay' } );
-		var card = el( 'div', { class: 'npmp-tour-modal', role: 'dialog' } );
-		card.appendChild( el( 'div', { class: 'npmp-tour-modal__icon', text: '✅' } ) );
-		card.appendChild( el( 'h2', { class: 'npmp-tour-modal__title', text: T.i18n.finishedTitle } ) );
-		card.appendChild( el( 'p', { class: 'npmp-tour-modal__body', text: T.i18n.finishedBody } ) );
+		var card = el( 'div', { class: 'npmp-tour-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'npmp-tour-title', 'aria-describedby': 'npmp-tour-body' } );
+		card.appendChild( el( 'div', { class: 'npmp-tour-modal__icon', 'aria-hidden': 'true', text: '✅' } ) );
+		card.appendChild( el( 'h2', { class: 'npmp-tour-modal__title', id: 'npmp-tour-title', text: T.i18n.finishedTitle } ) );
+		card.appendChild( el( 'p', { class: 'npmp-tour-modal__body', id: 'npmp-tour-body', text: T.i18n.finishedBody } ) );
 		var actions = el( 'div', { class: 'npmp-tour-modal__actions' } );
 		actions.appendChild( el( 'button', {
 			type: 'button',
 			class: 'npmp-tour-btn npmp-tour-btn--primary',
-			text: 'OK',
+			text: T.i18n.ok,
 			onclick: clearModal,
 		} ) );
 		card.appendChild( actions );
 		state.modal.appendChild( card );
 		root.appendChild( state.modal );
+		openDialog( card, clearModal );
 		requestAnimationFrame( function () {
-			state.modal.classList.add( 'is-visible' );
+			if ( state.modal ) state.modal.classList.add( 'is-visible' );
 		} );
 	}
 

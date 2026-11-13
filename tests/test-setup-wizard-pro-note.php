@@ -65,8 +65,12 @@ function wp_get_current_user() {
 function submit_button( $text = '', $type = 'primary', $name = 'submit', $wrap = true, $other = null ) {
 	printf( '<input type="submit" name="%s" class="button button-%s" value="%s">', esc_attr( $name ), esc_attr( $type ), esc_attr( $text ) );
 }
+function wp_parse_args( $args, $defaults = array() ) {
+	return array_merge( (array) $defaults, (array) $args );
+}
 require_once dirname( __DIR__ ) . '/includes/npmp-org-type.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-version.php';
+require_once dirname( __DIR__ ) . '/includes/npmp-admin-helpers.php';
 require_once dirname( __DIR__ ) . '/includes/npmp-setup-wizard.php';
 
 /**
@@ -104,7 +108,7 @@ $pro = t_wizard_html();
 
 echo "The note is on the free wizard\n";
 check( 'the note keeps its heading', true, false !== strpos( $free, 'Want more features?' ) );
-check( 'the note keeps what Pro adds', true, false !== strpos( $free, 'Nonprofit Manager Pro adds recurring donations, dues billing, email automations, custom fields and segments.' ) );
+check( 'the note keeps what Pro adds', true, false !== strpos( $free, 'With Nonprofit Manager Pro, you also get groups, recurring gifts, dues billing, email automations, custom fields, and segments.' ) );
 check( 'the note is its own card, not an admin notice', true, false !== strpos( $free, 'class="npmp-pro-note"' ) );
 check( 'the card is styled', true, false !== strpos( $free, '.npmp-setup-wizard .npmp-pro-note {' ) );
 check( 'Pro installs are not sold Pro', '', t_anchor( $pro, $href ) );
@@ -117,7 +121,7 @@ check( 'the link looks like a button', 1, preg_match( '/class="[^"]*\bbutton\b[^
 check( 'but not a second primary button', 0, preg_match( '/class="[^"]*\bbutton-primary\b/', $anchor ) );
 check( 'the link opens in a new tab', true, false !== strpos( $anchor, 'target="_blank"' ) );
 check( 'a new tab cannot reach back into the admin', true, false !== strpos( $anchor, 'rel="noopener"' ) );
-check( 'the label says what is on the other side', true, false !== strpos( $anchor, 'See what Pro adds' ) );
+check( 'the label says what is on the other side', true, false !== strpos( $anchor, 'See Pro' ) );
 // It used to live inside the note's own paragraph, which is how it ended up
 // reading as body text. Nothing on the page may wrap it in a <p> again.
 check( 'the link is not buried in a paragraph', 0, preg_match( '#<p\b[^>]*>(?:(?!</p>).)*href="' . preg_quote( $href, '#' ) . '#s', $free ) );

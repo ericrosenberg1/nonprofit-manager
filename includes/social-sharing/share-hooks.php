@@ -77,43 +77,68 @@ function npmp_social_add_meta_box() {
 add_action( 'add_meta_boxes', 'npmp_social_add_meta_box' );
 
 /**
+ * The share history for one post, as HTML for the meta box.
+ *
+ * @param WP_Post $post Post.
+ * @return string
+ */
+function npmp_social_share_status_html( $post ) {
+	$shared_on = get_post_meta( $post->ID, '_npmp_shared_on', true );
+	$results   = get_post_meta( $post->ID, '_npmp_share_results', true );
+	$networks  = NPMP_Social_Share_Manager::get_instance()->get_registered_networks();
+
+	if ( ! $shared_on ) {
+		$type_object = get_post_type_object( $post->post_type );
+		$singular    = $type_object && ! empty( $type_object->labels->singular_name ) ? $type_object->labels->singular_name : __( 'Post', 'nonprofit-manager' );
+		/* translators: %s: singular name of the post type, such as Post or Event. */
+		return '<p>' . esc_html( sprintf( __( 'This %s hasn\'t been shared yet.', 'nonprofit-manager' ), strtolower( $singular ) ) ) . '</p>';
+	}
+
+	$when = mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $shared_on );
+	$html = '<p><strong>' . esc_html__( 'Shared on:', 'nonprofit-manager' ) . '</strong> ' . esc_html( $when ) . '</p>';
+	if ( is_array( $results ) && $results ) {
+		$html .= '<ul class="npmp-share-results">';
+		foreach ( $results as $net => $res ) {
+			$label = isset( $networks[ $net ] ) ? $networks[ $net ]['label'] : $net;
+			if ( is_wp_error( $res ) ) {
+				$state = '<span aria-hidden="true">&#10060;</span> <span class="screen-reader-text">' . esc_html__( 'Not shared:', 'nonprofit-manager' ) . '</span> ' . esc_html( $res->get_error_message() );
+			} else {
+				$state = '<span aria-hidden="true">&#9989;</span> <span class="screen-reader-text">' . esc_html__( 'Shared', 'nonprofit-manager' ) . '</span>';
+			}
+			$html .= '<li>' . esc_html( $label ) . ': ' . $state . '</li>';
+		}
+		$html .= '</ul>';
+	}
+	return $html;
+}
+
+/**
  * Render the Social Sharing meta box.
+ *
+ * Share Now is a plain button that posts to admin-ajax. The block editor
+ * saves meta boxes with the form's submit button left out, so the old
+ * submit button never reached save_post and did nothing there.
  *
  * @param WP_Post $post Current post.
  */
 function npmp_social_render_meta_box( $post ) {
-	$shared_on = get_post_meta( $post->ID, '_npmp_shared_on', true );
-	$results   = get_post_meta( $post->ID, '_npmp_share_results', true );
-	$manager   = NPMP_Social_Share_Manager::get_instance();
-	$networks  = $manager->get_registered_networks();
-	$accounts  = $manager->get_connected_accounts();
+	$accounts = NPMP_Social_Share_Manager::get_instance()->get_connected_accounts();
 
-	wp_nonce_field( 'npmp_social_manual_share', 'npmp_social_manual_nonce' );
-
-	if ( $shared_on ) {
-		echo '<p><strong>' . esc_html__( 'Shared on:', 'nonprofit-manager' ) . '</strong> ' . esc_html( $shared_on ) . '</p>';
-		if ( is_array( $results ) ) {
-			echo '<ul style="margin:0 0 10px;">';
-			foreach ( $results as $net => $res ) {
-				$label  = isset( $networks[ $net ] ) ? $networks[ $net ]['label'] : $net;
-				$status = is_wp_error( $res ) ? '&#10060; ' . $res->get_error_message() : '&#9989;';
-				echo '<li>' . esc_html( $label ) . ': ' . wp_kses_post( $status ) . '</li>';
-			}
-			echo '</ul>';
-		}
-	} else {
-		echo '<p>' . esc_html__( 'This post has not been shared yet.', 'nonprofit-manager' ) . '</p>';
-	}
+	echo '<div class="npmp-share-status">' . wp_kses_post( npmp_social_share_status_html( $post ) ) . '</div>';
 
 	if ( ! empty( $accounts ) && 'publish' === $post->post_status ) {
-		echo '<button type="submit" name="npmp_share_now" value="1" class="button button-secondary">';
-		echo esc_html__( 'Share Now', 'nonprofit-manager' );
-		echo '</button>';
+		printf(
+			'<button type="button" class="button button-secondary npmp-share-now" data-post="%1$d" data-nonce="%2$s">%3$s</button>',
+			(int) $post->ID,
+			esc_attr( wp_create_nonce( 'npmp_social_share_now_' . $post->ID ) ),
+			esc_html__( 'Share now', 'nonprofit-manager' )
+		);
+		echo '<p class="npmp-share-now-message" role="status" aria-live="polite"></p>';
 	} elseif ( empty( $accounts ) ) {
 		echo '<p class="description">';
 		printf(
 			/* translators: %s: URL to social sharing settings */
-			wp_kses_post( __( 'No networks connected. <a href="%s">Configure Social Sharing</a>.', 'nonprofit-manager' ) ),
+			wp_kses_post( __( 'No networks connected. <a href="%s">Set up Social Sharing</a>.', 'nonprofit-manager' ) ),
 			esc_url( admin_url( 'admin.php?page=npmp_social_sharing' ) )
 		);
 		echo '</p>';
@@ -121,43 +146,48 @@ function npmp_social_render_meta_box( $post ) {
 }
 
 /**
- * Handle the manual "Share Now" button from the meta box.
+ * Whether the current user may share a post right now.
+ *
+ * Only published posts go out, and only from someone who may publish them.
+ * The button is hidden on drafts, but the request can still be forged, and a
+ * Contributor could otherwise post a draft to the organization's accounts.
  *
  * @param int $post_id Post ID.
+ * @return true|WP_Error
  */
-function npmp_social_handle_manual_share( $post_id ) {
-	if (
-		! isset( $_POST['npmp_share_now'] ) ||
-		! isset( $_POST['npmp_social_manual_nonce'] ) ||
-		! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['npmp_social_manual_nonce'] ) ), 'npmp_social_manual_share' )
-	) {
-		return;
+function npmp_social_can_share_now( $post_id ) {
+	$post_id = (int) $post_id;
+	$types   = apply_filters( 'npmp_social_post_types', array( 'post', 'npmp_event' ) );
+	if ( ! $post_id || ! in_array( get_post_type( $post_id ), $types, true ) ) {
+		return new WP_Error( 'npmp_share_type', __( 'This item can\'t be shared.', 'nonprofit-manager' ) );
 	}
-
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
-
-	// save_post also fires for the revision WordPress saves alongside the
-	// post, which would share twice with a revision URL.
-	if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
-		return;
-	}
-
 	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
+		return new WP_Error( 'npmp_share_cap', __( 'You don\'t have permission to share this.', 'nonprofit-manager' ) );
 	}
-
-	// Only published posts go out, and only from someone who may publish
-	// them. The button is hidden on drafts, but the request can still be
-	// forged, and a Contributor could otherwise post a draft to the
-	// organization's social accounts.
 	if ( 'publish' !== get_post_status( $post_id ) ) {
-		return;
+		return new WP_Error( 'npmp_share_status', __( 'Publish it first, then share it.', 'nonprofit-manager' ) );
 	}
 	$type_object = get_post_type_object( get_post_type( $post_id ) );
 	if ( ! $type_object || ! current_user_can( $type_object->cap->publish_posts ) ) {
-		return;
+		return new WP_Error( 'npmp_share_cap', __( 'You don\'t have permission to share this.', 'nonprofit-manager' ) );
+	}
+	return true;
+}
+
+/**
+ * AJAX: share a published post now (the meta box's Share now button).
+ *
+ * @return void
+ */
+function npmp_social_ajax_share_now() {
+	$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+	if ( ! check_ajax_referer( 'npmp_social_share_now_' . $post_id, 'nonce', false ) ) {
+		wp_send_json_error( array( 'message' => __( 'This page has expired. Reload it and try again.', 'nonprofit-manager' ) ), 403 );
+	}
+
+	$allowed = npmp_social_can_share_now( $post_id );
+	if ( is_wp_error( $allowed ) ) {
+		wp_send_json_error( array( 'message' => $allowed->get_error_message() ), 403 );
 	}
 
 	$manager = NPMP_Social_Share_Manager::get_instance();
@@ -165,5 +195,54 @@ function npmp_social_handle_manual_share( $post_id ) {
 
 	update_post_meta( $post_id, '_npmp_shared_on', current_time( 'mysql' ) );
 	update_post_meta( $post_id, '_npmp_share_results', $results );
+
+	$failed = 0;
+	foreach ( (array) $results as $res ) {
+		if ( is_wp_error( $res ) ) {
+			++$failed;
+		}
+	}
+
+	wp_send_json_success(
+		array(
+			'message' => $failed ? __( 'Some networks didn\'t take the post. You can see which below.', 'nonprofit-manager' ) : __( 'Shared.', 'nonprofit-manager' ),
+			'html'    => npmp_social_share_status_html( get_post( $post_id ) ),
+		)
+	);
 }
-add_action( 'save_post', 'npmp_social_handle_manual_share' );
+add_action( 'wp_ajax_npmp_social_share_now', 'npmp_social_ajax_share_now' );
+
+/**
+ * Load the Share now script on the editors that show the meta box.
+ *
+ * @param string $hook_suffix Current admin page.
+ * @return void
+ */
+function npmp_social_enqueue_share_now( $hook_suffix ) {
+	if ( 'post.php' !== $hook_suffix && 'post-new.php' !== $hook_suffix ) {
+		return;
+	}
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	$types  = apply_filters( 'npmp_social_post_types', array( 'post', 'npmp_event' ) );
+	if ( ! $screen || ! in_array( $screen->post_type, $types, true ) ) {
+		return;
+	}
+	$file = dirname( __DIR__, 2 ) . '/assets/js/npmp-share-now.js';
+	wp_enqueue_script(
+		'npmp-share-now',
+		plugins_url( 'assets/js/npmp-share-now.js', dirname( __DIR__, 2 ) . '/nonprofit-manager.php' ),
+		array(),
+		file_exists( $file ) ? (string) filemtime( $file ) : '1',
+		true
+	);
+	wp_localize_script(
+		'npmp-share-now',
+		'npmpShareNow',
+		array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'sharing' => __( 'Sharing…', 'nonprofit-manager' ),
+			'failed'  => __( 'Sharing didn\'t go through. Please try again.', 'nonprofit-manager' ),
+		)
+	);
+}
+add_action( 'admin_enqueue_scripts', 'npmp_social_enqueue_share_now' );

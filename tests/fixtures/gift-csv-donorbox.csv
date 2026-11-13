@@ -1,0 +1,7 @@
+Donor First Name,Donor Last Name,Donor Email,Amount,Currency,Converted Currency,Donation Date,Payment Method,Transaction ID,Recurring Donation,Donating Company,Dedication Type,Honoree Name,Donor Address,Donor City,Donor State,Donor Zip Code,Donor Country
+Quinn,Fakeperson,quinn@example.org,"€1.234,56",EUR,USD,"Mar 14, 2025 3:05 PM",Stripe,ch_test_0001,false,,,,,Lyon,,69001,FR
+Quinn,Fakeperson,quinn@example.org,£12.50,GBP,USD,"Apr 1, 2025 9:00 AM",PayPal,pp_test_0002,true,,In honor of,Some Teacher,,,,,
+Rae,Example,rae@example.org,"¥5,000",JPY,USD,"May 2, 2025 11:45 PM",Stripe,ch_test_0003,false,Example Widgets Inc,,,,Osaka,,,JP
+Sam,Example,sam@example.org,-25.00,USD,USD,"May 3, 2025 1:00 PM",Stripe,ch_test_0004,false,,,,,,,,
+Anonymous,,tia@example.org,10,USD,USD,"May 4, 2025 1:00 PM",Stripe,ch_test_0005,false,,,,,,,,
+Uma,Example,not-an-email,10,USD,USD,"May 5, 2025 1:00 PM",Stripe,ch_test_0006,false,,,,,,,,

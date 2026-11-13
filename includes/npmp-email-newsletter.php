@@ -23,6 +23,8 @@ $npmp_newsletter_files = [
     'reports.php',
     'settings.php',
     'can-spam-shortcode.php',
+    'archive-pure.php',
+    'archive.php',
 ];
 
 foreach ($npmp_newsletter_files as $npmp_newsletter_file) {
@@ -58,7 +60,9 @@ function npmp_newsletter_submenu_file($submenu_file) {
     global $post_type, $plugin_page;
 
     if ($post_type === 'npmp_newsletter') {
-        return 'npmp-newsletters';
+        global $pagenow;
+        // A new newsletter highlights Add Newsletter, an existing one the archive.
+        return 'post-new.php' === $pagenow ? 'post-new.php?post_type=npmp_newsletter' : 'npmp_newsletter_archive';
     }
 
     if ($post_type === 'npmp_nl_template') {

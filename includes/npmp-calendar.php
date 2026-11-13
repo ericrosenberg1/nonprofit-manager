@@ -7,6 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/npmp-calendar-print.php';
+
 /**
  * Register event post type and taxonomy on init.
  *
@@ -36,7 +38,7 @@ function npmp_register_events_admin_menu() {
 
 	add_submenu_page(
 		'npmp-events',
-		__( 'Overview', 'nonprofit-manager' ),
+		__( 'Events Overview', 'nonprofit-manager' ),
 		__( 'Overview', 'nonprofit-manager' ),
 		'edit_posts',
 		'npmp-events',
@@ -53,8 +55,8 @@ function npmp_register_events_admin_menu() {
 
 	add_submenu_page(
 		'npmp-events',
-		__( 'Add New', 'nonprofit-manager' ),
-		__( 'Add New', 'nonprofit-manager' ),
+		__( 'Add Event', 'nonprofit-manager' ),
+		__( 'Add Event', 'nonprofit-manager' ),
 		'edit_posts',
 		'post-new.php?post_type=npmp_event'
 	);
@@ -80,24 +82,7 @@ function npmp_register_event_post_type() {
 		return;
 	}
 
-	$labels = array(
-		'name'                  => __( 'Events', 'nonprofit-manager' ),
-		'singular_name'         => __( 'Event', 'nonprofit-manager' ),
-		'add_new'               => __( 'Add New', 'nonprofit-manager' ),
-		'add_new_item'          => __( 'Add New Event', 'nonprofit-manager' ),
-		'edit_item'             => __( 'Edit Event', 'nonprofit-manager' ),
-		'new_item'              => __( 'New Event', 'nonprofit-manager' ),
-		'view_item'             => __( 'View Event', 'nonprofit-manager' ),
-		'search_items'          => __( 'Search Events', 'nonprofit-manager' ),
-		'not_found'             => __( 'No events found.', 'nonprofit-manager' ),
-		'not_found_in_trash'    => __( 'No events found in Trash.', 'nonprofit-manager' ),
-		'all_items'             => __( 'All Events', 'nonprofit-manager' ),
-		'archives'              => __( 'Event Archives', 'nonprofit-manager' ),
-		'attributes'            => __( 'Event Attributes', 'nonprofit-manager' ),
-		'insert_into_item'      => __( 'Insert into event', 'nonprofit-manager' ),
-		'uploaded_to_this_item' => __( 'Uploaded to this event', 'nonprofit-manager' ),
-		'item_updated'          => __( 'Event updated.', 'nonprofit-manager' ),
-	);
+	$labels = npmp_post_type_labels( 'npmp_event' );
 
 	$args = array(
 		'labels'             => $labels,
@@ -167,7 +152,6 @@ function npmp_render_events_dashboard() {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nonprofit-manager' ) );
 	}
 
-	$is_pro       = npmp_is_pro();
 	$current_time = current_time( 'mysql' );
 
 	// Query upcoming events
@@ -177,6 +161,7 @@ function npmp_render_events_dashboard() {
 			// Overview widget: cap the upcoming list. Unbounded -1 grew without
 			// limit over time. The full list lives in the Events admin screen.
 			'posts_per_page' => 50,
+			'no_found_rows'  => true,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
 			'order'          => 'ASC',
@@ -198,6 +183,7 @@ function npmp_render_events_dashboard() {
 		array(
 			'post_type'      => 'npmp_event',
 			'posts_per_page' => 10,
+			'no_found_rows'  => true,
 			'orderby'        => 'meta_value',
 			'meta_key'       => '_npmp_event_start', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event scheduling relies on an indexed meta key.
 			'order'          => 'DESC',
@@ -217,12 +203,15 @@ function npmp_render_events_dashboard() {
 	$calendar_page_id = absint( get_option( 'npmp_calendar_page_id', 0 ) );
 	$calendar_link    = $calendar_page_id ? get_permalink( $calendar_page_id ) : '';
 
-	echo '<div class="wrap">';
-	echo '<h1>' . esc_html__( 'Events Overview', 'nonprofit-manager' ) . '</h1>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title(
+		__( 'Events Overview', 'nonprofit-manager' ),
+		array(
+			__( 'Add Event', 'nonprofit-manager' )  => admin_url( 'post-new.php?post_type=npmp_event' ),
+			__( 'All Events', 'nonprofit-manager' ) => admin_url( 'edit.php?post_type=npmp_event' ),
+		)
+	);
 	echo '<p>' . esc_html__( 'Create in-person or virtual events, promote them on the calendar, and keep your community up to date.', 'nonprofit-manager' ) . '</p>';
-
-	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Add New Event', 'nonprofit-manager' ) . '</a> ';
-	echo '<a class="button" href="' . esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Manage All Events', 'nonprofit-manager' ) . '</a></p>';
 
 	if ( $calendar_link ) {
 		echo '<p>' . sprintf(
@@ -233,11 +222,14 @@ function npmp_render_events_dashboard() {
 			esc_url( $calendar_link )
 		) . '</p>';
 	} else {
-		echo '<p>' . esc_html__( 'Tip: Assign a default calendar page so visitors can always find your schedule.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html__( 'Tip: Pick a calendar page so visitors can always find your schedule.', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_event_settings' ) ) . '">' . esc_html__( 'Choose one in Settings', 'nonprofit-manager' ) . '</a></p>';
 	}
 
+	/** This action is documented in includes/npmp-pro-feature-pages.php. */
+	do_action( 'npmp_admin_table_toolbar', 'events', array( 'view' => 'overview' ) );
+
 	// Upcoming Events Card
-	echo '<div class="card" style="max-width:900px; margin-bottom: 20px;">';
+	echo '<div class="card npmp-events-card">';
 	echo '<h2 class="title">' . esc_html__( 'Upcoming Events', 'nonprofit-manager' ) . '</h2>';
 
 	if ( $upcoming_query->have_posts() ) {
@@ -265,13 +257,13 @@ function npmp_render_events_dashboard() {
 		}
 		echo '</tbody></table>';
 	} else {
-		echo '<p>' . esc_html__( 'No upcoming events scheduled yet. Start by creating one above.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html__( 'No upcoming events yet.', 'nonprofit-manager' ) . ' <a href="' . esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ) . '">' . esc_html__( 'Add Event', 'nonprofit-manager' ) . '</a></p>';
 	}
 	wp_reset_postdata();
 	echo '</div>';
 
 	// Past Events Card
-	echo '<div class="card" style="max-width:900px; margin-bottom: 20px;">';
+	echo '<div class="card npmp-events-card">';
 	echo '<h2 class="title">' . esc_html__( 'Recent Past Events', 'nonprofit-manager' ) . '</h2>';
 
 	if ( $past_query->have_posts() ) {
@@ -314,6 +306,24 @@ function npmp_render_events_dashboard() {
 }
 
 /**
+ * The admin table toolbar above the All Events list (edit.php), next to its
+ * filters.
+ *
+ * @param string $which 'top' or 'bottom'.
+ * @return void
+ */
+function npmp_events_list_table_toolbar( $which ) {
+	if ( 'top' !== $which || ! isset( $GLOBALS['typenow'] ) || 'npmp_event' !== $GLOBALS['typenow'] ) {
+		return;
+	}
+	echo '<div class="alignleft actions npmp-admin-table-toolbar">';
+	/** This action is documented in includes/npmp-pro-feature-pages.php. */
+	do_action( 'npmp_admin_table_toolbar', 'events', array( 'view' => 'all', 'request' => wp_unslash( $_GET ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only list filters. Listeners sanitize what they read.
+	echo '</div>';
+}
+add_action( 'manage_posts_extra_tablenav', 'npmp_events_list_table_toolbar' );
+
+/**
  * Register event details meta box.
  *
  * @return void
@@ -324,7 +334,10 @@ function npmp_register_event_meta_boxes() {
 		__( 'Event Details', 'nonprofit-manager' ),
 		'npmp_render_event_meta_box',
 		'npmp_event',
-		'normal',
+		// The sidebar, beside the publish date, like the newsletter editor's boxes. Until
+		// 2026.11.8 it sat under the content, where the block editor tucks boxes into a
+		// "Meta Boxes" panel that reads as a different screen (Pete at U3A, 2026-11-12).
+		'side',
 		'high'
 	);
 }
@@ -358,18 +371,18 @@ function npmp_render_event_meta_box( $post ) {
 	$end_time   = $end && strlen( $end ) > 10 ? substr( $end, 11, 5 ) : '';
 
 	echo '<p><label for="npmp_event_start_date"><strong>' . esc_html__( 'Start Date', 'nonprofit-manager' ) . '</strong></label><br>';
-	echo '<input type="date" id="npmp_event_start_date" name="npmp_event_start_date" value="' . esc_attr( $start_date ) . '" class="regular-text" required></p>';
+	echo '<input type="date" id="npmp_event_start_date" name="npmp_event_start_date" value="' . esc_attr( $start_date ) . '" class="widefat" required></p>';
 
 	echo '<p><label for="npmp_event_start_time">' . esc_html__( 'Start Time', 'nonprofit-manager' ) . '</label><br>';
-	echo '<input type="time" id="npmp_event_start_time" name="npmp_event_start_time" value="' . esc_attr( $start_time ) . '" class="regular-text"></p>';
+	echo '<input type="time" id="npmp_event_start_time" name="npmp_event_start_time" value="' . esc_attr( $start_time ) . '" class="widefat"></p>';
 
 	echo '<hr>';
 
 	echo '<p><label for="npmp_event_end_date"><strong>' . esc_html__( 'End Date (optional)', 'nonprofit-manager' ) . '</strong></label><br>';
-	echo '<input type="date" id="npmp_event_end_date" name="npmp_event_end_date" value="' . esc_attr( $end_date ) . '" class="regular-text"></p>';
+	echo '<input type="date" id="npmp_event_end_date" name="npmp_event_end_date" value="' . esc_attr( $end_date ) . '" class="widefat"></p>';
 
 	echo '<p><label for="npmp_event_end_time">' . esc_html__( 'End Time (optional)', 'nonprofit-manager' ) . '</label><br>';
-	echo '<input type="time" id="npmp_event_end_time" name="npmp_event_end_time" value="' . esc_attr( $end_time ) . '" class="regular-text"></p>';
+	echo '<input type="time" id="npmp_event_end_time" name="npmp_event_end_time" value="' . esc_attr( $end_time ) . '" class="widefat"></p>';
 
 	echo '<hr>';
 
@@ -378,6 +391,16 @@ function npmp_render_event_meta_box( $post ) {
 
 	echo '<p><label for="npmp_event_url"><strong>' . esc_html__( 'Event Link', 'nonprofit-manager' ) . '</strong></label><br>';
 	echo '<input type="url" id="npmp_event_url" name="npmp_event_url" value="' . esc_attr( $external_url ) . '" class="widefat" placeholder="' . esc_attr__( 'https://example.org', 'nonprofit-manager' ) . '"></p>';
+
+	/**
+	 * Fires at the end of the Event Details box, after the Event Link field.
+	 * Pro renders its Group picker here, and free shows a greyed one. The
+	 * box's nonce (`npmp_event_details_nonce`) covers anything you print, so
+	 * save it on `npmp_event_meta_saved`.
+	 *
+	 * @param WP_Post $post The event being edited.
+	 */
+	do_action( 'npmp_event_details_fields', $post );
 }
 
 /**
@@ -414,6 +437,12 @@ function npmp_save_event_meta( $post_id ) {
 		$start      = $start_date . ' ' . $start_time . ':00';
 	}
 
+	// An end time with no end date (the usual way to enter a same-day
+	// event) ends on the start day. It used to be dropped without a word.
+	if ( ! $end_date && $end_time && $start_date ) {
+		$end_date = $start_date;
+	}
+
 	$end = '';
 	if ( $end_date ) {
 		$end_time = $end_time ?: '23:59';
@@ -443,6 +472,28 @@ function npmp_save_event_meta( $post_id ) {
 	} else {
 		delete_post_meta( $post_id, '_npmp_event_url' );
 	}
+
+	/**
+	 * Fires after the Event Details box saves its meta, once the nonce,
+	 * autosave, and capability checks have passed. Pro saves the event's
+	 * groups here.
+	 *
+	 * @param int   $post_id The event ID.
+	 * @param array $details The saved values: start, end (Y-m-d H:i:s or ''),
+	 *                       location, url.
+	 * @param array $request The whole unslashed POST. Sanitize what you read.
+	 */
+	do_action(
+		'npmp_event_meta_saved',
+		(int) $post_id,
+		array(
+			'start'    => $start,
+			'end'      => $end,
+			'location' => $location,
+			'url'      => $url,
+		),
+		wp_unslash( $_POST ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Listeners sanitize the fields they read.
+	);
 }
 add_action( 'save_post_npmp_event', 'npmp_save_event_meta' );
 
@@ -527,11 +578,17 @@ function npmp_format_event_datetime( $details ) {
 		$formatted .= ' ' . wp_date( $time_format, $start, $timezone );
 	}
 
-	if ( $end ) {
+	// An end at or before the start (imports often save the start twice)
+	// would print "7:00 pm – 7:00 pm", so the start stands alone.
+	if ( $end && $end > $start ) {
 		$formatted .= ' &ndash; ';
-		$formatted .= wp_date( $date_format, $end, $timezone );
+		// A same-day event repeats only the time: "Sept 25, 2024 7:00 pm – 9:00 pm".
+		$same_day = wp_date( 'Y-m-d', $start, $timezone ) === wp_date( 'Y-m-d', $end, $timezone );
+		if ( ! $same_day || ! $time_format ) {
+			$formatted .= wp_date( $date_format, $end, $timezone );
+		}
 		if ( $time_format ) {
-			$formatted .= ' ' . wp_date( $time_format, $end, $timezone );
+			$formatted .= ( $same_day ? '' : ' ' ) . wp_date( $time_format, $end, $timezone );
 		}
 	}
 
@@ -549,16 +606,7 @@ function npmp_format_event_datetime( $details ) {
  * @return string
  */
 function npmp_calendar_shortcode( $atts ) {
-	$atts = shortcode_atts(
-		array(
-			'view'     => '',
-			'month'    => '',
-			'year'     => '',
-			'category' => '',
-		),
-		$atts,
-		'npmp_calendar'
-	);
+	$atts = shortcode_atts( npmp_calendar_shortcode_defaults(), $atts, 'npmp_calendar' );
 
 	$timezone = wp_timezone();
 	$category = sanitize_text_field( $atts['category'] );
@@ -612,20 +660,143 @@ function npmp_calendar_shortcode( $atts ) {
 	$accent = sanitize_hex_color( (string) get_option( 'npmp_calendar_accent', '#0f766e' ) );
 	$style  = $accent ? ' style="--npmp-cal-accent:' . esc_attr( $accent ) . '"' : '';
 
-	$out  = '<div class="npmp-calendar-wrapper" data-view="' . esc_attr( $view ) . '"' . $style . '>';
-	$out .= npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category );
+	$show_print = npmp_calendar_print_wants_button( $atts['print'] );
+	npmp_calendar_print_enqueue( $show_print );
+
+	$print_context = array(
+		'source'   => 'calendar',
+		'view'     => $view,
+		'category' => $category,
+		'atts'     => $atts,
+	);
+	// The same context rides every query, so an add-on can filter by its
+	// own attribute (Pro's group="art").
+	$query_context = $print_context;
 
 	if ( 'list' === $view ) {
-		$out .= npmp_calendar_render_list_view( $category );
+		$body  = npmp_calendar_render_list_view( $category, $query_context );
+		$range = npmp_events_loop_last_range();
+
+		$print_context['start'] = $range[0];
+		$print_context['end']   = $range[1];
+
+		$header = npmp_calendar_print_header_html(
+			get_option( 'npmp_calendar_list_show_past', 0 ) ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' ),
+			npmp_calendar_print_range_label( $range[0], $range[1], $timezone ),
+			$print_context
+		);
 	} elseif ( 'week' === $view ) {
-		$out .= npmp_calendar_render_week_view( $anchor, $timezone, $category );
+		$week_start = npmp_calendar_week_start( $anchor, (int) get_option( 'start_of_week', 0 ) );
+		$week_end   = $week_start->modify( '+6 days' );
+
+		$print_context['start'] = $week_start->getTimestamp();
+		$print_context['end']   = $week_end->getTimestamp();
+
+		$body   = npmp_calendar_render_week_view( $anchor, $timezone, $category, $query_context );
+		$header = npmp_calendar_print_header_html(
+			npmp_calendar_print_range_label( $week_start->getTimestamp(), $week_end->getTimestamp(), $timezone ),
+			'',
+			$print_context
+		);
 	} else {
-		$out .= npmp_calendar_render_month_view( $anchor, $timezone, $category );
+		$month_start = $anchor->modify( 'first day of this month' )->setTime( 0, 0, 0 );
+
+		$print_context['start'] = $month_start->getTimestamp();
+		$print_context['end']   = $anchor->modify( 'last day of this month' )->setTime( 23, 59, 59 )->getTimestamp();
+
+		$body   = npmp_calendar_render_month_view( $anchor, $timezone, $category, $query_context );
+		$header = npmp_calendar_print_header_html( wp_date( 'F Y', $anchor->getTimestamp(), $timezone ), '', $print_context );
 	}
 
+	ob_start();
+	/**
+	 * Fires between the calendar's toolbar and its grid or list, on every
+	 * view. Echo your markup. Pro prints its row of group checkboxes here
+	 * (it keeps the choices in the URL, which the toolbar's links carry).
+	 *
+	 * @param array $context source ('calendar'), view, category, start and
+	 *                       end (Unix), and atts, as `npmp_calendar_print_heading`
+	 *                       receives it.
+	 */
+	do_action( 'npmp_calendar_before_grid', $print_context );
+	$before_grid = (string) ob_get_clean();
+
+	$out  = '<div class="npmp-calendar-wrapper npmp-print-region" data-view="' . esc_attr( $view ) . '"' . $style . '>';
+	$out .= npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category, $show_print );
+	$out .= $header;
+	$out .= $before_grid;
+	$out .= $body;
 	$out .= '</div>';
 
 	return $out;
+}
+
+/**
+ * The calendar's own attributes, before add-ons extend them.
+ *
+ * @return array
+ */
+function npmp_calendar_core_atts() {
+	return array(
+		'view'     => '',
+		'month'    => '',
+		'year'     => '',
+		'category' => '',
+		// Blank follows the Calendar Settings checkbox, "no" hides the
+		// Print or save as PDF button here, "yes" shows it.
+		'print'    => '',
+	);
+}
+
+/**
+ * Default [npmp_calendar] attributes, extended by add-ons.
+ *
+ * @return array
+ */
+function npmp_calendar_shortcode_defaults() {
+	/**
+	 * Filter the attributes [npmp_calendar] and the Calendar block accept.
+	 * shortcode_atts() drops any attribute that isn't here, so Pro adds
+	 * `'group' => ''` to accept `[npmp_calendar group="art"]`. Attributes you
+	 * add reach `npmp_events_query_args` and `npmp_calendar_before_grid` in
+	 * `$context['atts']`, and the list view passes any that
+	 * `npmp_events_shortcode_defaults` also accepts on to the events loop.
+	 *
+	 * @param array $defaults view, month, year, category, print.
+	 */
+	$defaults = apply_filters( 'npmp_calendar_shortcode_defaults', npmp_calendar_core_atts() );
+	return array_merge( npmp_calendar_core_atts(), is_array( $defaults ) ? $defaults : array() );
+}
+
+/**
+ * Let add-ons adjust an event query. Every front-end event list and calendar
+ * query (and the iCal feed) runs through here.
+ *
+ * @param array $query_args WP_Query arguments.
+ * @param array $context    What the query is for, see the filter docblock.
+ * @return array
+ */
+function npmp_events_filter_query_args( $query_args, $context ) {
+	/**
+	 * Filter the WP_Query arguments of a front-end event query. Pro filters
+	 * by a `group` attribute (adds a tax_query on `npmp_group`) and by the
+	 * visitor's group checkboxes on the default calendar.
+	 *
+	 * @param array $query_args WP_Query arguments for npmp_event posts.
+	 * @param array $context {
+	 *     @type string $source   'calendar' (month, week, or list view of
+	 *                            [npmp_calendar] and the Calendar block),
+	 *                            'events' ([npmp_events] and the Events
+	 *                            block), or 'ical' (the iCal feed).
+	 *     @type string $view     'month', 'week', or 'list'.
+	 *     @type string $category The category attribute.
+	 *     @type array  $atts     The shortcode or block attributes, after
+	 *                            defaults. For 'ical', the feed's GET vars.
+	 *     @type bool   $block    True when the Events block rendered it.
+	 * }
+	 */
+	$filtered = apply_filters( 'npmp_events_query_args', $query_args, $context );
+	return is_array( $filtered ) ? $filtered : $query_args;
 }
 
 /**
@@ -635,9 +806,10 @@ function npmp_calendar_shortcode( $atts ) {
  * @param DateTimeImmutable $end      Range end.
  * @param string            $category Optional category slug filter.
  * @param DateTimeZone      $timezone Site timezone.
+ * @param array             $context  Query context for npmp_events_query_args.
  * @return array<string, array<int, array>>
  */
-function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone ) {
+function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone, $context = array() ) {
 	$range_start = $start->setTime( 0, 0, 0 );
 	$range_end   = $end->setTime( 23, 59, 59 );
 	$start_sql   = $range_start->format( 'Y-m-d H:i:s' );
@@ -688,7 +860,17 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 		);
 	}
 
-	$events_query  = new WP_Query( $query_args );
+	$context = array_merge(
+		array(
+			'source'   => 'calendar',
+			'view'     => 'month',
+			'category' => $category,
+			'atts'     => array(),
+			'block'    => false,
+		),
+		(array) $context
+	);
+	$events_query  = new WP_Query( npmp_events_filter_query_args( $query_args, $context ) );
 	$events_by_day = array();
 	$start_key     = $range_start->format( 'Y-m-d' );
 	$end_key       = $range_end->format( 'Y-m-d' );
@@ -716,6 +898,8 @@ function npmp_calendar_query_events_by_day( $start, $end, $category, $timezone )
 				'start_ts'  => $start_ts,
 				'end_ts'    => $end_ts,
 				'start_key' => $event_start_key,
+				'location'  => isset( $details['location'] ) ? (string) $details['location'] : '',
+				'classes'   => npmp_calendar_event_category_classes( get_the_ID() ),
 			);
 
 			// Step one calendar day at a time in the site's own timezone
@@ -780,17 +964,41 @@ function npmp_calendar_day_events_html( $day_events, $day_key, $timezone ) {
 			$time_label = __( 'Continues', 'nonprofit-manager' );
 		}
 
-		$html .= '<li><a href="' . esc_url( $event['permalink'] ) . '">';
+		$classes = isset( $event['classes'] ) ? trim( (string) $event['classes'] ) : '';
+		$html   .= '<li' . ( '' !== $classes ? ' class="' . esc_attr( $classes ) . '"' : '' ) . '><a href="' . esc_url( $event['permalink'] ) . '">';
 		if ( $time_label ) {
 			$html .= '<span class="npmp-calendar-event-time">' . esc_html( $time_label ) . '</span> ';
 		}
-		$html .= esc_html( $event['title'] );
+		$html .= '<span class="npmp-calendar-event-title">' . esc_html( $event['title'] ) . '</span>';
+		// Off screen, on paper: the grid has no room for it, a printout does.
+		if ( ! empty( $event['location'] ) ) {
+			$html .= '<span class="npmp-calendar-event-location" hidden>' . esc_html( $event['location'] ) . '</span>';
+		}
 		$html .= '</a></li>';
 	}
 
 	$html .= '</ul>';
 
 	return $html;
+}
+
+/**
+ * One npmp-cat-<slug> class per event category, so a category's accent color
+ * (Pro, or your own CSS) reaches its events.
+ *
+ * @param int $post_id Event ID.
+ * @return string Space-separated classes, or ''.
+ */
+function npmp_calendar_event_category_classes( $post_id ) {
+	$terms = get_the_terms( (int) $post_id, 'npmp_event_category' );
+	if ( ! $terms || is_wp_error( $terms ) ) {
+		return '';
+	}
+	$classes = array();
+	foreach ( $terms as $term ) {
+		$classes[] = 'npmp-cat-' . sanitize_html_class( $term->slug );
+	}
+	return implode( ' ', $classes );
 }
 
 /**
@@ -841,15 +1049,43 @@ function npmp_calendar_weekday_labels() {
 }
 
 /**
+ * One weekday column heading for the month and week grids.
+ *
+ * Phones show the short name ("Wed"), since a full "Wednesday" can't fit a
+ * seventh of a 375px screen and ran into the next column. Screen readers
+ * always hear the full name.
+ *
+ * @param int $index 0 (Sunday) - 6 (Saturday).
+ * @return string
+ */
+function npmp_calendar_weekday_heading( $index ) {
+	global $wp_locale;
+
+	$index  = ( (int) $index % 7 + 7 ) % 7;
+	$labels = npmp_calendar_weekday_labels();
+	$full   = $labels[ $index ];
+	$short  = ( $wp_locale instanceof WP_Locale ) ? $wp_locale->get_weekday_abbrev( $wp_locale->get_weekday( $index ) ) : '';
+	if ( '' === (string) $short ) {
+		$short = function_exists( 'mb_substr' ) ? mb_substr( $full, 0, 3 ) : substr( $full, 0, 3 );
+	}
+
+	return '<th scope="col" abbr="' . esc_attr( $full ) . '">'
+		. '<span class="npmp-calendar-weekday-full">' . esc_html( $full ) . '</span>'
+		. '<span class="npmp-calendar-weekday-short" aria-hidden="true">' . esc_html( $short ) . '</span>'
+		. '</th>';
+}
+
+/**
  * Render the toolbar: date navigation, period title, and view-switch tabs.
  *
  * @param string            $view     Current view.
  * @param DateTimeImmutable $anchor   Anchor date.
  * @param DateTimeZone      $timezone Site timezone.
- * @param string            $category Active category.
+ * @param string            $category   Active category.
+ * @param bool              $show_print Whether to add the Print or save as PDF button.
  * @return string
  */
-function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category ) {
+function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category, $show_print = false ) {
 	$today = new DateTimeImmutable( 'today', $timezone );
 
 	if ( 'week' === $view ) {
@@ -898,6 +1134,10 @@ function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category ) {
 	}
 	$html .= '</div>';
 
+	if ( $show_print ) {
+		$html .= npmp_calendar_print_button_html();
+	}
+
 	$html .= '</div>';
 
 	return $html;
@@ -909,28 +1149,24 @@ function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category ) {
  * @param DateTimeImmutable $anchor   Any date in the target month.
  * @param DateTimeZone      $timezone Site timezone.
  * @param string            $category Optional category filter.
+ * @param array             $context  Query context for npmp_events_query_args.
  * @return string
  */
-function npmp_calendar_render_month_view( $anchor, $timezone, $category ) {
+function npmp_calendar_render_month_view( $anchor, $timezone, $category, $context = array() ) {
 	$first         = $anchor->modify( 'first day of this month' )->setTime( 0, 0, 0 );
 	$last          = $anchor->modify( 'last day of this month' );
-	$events_by_day = npmp_calendar_query_events_by_day( $first, $last, $category, $timezone );
+	$events_by_day = npmp_calendar_query_events_by_day( $first, $last, $category, $timezone, array_merge( (array) $context, array( 'view' => 'month' ) ) );
 
 	$today_key     = wp_date( 'Y-m-d', time(), $timezone );
 	$start_of_week = (int) get_option( 'start_of_week', 0 );
 	$days_in_month = (int) $anchor->format( 't' );
 	$month_key     = $anchor->format( 'Y-m' );
-	$labels        = npmp_calendar_weekday_labels();
 
-	$offset   = ( 7 + (int) $first->format( 'w' ) - $start_of_week ) % 7;
-	$headings = array();
-	for ( $i = 0; $i < 7; $i++ ) {
-		$headings[] = $labels[ ( $start_of_week + $i ) % 7 ];
-	}
+	$offset = ( 7 + (int) $first->format( 'w' ) - $start_of_week ) % 7;
 
 	$html = '<table class="npmp-calendar-table"><thead><tr>';
-	foreach ( $headings as $heading ) {
-		$html .= '<th scope="col">' . esc_html( $heading ) . '</th>';
+	for ( $i = 0; $i < 7; $i++ ) {
+		$html .= npmp_calendar_weekday_heading( $start_of_week + $i );
 	}
 	$html .= '</tr></thead><tbody><tr>';
 
@@ -977,20 +1213,20 @@ function npmp_calendar_render_month_view( $anchor, $timezone, $category ) {
  * @param DateTimeImmutable $anchor   Any date in the target week.
  * @param DateTimeZone      $timezone Site timezone.
  * @param string            $category Optional category filter.
+ * @param array             $context  Query context for npmp_events_query_args.
  * @return string
  */
-function npmp_calendar_render_week_view( $anchor, $timezone, $category ) {
+function npmp_calendar_render_week_view( $anchor, $timezone, $category, $context = array() ) {
 	$start_of_week = (int) get_option( 'start_of_week', 0 );
 	$week_start    = npmp_calendar_week_start( $anchor, $start_of_week );
 	$week_end      = $week_start->modify( '+6 days' );
-	$events_by_day = npmp_calendar_query_events_by_day( $week_start, $week_end, $category, $timezone );
+	$events_by_day = npmp_calendar_query_events_by_day( $week_start, $week_end, $category, $timezone, array_merge( (array) $context, array( 'view' => 'week' ) ) );
 
 	$today_key = wp_date( 'Y-m-d', time(), $timezone );
-	$labels    = npmp_calendar_weekday_labels();
 
 	$html = '<table class="npmp-calendar-table"><thead><tr>';
 	for ( $i = 0; $i < 7; $i++ ) {
-		$html .= '<th scope="col">' . esc_html( $labels[ ( $start_of_week + $i ) % 7 ] ) . '</th>';
+		$html .= npmp_calendar_weekday_heading( $start_of_week + $i );
 	}
 	$html .= '</tr></thead><tbody><tr>';
 
@@ -1023,21 +1259,97 @@ function npmp_calendar_render_week_view( $anchor, $timezone, $category ) {
  * Render the upcoming-events list view, honoring the admin display options.
  *
  * @param string $category Optional category filter.
+ * @param array  $context  Query context for npmp_events_query_args.
  * @return string
  */
-function npmp_calendar_render_list_view( $category ) {
+function npmp_calendar_render_list_view( $category, $context = array() ) {
 	$limit = (int) get_option( 'npmp_calendar_list_limit', 10 );
 	if ( $limit < 1 ) {
 		$limit = 10;
 	}
 	$past = get_option( 'npmp_calendar_list_show_past', 0 ) ? 'true' : 'false';
 
-	return npmp_events_shortcode(
+	// Attributes an add-on registered on the calendar (Pro's group) pass on to
+	// the list when the events loop accepts them too.
+	$extra = array_diff_key( isset( $context['atts'] ) ? (array) $context['atts'] : array(), npmp_calendar_core_atts() );
+
+	$atts = shortcode_atts(
+		npmp_events_shortcode_defaults(),
+		array_merge(
+			$extra,
+			array(
+				'category' => $category,
+				'limit'    => $limit,
+				'past'     => $past,
+				// The calendar's own list view stays a plain list in date order.
+				'layout'   => 'list',
+				'order'    => 'asc',
+				'image'    => 'no',
+			)
+		),
+		'npmp_events'
+	);
+
+	$context = array_merge(
 		array(
+			'source'   => 'calendar',
 			'category' => $category,
-			'limit'    => $limit,
-			'past'     => $past,
-		)
+			'atts'     => $atts,
+			'block'    => false,
+		),
+		(array) $context,
+		array( 'view' => 'list' )
+	);
+
+	// Embedded: the calendar around it carries the print button and header.
+	return npmp_events_loop_render( $atts, false, true, $context );
+}
+
+/**
+ * Default [npmp_events] attributes.
+ *
+ * @return array
+ */
+function npmp_events_shortcode_defaults() {
+	$defaults = npmp_events_core_atts();
+	/**
+	 * Filter the attributes [npmp_events] and the Events block accept.
+	 * shortcode_atts() drops any attribute that isn't here, so Pro adds
+	 * `'group' => ''` to accept `[npmp_events group="art"]`. Attributes you
+	 * add reach `npmp_events_query_args` in `$context['atts']`.
+	 *
+	 * @param array $defaults category, limit, past, layout, columns, order,
+	 *                        ratio, image, excerpt, excerpt_length, date,
+	 *                        location, readmore, print.
+	 */
+	$filtered = apply_filters( 'npmp_events_shortcode_defaults', $defaults );
+	return array_merge( $defaults, is_array( $filtered ) ? $filtered : array() );
+}
+
+/**
+ * The events list's own attributes, before add-ons extend them.
+ *
+ * @return array
+ */
+function npmp_events_core_atts() {
+	return array(
+		'category'       => '',
+		'limit'          => -1,
+		'past'           => 'false',
+		// Display options. Blank means "use the saved Events setting".
+		'layout'         => '',
+		'columns'        => '',
+		'order'          => '',
+		'ratio'          => '',
+		'image'          => '',
+		'excerpt'        => '',
+		'excerpt_length' => '',
+		'date'           => '',
+		'location'       => '',
+		'readmore'       => '',
+		// Blank follows the Calendar Settings checkbox, "no" hides the
+		// Print or save as PDF button on this list, "yes" shows it.
+		'print'          => '',
 	);
 }
 
@@ -1048,86 +1360,9 @@ function npmp_calendar_render_list_view( $category ) {
  * @return string
  */
 function npmp_events_shortcode( $atts ) {
-	$atts = shortcode_atts(
-		array(
-			'category' => '',
-			'limit'    => -1,
-			'past'     => 'false',
-		),
-		$atts,
-		'npmp_events'
-	);
+	$atts = shortcode_atts( npmp_events_shortcode_defaults(), $atts, 'npmp_events' );
 
-	$query_args = array(
-		'post_type'      => 'npmp_event',
-		'posts_per_page' => intval( $atts['limit'] ),
-		'orderby'        => 'meta_value',
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Event listings are sorted by a meta key.
-		'meta_key'       => '_npmp_event_start',
-		'order'          => 'ASC',
-		'post_status'    => 'publish',
-	);
-
-	$now = current_time( 'mysql' );
-	if ( 'true' !== strtolower( $atts['past'] ) ) {
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Upcoming event filtering requires meta comparisons.
-		$query_args['meta_query'] = array(
-			array(
-				'key'     => '_npmp_event_start',
-				'value'   => $now,
-				'compare' => '>=',
-				'type'    => 'DATETIME',
-			),
-		);
-	}
-
-	if ( ! empty( $atts['category'] ) ) {
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Event categories rely on taxonomy queries.
-		$query_args['tax_query'] = array(
-			array(
-				'taxonomy' => 'npmp_event_category',
-				'field'    => 'slug',
-				'terms'    => array_map( 'sanitize_title', explode( ',', $atts['category'] ) ),
-			),
-		);
-	}
-
-	$events = new WP_Query( $query_args );
-
-	if ( ! $events->have_posts() ) {
-		return '<div class="npmp-events-list npmp-events-empty">' . esc_html__( 'No events found.', 'nonprofit-manager' ) . '</div>';
-	}
-
-	ob_start();
-
-	echo '<div class="npmp-events-list">';
-
-	while ( $events->have_posts() ) {
-		$events->the_post();
-		$details    = npmp_get_event_details( get_the_ID() );
-		$date_label = npmp_format_event_datetime( $details );
-
-		echo '<article class="npmp-event">';
-		echo '<h3 class="npmp-event-title"><a href="' . esc_url( get_permalink() ) . '">' . esc_html( get_the_title() ) . '</a></h3>';
-
-		if ( $date_label ) {
-			echo '<p class="npmp-event-date">' . wp_kses_post( $date_label ) . '</p>';
-		}
-
-		$location = $details['location'] ?? '';
-		if ( $location ) {
-			echo '<p class="npmp-event-location">' . esc_html( $location ) . '</p>';
-		}
-
-		echo '<div class="npmp-event-excerpt">' . wp_kses_post( wpautop( get_the_excerpt() ) ) . '</div>';
-		echo '</article>';
-	}
-
-	wp_reset_postdata();
-
-	echo '</div>';
-
-	return ob_get_clean();
+	return npmp_events_loop_render( $atts );
 }
 add_shortcode( 'npmp_events', 'npmp_events_shortcode' );
 add_shortcode( 'npmp_calendar', 'npmp_calendar_shortcode' );
@@ -1173,8 +1408,63 @@ function npmp_calendar_enqueue_styles() {
 		array(),
 		function_exists( 'npmp_get_asset_version' ) ? npmp_get_asset_version( $rel ) : null
 	);
+	$inline = npmp_calendar_inline_css();
+	if ( '' !== $inline ) {
+		wp_add_inline_style( 'npmp-calendar', $inline );
+	}
 }
 add_action( 'wp_enqueue_scripts', 'npmp_calendar_enqueue_styles' );
+
+/**
+ * Saved calendar appearance values that add-ons keep (Pro's custom CSS).
+ *
+ * @return array
+ */
+function npmp_calendar_appearance() {
+	$saved = get_option( 'npmp_calendar_appearance', array() );
+	return is_array( $saved ) ? $saved : array();
+}
+
+/**
+ * CSS printed after the calendar stylesheet, only where it loads.
+ *
+ * Free adds nothing. Pro adds its category colors and the custom CSS from
+ * Calendar Settings through the npmp_calendar_inline_css filter.
+ *
+ * @return string
+ */
+function npmp_calendar_inline_css() {
+	/**
+	 * Filter the CSS printed after the calendar stylesheet.
+	 *
+	 * @param string $css        CSS, empty in Free.
+	 * @param array  $appearance npmp_calendar_appearance().
+	 */
+	return trim( (string) apply_filters( 'npmp_calendar_inline_css', '', npmp_calendar_appearance() ) );
+}
+
+/**
+ * Save the appearance values posted with Calendar Settings.
+ *
+ * Starts from what's saved, so turning Pro off and saving keeps Pro's custom
+ * CSS for when it comes back.
+ *
+ * @param array $incoming Raw npmp_calendar_appearance from the form.
+ * @return array The saved values.
+ */
+function npmp_calendar_save_appearance( $incoming ) {
+	/**
+	 * Filter the appearance values before they're saved. Each add-on
+	 * sanitizes its own keys from $incoming.
+	 *
+	 * @param array $clean    Values to save.
+	 * @param array $incoming Raw posted values.
+	 */
+	$clean = apply_filters( 'npmp_calendar_save_appearance', npmp_calendar_appearance(), is_array( $incoming ) ? $incoming : array() );
+	$clean = is_array( $clean ) ? $clean : array();
+	update_option( 'npmp_calendar_appearance', $clean, false );
+	return $clean;
+}
 
 /**
  * Append event details on single event pages.
@@ -1235,10 +1525,29 @@ function npmp_maybe_render_ical_feed() {
 		'order'          => 'ASC',
 	);
 
+	// Pro narrows the feed to one group (?npmp-ical=1&group=art) here. A
+	// narrowed feed caches under its own key, tied to a counter that every
+	// event save bumps, so it never serves the whole feed's copy.
+	$filtered  = npmp_events_filter_query_args(
+		$args,
+		array(
+			'source'   => 'ical',
+			'view'     => 'list',
+			'category' => '',
+			'atts'     => wp_unslash( $_GET ), // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Public read-only feed. Listeners sanitize what they read.
+			'block'    => false,
+		)
+	);
+	$cache_key = 'npmp_ical_feed';
+	if ( $filtered !== $args ) {
+		$cache_key = 'npmp_ical_feed_' . absint( get_option( 'npmp_ical_feed_gen', 0 ) ) . '_' . substr( md5( (string) wp_json_encode( $filtered ) ), 0, 12 );
+		$args      = $filtered;
+	}
+
 	// This endpoint is public and rebuilt the full feed from an unbounded
 	// query on every hit. Calendar apps poll iCal URLs on a schedule, so
 	// serve a short-lived cached copy instead.
-	$cached = get_transient( 'npmp_ical_feed' );
+	$cached = get_transient( $cache_key );
 	if ( false !== $cached ) {
 		header( 'Content-Type: text/calendar; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename=events.ics' );
@@ -1270,7 +1579,10 @@ function npmp_maybe_render_ical_feed() {
 
 		$output .= "BEGIN:VEVENT\r\n";
 		$output .= 'UID:' . absint( $event->ID ) . '@' . $host . "\r\n";
-		$output .= 'DTSTAMP:' . gmdate( 'Ymd\THis\Z', $start ) . "\r\n";
+		// DTSTAMP is when this entry last changed. Calendar apps compare it to
+		// spot an edited event, and the start date never moves on an edit.
+		$stamp   = 0 === strpos( (string) $event->post_modified_gmt, '0000' ) ? 0 : strtotime( $event->post_modified_gmt . ' UTC' );
+		$output .= 'DTSTAMP:' . gmdate( 'Ymd\THis\Z', $stamp ? $stamp : $start ) . "\r\n";
 		$output .= 'DTSTART:' . gmdate( 'Ymd\THis\Z', $start ) . "\r\n";
 		if ( $end ) {
 			$output .= 'DTEND:' . gmdate( 'Ymd\THis\Z', $end ) . "\r\n";
@@ -1285,8 +1597,8 @@ function npmp_maybe_render_ical_feed() {
 	$output .= "END:VCALENDAR\r\n";
 
 	// Cache for 15 minutes. Saving any event clears it immediately.
-	set_transient( 'npmp_ical_feed', $output, 15 * MINUTE_IN_SECONDS );
-echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	set_transient( $cache_key, $output, 15 * MINUTE_IN_SECONDS );
+	echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	exit;
 }
 add_action( 'init', 'npmp_maybe_render_ical_feed' );
@@ -1354,6 +1666,9 @@ function npmp_render_event_settings_page() {
 		update_option( 'npmp_calendar_accent', $accent_choice ? $accent_choice : '#0f766e' );
 		update_option( 'npmp_calendar_list_limit', max( 1, absint( wp_unslash( $_POST['npmp_calendar_list_limit'] ?? 10 ) ) ) );
 		update_option( 'npmp_calendar_list_show_past', empty( $_POST['npmp_calendar_list_show_past'] ) ? 0 : 1 );
+		update_option( 'npmp_calendar_print_button', empty( $_POST['npmp_calendar_print_button'] ) ? 0 : 1 );
+		npmp_events_loop_save_from_post();
+		npmp_calendar_save_appearance( isset( $_POST['npmp_calendar_appearance'] ) && is_array( $_POST['npmp_calendar_appearance'] ) ? wp_unslash( $_POST['npmp_calendar_appearance'] ) : array() ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each add-on sanitizes its own keys in npmp_calendar_save_appearance.
 	}
 
 	if (
@@ -1390,8 +1705,8 @@ function npmp_render_event_settings_page() {
 		}
 	}
 
-	echo '<div class="wrap">';
-	echo '<h1>' . esc_html__( 'Calendar Settings', 'nonprofit-manager' ) . '</h1>';
+	echo '<div class="wrap npmp-admin-page">';
+	npmp_admin_page_title( __( 'Calendar Settings', 'nonprofit-manager' ) );
 
 	foreach ( $notices as $notice ) {
 		$class = 'notice';
@@ -1402,25 +1717,25 @@ function npmp_render_event_settings_page() {
 		} else {
 			$class .= ' notice-info';
 		}
-		echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $notice['message'] ) . '</p></div>';
+		echo '<div class="' . esc_attr( $class . ' is-dismissible' ) . '"><p>' . esc_html( $notice['message'] ) . '</p></div>';
 	}
 
 	// Calendar Settings Card
-	echo '<div class="card" style="max-width:720px; margin-bottom: 20px;">';
-	echo '<h2 class="title">' . esc_html__( 'Calendar Settings', 'nonprofit-manager' ) . '</h2>';
+	echo '<div class="card npmp-settings-narrow">';
+	echo '<h2 class="title">' . esc_html__( 'Calendar page and display', 'nonprofit-manager' ) . '</h2>';
 
 	echo '<form method="post">';
 	wp_nonce_field( 'npmp_save_calendar_settings', 'npmp_event_settings_nonce' );
 
 	echo '<table class="form-table"><tbody>';
 	echo '<tr>';
-	echo '<th scope="row"><label for="npmp_calendar_page_id">' . esc_html__( 'Default Calendar Page', 'nonprofit-manager' ) . '</label></th>';
+	echo '<th scope="row"><label for="npmp_calendar_page_id">' . esc_html__( 'Calendar page', 'nonprofit-manager' ) . '</label></th>';
 	echo '<td>';
-	echo '<p class="description" style="margin-top: 0;">' . esc_html__( 'Select the WordPress page that should display your public events calendar.', 'nonprofit-manager' ) . '</p>';
+	echo '<p class="description npmp-flush-top">' . esc_html__( 'Select the WordPress page that should display your public events calendar.', 'nonprofit-manager' ) . '</p>';
 
 	echo '<select name="npmp_calendar_page_id" id="npmp_calendar_page_id">';
 	echo '<option value="0">' . esc_html__( '— Select a page —', 'nonprofit-manager' ) . '</option>';
-	echo '<option value="create_new" style="font-weight: bold;">' . esc_html__( '+ New Page', 'nonprofit-manager' ) . '</option>';
+	echo '<option value="create_new">' . esc_html__( 'Create a new page', 'nonprofit-manager' ) . '</option>';
 
 	$pages = get_pages();
 	foreach ( $pages as $page ) {
@@ -1434,7 +1749,7 @@ function npmp_render_event_settings_page() {
 		if ( $calendar_url ) {
 			echo '<p class="description">' . sprintf(
 				/* translators: %s: Calendar page URL */
-				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank">%s</a>', 'nonprofit-manager' ) ),
+				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank" rel="noopener">%s</a>', 'nonprofit-manager' ) ),
 				esc_url( $calendar_url ),
 				esc_url( $calendar_url )
 			) . '</p>';
@@ -1451,6 +1766,7 @@ function npmp_render_event_settings_page() {
 	$opt_accent  = $opt_accent ? $opt_accent : '#0f766e';
 	$opt_limit   = (int) get_option( 'npmp_calendar_list_limit', 10 );
 	$opt_past    = (int) get_option( 'npmp_calendar_list_show_past', 0 );
+	$opt_print   = npmp_calendar_print_site_enabled() ? 1 : 0;
 	$view_labels = array(
 		'month' => __( 'Month grid', 'nonprofit-manager' ),
 		'week'  => __( 'Week', 'nonprofit-manager' ),
@@ -1488,11 +1804,27 @@ function npmp_render_event_settings_page() {
 	echo '<td><label><input type="checkbox" name="npmp_calendar_list_show_past" value="1"' . checked( $opt_past, 1, false ) . '> ' . esc_html__( 'Include past events in the list view', 'nonprofit-manager' ) . '</label></td>';
 	echo '</tr>';
 
+	echo '<tr>';
+	echo '<th scope="row">' . esc_html__( 'Printing', 'nonprofit-manager' ) . '</th>';
+	echo '<td><label><input type="checkbox" name="npmp_calendar_print_button" value="1"' . checked( $opt_print, 1, false ) . '> ' . esc_html__( 'Show a Print or save as PDF button on calendars', 'nonprofit-manager' ) . '</label>';
+	echo '<p class="description">' . esc_html__( 'Visitors can print a calendar or event list, or save it as a PDF from the print dialog. Your theme\'s header, menus, and sidebars stay off the printout. To hide the button on one calendar, add print="no" to its shortcode.', 'nonprofit-manager' ) . '</p></td>';
+	echo '</tr>';
+
+	npmp_events_loop_render_settings_rows();
+
+	/**
+	 * Print add-on rows inside the Calendar Settings form table. Pro adds
+	 * its custom CSS field here.
+	 *
+	 * @param array $appearance npmp_calendar_appearance().
+	 */
+	do_action( 'npmp_calendar_settings_fields', npmp_calendar_appearance() );
+
 	$wp_days       = array( __( 'Sunday' ), __( 'Monday' ), __( 'Tuesday' ), __( 'Wednesday' ), __( 'Thursday' ), __( 'Friday' ), __( 'Saturday' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Reusing WordPress core weekday translations.
 	$start_of_week = (int) get_option( 'start_of_week', 0 );
 	echo '<tr>';
 	echo '<th scope="row">' . esc_html__( 'Week starts on', 'nonprofit-manager' ) . '</th>';
-	echo '<td><p style="margin-top:0;">' . sprintf(
+	echo '<td><p class="npmp-flush-top">' . sprintf(
 		/* translators: %s: weekday name */
 		esc_html__( 'The calendar follows your WordPress setting: %s.', 'nonprofit-manager' ),
 		'<strong>' . esc_html( $wp_days[ $start_of_week ] ?? $wp_days[0] ) . '</strong>'
@@ -1502,17 +1834,17 @@ function npmp_render_event_settings_page() {
 
 	echo '</tbody></table>';
 
-	submit_button( esc_html__( 'Save Settings', 'nonprofit-manager' ), 'primary', 'npmp_save_calendar_settings' );
+	submit_button( esc_html__( 'Save settings', 'nonprofit-manager' ), 'primary', 'npmp_save_calendar_settings' );
 	echo '</form>';
 	echo '</div>';
 
 	// Embed Instructions Section
-	echo '<div class="card" style="max-width:720px;">';
-	echo '<h2 class="title">' . esc_html__( 'Embed Instructions', 'nonprofit-manager' ) . '</h2>';
+	echo '<div class="card npmp-settings-narrow">';
+	echo '<h2 class="title">' . esc_html__( 'Embed the calendar', 'nonprofit-manager' ) . '</h2>';
 	echo '<p>' . esc_html__( 'Use these shortcodes to display your calendar and events on any page or post:', 'nonprofit-manager' ) . '</p>';
 
 	echo '<table class="widefat striped">';
-	echo '<thead><tr><th>' . esc_html__( 'Shortcode', 'nonprofit-manager' ) . '</th><th>' . esc_html__( 'Description', 'nonprofit-manager' ) . '</th></tr></thead>';
+	echo '<thead><tr><th scope="col">' . esc_html__( 'Shortcode', 'nonprofit-manager' ) . '</th><th scope="col">' . esc_html__( 'Description', 'nonprofit-manager' ) . '</th></tr></thead>';
 	echo '<tbody>';
 
 	echo '<tr>';
@@ -1533,6 +1865,11 @@ function npmp_render_event_settings_page() {
 	echo '<tr>';
 	echo '<td><code>[npmp_events category="fundraisers"]</code></td>';
 	echo '<td>' . esc_html__( 'Filter events by category slug (replace "fundraisers" with your category).', 'nonprofit-manager' ) . '</td>';
+	echo '</tr>';
+
+	echo '<tr>';
+	echo '<td><code>[npmp_calendar print="no"]</code></td>';
+	echo '<td>' . esc_html__( 'Hides the Print or save as PDF button on this calendar. It works on [npmp_events] too.', 'nonprofit-manager' ) . '</td>';
 	echo '</tr>';
 
 	echo '</tbody></table>';
@@ -1625,9 +1962,9 @@ add_filter( 'the_content', 'npmp_auto_inject_calendar_page', 12 );
  */
 function npmp_ics_escape_text( $text ) {
 	$text = wp_strip_all_tags( (string) $text );
-	$text = str_replace( array( "\r\n", "\r", "\n" ), '\n', $text );
-
-	return strtr(
+	// Backslashes first. Escaping them after the newlines turned every
+	// line break into a literal "\\n" in calendar apps.
+	$text = strtr(
 		$text,
 		array(
 			'\\' => '\\\\',
@@ -1635,6 +1972,8 @@ function npmp_ics_escape_text( $text ) {
 			';'  => '\;',
 		)
 	);
+
+	return str_replace( array( "\r\n", "\r", "\n" ), '\n', $text );
 }
 
 /**
@@ -1647,8 +1986,11 @@ function npmp_ics_escape_text( $text ) {
 function npmp_calendar_flush_ical_cache( $post_id ) {
 	if ( 'npmp_event' === get_post_type( $post_id ) ) {
 		delete_transient( 'npmp_ical_feed' );
+		// Retires every narrowed feed's cache key (see npmp_maybe_render_ical_feed()).
+		update_option( 'npmp_ical_feed_gen', absint( get_option( 'npmp_ical_feed_gen', 0 ) ) + 1, false );
 	}
 }
 add_action( 'save_post_npmp_event', 'npmp_calendar_flush_ical_cache' );
-add_action( 'deleted_post', 'npmp_calendar_flush_ical_cache' );
+// before_delete_post, since get_post_type() is already false on deleted_post.
+add_action( 'before_delete_post', 'npmp_calendar_flush_ical_cache' );
 add_action( 'trashed_post', 'npmp_calendar_flush_ical_cache' );

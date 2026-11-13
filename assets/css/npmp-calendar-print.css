@@ -1,0 +1,338 @@
+/**
+ * Nonprofit Manager · printing a calendar or event list.
+ *
+ * Two layers, both print-only:
+ *
+ * 1. Always (a visitor pressing Ctrl+P too): the toolbar, the Print button
+ *    and the Read more links stay off the paper, the hidden header shows the
+ *    organization name and the month or date range, and everything reads in
+ *    black and white with no link URLs spilling out.
+ * 2. After a click on the Print or save as PDF button, the script marks the
+ *    calendar (.npmp-print-target) and its ancestors (.npmp-print-path) and
+ *    adds .npmp-printing to the body. Every element off that path is hidden,
+ *    so the theme's header, menus, sidebars and footer never print. Month
+ *    prints on landscape pages and week and list views on portrait pages.
+ *    The named pages apply only in this mode, since an @page rule otherwise
+ *    reaches the whole document.
+ */
+
+@media print {
+
+	@page npmp-landscape {
+		size: landscape;
+		margin: 10mm;
+	}
+
+	@page npmp-portrait {
+		size: portrait;
+		margin: 12mm;
+	}
+
+	/* ---- Only the clicked calendar ----------------------------------- */
+	body.npmp-printing .npmp-print-path > :not(.npmp-print-path):not(.npmp-print-target) {
+		display: none !important;
+	}
+
+	body.npmp-printing.npmp-print-path,
+	body.npmp-printing .npmp-print-path {
+		display: block !important;
+		position: static !important;
+		float: none !important;
+		width: auto !important;
+		min-width: 0 !important;
+		max-width: none !important;
+		height: auto !important;
+		min-height: 0 !important;
+		margin: 0 !important;
+		padding: 0 !important;
+		border: 0 !important;
+		background: none !important;
+		box-shadow: none !important;
+		transform: none !important;
+		overflow: visible !important;
+		columns: auto !important;
+	}
+
+	body.npmp-printing .npmp-print-target {
+		position: static !important;
+		width: auto !important;
+		max-width: none !important;
+		margin: 0 !important;
+	}
+
+	body.npmp-printing .npmp-print-target.npmp-calendar-wrapper[data-view="month"] {
+		page: npmp-landscape;
+	}
+
+	body.npmp-printing .npmp-print-target.npmp-calendar-wrapper[data-view="week"],
+	body.npmp-printing .npmp-print-target.npmp-calendar-wrapper[data-view="list"],
+	body.npmp-printing .npmp-print-target.npmp-events-list {
+		page: npmp-portrait;
+	}
+
+	/* ---- Controls off the paper -------------------------------------- */
+	.npmp-print-bar,
+	.npmp-print-button,
+	.npmp-calendar-toolbar,
+	.npmp-event-more {
+		display: none !important;
+	}
+
+	/* ---- Header: organization and period ----------------------------- */
+	.npmp-print-header,
+	.npmp-print-header[hidden] {
+		display: block !important;
+		margin: 0 0 4mm;
+		color: #000;
+		break-after: avoid;
+	}
+
+	/* Inside an events grid the header spans every column. */
+	.npmp-events-list > .npmp-print-header {
+		grid-column: 1 / -1;
+	}
+
+	.npmp-print-header p {
+		margin: 0;
+		padding: 0;
+		color: #000;
+		line-height: 1.25;
+	}
+
+	.npmp-print-org {
+		font-size: 11pt;
+		font-weight: 700;
+	}
+
+	.npmp-print-title {
+		font-size: 16pt;
+		font-weight: 700;
+	}
+
+	.npmp-print-range,
+	.npmp-print-line {
+		font-size: 10pt;
+	}
+
+	/* ---- Links: black, no URLs after them ---------------------------- */
+	.npmp-calendar-wrapper a,
+	.npmp-calendar-wrapper a:visited,
+	.npmp-events-list a,
+	.npmp-events-list a:visited {
+		color: #000 !important;
+		text-decoration: none !important;
+	}
+
+	.npmp-calendar-wrapper a[href]::after,
+	.npmp-events-list a[href]::after {
+		content: none !important;
+	}
+
+	/* ---- Month and week grids ---------------------------------------- */
+	.npmp-calendar-wrapper {
+		margin: 0;
+		color: #000;
+		font-size: 9pt;
+	}
+
+	.npmp-calendar-table {
+		width: 100% !important;
+		table-layout: fixed;
+		border-collapse: collapse;
+		border: 1px solid #000;
+		border-radius: 0;
+	}
+
+	.npmp-calendar-table thead {
+		display: table-header-group;
+	}
+
+	.npmp-calendar-table tr {
+		break-inside: avoid;
+	}
+
+	/* Paper has room for the full weekday name, even printed from a phone. */
+	.npmp-calendar-weekday-full {
+		position: static !important;
+		width: auto !important;
+		height: auto !important;
+		margin: 0 !important;
+		overflow: visible !important;
+		clip: auto !important;
+	}
+
+	.npmp-calendar-weekday-short {
+		display: none !important;
+	}
+
+	.npmp-calendar-table th {
+		padding: 1mm;
+		font-size: 8pt;
+		color: #000;
+		background: none !important;
+		border: 1px solid #000;
+	}
+
+	.npmp-calendar-day,
+	.npmp-calendar-day--pad,
+	.npmp-calendar-day--today {
+		height: 20mm;
+		padding: 1mm;
+		background: none !important;
+		box-shadow: none !important;
+		border: 1px solid #555;
+	}
+
+	.npmp-calendar-day-number,
+	.npmp-calendar-day--today .npmp-calendar-day-number {
+		display: block;
+		min-width: 0;
+		height: auto;
+		margin: 0 0 1mm;
+		font-size: 9pt;
+		color: #000 !important;
+		background: none !important;
+		border-radius: 0;
+	}
+
+	.npmp-calendar-events li {
+		margin: 0 0 1mm;
+		break-inside: avoid;
+	}
+
+	.npmp-calendar-events a,
+	.npmp-calendar-events a:hover,
+	.npmp-calendar-events a:focus {
+		display: block;
+		padding: 0 0 0 1mm;
+		font-size: 8pt;
+		line-height: 1.25;
+		color: #000 !important;
+		background: none !important;
+		border: 0;
+		border-left: 2px solid #000;
+		border-radius: 0;
+		white-space: normal !important;
+		overflow: visible;
+		text-overflow: clip;
+	}
+
+	.npmp-calendar-event-time {
+		font-weight: 700;
+	}
+
+	.npmp-calendar-event-location,
+	.npmp-calendar-event-location[hidden] {
+		display: block !important;
+		font-style: italic;
+		color: #333;
+	}
+
+	/* Week: one day under another on a portrait page. */
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table,
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table tbody,
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table tr {
+		display: block;
+		width: 100% !important;
+		border: 0;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-table thead {
+		display: none;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-day {
+		display: block;
+		width: 100%;
+		height: auto;
+		min-height: 0;
+		padding: 2mm 0;
+		border: 0;
+		border-bottom: 1px solid #999;
+		font-size: 10pt;
+		break-inside: avoid;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-weekday-name,
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-weekday-date {
+		display: inline;
+		font-size: 11pt;
+		font-weight: 700;
+		color: #000;
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-weekday-name::after {
+		content: " ";
+	}
+
+	.npmp-calendar-wrapper[data-view="week"] .npmp-calendar-events a {
+		font-size: 10pt;
+	}
+
+	/* ---- Event lists: every layout prints as a plain list ------------ */
+	.npmp-events-list {
+		display: block !important;
+		color: #000;
+		font-size: 10pt;
+	}
+
+	.npmp-events-list .npmp-event,
+	.npmp-events--list .npmp-event,
+	.npmp-events--grid .npmp-event,
+	.npmp-events--cards .npmp-event,
+	.npmp-events--mosaic .npmp-event {
+		display: block !important;
+		position: static !important;
+		margin: 0;
+		padding: 2mm 0;
+		color: #000 !important;
+		background: none !important;
+		border: 0;
+		border-bottom: 1px solid #999;
+		border-radius: 0;
+		box-shadow: none;
+		break-inside: avoid;
+	}
+
+	.npmp-event-media {
+		display: none !important;
+	}
+
+	.npmp-events--mosaic .npmp-event-body,
+	.npmp-events--cards .npmp-event-body {
+		position: static !important;
+		padding: 0;
+		background: none !important;
+	}
+
+	.npmp-events-list .npmp-event-excerpt,
+	.npmp-events--mosaic .npmp-event-excerpt {
+		display: block !important;
+	}
+
+	.npmp-event-title,
+	.npmp-events--mosaic .npmp-event:nth-of-type(n) .npmp-event-title {
+		margin: 0 0 1mm;
+		font-size: 12pt;
+		color: #000 !important;
+	}
+
+	.npmp-event-date,
+	.npmp-events--mosaic .npmp-event-date {
+		margin: 0 0 1mm;
+		font-weight: 700;
+		color: #000 !important;
+	}
+
+	.npmp-event-location,
+	.npmp-events--mosaic .npmp-event-location {
+		margin: 0 0 1mm;
+		color: #000 !important;
+		opacity: 1 !important;
+	}
+
+	.npmp-event-excerpt p {
+		margin: 1mm 0 0;
+		color: #000;
+	}
+}

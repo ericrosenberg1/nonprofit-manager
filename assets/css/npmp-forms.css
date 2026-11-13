@@ -8,8 +8,10 @@
  *   add_filter( 'npmp_enable_default_form_styles', '__return_false' );
  *
  * Buttons and focus rings use the Nonprofit Manager brand teal (#0f766e,
- * 5.5:1 on white). A theme can swap in its own color by setting
- * --npmp-accent and --npmp-accent-dark on any parent element.
+ * 5.5:1 on white). An owner can pick another color on Membership Settings
+ * (includes/npmp-forms-accent.php sets --npmp-accent, --npmp-accent-dark,
+ * and --npmp-accent-text on :root). A theme can swap in its own color by
+ * setting the same variables on any parent element.
  */
 
 .npmp-email-signup,
@@ -69,7 +71,7 @@
 	font-size: 1rem;
 	font-weight: 600;
 	line-height: 1.2;
-	color: #fff;
+	color: var(--npmp-accent-text, #fff);
 	background: var(--npmp-accent, #0f766e);
 	border: 1px solid var(--npmp-accent, #0f766e);
 	border-radius: 8px;
@@ -174,7 +176,7 @@
 	font-size: 1rem;
 	font-weight: 600;
 	line-height: 1.2;
-	color: #fff;
+	color: var(--npmp-accent-text, #fff);
 	background: var(--npmp-accent, #0f766e);
 	border: 1px solid var(--npmp-accent, #0f766e);
 	border-radius: 8px;

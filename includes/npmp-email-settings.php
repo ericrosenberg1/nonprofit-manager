@@ -202,25 +202,25 @@ function npmp_render_email_settings_page() {
 			$success = npmp_send_mail( $to, $subject, nl2br( $message ), $headers );
 
 			if ( $success ) {
-				$test_result = '<div class="notice notice-success"><p>' . esc_html__( 'Test email sent successfully!', 'nonprofit-manager' ) . '</p></div>';
+				$test_result = '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Your mail server accepted the test email. Check the inbox you sent it to, and the spam folder too.', 'nonprofit-manager' ) . '</p></div>';
 			} else {
 				$error_msg = esc_html__( 'Failed to send test email.', 'nonprofit-manager' );
 				if ( $err = get_option( 'npmp_email_last_error' ) ) {
 					$err_details = is_wp_error( $err ) ? $err->get_error_message() : wp_json_encode( $err );
-					$error_msg  .= '<br><code style="display:block;margin-top:10px;background:#f5f5f5;padding:10px;border-left:3px solid #dc3232;">' . esc_html( $err_details ) . '</code>';
+					$error_msg  .= '<br><code class="npmp-error-detail">' . esc_html( $err_details ) . '</code>';
 				}
-				$test_result = '<div class="notice notice-error"><p>' . wp_kses_post( $error_msg ) . '</p></div>';
+				$test_result = '<div class="notice notice-error is-dismissible"><p>' . wp_kses_post( $error_msg ) . '</p></div>';
 			}
 		}
 	}
 
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'Email Settings', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Configure how Nonprofit Manager sends emails.', 'nonprofit-manager' ); ?></p>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( __( 'Email Settings', 'nonprofit-manager' ) ); ?>
+		<p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Choose how %s sends email.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p>
 
 		<?php foreach ( $notices as $notice ) : ?>
-			<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?>">
+			<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?> is-dismissible">
 				<p><?php echo wp_kses_post( $notice['message'] ); ?></p>
 			</div>
 		<?php endforeach; ?>
@@ -230,7 +230,7 @@ function npmp_render_email_settings_page() {
 		if ( isset( $_GET['provider_test'] ) && 'success' === $_GET['provider_test'] && isset( $_GET['provider_name'] ) ) {
 			?>
 			<div class="notice notice-success is-dismissible">
-				<p><?php echo esc_html( sprintf( __( '%s credentials are valid and working!', 'nonprofit-manager' ), sanitize_text_field( wp_unslash( $_GET['provider_name'] ) ) ) ); ?></p>
+				<p><?php /* translators: %s: email service name, such as SendGrid */ echo esc_html( sprintf( __( '%s accepted your credentials.', 'nonprofit-manager' ), sanitize_text_field( wp_unslash( $_GET['provider_name'] ) ) ) ); ?></p>
 			</div>
 			<?php
 		}
@@ -241,68 +241,19 @@ function npmp_render_email_settings_page() {
 			</div>
 			<?php
 		}
+		/**
+		 * Print above the Email Settings form. Pro shows its provider
+		 * picker here. Anything printed here sits outside the form.
+		 */
+		do_action( 'npmp_email_settings_before_form' );
 		?>
-
-		<style>
-			.npmp-email-card {
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-				margin: 20px 0;
-				max-width: 800px;
-			}
-			.npmp-email-card h2 {
-				margin-top: 0;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-				font-size: 18px;
-			}
-			.npmp-email-card .form-table {
-				margin-top: 15px;
-			}
-			.npmp-email-card .form-table th {
-				width: 180px;
-				padding: 10px 10px 10px 0;
-				font-weight: 600;
-			}
-			.npmp-email-card .form-table td {
-				padding: 10px 10px;
-			}
-			.npmp-email-card hr {
-				margin: 20px 0;
-				border: none;
-				border-top: 1px solid #e0e0e0;
-			}
-			.npmp-provider-help {
-				background: #ecfdf5;
-				border-left: 3px solid #10b981;
-				padding: 12px 15px;
-				margin-top: 15px;
-			}
-			.npmp-provider-help a {
-				font-weight: 600;
-			}
-			.npmp-upgrade-notice {
-				background: #fff9e6;
-				border-left: 3px solid #ffb900;
-				padding: 12px 15px;
-				margin: 15px 0;
-			}
-			@media screen and (max-width: 782px) {
-				.npmp-email-card .form-table th {
-					width: 100%;
-					padding-bottom: 0;
-				}
-			}
-		</style>
 
 		<form method="post">
 			<?php wp_nonce_field( 'npmp_email_settings', 'npmp_email_settings_nonce' ); ?>
 
 			<!-- Public Email Sender Settings -->
 			<div class="npmp-email-card">
-				<h2><?php esc_html_e( 'Public Email Sender Settings', 'nonprofit-manager' ); ?></h2>
+				<h2><?php esc_html_e( 'Public email sender', 'nonprofit-manager' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_email_from_name"><?php esc_html_e( 'Email "From" Name', 'nonprofit-manager' ); ?></label></th>
@@ -325,7 +276,7 @@ function npmp_render_email_settings_page() {
 								<input type="checkbox" name="npmp_email_from_all_mail" value="1" <?php checked( ! empty( $settings['from_all_mail'] ) ); ?>>
 								<?php esc_html_e( 'Send all site email from this address', 'nonprofit-manager' ); ?>
 							</label>
-							<p class="description"><?php esc_html_e( 'Off by default. Nonprofit Manager\'s own email always goes out from the name and address above, and WordPress and your other plugins keep their own From address. Turn this on only if your mail provider accepts no other sender. With SendGrid, Mailgun, Postmark or Brevo selected, every message goes out from the address above either way.', 'nonprofit-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Off by default. Nonprofit Manager\'s own email always goes out from the name and address above, and WordPress and your other plugins keep their own From address. Turn this on only if your mail provider accepts no other sender. With SendGrid, Mailgun, Postmark, or Brevo selected, every message goes out from the address above either way.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -333,7 +284,7 @@ function npmp_render_email_settings_page() {
 
 			<!-- Email System Settings -->
 			<div class="npmp-email-card">
-				<h2><?php esc_html_e( 'Email System Settings', 'nonprofit-manager' ); ?></h2>
+				<h2><?php esc_html_e( 'Email delivery', 'nonprofit-manager' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_email_provider"><?php esc_html_e( 'Delivery Provider', 'nonprofit-manager' ); ?></label></th>
@@ -351,7 +302,7 @@ function npmp_render_email_settings_page() {
 									<?php
 									printf(
 										/* translators: %s: URL to upgrade page */
-										wp_kses_post( __( 'Want to send through Amazon SES, Brevo, SendGrid, Mailgun, Postmark or your own SMTP server? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
+										wp_kses_post( __( 'Want to send through Amazon SES, Brevo, SendGrid, Mailgun, Postmark, or your own SMTP server? <a href="%s" target="_blank">Upgrade to Nonprofit Manager Pro</a>.', 'nonprofit-manager' ) ),
 										esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 									);
 									?>
@@ -364,14 +315,14 @@ function npmp_render_email_settings_page() {
 				<!-- WordPress Default Provider -->
 				<div class="npmp-provider-block npmp-provider-wordpress" <?php echo 'wordpress' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 					<div class="npmp-upgrade-notice">
-						<p style="margin: 0;">
+						<p class="npmp-flush">
 							<strong><?php esc_html_e( 'Using WordPress Default (wp_mail)', 'nonprofit-manager' ); ?></strong><br>
-							<?php esc_html_e( 'Emails are being sent using the default WordPress wp_mail function, which is not recommended, particularly if you\'re on a shared website hosting server, as the emails may be flagged as spam and not make it to your users.', 'nonprofit-manager' ); ?>
+							<?php esc_html_e( 'Your site sends email through WordPress\'s built-in mailer. On shared hosting, that mail often lands in spam or never arrives.', 'nonprofit-manager' ); ?>
 							<?php if ( ! $is_pro ) : ?>
 								<?php
 								printf(
 									/* translators: %s: URL to upgrade page */
-									wp_kses_post( __( ' Upgrading to <a href="%s" target="_blank">Nonprofit Manager Pro</a> allows you to use a custom SMTP server or link directly to popular email services.', 'nonprofit-manager' ) ),
+									wp_kses_post( __( ' With <a href="%s" target="_blank">Nonprofit Manager Pro</a>, you can send through your own SMTP server or an email service such as Amazon SES.', 'nonprofit-manager' ) ),
 									esc_url( npmp_get_upgrade_url( 'email_provider' ) )
 								);
 								?>
@@ -383,9 +334,9 @@ function npmp_render_email_settings_page() {
 				<!-- Custom SMTP Provider -->
 				<div class="npmp-provider-block npmp-provider-smtp" <?php echo 'smtp' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 					<hr>
-					<h3 style="margin-top: 20px;"><?php esc_html_e( 'Custom SMTP Configuration', 'nonprofit-manager' ); ?></h3>
+					<h3 class="npmp-provider-title"><?php esc_html_e( 'Custom SMTP Configuration', 'nonprofit-manager' ); ?></h3>
 
-					<table class="form-table" style="margin-top: 15px;">
+					<table class="form-table">
 						<tr>
 							<th><label for="npmp_smtp_host"><?php esc_html_e( 'SMTP Host', 'nonprofit-manager' ); ?></label></th>
 							<td>
@@ -400,9 +351,9 @@ function npmp_render_email_settings_page() {
 							</td>
 						</tr>
 						<tr>
-							<th><?php esc_html_e( 'Encryption', 'nonprofit-manager' ); ?></th>
+							<th><label for="npmp_smtp_encryption"><?php esc_html_e( 'Encryption', 'nonprofit-manager' ); ?></label></th>
 							<td>
-								<select name="npmp_smtp_encryption">
+								<select id="npmp_smtp_encryption" name="npmp_smtp_encryption">
 									<option value="tls" <?php selected( $settings['smtp']['encryption'], 'tls' ); ?>><?php esc_html_e( 'TLS (recommended)', 'nonprofit-manager' ); ?></option>
 									<option value="ssl" <?php selected( $settings['smtp']['encryption'], 'ssl' ); ?>><?php esc_html_e( 'SSL', 'nonprofit-manager' ); ?></option>
 									<option value="none" <?php selected( $settings['smtp']['encryption'], 'none' ); ?>><?php esc_html_e( 'None', 'nonprofit-manager' ); ?></option>
@@ -438,7 +389,7 @@ function npmp_render_email_settings_page() {
 					<!-- AWS SES -->
 					<div class="npmp-provider-block npmp-provider-aws_ses" <?php echo 'aws_ses' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Amazon SES Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Amazon SES Configuration', 'nonprofit-manager' ); ?></h3>
 						<p class="description"><?php esc_html_e( 'You connect to Amazon SES over SMTP with an IAM access key that can send email (ses:SendRawEmail). Already have SMTP credentials from the SES console? Choose Custom SMTP instead and enter them there.', 'nonprofit-manager' ); ?></p>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
@@ -446,7 +397,7 @@ function npmp_render_email_settings_page() {
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -454,7 +405,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_aws_region"><?php esc_html_e( 'AWS Region', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -499,14 +450,14 @@ function npmp_render_email_settings_page() {
 					<!-- Brevo -->
 					<div class="npmp-provider-block npmp-provider-brevo" <?php echo 'brevo' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Brevo (Sendinblue) API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Brevo (Sendinblue) API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'brevo' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -514,7 +465,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_brevo_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -528,14 +479,14 @@ function npmp_render_email_settings_page() {
 					<!-- SendGrid -->
 					<div class="npmp-provider-block npmp-provider-sendgrid" <?php echo 'sendgrid' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'SendGrid API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'SendGrid API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'sendgrid' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -543,7 +494,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_sendgrid_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -557,14 +508,14 @@ function npmp_render_email_settings_page() {
 					<!-- Mailgun -->
 					<div class="npmp-provider-block npmp-provider-mailgun" <?php echo 'mailgun' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Mailgun API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Mailgun API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'mailgun' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -572,7 +523,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_mailgun_api_key"><?php esc_html_e( 'API Key', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -593,14 +544,14 @@ function npmp_render_email_settings_page() {
 					<!-- Postmark -->
 					<div class="npmp-provider-block npmp-provider-postmark" <?php echo 'postmark' === $settings['provider'] ? '' : 'style="display:none;"'; ?>>
 						<hr>
-						<h3 style="margin-top: 20px;"><?php esc_html_e( 'Postmark API Configuration', 'nonprofit-manager' ); ?></h3>
+						<h3 class="npmp-provider-title"><?php esc_html_e( 'Postmark API Configuration', 'nonprofit-manager' ); ?></h3>
 						<?php
 						if ( function_exists( 'npmp_pro_get_provider_help' ) ) {
 							$help_url = npmp_pro_get_provider_help( 'postmark' );
 							if ( ! empty( $help_url ) ) {
 								?>
 								<div class="npmp-provider-help">
-									<p style="margin: 0;">
+									<p class="npmp-flush">
 										<a href="<?php echo esc_url( $help_url ); ?>" target="_blank"><?php esc_html_e( 'Get your credentials here', 'nonprofit-manager' ); ?> &rarr;</a>
 									</p>
 								</div>
@@ -608,7 +559,7 @@ function npmp_render_email_settings_page() {
 							}
 						}
 						?>
-						<table class="form-table" style="margin-top: 15px;">
+						<table class="form-table">
 							<tr>
 								<th><label for="npmp_postmark_api_key"><?php esc_html_e( 'Server API Token', 'nonprofit-manager' ); ?></label></th>
 								<td>
@@ -621,14 +572,14 @@ function npmp_render_email_settings_page() {
 
 				<?php endif; ?>
 
-				<?php submit_button( __( 'Save Email Settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
+				<?php submit_button( __( 'Save email settings', 'nonprofit-manager' ), 'primary', 'submit', false ); ?>
 			</div>
 		</form>
 
 		<!-- Test Email Section -->
 		<div class="npmp-email-card">
-			<h2><?php esc_html_e( 'Send Test Email', 'nonprofit-manager' ); ?></h2>
-			<p><?php esc_html_e( 'Send a test email to verify your settings are working correctly.', 'nonprofit-manager' ); ?></p>
+			<h2><?php esc_html_e( 'Send a test email', 'nonprofit-manager' ); ?></h2>
+			<p><?php esc_html_e( 'Send yourself a test email to check your settings.', 'nonprofit-manager' ); ?></p>
 
 			<?php echo wp_kses_post( $test_result ); ?>
 
@@ -650,11 +601,11 @@ function npmp_render_email_settings_page() {
 					<tr>
 						<th><label for="npmp_test_message"><?php esc_html_e( 'Message', 'nonprofit-manager' ); ?></label></th>
 						<td>
-							<textarea id="npmp_test_message" name="npmp_test_message" rows="4" class="large-text" required><?php echo esc_textarea( __( "This is a test email sent from Nonprofit Manager.\n\nIf you're receiving this, your email settings are working correctly!", 'nonprofit-manager' ) ); ?></textarea>
+							<textarea id="npmp_test_message" name="npmp_test_message" rows="4" class="large-text" required><?php echo esc_textarea( __( "This is a test email from Nonprofit Manager.\n\nIf it reached you, your email settings work.", 'nonprofit-manager' ) ); ?></textarea>
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( __( 'Send Test Email', 'nonprofit-manager' ), 'secondary' ); ?>
+				<?php submit_button( __( 'Send test email', 'nonprofit-manager' ), 'secondary' ); ?>
 			</form>
 		</div>
 
@@ -814,6 +765,19 @@ class NPMP_Member_Manager {
 
 		$list = array_unique( $list );
 		return implode( ',', $list );
+	}
+
+	/**
+	 * Read a "Date Added" value from incoming member data.
+	 *
+	 * @param array $data Raw data. Reads created_at.
+	 * @return array{local:string,gmt:string}|null
+	 */
+	private function parse_added_date( $data ) {
+		if ( ! is_array( $data ) || empty( $data['created_at'] ) || ! function_exists( 'npmp_import_parse_added_date' ) ) {
+			return null;
+		}
+		return npmp_import_parse_added_date( $data['created_at'] );
 	}
 
 	/**
@@ -979,6 +943,28 @@ class NPMP_Member_Manager {
 	}
 
 	/**
+	 * Contact IDs whose name, notes, email, or tags contain the search text.
+	 *
+	 * @param string $search Search text.
+	 * @return int[] Never empty, so WP_Query matches nothing on no hits.
+	 */
+	private function search_member_ids( $search ) {
+		global $wpdb;
+		$like = '%' . $wpdb->esc_like( (string) $search ) . '%';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One search query per list load.
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT p.ID FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key IN ( 'npmp_email', 'npmp_tags' ) WHERE p.post_type = 'npmp_contact' AND ( p.post_title LIKE %s OR p.post_content LIKE %s OR m.meta_value LIKE %s )",
+				$like,
+				$like,
+				$like
+			)
+		);
+		$ids = array_map( 'intval', (array) $ids );
+		return $ids ? $ids : array( 0 );
+	}
+
+	/**
 	 * Build WP_Query arguments for member lookups.
 	 *
 	 * @param array $args Raw arguments.
@@ -996,6 +982,9 @@ class NPMP_Member_Manager {
 				'order'    => 'DESC',
 				'paged'    => 1,
 				'per_page' => 20,
+				// Free stores no groups. Pro reads this (a term ID or slug) in
+				// the npmp_members_query_args filter below.
+				'group'    => '',
 			)
 		);
 
@@ -1045,20 +1034,9 @@ class NPMP_Member_Manager {
 		}
 
 		if ( $args['search'] ) {
-			$query['s'] = $args['search'];
-			$meta_query[] = array(
-				'relation' => 'OR',
-				array(
-					'key'     => 'npmp_email',
-					'value'   => $args['search'],
-					'compare' => 'LIKE',
-				),
-				array(
-					'key'     => 'npmp_tags',
-					'value'   => $args['search'],
-					'compare' => 'LIKE',
-				),
-			);
+			// Match the name, notes, email, or tags. WordPress's 's' ANDs with a
+			// meta_query, so "Smith" used to miss Jane Smith at jane.doe@.
+			$query['post__in'] = $this->search_member_ids( $args['search'] );
 		}
 
 		if ( count( $meta_query ) > 1 ) {
@@ -1105,7 +1083,18 @@ class NPMP_Member_Manager {
 
 		$query['order'] = $order;
 
-		return $query;
+		/**
+		 * Filter the WP_Query arguments behind get_members() and
+		 * count_members(). Pro answers "members in group X": when
+		 * `$args['group']` holds a term ID or slug it adds a tax_query on
+		 * its `npmp_group` taxonomy.
+		 *
+		 * @param array $query WP_Query arguments for npmp_contact posts.
+		 * @param array $args  The caller's arguments after defaults (status,
+		 *                     level, tag, search, orderby, order, paged,
+		 *                     per_page, group, and anything else passed).
+		 */
+		return (array) apply_filters( 'npmp_members_query_args', $query, $args );
 	}
 
 	/**
@@ -1246,6 +1235,14 @@ class NPMP_Member_Manager {
 			'meta_input'  => $meta_input,
 		);
 
+		// The day the contact first joined, from an import's "Date Added"
+		// column. The contact list's Added column reads post_date.
+		$added = $this->parse_added_date( $data );
+		if ( $added ) {
+			$postarr['post_date']     = $added['local'];
+			$postarr['post_date_gmt'] = $added['gmt'];
+		}
+
 		$post_id = wp_insert_post( $postarr, true );
 
 		if ( is_wp_error( $post_id ) ) {
@@ -1277,7 +1274,7 @@ class NPMP_Member_Manager {
 			return new WP_Error( 'npmp_member_exists', __( 'Another contact already uses that email address.', 'nonprofit-manager' ) );
 		}
 
-		if ( empty( $clean ) ) {
+		if ( empty( $clean ) && empty( $data['created_at'] ) ) {
 			return true;
 		}
 
@@ -1287,6 +1284,16 @@ class NPMP_Member_Manager {
 		if ( isset( $clean['name'] ) ) {
 			$post_update['post_title'] = $clean['name'] ? $clean['name'] : ( $clean['email'] ?? $member->email );
 			unset( $clean['name'] );
+		}
+
+		// An import that updates existing contacts can only move "Added"
+		// earlier. A contact who joined in 2019 and again in a 2024 export
+		// keeps 2019.
+		$added = $this->parse_added_date( $data );
+		if ( $added && ( empty( $member->created_at ) || strtotime( $added['local'] ) < strtotime( $member->created_at ) ) ) {
+			$post_update['post_date']     = $added['local'];
+			$post_update['post_date_gmt'] = $added['gmt'];
+			$post_update['edit_date']     = true;
 		}
 
 		if ( count( $post_update ) > 1 ) {
@@ -1366,9 +1373,17 @@ class NPMP_Member_Manager {
 		$query      = new WP_Query( $query_args );
 		$members    = array();
 
+		// A paged list caches each contact for the screens that open it next.
+		// An unbounded read (every subscriber for a send) skips that: two
+		// object-cache writes per contact bought nothing and, on a persistent
+		// cache, cost thousands of round trips per newsletter.
+		$cache = -1 !== (int) $query_args['posts_per_page'];
+
 		foreach ( $query->posts as $post ) {
 			$member = $this->hydrate_member_from_post( $post );
-			$this->cache_member( $member );
+			if ( $cache ) {
+				$this->cache_member( $member );
+			}
 			$members[] = $member;
 		}
 
@@ -1393,26 +1408,51 @@ class NPMP_Member_Manager {
 	}
 
 	/**
-	 * Count members per segment.
+	 * Count contacts per membership level, '' for contacts with none.
 	 *
-	 * @return array
+	 * One grouped query. It used to load and hydrate every contact to read one
+	 * field, which the newsletter editor did on every load.
+	 *
+	 * @param string $status Count only contacts with this status (for example
+	 *                       'subscribed', which is who a newsletter reaches).
+	 *                       '' counts everyone, as before.
+	 * @return array Level => count.
 	 */
-	public function count_by_level() {
-		$members = $this->get_members(
-			array(
-				'per_page' => -1,
-			)
+	public function count_by_level( $status = '' ) {
+		global $wpdb;
+
+		$status_join  = '';
+		$status_where = '';
+		$params       = array( 'npmp_membership_level' );
+		if ( '' !== (string) $status ) {
+			// Same exact match get_members( array( 'status' => ... ) ) uses.
+			$status_join  = "INNER JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = %s AND s.meta_value = %s";
+			$params[]     = 'npmp_status';
+			$params[]     = $this->normalize_status( $status );
+		}
+		$params[] = 'npmp_contact';
+
+		// GROUP BY the raw bytes so "Gold" and "gold" stay two levels, the way
+		// the PHP tally kept them.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Grouped aggregate over a joined meta table. $status_join is a fixed string with placeholders.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT MIN( COALESCE( l.meta_value, '' ) ) AS level, COUNT( DISTINCT p.ID ) AS total
+				 FROM {$wpdb->posts} p
+				 LEFT JOIN {$wpdb->postmeta} l ON l.post_id = p.ID AND l.meta_key = %s
+				 {$status_join}
+				 WHERE p.post_type = %s AND p.post_status = 'publish'
+				 GROUP BY CAST( COALESCE( l.meta_value, '' ) AS BINARY )",
+				$params
+			),
+			ARRAY_A
 		);
+		// phpcs:enable
 
 		$count = array();
-
-		foreach ( $members as $member ) {
-			$level = isset( $member->membership_level ) ? $member->membership_level : '';
-			$key   = $level ? $level : '';
-			if ( ! isset( $count[ $key ] ) ) {
-				$count[ $key ] = 0;
-			}
-			$count[ $key ] ++;
+		foreach ( (array) $rows as $row ) {
+			$key           = sanitize_text_field( (string) $row['level'] );
+			$count[ $key ] = ( $count[ $key ] ?? 0 ) + (int) $row['total'];
 		}
 
 		return $count;
@@ -1702,6 +1742,24 @@ class NPMP_Member_Manager {
 	}
 
 	/**
+	 * A contact's status after they give.
+	 *
+	 * Newsletters go to Active (subscribed) contacts only, and Active is also
+	 * what a current member is, so a gift keeps whatever status a contact
+	 * already has and only fills in Donor when there is none. Until this
+	 * change a gift turned an Active, Pending, Volunteer, or Partner contact
+	 * into a Donor, and a past-gift import took every giving subscriber off
+	 * the newsletter without a word.
+	 *
+	 * @param string $current Status now.
+	 * @return string
+	 */
+	public static function status_after_gift( $current ) {
+		$current = (string) $current;
+		return '' === $current ? 'donor' : $current;
+	}
+
+	/**
 	 * Record a donation against the CRM.
 	 *
 	 * @param array $donation Donation data.
@@ -1742,8 +1800,9 @@ class NPMP_Member_Manager {
 				$update['name'] = $donor_name;
 			}
 
-			if ( ! in_array( $member->status, array( 'unsubscribed', 'inactive' ), true ) ) {
-				$update['status'] = 'donor';
+			$after = self::status_after_gift( $member->status );
+			if ( $after !== $member->status ) {
+				$update['status'] = $after;
 			}
 
 			if ( $gateway && empty( $member->source ) ) {

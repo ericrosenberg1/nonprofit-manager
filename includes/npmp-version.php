@@ -101,49 +101,94 @@ function npmp_version_mismatch_message() {
 		return '';
 	}
 
-	if ( 'pro' === $status['behind'] ) {
-		return sprintf(
-			/* translators: 1: Pro version, 2: free plugin version. */
-			__( 'Nonprofit Manager Pro (%1$s) is older than Nonprofit Manager (%2$s). Update Pro so both are on the same version.', 'nonprofit-manager' ),
-			$status['pro'],
-			$status['free']
-		);
-	}
-
 	return sprintf(
 		/* translators: 1: free plugin version, 2: Pro version. */
-		__( 'Nonprofit Manager (%1$s) is older than Nonprofit Manager Pro (%2$s). Update Nonprofit Manager so both are on the same version.', 'nonprofit-manager' ),
+		__( 'Nonprofit Manager is on %1$s and Nonprofit Manager Pro is on %2$s.', 'nonprofit-manager' ),
 		$status['free'],
 		$status['pro']
 	);
 }
 
 /**
- * Warn on every admin page while the two halves disagree.
+ * The one click that brings free and Pro back to the same version, or null.
  *
- * Not dismissible on purpose: the site is running an untested combination
- * until it is fixed, and a dismissed notice would hide that indefinitely.
+ * Free and Pro go live together (since 2026.11.6), and the licence server hands
+ * Pro the release that matches the free version a site has or is being offered,
+ * so a mismatch is short and both plugins keep running through it. Until
+ * 2026.11.6 the notice said "some features may not work as intended" and
+ * pointed at the Plugins screen, which offered nothing while wordpress.org held
+ * the free release. Now the notice appears only when there's something to
+ * click:
+ *   - the plugin that's behind has an update waiting: "Update ... to match",
+ *     straight to WordPress's own one-plugin updater, or
+ *   - Pro is behind with no update listed yet: "Check for the Pro update",
+ *     which re-asks every update source now.
+ * Free behind with nothing offered means wordpress.org is still holding the
+ * release. Both plugins work then, so nothing shows.
  *
- * @return void
+ * @return array|null { label: string, url: string } or null.
  */
+function npmp_version_match_action() {
+	$status = npmp_version_status();
+	if ( ! empty( $status['matched'] ) || empty( $status['pro_active'] ) ) {
+		return null;
+	}
+
+	$free_file = 'nonprofit-manager/nonprofit-manager.php';
+	$pro_file  = defined( 'NPMP_PRO_FILE' ) ? plugin_basename( NPMP_PRO_FILE ) : 'nonprofit-manager-pro/nonprofit-manager-pro.php';
+	$pro_behind = ( 'pro' === $status['behind'] );
+	$file       = $pro_behind ? $pro_file : $free_file;
+	$target     = $pro_behind ? $status['free'] : $status['pro'];
+
+	$updates = get_site_transient( 'update_plugins' );
+	$offered = ( is_object( $updates ) && isset( $updates->response[ $file ]->new_version ) )
+		? (string) $updates->response[ $file ]->new_version
+		: '';
+
+	if ( '' !== $offered && version_compare( $offered, $target, '>=' ) ) {
+		return array(
+			'label' => $pro_behind
+				? __( 'Update Pro to match', 'nonprofit-manager' )
+				: __( 'Update Nonprofit Manager to match', 'nonprofit-manager' ),
+			'url'   => wp_nonce_url(
+				self_admin_url( 'update.php?action=upgrade-plugin&plugin=' . rawurlencode( $file ) ),
+				'upgrade-plugin_' . $file
+			),
+		);
+	}
+
+	if ( $pro_behind ) {
+		return array(
+			'label' => __( 'Check for the Pro update', 'nonprofit-manager' ),
+			'url'   => wp_nonce_url( self_admin_url( 'update-core.php?force-check=1' ), 'upgrade-core' ),
+		);
+	}
+
+	return null;
+}
+
 function npmp_version_lockstep_notice() {
 	if ( ! current_user_can( 'update_plugins' ) ) {
 		return;
 	}
 
-	$message = npmp_version_mismatch_message();
-	if ( '' === $message ) {
+	$action = npmp_version_match_action();
+	if ( null === $action ) {
 		return;
 	}
+
+	// Below Pro's minimum, Pro has switched its features off and says so in its
+	// own notice. Otherwise both plugins run every feature.
+	$pro_running = ! function_exists( 'npmp_pro_free_version_supported' ) || npmp_pro_free_version_supported();
 	?>
-	<div class="notice notice-error">
+	<div class="notice notice-warning">
 		<p>
 			<strong><?php esc_html_e( 'Nonprofit Manager', 'nonprofit-manager' ); ?>:</strong>
-			<?php echo esc_html( $message ); ?>
-			<?php esc_html_e( 'Until then, some features may not work as intended.', 'nonprofit-manager' ); ?>
-			<a href="<?php echo esc_url( admin_url( 'plugins.php' ) ); ?>">
-				<?php esc_html_e( 'Go to Plugins', 'nonprofit-manager' ); ?>
-			</a>
+			<?php echo esc_html( npmp_version_mismatch_message() ); ?>
+			<?php if ( $pro_running ) : ?>
+				<?php esc_html_e( 'Both keep working in the meantime.', 'nonprofit-manager' ); ?>
+			<?php endif; ?>
+			<a class="button button-small" href="<?php echo esc_url( $action['url'] ); ?>"><?php echo esc_html( $action['label'] ); ?></a>
 		</p>
 	</div>
 	<?php
@@ -193,9 +238,18 @@ function npmp_lockstep_health_test() {
 	}
 
 	if ( empty( $status['matched'] ) ) {
-		$result['status']      = 'critical';
+		$action                = npmp_version_match_action();
+		$pro_running           = ! function_exists( 'npmp_pro_free_version_supported' ) || npmp_pro_free_version_supported();
+		$result['status']      = $pro_running ? 'recommended' : 'critical';
 		$result['label']       = __( 'Nonprofit Manager and Pro are on different versions', 'nonprofit-manager' );
-		$result['description'] = '<p>' . esc_html( npmp_version_mismatch_message() ) . '</p>';
+		$result['description'] = '<p>' . esc_html( npmp_version_mismatch_message() ) . ' '
+			. ( $pro_running
+				? esc_html__( 'Both keep working until you update the one that is behind.', 'nonprofit-manager' )
+				: esc_html__( 'Pro features are off until Nonprofit Manager is updated.', 'nonprofit-manager' ) )
+			. '</p>';
+		if ( null !== $action ) {
+			$result['actions'] = '<a href="' . esc_url( $action['url'] ) . '">' . esc_html( $action['label'] ) . '</a>';
+		}
 	}
 
 	return $result;

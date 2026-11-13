@@ -177,12 +177,34 @@ class NPMP_Tour {
 		if ( ! $screen ) {
 			return false;
 		}
-		$id = (string) $screen->id;
+		$is_block_editor = method_exists( $screen, 'is_block_editor' ) && $screen->is_block_editor();
+		return self::screen_is_ours( (string) $screen->id, isset( $screen->base ) ? (string) $screen->base : '', $is_block_editor );
+	}
+
+	/**
+	 * Whether the tour may show on a screen.
+	 *
+	 * Only the plugin's own admin.php?page= screens qualify. Those have a
+	 * screen ID with "_page_" in it (toplevel_page_npmp_main,
+	 * nonprofit-manager_page_npmp_general_settings). Post editors and post
+	 * lists for npmp_event, npmp_newsletter and the rest carry "npmp" in
+	 * their IDs too, and the modal used to cover the block editor there.
+	 *
+	 * @param string $id              Screen ID.
+	 * @param string $base            Screen base ('post', 'edit', ...).
+	 * @param bool   $is_block_editor Whether the screen runs the block editor.
+	 * @return bool
+	 */
+	public static function screen_is_ours( $id, $base = '', $is_block_editor = false ) {
+		$id = (string) $id;
+		if ( $is_block_editor || in_array( (string) $base, array( 'post', 'edit', 'edit-tags', 'term' ), true ) ) {
+			return false;
+		}
 		if ( self::is_setup_wizard_screen_id( $id ) ) {
 			// The wizards are ours, but the tour has nothing to say there.
 			return false;
 		}
-		return ( false !== strpos( $id, 'npmp' ) ) || ( false !== strpos( $id, 'npmp-' ) );
+		return false !== strpos( $id, '_page_' ) && false !== strpos( $id, 'npmp' );
 	}
 
 	/**
@@ -285,7 +307,7 @@ class NPMP_Tour {
 	}
 
 	/**
-	 * Enqueue the engine JS + CSS on every NPM admin screen.
+	 * Enqueue the engine JS + CSS on the plugin's own admin.php?page= screens.
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
 		if ( ! self::user_can_take_tour() ) {
@@ -343,17 +365,40 @@ class NPMP_Tour {
 					'skip'      => __( 'Skip', 'nonprofit-manager' ),
 					'start'     => __( 'Start the tour', 'nonprofit-manager' ),
 					'dismiss'   => __( 'Not right now', 'nonprofit-manager' ),
-					'rerun'     => __( 'Re-run setup tour', 'nonprofit-manager' ),
+					'rerun'     => __( 'Rerun the setup tour', 'nonprofit-manager' ),
+					'ok'        => __( 'OK', 'nonprofit-manager' ),
+					/* translators: 1: current step number, 2: total steps. */
 					'stepLabel' => __( 'Step %1$d of %2$d', 'nonprofit-manager' ),
-					'modalTitle'   => __( 'Welcome to Nonprofit Manager', 'nonprofit-manager' ),
-					'modalBody'    => __( "Take a 3-minute tour to set up your org, configure email, and learn where everything lives. You can leave the tour at any step.", 'nonprofit-manager' ),
-					'bannerTitle'  => __( 'Set up Nonprofit Manager', 'nonprofit-manager' ),
-					'bannerBody'   => __( 'Walk through a short tour to get your org configured and learn the basics.', 'nonprofit-manager' ),
-					'finishedTitle' => __( "You're set up!", 'nonprofit-manager' ),
-					'finishedBody'  => __( "Everything is ready. You can rerun the tour any time from the Overview page.", 'nonprofit-manager' ),
+					/* translators: %s: the plugin's menu name, such as Nonprofit Manager or Club Manager. */
+					'modalTitle'   => sprintf( __( 'Welcome to %s', 'nonprofit-manager' ), function_exists( 'npmp_label' ) ? npmp_label( 'app_name' ) : __( 'Nonprofit Manager', 'nonprofit-manager' ) ),
+					'modalBody'    => __( 'A three-minute tour shows you how to set up your organization and email, and where everything lives. You can leave it at any step.', 'nonprofit-manager' ),
+					'bannerTitle'  => self::banner_title(),
+					'bannerBody'   => self::banner_body(),
+					'finishedTitle' => __( "You're set up", 'nonprofit-manager' ),
+					'finishedBody'  => __( 'You can rerun the tour any time from the Overview screen.', 'nonprofit-manager' ),
 				),
 			)
 		);
+	}
+
+	/**
+	 * Banner heading, shared by the PHP banner and the JS strings.
+	 *
+	 * @return string
+	 */
+	public static function banner_title() {
+		$app = function_exists( 'npmp_label' ) ? npmp_label( 'app_name' ) : __( 'Nonprofit Manager', 'nonprofit-manager' );
+		/* translators: %s: the plugin's menu name, such as Nonprofit Manager or Club Manager. */
+		return sprintf( __( 'Set up %s', 'nonprofit-manager' ), $app );
+	}
+
+	/**
+	 * Banner text, shared by the PHP banner and the JS strings.
+	 *
+	 * @return string
+	 */
+	public static function banner_body() {
+		return __( 'A short tour walks you through your organization details, email delivery, and where everything lives.', 'nonprofit-manager' );
 	}
 
 	/**
@@ -365,14 +410,14 @@ class NPMP_Tour {
 			return;
 		}
 		?>
-		<div class="notice notice-info npmp-tour-banner" style="border-left-color:#10b981;display:flex;align-items:center;gap:12px;padding:12px 16px;">
-			<span style="font-size:22px;">🎯</span>
-			<div style="flex:1;">
-				<p style="margin:0 0 4px;font-size:14px;"><strong><?php esc_html_e( 'Set up Nonprofit Manager', 'nonprofit-manager' ); ?></strong></p>
-				<p style="margin:0;color:#475569;font-size:13px;"><?php esc_html_e( 'Take a short tour to configure your org identity, email delivery, and learn the admin layout.', 'nonprofit-manager' ); ?></p>
+		<div class="notice notice-info npmp-tour-banner">
+			<span class="npmp-tour-banner__icon" aria-hidden="true">🎯</span>
+			<div class="npmp-tour-banner__text">
+				<p class="npmp-tour-banner__title"><strong><?php echo esc_html( self::banner_title() ); ?></strong></p>
+				<p class="npmp-tour-banner__body"><?php echo esc_html( self::banner_body() ); ?></p>
 			</div>
-			<button type="button" class="button button-primary" data-npmp-tour-action="start" style="white-space:nowrap;"><?php esc_html_e( 'Start the tour', 'nonprofit-manager' ); ?></button>
-			<button type="button" class="button-link" data-npmp-tour-action="dismiss-banner" aria-label="<?php esc_attr_e( 'Dismiss banner', 'nonprofit-manager' ); ?>" style="color:#64748b;text-decoration:none;font-size:18px;">×</button>
+			<button type="button" class="button button-primary npmp-tour-banner__start" data-npmp-tour-action="start"><?php esc_html_e( 'Start the tour', 'nonprofit-manager' ); ?></button>
+			<button type="button" class="button-link npmp-tour-banner__dismiss" data-npmp-tour-action="dismiss-banner" aria-label="<?php esc_attr_e( 'Dismiss banner', 'nonprofit-manager' ); ?>"><span aria-hidden="true">&times;</span></button>
 		</div>
 		<?php
 	}
@@ -384,7 +429,7 @@ class NPMP_Tour {
 		if ( ! self::user_can_take_tour() ) {
 			return;
 		}
-		if ( ! self::is_npmp_admin_screen() && ! self::should_show_modal() ) {
+		if ( ! self::is_npmp_admin_screen() ) {
 			return;
 		}
 		echo '<div id="npmp-tour-root" aria-live="polite"></div>';

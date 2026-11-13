@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.10.11
+ * Version: 2026.11.10
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -25,6 +25,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-org-type.php';
 // Site currency: formatting, gateway minor units, minimums. Pro calls these too.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-currency.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-helpers.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-post-type-labels.php';
 // Membership Manager role + npmp_staff_cap(). Loaded before any screen that
 // registers a menu or handler against the staff capability.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-staff-access.php';
@@ -45,6 +46,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-admin-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-rate-limit.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-general-settings.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scripts.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-forms-accent.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/activation-hooks.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-captcha.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-types.php';
@@ -81,8 +83,19 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailchimp-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/constant-contact-api.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/cc-contact-map.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/date-added.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/class-import-manager.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/admin-import.php';
+
+	// Importer for sites switching from MailPoet: contacts, lists, sender settings.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailpoet-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/mailpoet-hub-source.php';
+
+	// Importer for sites switching from The Newsletter Plugin, on the MailPoet importer's writer.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/newsletter-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/pmpro-importer.php';
+	// Ultimate Member, on the Paid Memberships Pro importer's writer.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/ultimate-member-importer.php';
 }
 
 if ( ! empty( $npmp_features['donations'] ) ) {
@@ -92,10 +105,13 @@ if ( ! empty( $npmp_features['donations'] ) ) {
 if ( ! empty( $npmp_features['newsletters'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-email-newsletter.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-subscription-preferences.php';
+	// Scheduled emails: one email per event and "Send later" newsletters (Pro adds more).
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-scheduled-emails.php';
 }
 
 if ( ! empty( $npmp_features['calendar'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-events-loop.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-convert-to-event.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-calendar-blocks.php';
 }
@@ -108,6 +124,31 @@ if ( ! empty( $npmp_features['social'] ) ) {
 // share, contact form). Always loaded so the two new shortcodes are available.
 // Each wrapper block registers only when its feature module was loaded above.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-blocks.php';
+
+// Importer for sites switching from The Events Calendar, plus 301s from its old event URLs.
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-importer.php';
+
+// Switch Plugins: one screen to import from, check, and retire every plugin we replace.
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/import-hub.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/tec-hub-source.php';
+
+// Events from Events Manager, Sugar Calendar, Event Organiser, My Calendar, and WP Event Manager, on TEC's helpers.
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/event-importer.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/events-manager-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/sugar-calendar-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/event-organiser-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/my-calendar-source.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/import/wp-event-manager-source.php';
+
+// Donors and past gifts from GiveWP and Charitable. Needs contacts and donations.
+if ( ! empty( $npmp_features['members'] ) && ! empty( $npmp_features['donations'] ) ) {
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/past-gifts.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/gift-importer.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/givewp-source.php';
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/charitable-source.php';
+	// Past gifts from a CSV file (Zeffy, Givebutter, Donorbox, a spreadsheet), on the same engine.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/gift-csv-source.php';
+}
 
 /* -------------------------------------------------------------------------
  * Plugin action links
@@ -173,9 +214,10 @@ add_action(
 			);
 			npmp_pin_menu_hook( 'npmp_membership', 'membership' );
 
-			/* translators: %s: singular word for a member, such as Member. */
-			$npmp_member_list = sprintf( __( '%s List', 'nonprofit-manager' ), npmp_label( 'member' ) );
-			add_submenu_page( 'npmp_membership', $npmp_member_list, $npmp_member_list, npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
+			// One name per screen: the browser title and the h1 say
+			// "Membership Dashboard", the menu says Membership > Dashboard.
+			add_submenu_page( 'npmp_membership', __( 'Membership Dashboard', 'nonprofit-manager' ), __( 'Dashboard', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_membership', 'npmp_render_membership_dashboard' );
+			add_submenu_page( 'npmp_membership', __( 'Contacts', 'nonprofit-manager' ), __( 'Contacts', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_members',            'npmp_render_members_page' );
 			add_submenu_page( 'npmp_membership', __( 'Membership Settings', 'nonprofit-manager' ), __( 'Membership Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_membership_forms',   'npmp_render_membership_forms_page' );
 			add_submenu_page( 'npmp_main',       __( 'Email Settings', 'nonprofit-manager' ), __( 'Email Settings', 'nonprofit-manager' ), 'manage_options', 'npmp_email_settings',     'npmp_render_email_settings_page' );
 		}
@@ -185,7 +227,11 @@ add_action(
 			// phpcs:disable WordPress.WP.Capabilities.Unknown -- edit_npmp_newsletters is the newsletter post types' own capability, resolved in npmp_filter_staff_caps().
 			add_menu_page( __( 'Email Newsletters', 'nonprofit-manager' ), __( 'Email Newsletters', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp-newsletters', 'npmp_render_newsletter_editor', 'dashicons-email-alt', 3.1 );
 			npmp_pin_menu_hook( 'npmp-newsletters', 'email-newsletters' );
-			add_submenu_page( 'npmp-newsletters', __( 'New Newsletter', 'nonprofit-manager' ), __( 'New Newsletter', 'nonprofit-manager' ),       'edit_npmp_newsletters', 'npmp-newsletters',          'npmp_render_newsletter_editor' );
+			// The first item, and so the top-level link, opens the block
+			// editor on a new newsletter. admin.php?page=npmp-newsletters
+			// stays registered for old links, out of the menu.
+			add_submenu_page( 'npmp-newsletters', __( 'Add Newsletter', 'nonprofit-manager' ), __( 'Add Newsletter', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'post-new.php?post_type=npmp_newsletter' );
+			remove_submenu_page( 'npmp-newsletters', 'npmp-newsletters' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Templates', 'nonprofit-manager' ), __( 'Newsletter Templates', 'nonprofit-manager' ), 'edit_npmp_newsletters', 'npmp_newsletter_templates', 'npmp_render_newsletter_templates' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Archive', 'nonprofit-manager' ), __( 'Newsletter Archive', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_archive',   'npmp_render_newsletter_archive' );
 			add_submenu_page( 'npmp-newsletters', __( 'Newsletter Reports', 'nonprofit-manager' ), __( 'Newsletter Reports', 'nonprofit-manager' ),   'edit_npmp_newsletters', 'npmp_newsletter_reports',   'npmp_render_newsletter_reports' );
@@ -197,6 +243,9 @@ add_action(
 		if ( ! empty( $npmp_features['donations'] ) ) {
 			add_menu_page( npmp_label( 'donations' ), npmp_label( 'donations' ), npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard', 'dashicons-money-alt', 3.2 );
 			npmp_pin_menu_hook( 'npmp_donations_group', 'donations' );
+			/* translators: %s: plural word for donations, such as Donations or Contributions. */
+			$npmp_donations_dashboard = sprintf( __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) );
+			add_submenu_page( 'npmp_donations_group', $npmp_donations_dashboard, __( 'Dashboard', 'nonprofit-manager' ), npmp_staff_cap(), 'npmp_donations_group', 'npmp_render_donations_dashboard' );
 			/* translators: %s: singular word for a donation, such as Donation or Contribution. */
 			$npmp_donation_settings = sprintf( __( '%s Settings', 'nonprofit-manager' ), npmp_label( 'donation' ) );
 			add_submenu_page( 'npmp_donations_group', $npmp_donation_settings, $npmp_donation_settings, 'manage_options', 'npmp_donation_settings', 'npmp_render_donation_settings_page' );

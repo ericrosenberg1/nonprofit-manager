@@ -48,6 +48,15 @@ if ( ! function_exists( 'npmp_credit_ask_first_donation_at' ) ) {
 				'order'          => 'ASC',
 				'fields'         => 'ids',
 				'no_found_rows'  => true,
+				// A gift brought over from GiveWP or Charitable says nothing
+				// about this site's own form (includes/import/past-gifts.php).
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- One row, admin only, once.
+				'meta_query'     => array(
+					array(
+						'key'     => '_npmp_import_key',
+						'compare' => 'NOT EXISTS',
+					),
+				),
 			)
 		);
 		if ( $first ) {
@@ -74,6 +83,11 @@ if ( ! function_exists( 'npmp_credit_ask_should_show' ) ) {
 		}
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! $screen || false === strpos( (string) $screen->id, 'npmp' ) ) {
+			return false;
+		}
+		// Not over the setup wizard, where a brand-new owner is still
+		// picking features.
+		if ( false !== strpos( (string) $screen->id, 'npmp_setup_wizard' ) ) {
 			return false;
 		}
 		return npmp_credit_ask_first_donation_at() > 0;

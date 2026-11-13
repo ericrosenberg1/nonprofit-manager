@@ -78,6 +78,12 @@ function rig_body_class( $html ) {
 	return preg_match( '/<body class="([^"]*)"/', $html, $m ) ? $m[1] : '';
 }
 
+// Put back what was active, the features, and the org type when the rig ends.
+$rig_restore_plugins  = array_values( array_filter( array( 'nonprofit-manager/nonprofit-manager.php', 'nonprofit-manager-pro/nonprofit-manager-pro.php' ), 'is_plugin_active' ) );
+$rig_restore_options  = array();
+foreach ( array( 'npmp_org_type', 'npmp_setup_completed', 'npmp_pro_setup_completed', 'npmp_enabled_features' ) as $rig_opt ) {
+	$rig_restore_options[ $rig_opt ] = get_option( $rig_opt, null );
+}
 foreach ( array( 'nonprofit-manager/nonprofit-manager.php', 'nonprofit-manager-pro/nonprofit-manager-pro.php' ) as $plugin ) {
 	if ( ! is_plugin_active( $plugin ) ) {
 		activate_plugin( $plugin );
@@ -121,7 +127,7 @@ list( $jar, $login ) = rig_login( $base, 'rig_org_admin', $password );
 rig_check( 'admin login redirects', 302, $login['code'] );
 $wizard = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_setup_wizard' ) );
 rig_check( 'wizard page 200', 200, $wizard['code'] );
-rig_has( 'wizard asks the question', 'What kind of group is this?', $wizard['body'] );
+rig_has( 'wizard asks the question', 'What kind of group do you run?', $wizard['body'] );
 foreach ( array( 'nonprofit', 'club', 'school', 'sports', 'faith', 'hoa' ) as $slug ) {
 	rig_has( "wizard offers $slug", 'name="npmp_org_type" value="' . $slug . '"', $wizard['body'] );
 }
@@ -152,7 +158,7 @@ $members = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_members' ) );
 rig_check( 'Members screen 200', 200, $members['code'] );
 rig_has( 'Members screen column says Last Contribution', 'Last Contribution', $members['body'] );
 rig_lacks( 'Members screen has no Last Donation', 'Last Donation', $members['body'] );
-rig_has( 'Members screen heading', 'Contacts &amp; Members', $members['body'] );
+rig_has( 'Contacts screen heading matches its menu name', '<h1 class="wp-heading-inline">Contacts</h1>', $members['body'] );
 rig_has( 'sidebar says Club Manager', '>Club Manager <span', $members['body'] );
 rig_has( 'sidebar says Contributions', '>Contributions<', $members['body'] );
 rig_has( 'sidebar says Contribution Settings', '>Contribution Settings<', $members['body'] );
@@ -169,7 +175,7 @@ rig_has( 'Membership Settings: Dues Levels heading', '<h2>Dues Levels</h2>', $fo
 rig_has( 'Membership Settings screen ID unchanged', 'membership_page_npmp_membership_forms', rig_body_class( $forms['body'] ) );
 
 $don = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_donations_group' ) );
-rig_has( 'Donations dashboard: Contributions Summary', 'Contributions Summary', $don['body'] );
+rig_has( 'Donations dashboard: Contributions Dashboard', 'Contributions Dashboard', $don['body'] );
 $don_settings = rig_http( $jar, 'GET', admin_url( 'admin.php?page=npmp_donation_settings' ) );
 rig_has( 'Donation settings screen ID unchanged', 'donations_page_npmp_donation_settings', rig_body_class( $don_settings['body'] ) );
 
@@ -245,6 +251,12 @@ wp_delete_post( $page_id, true );
 wp_delete_post( $contact_id, true );
 wp_delete_user( $staff_id );
 wp_delete_user( $admin_id );
+foreach ( $rig_restore_options as $rig_opt => $rig_val ) {
+	null === $rig_val ? delete_option( $rig_opt ) : update_option( $rig_opt, $rig_val );
+}
+if ( ! in_array( 'nonprofit-manager-pro/nonprofit-manager-pro.php', $rig_restore_plugins, true ) ) {
+	deactivate_plugins( 'nonprofit-manager-pro/nonprofit-manager-pro.php', true );
+}
 
 printf( "\n%d passed, %d failed\n", $GLOBALS['rig_pass'], $GLOBALS['rig_fail'] );
 exit( $GLOBALS['rig_fail'] ? 1 : 0 );

@@ -82,7 +82,7 @@ function npmp_mailchimp_get_members( $api_key, $list_id, $offset = 0, $count = 1
 	}
 
 	$url = sprintf(
-		'https://%s.api.mailchimp.com/3.0/lists/%s/members?offset=%d&count=%d&fields=members.email_address,members.merge_fields,members.status,members.tags,total_items',
+		'https://%s.api.mailchimp.com/3.0/lists/%s/members?offset=%d&count=%d&fields=members.email_address,members.merge_fields,members.status,members.tags,members.timestamp_opt,total_items',
 		$dc,
 		rawurlencode( $list_id ),
 		$offset,

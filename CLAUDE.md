@@ -39,8 +39,10 @@ secondary #0f766e, link hover #059669, heading #111827, text #1f2937, Playfair D
 Inter body, radius 8. White text on #10B981 fails WCAG AA (2.5:1), so filled buttons, links and focus
 rings in the plugin use #0f766e (5.5:1), hover #115e59, tint #ecfdf5, tint border #a7f3d0, and
 #10B981 stays decorative (notice borders, glows). Leave WordPress's own `.button-primary` on the
-admin color scheme. Front-end forms read `--npmp-accent` and `--npmp-accent-dark` so a theme can
-override them. The calendar's unsaved highlight falls back to #0f766e, and
+admin color scheme. Front-end forms read `--npmp-accent`, `--npmp-accent-dark` and
+`--npmp-accent-text` so a theme can override them. The site owner's Form color (option
+`npmp_forms_accent`, `includes/npmp-forms-accent.php`) prints those three only when it differs from
+#0f766e, derives the hover shade, and switches the label to dark text when white fails 4.5:1. The calendar's unsaved highlight falls back to #0f766e, and
 `npmp_maybe_pin_legacy_calendar_accent()` saves the old blue once on sites that upgraded from
 before 2026.10.11 so their public calendars don't change. Change a color here and on the site,
 Pro and `~/Code/nonprofit-mailer/edge/src/index.js` in the same pass.
@@ -113,6 +115,183 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   "Club Manager" would turn `nonprofit-manager_page_npmp_general_settings` into
   `club-manager_page_...` and break every screen check. `npmp_pin_menu_hook()` right after each
   `add_menu_page()` keeps the old IDs. Any new top-level menu with a changing title needs it too.
+- **Event lists render in one place.** `npmp_events_loop_render()` in `includes/npmp-events-loop.php`
+  serves `[npmp_events]`, the Events block and the calendar's list view. Layout, order, image and
+  excerpt come from option `npmp_events_loop`, then shortcode attributes or block attributes. The block
+  skips its wrapper attributes inside a REST request, because the editor already puts the block
+  supports on its own wrapper. Core writes block gap only for blocks with a layout, so the loop
+  writes `gap` itself (`npmp_events_loop_gap_css()`). The excerpt keeps paragraph and line breaks (since
+  2026.11.10): `npmp_events_loop_excerpt()` returns plain text with blank lines and
+  `npmp_events_loop_excerpt_html()` prints one `<p>` per paragraph. On the theme's own `/events/` and event
+  category archives, `npmp_events_archive_excerpt()` (`get_the_excerpt` at 11) hands a classic theme's
+  `the_excerpt()` the same text, so it prints paragraphs. Block themes' Post Excerpt block strips breaks itself.
+  Real-WordPress check: `tests/rig/events-loop.php`.
+- **Email bodies render through `npmp_email_the_content()`, never bare `apply_filters( 'the_content' )`**
+  (since 2026.11.5). It takes browser-only callbacks from other plugins off the filter for the
+  render and puts them back (list in `npmp_email_browser_only_content_filters()`, today Creative
+  Commons' attribution box). `npmp_email_prepare_images()` then swaps local WebP, AVIF and HEIC
+  files for PNG or JPG copies in `uploads/npmp-email-images/`. SVG is never rendered on the server
+  (most hosts can't, and rendering an uploaded SVG can read server files), so the test send warns
+  the author instead. Unit test `tests/test-email-image-formats.php`, rig
+  `tests/rig/email-image-formats.php` with the Creative Commons plugin active.
+- **The free import limit is a total for the site** (`includes/import/import-cap.php`, since the
+  release after 2026.11.5): 100 new contacts, counted as the `npmp_contact` posts that carry
+  `_npmp_free_import`. A listener on `npmp_import_row_imported` writes that mark when the status is
+  `imported`, so an importer that creates contacts itself must ask `npmp_import_free_remaining()`
+  before each new one and fire that action after. Updates never count, a deleted contact gives its
+  place back, and contacts imported before this carry no mark. `npmp_import_max_rows()` is still the
+  row limit for one job, and Pro's filter on it turns both limits off. Unit
+  `tests/test-import-cap.php`, rig `tests/rig/import-cap-total.php` (Pro inactive).
+- **Switch Plugins hub** (`includes/import/import-hub.php`). Every importer that retires an old plugin
+  registers a source on the `npmp_import_sources` filter (keys documented at the top of the file, TEC's in
+  `includes/import/tec-hub-source.php`). Five steps in order, every refusal in `npmp_import_hub_run_step()`.
+  Register only sources with a working importer. Data removal deletes only what the source names and shows
+  as unavailable without a `batch` callable. TEC's removal refuses while Event Tickets is installed
+  (tribe-common shares its option names) and never touches `npmp_*` options, the npmp_event posts, or their
+  `_npmp_tec_*` meta, which the 301s read. Unit `tests/test-import-hub.php`, rig `tests/rig/import-hub.php`
+  (needs the real TEC, deletes it, runs each step in its own `wp` process). MailPoet is the second source
+  (`includes/import/mailpoet-hub-source.php`): removal drops every `{prefix}mailpoet_*` table, its options and
+  `mailpoet_page`/`mailpoet_email` posts, and leaves Action Scheduler's rows. Verify counts MailPoet subscribers
+  with no matching contact, since the free limit (`npmp_import_max_rows()`) leaves people only in MailPoet.
+  Rig `tests/rig/mailpoet-hub.php` runs on real MailPoet (5.45.2 activates and takes API calls on SQLite).
+  Every import runner takes `npmp_mail_queue_lock( 'import_<source>' )` first and hands back its state while another
+  run holds it (a reload during a 47,501-row MailPoet run made 82 contacts twice). Left-behind counts go through
+  `npmp_import_count_emails_not_on_contacts()`, never a `LOWER() = LOWER()` subquery, which timed the hub out at 50,000 rows.
+  A gift keeps the contact's status (`NPMP_Member_Manager::status_after_gift()`), only a contact with none becomes Donor.
+  When a source's data comes back after step 5 finished, the hub forgets the old check and removal
+  (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
+- **Past gifts from GiveWP and Charitable** (`includes/import/past-gifts.php`, `gift-importer.php`,
+  `givewp-source.php`, `charitable-source.php`). A past gift is an `npmp_donation` post written directly,
+  never through `log_donation()`, so Pro's automations mail no receipt and the first-donation milestone
+  stays unset (the Powered-by backfill in `npmp-credit-ask.php` skips posts with `_npmp_import_key`).
+  `_npmp_import_key` = `<source>:<id>` makes a rerun skip what's here. Donors follow the free total, and a
+  donor past it keeps every gift in the old plugin. Both sources read the old tables straight from the
+  database, so the import runs with the plugin off, and read only the `currency` key of `give_settings`
+  and `charitable_settings` (both hold Stripe keys), plus the one delete setting each (`uninstall_on_delete`,
+  `delete_data_on_uninstall`). GiveWP money received is `publish` and
+  `give_subscription`, meta in `give_donationmeta` or older tables by `give_completed_upgrades`, and its
+  `createdAt` is site-local. Charitable's amount is the sum of `charitable_campaign_donations` rows, money
+  received is `charitable-completed` only, and a Charitable Recurring renewal (paid add-on, no source)
+  is stored with frequency `recurring`. Step 5 is unavailable for both: GiveWP's own uninstall and
+  Charitable's Reset Data on deactivation delete their data. So GiveWP's source sets `delete_note` (step 4)
+  while Remove Data on Uninstall is on, and Charitable's sets `deactivate_note` (step 3) while Reset Data is
+  on, since Charitable deletes on deactivation even though its label says uninstall. Each note names the
+  setting so the owner can switch it off first. The other five sources delete nothing on deactivation or
+  deletion (checked in EM 7.4.14, Sugar Lite 3.17.0, Newsletter 9.5.7, MailPoet 5.45.2, TEC 6.18.3.1). Unit `tests/test-past-gifts.php`,
+  `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
+  1.8.15.1, Pro inactive).
+- **Past gifts from a file** (`includes/import/gift-csv-parse.php`, pure, and `gift-csv-source.php`). A CSV from Zeffy,
+  Givebutter, Donorbox, or a spreadsheet goes through the GiveWP/Charitable gift engine as source `gift_csv`. It opens from
+  a card on the Import screen (`npmp_import_source_cards`, printed in `admin-import.php`) and isn't on Switch Plugins, since
+  it has no plugin to turn off. Its gift-engine filter goes on only inside its own handlers (`npmp_gift_csv_engine_on()`),
+  so the plugin-switch gift screen never lists it. The check pass writes an index file beside the upload in `npmp-private/`,
+  one line per donor (`email TAB byte offsets`), and the engine's cursor is a byte position in that file, so 50,000 rows
+  cost one short string per donor. Presets map only columns the tool's own help center names: Givebutter's full list
+  (help.givebutter.com article 2219206, dates UTC), Zeffy's Amount, Payment method, Payment status, and Refunded amount
+  (support.zeffy.com, the rest by generic header match), and no Donorbox preset, since its help center never lists the
+  donation export's columns. The engine has no refunded state, so refunded, disputed, failed, and unfinished rows stay out,
+  a partial refund comes in as the amount kept, unknown statuses stay out until the owner ticks them, rows with no email
+  stay out, and recurring payments come in as past gifts with their frequency and no plan. Identity: the transaction ID
+  when mapped, else email, UTC date, amount, and currency. Uploads still expire three hours after the last step. Unit
+  `tests/test-gift-csv.php` (fixtures in `tests/fixtures/gift-csv-*.csv`), rig `tests/rig/gift-csv.php` (and `big` for
+  50,000 rows), run with Pro on and off.
+- **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
+  `sugar-calendar-source.php`). One engine for event plugins other than TEC: sources register on
+  `npmp_event_import_sources` and hand back one item per date, and the engine writes npmp_event posts with
+  `_npmp_import_key` = `<source>:<id>` and `_npmp_import_old_path`, then 301s those paths on a 404. Both sources read
+  the old tables straight from the database, so you can import with the plugin off. EM 7 saves a repeating
+  series as `em_events` rows of type `recurrence` with no post of their own, so each date borrows the parent's
+  post through `em_event_recurrences`, and only the first date carries the series link. A cancelled EM event
+  comes over as a draft. Sugar Lite keeps only the meta keys it registers (`location`, no `url`), and its
+  repeats come over as the first date. Categories bring their parents (`npmp_event_import_post_terms()`).
+  Step 5 is unavailable for both. The hub's turn-off step drops `rewrite_rules` so a dead plugin's `/events/`
+  routes stop answering. Neither plugin has a setting that maps to ours. Unit `tests/test-event-sources.php`,
+  rig `tests/rig/event-sources.php` (EM 7.4.14, Sugar Calendar Lite 3.17.0, visit wp-admin once so both make
+  their tables).
+- **Event Organiser, My Calendar, and WP Event Manager** (`event-organiser-source.php`, `my-calendar-source.php`,
+  `wp-event-manager-source.php`, same engine). Engine keys added for them: `brings`, `leaves`, `warning` (lines on the
+  import screen), `query_args` (an old link like `/mc-events/x/?mc_id=12` leads to that one date), and a `settings`
+  table of checkboxes (`npmp_event_settings[]`, unticked copies nothing). The hub's `npmp_event_hub_source()` takes a
+  7th `$extra` array for `delete_note`, and a hub source sets `delete_note_setting` to false when the old plugin has
+  no setting to switch off, so step 3 shows the warning without asking for a change (Event Organiser). EO 3.12.12: `event` posts (EM uses that post type too, so `has_data` checks
+  `{prefix}eo_events`) plus `eo_events` rows in site time, all-day in `_eventorganiser_event_schedule`, venues are
+  `event-venue` terms with `eo_venuemeta`. EO's uninstall always drops its tables and terms and leaves the posts, so
+  `delete_note` is always on. My Calendar 3.8.13: tables `my_calendar` and `my_calendar_events`, `event_approved` 3 is
+  cancelled (draft), 2 trash (stays), `event_flagged` spam (stays). It deletes only when `drop_tables` is `'true'`.
+  WP Event Manager 3.4.2: `event_listing` posts, `_event_start_date` plus `_event_start_time`, a per-event time zone when
+  `event_manager_timezone_setting` is `each_event`, `_cancelled` makes a draft, `expired` is a past event. It deletes only
+  when `event_manager_delete_data_on_uninstall` is on. `event_manager_per_page` is the one setting that maps (list length).
+  None deletes on deactivation, and step 5 is unavailable for all three. Seeding: EO's `eo_insert_event` needs
+  `'venue' => array( $id )` (a bare int makes a term named after the number), MC needs a wp-admin visit first. Unit
+  `tests/test-more-event-sources.php`, rig `tests/rig/more-event-sources.php` (phase `remove` runs step 4).
+- **The Newsletter Plugin** (`includes/import/newsletter-importer.php`, loaded with the members module
+  right after the MailPoet importer's files). Subscribers come from `{prefix}newsletter` (status letters C, S, U, B, P, and T for
+  a signup that never finished, which stays behind) and go through the MailPoet writer,
+  `npmp_mailpoet_import_subscriber( $row, $known, $lists, 'newsletter' )`, so status merging, signup dates,
+  groups (Pro), and the free total match MailPoet. Settings come only from `newsletter_main` (sender name,
+  sender email, reply-to), `newsletter_subscription` (`noconfirmation`, 0 for double opt-in), and
+  `newsletter_lists`, through `npmp_import_apply_settings_plan()`. Newsletter ships no uninstall code, and its
+  add-ons share the `newsletter_` names, so step 5 is unavailable. Unit `tests/test-newsletter-importer.php`,
+  rig `tests/rig/newsletter-importer.php` (Newsletter 9.5.7, visit wp-admin once so Newsletter creates its tables).
+- **Paid Memberships Pro** (`includes/import/pmpro-importer.php`, loaded right after the Newsletter importer). PMPro left
+  wordpress.org in 2024, so get its source from GitHub (strangerstudios/paid-memberships-pro, tag `3.9.1` verified). Members
+  are WordPress users with rows in `{prefix}pmpro_memberships_users`. A current member has a row with status `active` (PMPro's
+  own test), anyone else is a past member. Current members come over as Active with their newest level, past members as
+  Inactive with no level. Every PMPro level name joins `npmp_membership_levels`. A level set by hand on an existing contact
+  stays. `startdate` holds site-local time (checkout writes `current_time( 'mysql' )`), `user_registered` holds UTC. The
+  importer reads only the levels and memberships tables, the pmpro_b* address meta, and `pmpro_uninstall`, never orders,
+  subscriptions, or gateway settings. Members with a renewing plan keep paying through the processor after PMPro is off, so
+  Verify and the import screen warn. Step 5 is unavailable. PMPro's own uninstall drops its tables when "Uninstall PMPro on
+  deletion?" is Yes, and the hub's optional `delete_note` then warns in step 4. PMPro's reads use MySQL's `CONVERT_TZ()`, which
+  SQLite can't parse, so rig `tests/rig/pmpro-importer.php` seeds with PMPro's writers and reads its tables directly. Unit
+  `tests/test-pmpro-importer.php`.
+- **Ultimate Member** (`includes/import/ultimate-member-importer.php`, loaded right after the PMPro importer, whose
+  writer `npmp_pmpro_import_member()` it reuses with `source`, `status`, `merge_status`, and `raw` options). Version
+  2.14.2 from wordpress.org verified. UM has no tables: members are WordPress users, status is user meta
+  `account_status` (approved, awaiting_email_confirmation, awaiting_admin_review, inactive, rejected, or empty for
+  users from before UM), and its custom roles live in option `um_roles` plus `um_role_{key}_meta`, added to WordPress
+  as `um_{key}` only while UM runs. Read roles from the capabilities meta, never `wp_roles()`, or they vanish with UM
+  off. The owner ticks roles on Review (UM roles and registration roles start ticked, staff roles never). Approved
+  members come over as Inactive unless the owner says they agreed to newsletters, awaiting statuses as Pending,
+  deactivated as Inactive, rejected as Unsubscribed. Never read user meta `submitted`: UM stores the whole signup
+  form there. Custom profile fields go out through `do_action( 'npmp_import_profile_fields', ... )` and
+  `npmp_import_profile_fields_supported`, and Pro has no receiver yet. Step 5 is unavailable (UM's meta names are
+  generic and its add-ons share the `um_` prefix), and `delete_note` warns when `um_options['uninstall_on_delete']`
+  is on. UM's hourly job approves every user with no status, so rig `tests/rig/ultimate-member-importer.php` holds
+  the `doing_cron` lock. Its registration action needs `um_register_allow_nonce_verification` off and
+  `UM()->form()->usermeta_whitelist` filled when no form posts. Unit `tests/test-ultimate-member-importer.php`.
+- **Every plugin importer runs inside `npmp_import_run_as_import()`**, so `npmp_is_importing()` is true and Pro's
+  "someone signs up" automation and the Mailer's member_joined event skip imported contacts. PMPro, MailPoet, The
+  Newsletter Plugin, and past gifts lacked it until the Ultimate Member work, and Pro queued welcome emails.
+- **Editor boxes go in the sidebar** (since 2026.11.8). In the block editor a meta box with context `normal`
+  lands in the collapsed "Meta Boxes" panel under the content, which Pete at U3A read as a different screen
+  from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
+  Pro stacks its tables there with `td[data-label]`. Every admin h1 needs `hr.wp-header-end` within two
+  lines or core puts notices above the title (`tests/test-admin-ui.php` scans for it).
+- **Every marketing email to a contact ends with `npmp_email_recipient_footer( $email )`** (newsletter
+  footer with that reader's unsubscribe link, plus the preferences link) and carries
+  `npmp_get_list_unsubscribe_headers()`. Notifications and the digest use it, and Pro's automation engine
+  uses it and skips a contact whose status is `unsubscribed` at send time, except on a transactional
+  trigger (only a failed payment, see Pro's CLAUDE.md), which gets the address and preferences link instead. Confirmation, unsubscribe,
+  receipt, and admin mail stay without it. Unit `tests/test-signup-welcome-emails.php`, rig
+  `tests/rig/signup-welcome-emails.php`, Pro rig `tests/rig/automation-footer.php`.
+- **Public newsletters are opt-in, one newsletter at a time** (`includes/email-newsletter/archive.php`,
+  pure parts in `archive-pure.php`). A newsletter is listed and gets a page at `/newsletter/<id>/<slug>/`
+  only when `_npmp_newsletter_status` is `sent` and someone with the send capability ticked the sidebar
+  box (meta `_npmp_newsletter_public` = `1`). Every newsletter starts unticked, older ones included. Event
+  emails (`_npmp_newsletter_scheduled_event`) stay out of lists unless `event_emails="yes"`. The page renders
+  `NPMP_Newsletter_Manager::render_base_content()` (made public for this) with tag defaults, never
+  `personalize_content()`, and `npmp_newsletter_archive_scrub()` strips tokens, addresses, and tracking from
+  any pasted link. It is noindex (wp_robots and an X-Robots-Tag header) unless Newsletter Settings says
+  otherwise, and anything else answers 404. The page shows inside the theme: the main query becomes one fake
+  `page` that carries the newsletter's ID and a marker as content, and `npmp_newsletter_archive_filter_content()`
+  (the_content at PHP_INT_MAX) swaps in the finished content, built before the query changes so the body passes
+  the_content once. That drops comments, share buttons, related posts, and the plugin's own page injections.
+  When the theme's template never prints the content, `archive-theme-template.php` sends the standalone page
+  (header `X-NPMP-Newsletter-View: standalone`), and the `npmp_newsletter_archive_use_theme` filter forces it.
+  `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
+  empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
+  site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -124,52 +303,75 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- The Pro note in the setup wizard is easier to see.
+- Fixed cancelled and postponed events from The Events Calendar, which you got as published events instead of drafts.
+- Fixed past gifts from GiveWP and Charitable changing Active and Pending contacts to Donor, which took them off your newsletter.
+- Fixed MailPoet imports leaving a Donor who subscribed in MailPoet off your newsletter.
+- Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
+- Fixed Switch Plugins timing out on sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
+- Fixed "Start the import" on a plugin you never turned on, which led to an empty import.
+- Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
+- Added the GiveWP and PMPro delete-data warning to the turn-off step, while you can still change the setting.
+- Fixed the MailPoet limit wording, which called the site total a limit per import.
+- Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
+- Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
+- Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
+- Added an importer for Ultimate Member: members by role, their account status, membership levels from roles, join dates, and phone and country, on the Switch Plugins screen.
+- Fixed imports from Paid Memberships Pro, MailPoet, The Newsletter Plugin, and past gifts, which with Pro could send your welcome email to every imported contact.
+- Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
+- Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
 
 Pro (licence server changelog):
 - (none)
 
 ## Releasing: three systems, always in this order
 
-Free and Pro always ship the same `YYYY.MM.N` version (memory `feedback_npm_version_policy`). Free
-shipping alone breaks lockstep, and Pro shipped inside wp.org's hold once put CACC on mismatched
-versions. Commit and tag all three repos first, because the pre-push gate compares all three.
+Free and Pro always ship the same `YYYY.MM.N` version (memory `feedback_npm_version_policy`), and
+since 2026-11-12 they go live at the same moment. There is no wait for wordpress.org's six-hour
+update hold. What keeps a site from getting Pro before free is the licence server, not a delay: Pro's
+updater reports the free version installed and the one wordpress.org offers, and the server hands
+back the newest Pro no newer than those that runs beside the installed free (site repo
+`src/lib/pro-releases.ts`). Pro N then arrives in the same update run as free N. Every Pro version
+stays in R2 as `nonprofit-manager-pro-<version>.zip` and the download link names it, so an upload
+never changes bytes the server already advertises. Commit and tag all three repos first, because the
+pre-push gate compares all three.
 
 1. **Bump.** Free: `Version:` in `nonprofit-manager.php`, `Stable tag:` and a changelog entry in
    `readme.txt` (one short bullet per change, no why, memory `feedback_wporg_changelog_brief`),
    starting from the Pending changelog lines above, then empty that list.
-   Pro: `Version:` and `NPMP_PRO_VERSION` in `nonprofit-manager-pro.php`. Site:
-   `CURRENT_VERSION` and a changelog entry with a literal version heading in
+   Pro: `Version:` and `NPMP_PRO_VERSION` in `nonprofit-manager-pro.php`. Site: in
+   `src/lib/pro-releases.ts` move the outgoing `CURRENT_` values to the top of
+   `PREVIOUS_PRO_RELEASES`, set `CURRENT_VERSION` and `CURRENT_MIN_FREE_VERSION` (Pro's
+   `NPMP_PRO_MIN_FREE_VERSION`), and add a changelog entry with a literal version heading in
    `src/pages/api/license/version.ts`.
 2. **Commit and tag** `v<version>` in free and Pro.
 3. **Sign.** In Pro, `./release.sh v<version> --dry-run` builds from the tag, signs with
    `~/.npm-secrets/release-signing.key` and prints `CURRENT_ZIP_SHA256` and
-   `CURRENT_ZIP_SIGNATURE`. Put both in the site's `version.ts`, commit, tag, push all three. Do
-   NOT deploy the site yet: it would advertise a zip R2 doesn't hold, and every Pro install refuses
-   the checksum and mails its owner "failed to update" (10.1 and 10.2 shipped that way).
+   `CURRENT_ZIP_SIGNATURE`. Put both in the site's `src/lib/pro-releases.ts`, commit, tag, push all
+   three. Don't deploy the site by hand: `pro-leg.sh` deploys it after the upload, so the server never
+   lists a version R2 doesn't hold.
 4. **Free to wp.org.** `./build.sh`, unzip `dist/nonprofit-manager.zip` into a temp dir,
    `cd ~/wp-svn/nonprofit-manager-svn && svn up`, rsync the unzipped folder into `trunk/` with
    `--delete`, `svn add`/`svn rm` what `svn status` shows, `svn ci trunk` (screenshots and banners
    go in `assets/`). Tag with full URLs:
    `svn cp https://plugins.svn.wordpress.org/nonprofit-manager/trunk https://plugins.svn.wordpress.org/nonprofit-manager/tags/<version>`
    (`^/trunk` fails). Read tags from the server (`svn ls .../tags/`), never the working copy.
-5. **Wait out the six-hour hold.** WordPress.org holds every release about 6 hours before the
-   update-check API offers it. The plugin page, info API and zip switch at once and prove nothing.
-   Check with a POST to `api.wordpress.org/plugins/update-check/1.1/` with installed `Version` 0.
-   A second release during the hold supersedes the first, so ship Pro for whatever update-check
-   offers. Pattern that works: start Pro's `scripts/pro-leg.sh <version> <sha256>` with nohup right
-   after the SVN tag. It waits out the hold and does steps 6 to 8 with no prompts (memory
-   `reference_wporg_release_cooldown`). A scheduled Claude run parked on a permission prompt for
-   2026.10.9 and shipped nothing for three hours, so use one only to check CACC and report.
-6. **Pro to R2.** `./release.sh v<version>` in Pro. It refuses until wp.org offers the free
-   version (`NPMP_SKIP_WPORG_CHECK=1` only for an emergency Pro-only fix), uploads with `--remote`
-   to `nonprofit-manager-downloads/nonprofit-manager-pro-latest.zip`, and checks a live customer
-   download's SHA-256.
-7. **Licence server.** Steps in the site repo's CLAUDE.md (build, drop `dist/server/.dev.vars`,
-   deploy with the fleet token).
-8. **Verify.** `./release.sh --verify` in Pro (uses download slots, 5 an hour per IP),
-   `scripts/check-lockstep.sh`, `/pricing` 200, then on CACC `wp plugin list --skip-update-check`.
-   A briefly stale version right after deploy is edge propagation, retry once.
+5. **Pro and the licence server, right away.** In Pro,
+   `nohup scripts/pro-leg.sh <version> <sha256> </dev/null >/dev/null 2>&1 &`. It runs
+   `./release.sh v<version>` (refuses until free `<version>` is in SVN, uploads the versioned zip,
+   reads it back), deploys the licence server from the site's `v<version>` tag, waits for the version
+   API to answer `<version>`, refreshes the legacy `-latest.zip`, and runs `./release.sh --verify`.
+   Log and status in `~/Library/Logs/npm-release/pro-leg-<version>.{log,status}`. It takes minutes.
+   Never under launchd with KeepAlive: on 11-01 that restarted it every 10 seconds after a
+   rate-limited download (496 runs, 496 R2 uploads) and used up the comp key's hourly quota, which
+   then 429'd CACC's Pro update.
+6. **Verify.** `./release.sh --verify` in Pro (uses download slots: 40 an hour per licence key and 120
+   per IP, and CACC shares the comp key, so a loop here also blocks CACC's Pro update),
+   `scripts/check-lockstep.sh`, `/pricing` 200, a version request with
+   `{"free_version":"<previous>"}` answering the previous Pro and one with `"free_offered":"<version>"`
+   answering the new one, then on CACC `wp plugin list --skip-update-check`. A briefly stale version
+   right after deploy is edge propagation, retry once. Sites see free and Pro together once
+   wordpress.org's hold ends (about six hours after the SVN tag), and anyone who updates free by hand
+   before then gets the matching Pro at once.
 
 Don't run wp-cli on a site while its auto-updater is installing. The updater rewrites the plugin
 folder and any WordPress load in that window drops it from `active_plugins`. If you force an update

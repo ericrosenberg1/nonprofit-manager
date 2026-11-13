@@ -171,9 +171,9 @@ function npmp_render_social_sharing_page() {
 	delete_transient( 'npmp_social_test_error' );
 	delete_transient( 'npmp_social_test_success' );
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></h1>
-		<p><?php esc_html_e( 'Connect your social networks to automatically share new posts and events.', 'nonprofit-manager' ); ?></p>
+	<div class="wrap npmp-admin-page">
+		<?php npmp_admin_page_title( __( 'Social Sharing', 'nonprofit-manager' ) ); ?>
+		<p><?php esc_html_e( 'Connect your social networks, and new posts and events can go out to them when you publish.', 'nonprofit-manager' ); ?></p>
 
 		<?php if ( $connected ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Network connected successfully.', 'nonprofit-manager' ); ?></p></div>
@@ -196,54 +196,37 @@ function npmp_render_social_sharing_page() {
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Test share sent successfully!', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
-		<style>
-			.npmp-social-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
-			.npmp-social-card { flex: 0 0 calc(50% - 10px); background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0,0,0,.04); padding: 20px; box-sizing: border-box; }
-			.npmp-social-card h3 { margin-top: 0; display: flex; align-items: center; gap: 8px; }
-			.npmp-social-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
-			.npmp-social-badge--connected { background: #d4edda; color: #155724; }
-			.npmp-social-badge--disconnected { background: #f8d7da; color: #721c24; }
-			.npmp-social-badge--pro { background: #ecfdf5; color: #0f766e; }
-			.npmp-social-settings { background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0,0,0,.04); padding: 20px; margin-top: 20px; }
-			.npmp-social-settings h2 { margin-top: 0; }
-			.npmp-social-card .form-table th { width: 160px; padding: 6px 10px 6px 0; }
-			.npmp-social-card .form-table td { padding: 6px 10px; }
-			@media screen and (max-width: 782px) {
-				.npmp-social-card { flex: 0 0 100%; }
-			}
-		</style>
-
 		<!-- Settings -->
 		<div class="npmp-social-settings">
-			<h2><?php esc_html_e( 'Sharing Settings', 'nonprofit-manager' ); ?></h2>
+			<h2><?php esc_html_e( 'Sharing settings', 'nonprofit-manager' ); ?></h2>
 			<form method="post">
 				<?php wp_nonce_field( 'npmp_save_social_settings', 'npmp_social_settings_nonce' ); ?>
 				<table class="form-table">
 					<tr>
-						<th><?php esc_html_e( 'Auto-Share on Publish', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Share on publish', 'nonprofit-manager' ); ?></th>
 						<td>
 							<label>
 								<input type="checkbox" name="npmp_auto_share" value="1" <?php checked( $settings['auto_share'] ); ?>>
-								<?php esc_html_e( 'Automatically share to connected networks when a post or event is published.', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Share to your connected networks when you publish a post or event.', 'nonprofit-manager' ); ?>
 							</label>
 						</td>
 					</tr>
 					<tr>
-						<th><?php esc_html_e( 'Share Template', 'nonprofit-manager' ); ?></th>
+						<th scope="row"><label for="npmp_share_template"><?php esc_html_e( 'Share text', 'nonprofit-manager' ); ?></label></th>
 						<td>
-							<textarea name="npmp_share_template" rows="4" cols="60" class="large-text"><?php echo esc_textarea( $settings['share_template'] ); ?></textarea>
+							<textarea name="npmp_share_template" id="npmp_share_template" rows="4" cols="60" class="large-text"><?php echo esc_textarea( $settings['share_template'] ); ?></textarea>
 							<p class="description">
-								<?php esc_html_e( 'Available placeholders: {title}, {excerpt}, {url}', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Placeholders you can use: {title}, {excerpt}, and {url}.', 'nonprofit-manager' ); ?>
 							</p>
 						</td>
 					</tr>
 				</table>
-				<?php submit_button( __( 'Save Settings', 'nonprofit-manager' ) ); ?>
+				<?php submit_button( __( 'Save settings', 'nonprofit-manager' ) ); ?>
 			</form>
 		</div>
 
 		<!-- Network cards -->
-		<h2 style="margin-top: 30px;"><?php esc_html_e( 'Connected Networks', 'nonprofit-manager' ); ?></h2>
+		<h2 class="npmp-social-networks-title"><?php esc_html_e( 'Networks', 'nonprofit-manager' ); ?></h2>
 		<div class="npmp-social-grid">
 			<?php foreach ( $networks as $slug => $network ) :
 				$is_free      = in_array( $slug, $free_networks, true );
@@ -257,7 +240,7 @@ function npmp_render_social_sharing_page() {
 						<?php if ( $connected_now ) : ?>
 							<span class="npmp-social-badge npmp-social-badge--connected"><?php esc_html_e( 'Connected', 'nonprofit-manager' ); ?></span>
 						<?php elseif ( $is_available ) : ?>
-							<span class="npmp-social-badge npmp-social-badge--disconnected"><?php esc_html_e( 'Not Connected', 'nonprofit-manager' ); ?></span>
+							<span class="npmp-social-badge npmp-social-badge--disconnected"><?php esc_html_e( 'Not connected', 'nonprofit-manager' ); ?></span>
 						<?php else : ?>
 							<span class="npmp-social-badge npmp-social-badge--pro"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 						<?php endif; ?>
@@ -266,21 +249,21 @@ function npmp_render_social_sharing_page() {
 					<?php if ( ! $is_available ) : ?>
 						<p>
 							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
-								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank" rel="noopener">
+								<?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?>
 							</a>
 						</p>
 					<?php elseif ( $connected_now ) : ?>
 						<!-- Disconnect + Test -->
-						<form method="post" style="display: inline-block; margin-right: 8px;">
+						<form method="post" class="npmp-inline-form" onsubmit="return window.confirm( '<?php echo esc_js( sprintf( /* translators: %s: social network name, such as Facebook. */ __( 'Disconnect %s? You\'ll need to enter its keys again to reconnect.', 'nonprofit-manager' ), $network['label'] ) ); ?>' );">
 							<?php wp_nonce_field( 'npmp_social_disconnect', 'npmp_social_disconnect_nonce' ); ?>
 							<input type="hidden" name="npmp_network" value="<?php echo esc_attr( $slug ); ?>">
 							<?php submit_button( __( 'Disconnect', 'nonprofit-manager' ), 'delete small', 'submit', false ); ?>
 						</form>
-						<form method="post" style="display: inline-block;">
+						<form method="post" class="npmp-inline-form">
 							<?php wp_nonce_field( 'npmp_social_test', 'npmp_social_test_nonce' ); ?>
 							<input type="hidden" name="npmp_network" value="<?php echo esc_attr( $slug ); ?>">
-							<?php submit_button( __( 'Test Share', 'nonprofit-manager' ), 'secondary small', 'submit', false ); ?>
+							<?php submit_button( __( 'Test share', 'nonprofit-manager' ), 'secondary small', 'submit', false ); ?>
 						</form>
 					<?php else : ?>
 						<!-- Connect form -->
@@ -290,7 +273,7 @@ function npmp_render_social_sharing_page() {
 							<table class="form-table">
 								<?php foreach ( $fields as $field ) : ?>
 									<tr>
-										<th><label for="npmp_cred_<?php echo esc_attr( $field['key'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
+										<th scope="row"><label for="npmp_cred_<?php echo esc_attr( $field['key'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
 										<td>
 											<input
 												type="<?php echo esc_attr( $field['type'] ); ?>"
@@ -325,24 +308,32 @@ function npmp_render_social_sharing_page() {
 					'nextdoor' => __( 'Nextdoor', 'nonprofit-manager' ),
 					'reddit'   => __( 'Reddit', 'nonprofit-manager' ),
 				);
-				foreach ( $pro_networks as $slug => $label ) :
-					if ( isset( $networks[ $slug ] ) ) {
-						continue;
-					}
+				// One card for all of them: one line and one link, rather than
+				// five cards each asking for the upgrade.
+				$pro_networks = array_diff_key( $pro_networks, $networks );
+				if ( $pro_networks ) :
 					?>
 					<div class="npmp-social-card" style="opacity:.75;">
 						<h3>
-							<?php echo esc_html( $label ); ?>
+							<?php esc_html_e( 'More networks', 'nonprofit-manager' ); ?>
 							<span class="npmp-social-badge npmp-social-badge--pro"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
 						</h3>
 						<p>
-							<?php esc_html_e( 'Sharing to this network comes with Nonprofit Manager Pro.', 'nonprofit-manager' ); ?>
-							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank">
-								<?php esc_html_e( 'Upgrade to Pro', 'nonprofit-manager' ); ?>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %s: list of social networks, such as Bluesky, Threads, and Reddit. */
+									__( 'Pro also shares to %s.', 'nonprofit-manager' ),
+									wp_sprintf( '%l', array_values( $pro_networks ) )
+								)
+							);
+							?>
+							<a href="<?php echo esc_url( npmp_get_upgrade_url( 'social_sharing' ) ); ?>" target="_blank" rel="noopener">
+								<?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?>
 							</a>
 						</p>
 					</div>
-				<?php endforeach; ?>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 	</div>

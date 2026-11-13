@@ -64,261 +64,158 @@ function npmp_render_main_plugin_page() {
 	$setup_complete       = isset( $_GET['setup_complete'] ) ? sanitize_key( wp_unslash( $_GET['setup_complete'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$pro_setup_complete   = isset( $_GET['pro_setup_complete'] ) ? sanitize_key( wp_unslash( $_GET['pro_setup_complete'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$features_updated     = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$optin_result         = isset( $_GET['npmp_optin'] ) ? sanitize_key( wp_unslash( $_GET['npmp_optin'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	?>
-	<div class="wrap">
-		<h1>
-			<?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Welcome to %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?>
-			<?php if ( $is_pro ) : ?>
-				<span class="npmp-pro-badge"><?php esc_html_e( 'Pro', 'nonprofit-manager' ); ?></span>
-			<?php endif; ?>
-			<?php
-			// "Re-run setup tour" link (onboarding module). Guarded so the
-			// header survives a build that excludes onboarding.
-			if ( class_exists( 'NPMP_Tour' ) ) {
-				echo ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_main&npmp_tour_restart=1' ) ) . '" class="page-title-action" style="margin-left:8px;">' . esc_html__( 'Re-run setup tour', 'nonprofit-manager' ) . '</a>';
-			}
-			?>
-		</h1>
-		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Manage %s, memberships, email lists and events from one plugin.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
+	<div class="wrap npmp-admin-page">
+		<?php
+		$npmp_title_actions = array();
+		// The tour link is guarded so the header survives a build that
+		// excludes onboarding.
+		if ( class_exists( 'NPMP_Tour' ) ) {
+			$npmp_title_actions[ __( 'Rerun the setup tour', 'nonprofit-manager' ) ] = admin_url( 'admin.php?page=npmp_main&npmp_tour_restart=1' );
+		}
+		npmp_admin_page_title(
+			sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Welcome to %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ),
+			$npmp_title_actions,
+			$is_pro ? __( 'Pro', 'nonprofit-manager' ) : ''
+		);
+		?>
+		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Manage %s, memberships, email lists, and events from one plugin.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
 
 		<?php if ( $setup_complete ) : ?>
-			<div class="updated notice is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Setup complete! %s is ready to use.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Setup complete! %s is ready to use.', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></p></div>
+		<?php endif; ?>
+
+		<?php if ( 'sent' === $optin_result ) : ?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Check your inbox for an email to confirm your Nonprofit Manager newsletter signup.', 'nonprofit-manager' ); ?></p></div>
+		<?php elseif ( 'failed' === $optin_result ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'We couldn\'t reach the Nonprofit Manager newsletter, so you aren\'t signed up yet. Your setup is saved.', 'nonprofit-manager' ); ?> <a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_setup_wizard' ) ); ?>"><?php esc_html_e( 'Try again from setup', 'nonprofit-manager' ); ?></a></p></div>
+		<?php elseif ( 'invalid' === $optin_result ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'That email address didn\'t look right, so we didn\'t sign you up for the newsletter. Your setup is saved.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( $pro_setup_complete ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Pro setup complete. Your Pro features are active.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Pro setup complete. Your Pro features are active.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<?php if ( $features_updated ) : ?>
-			<div class="updated notice is-dismissible"><p><?php esc_html_e( 'Features updated.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Features updated.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
-		<style>
-			.npmp-main-container {
-				display: flex;
-				gap: 20px;
-				margin-top: 20px;
-			}
-			.npmp-features-card {
-				flex: 0 0 auto;
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-			}
-			.npmp-sidebar-card {
-				flex: 0 0 calc(33.333% - 10px);
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-			}
-			.npmp-summary-container {
-				display: flex;
-				gap: 20px;
-				margin-top: 20px;
-			}
-			.npmp-summary-card {
-				flex: 1;
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-			}
-			.npmp-summary-card h3 {
-				margin-top: 0;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-			}
-			.npmp-summary-table {
-				width: 100%;
-				border-collapse: collapse;
-				margin-top: 15px;
-			}
-			.npmp-summary-table th,
-			.npmp-summary-table td {
-				padding: 8px;
-				text-align: left;
-				border-bottom: 1px solid #ddd;
-			}
-			.npmp-summary-table th {
-				font-weight: 600;
-				color: #1d2327;
-			}
-			.npmp-summary-table td {
-				color: #50575e;
-			}
-			.npmp-summary-table tr:last-child td,
-			.npmp-summary-table tr:last-child th {
-				border-bottom: none;
-			}
-			.npmp-summary-value {
-				font-weight: 600;
-				color: #0f766e;
-			}
-			.npmp-features-card h2 {
-				margin-top: 0;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-			}
-			.npmp-features-card .form-table {
-				margin-top: 0;
-			}
-			.npmp-features-card .form-table th {
-				width: 200px;
-				padding: 8px 10px 8px 0;
-			}
-			.npmp-features-card .form-table td {
-				padding: 8px 10px;
-			}
-			.npmp-sidebar-card h2 {
-				margin-top: 0;
-				font-size: 16px;
-				padding-bottom: 10px;
-				border-bottom: 1px solid #c3c4c7;
-			}
-			.npmp-sidebar-card ul {
-				margin: 10px 0 0 0;
-			}
-			.npmp-sidebar-card li {
-				margin-bottom: 8px;
-			}
-			.npmp-upgrade-section {
-				margin-top: 20px;
-				background: #fff;
-				border: 1px solid #c3c4c7;
-				box-shadow: 0 1px 1px rgba(0,0,0,.04);
-				padding: 20px;
-			}
-			.npmp-upgrade-section h2 {
-				margin-top: 0;
-			}
-			.npmp-upgrade-box {
-				background: #ecfdf5;
-				border: 1px solid #0f766e;
-				border-radius: 4px;
-				padding: 20px;
-				margin-top: 15px;
-			}
-			.npmp-upgrade-box h3 {
-				margin-top: 0;
-				color: #0f766e;
-			}
-			.npmp-upgrade-box .button-primary {
-				margin-top: 10px;
-			}
-			.npmp-pro-badge {
-				display: inline-block;
-				background: #0f766e;
-				color: #fff;
-				padding: 4px 12px;
-				border-radius: 12px;
-				font-size: 14px;
-				font-weight: 600;
-				text-transform: uppercase;
-				vertical-align: middle;
-				margin-left: 10px;
-			}
-			@media screen and (max-width: 782px) {
-				.npmp-main-container {
-					flex-direction: column;
-				}
-				.npmp-features-card,
-				.npmp-sidebar-card {
-					flex: 0 0 100%;
-				}
-			}
-		</style>
 
 		<div class="npmp-main-container">
 			<div class="npmp-features-card">
-				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Activate %s Features', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
+				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Turn %s Features On or Off', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
 				<form method="post">
 					<?php wp_nonce_field( 'npmp_save_features', 'npmp_features_nonce' ); ?>
 
-					<table class="form-table">
+					<?php $npmp_feature_names = npmp_feature_names(); ?>
+					<table class="form-table" role="presentation">
 						<tr>
-							<th><?php esc_html_e( 'Member Tracking', 'nonprofit-manager' ); ?></th>
-							<td><label><input type="checkbox" name="npmp_feature_members" <?php checked( $features['members'] ); ?>>
-								<?php esc_html_e( 'Membership tracking and signup forms.', 'nonprofit-manager' ); ?></label></td>
+							<th scope="row"><?php echo esc_html( $npmp_feature_names['members'] ); ?></th>
+							<td><label><input type="checkbox" name="npmp_feature_members" id="npmp_feature_members" <?php checked( $features['members'] ); ?>>
+								<?php esc_html_e( 'A contact list, membership levels, and signup forms.', 'nonprofit-manager' ); ?></label></td>
 						</tr>
 
 						<tr>
-							<th><?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?></th>
-							<td><label><input type="checkbox" name="npmp_feature_newsletters" <?php checked( $features['newsletters'] ); ?> <?php disabled( ! $features['members'] ); ?>>
-								<?php esc_html_e( 'Send newsletters to your members. (requires Member Tracking)', 'nonprofit-manager' ); ?></label></td>
+							<th scope="row"><?php echo esc_html( $npmp_feature_names['newsletters'] ); ?></th>
+							<td><label><input type="checkbox" name="npmp_feature_newsletters" id="npmp_feature_newsletters" <?php checked( $features['newsletters'] ); ?> <?php disabled( ! $features['members'] ); ?>>
+								<?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: the Member Tracking feature name. */ __( 'Send newsletters and scheduled event emails to your %1$s. Needs %2$s.', 'nonprofit-manager' ), npmp_label( 'members_lc' ), $npmp_feature_names['members'] ) ); ?></label></td>
 						</tr>
 
 						<tr>
-							<th><?php echo esc_html( npmp_label( 'donations' ) ); ?></th>
+							<th scope="row"><?php echo esc_html( $npmp_feature_names['donations'] ); ?></th>
 							<td><label><input type="checkbox" name="npmp_feature_donations" <?php checked( $features['donations'] ); ?>>
-								<?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Collect %s and manage payment methods.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></label></td>
+								<?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Take %s online and keep a record of each one.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></label></td>
 						</tr>
 
 						<tr>
-							<th><?php esc_html_e( 'Calendar', 'nonprofit-manager' ); ?></th>
+							<th scope="row"><?php echo esc_html( $npmp_feature_names['calendar'] ); ?></th>
 							<td><label><input type="checkbox" name="npmp_feature_calendar" <?php checked( $features['calendar'] ); ?>>
-								<?php esc_html_e( 'Enable public event calendar & iCal feed.', 'nonprofit-manager' ); ?></label></td>
+								<?php esc_html_e( 'A public event calendar with an iCal feed and a print button.', 'nonprofit-manager' ); ?></label></td>
 						</tr>
 
 						<tr>
-							<th><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></th>
+							<th scope="row"><?php echo esc_html( $npmp_feature_names['social'] ); ?></th>
 							<td><label><input type="checkbox" name="npmp_feature_social" <?php checked( ! empty( $features['social'] ) ); ?>>
-								<?php esc_html_e( 'Auto-share new posts and events to connected social networks.', 'nonprofit-manager' ); ?></label></td>
+								<?php esc_html_e( 'Share each new post and event to Facebook and X as you publish.', 'nonprofit-manager' ); ?></label></td>
 						</tr>
 					</table>
 
 					<?php submit_button( __( 'Save Features', 'nonprofit-manager' ) ); ?>
 				</form>
+				<script>
+				// Newsletters need Member Tracking. The box used to stay greyed
+				// until you saved Member Tracking on, so turning both on took
+				// two saves.
+				( function () {
+					var members = document.getElementById( 'npmp_feature_members' );
+					var letters = document.getElementById( 'npmp_feature_newsletters' );
+					if ( ! members || ! letters ) {
+						return;
+					}
+					members.addEventListener( 'change', function () {
+						letters.disabled = ! members.checked;
+						if ( ! members.checked ) {
+							letters.checked = false;
+						}
+					} );
+				} )();
+				</script>
 			</div>
 
 			<div class="npmp-sidebar-card">
 				<h2><?php esc_html_e( 'Quick Links', 'nonprofit-manager' ); ?></h2>
 				<ul>
 					<li><strong><?php esc_html_e( 'Settings', 'nonprofit-manager' ); ?></strong></li>
-					<li><a href="admin.php?page=npmp_general_settings"><?php esc_html_e( 'General Settings', 'nonprofit-manager' ); ?></a></li>
+					<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_general_settings' ) ); ?>"><?php esc_html_e( 'General Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php if ( ! empty( $features['members'] ) ) : ?>
-						<li><a href="admin.php?page=npmp_email_settings"><?php esc_html_e( 'Email Settings', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_email_settings' ) ); ?>"><?php esc_html_e( 'Email Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['members'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Membership', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp_members"><?php echo esc_html( sprintf( /* translators: %s: singular word for a member, such as Member. */ __( '%s List', 'nonprofit-manager' ), npmp_label( 'member' ) ) ); ?></a></li>
-						<li><a href="admin.php?page=npmp_membership_forms"><?php esc_html_e( 'Membership Settings', 'nonprofit-manager' ); ?></a></li>
+						<li class="npmp-quick-links__group"><strong><?php echo esc_html( $npmp_feature_names['members'] ); ?></strong></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_membership' ) ); ?>"><?php esc_html_e( 'Membership Dashboard', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_members' ) ); ?>"><?php esc_html_e( 'Contacts', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_membership_forms' ) ); ?>"><?php esc_html_e( 'Membership Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['newsletters'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp-newsletters"><?php esc_html_e( 'New Newsletter', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="admin.php?page=npmp_newsletter_templates"><?php esc_html_e( 'Newsletter Templates', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="admin.php?page=npmp_newsletter_archive"><?php esc_html_e( 'Newsletter Archive', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="admin.php?page=npmp_newsletter_reports"><?php esc_html_e( 'Newsletter Reports', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="admin.php?page=npmp_newsletter_settings"><?php esc_html_e( 'Newsletter Settings', 'nonprofit-manager' ); ?></a></li>
+						<li class="npmp-quick-links__group"><strong><?php esc_html_e( 'Email Newsletters', 'nonprofit-manager' ); ?></strong></li>
+						<li><a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=npmp_newsletter' ) ); ?>"><?php esc_html_e( 'Add Newsletter', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_templates' ) ); ?>"><?php esc_html_e( 'Newsletter Templates', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_archive' ) ); ?>"><?php esc_html_e( 'Newsletter Archive', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_reports' ) ); ?>"><?php esc_html_e( 'Newsletter Reports', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_newsletter_settings' ) ); ?>"><?php esc_html_e( 'Newsletter Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['donations'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php echo esc_html( npmp_label( 'donations' ) ); ?></strong></li>
-						<li><a href="admin.php?page=npmp_donations_group"><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></a></li>
-						<li><a href="admin.php?page=npmp_payment_settings"><?php esc_html_e( 'Payment Settings', 'nonprofit-manager' ); ?></a></li>
+						<li class="npmp-quick-links__group"><strong><?php echo esc_html( npmp_label( 'donations' ) ); ?></strong></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_donations_group' ) ); ?>"><?php echo esc_html( sprintf( /* translators: %s: plural word for donations, such as Donations or Contributions. */ __( '%s Dashboard', 'nonprofit-manager' ), npmp_label( 'donations' ) ) ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_payment_settings' ) ); ?>"><?php esc_html_e( 'Payment Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['calendar'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Events', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp-events"><?php esc_html_e( 'Events Overview', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="edit.php?post_type=npmp_event"><?php esc_html_e( 'All Events', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="post-new.php?post_type=npmp_event"><?php esc_html_e( 'Add New Event', 'nonprofit-manager' ); ?></a></li>
-						<li><a href="admin.php?page=npmp_event_settings"><?php esc_html_e( 'Calendar Settings', 'nonprofit-manager' ); ?></a></li>
+						<li class="npmp-quick-links__group"><strong><?php echo esc_html( $npmp_feature_names['calendar'] ); ?></strong></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp-events' ) ); ?>"><?php esc_html_e( 'Events Overview', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ); ?>"><?php esc_html_e( 'All Events', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=npmp_event' ) ); ?>"><?php esc_html_e( 'Add Event', 'nonprofit-manager' ); ?></a></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_event_settings' ) ); ?>"><?php esc_html_e( 'Calendar Settings', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 
 					<?php if ( ! empty( $features['social'] ) ) : ?>
-						<li style="margin-top: 15px;"><strong><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></strong></li>
-						<li><a href="admin.php?page=npmp_social_sharing"><?php esc_html_e( 'Social Sharing Settings', 'nonprofit-manager' ); ?></a></li>
+						<li class="npmp-quick-links__group"><strong><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></strong></li>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_social_sharing' ) ); ?>"><?php esc_html_e( 'Social Sharing', 'nonprofit-manager' ); ?></a></li>
 					<?php endif; ?>
 				</ul>
 			</div>
 		</div>
 
 		<!-- Summary Tables -->
+		<?php
+		/** This action is documented in includes/npmp-pro-feature-pages.php. */
+		do_action( 'npmp_admin_table_toolbar', 'overview', array( 'features' => $features ) );
+		?>
 		<div class="npmp-summary-container">
 			<!-- Membership Summary -->
 			<?php if ( ! empty( $features['members'] ) ) : ?>
@@ -350,7 +247,7 @@ function npmp_render_main_plugin_page() {
 						}
 						?>
 					</table>
-					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_members' ) ); ?>" class="button"><?php echo esc_html( sprintf( /* translators: %s: plural word for members, such as Members. */ __( 'View All %s', 'nonprofit-manager' ), npmp_label( 'members' ) ) ); ?></a></p>
+					<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=npmp_members' ) ); ?>" class="button"><?php esc_html_e( 'View contacts', 'nonprofit-manager' ); ?></a></p>
 				</div>
 			<?php endif; ?>
 
@@ -384,32 +281,31 @@ function npmp_render_main_plugin_page() {
 
 		<?php if ( ! $is_pro ) : ?>
 			<div class="npmp-upgrade-section">
-				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Thank You for Using %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
+				<h2><?php echo esc_html( sprintf( /* translators: %s: admin menu name, such as Nonprofit Manager or Club Manager. */ __( 'Thank you for using %s', 'nonprofit-manager' ), npmp_label( 'app_name' ) ) ); ?></h2>
 				<p>
 					<?php
 					printf(
 						/* translators: 1: lowercase plural word for groups like this one, such as nonprofits or clubs, 2: Pro's starting price, e.g. "$47 a year". */
-						esc_html__( 'The free edition covers what most %1$s need. Want more features and customization? Nonprofit Manager Pro starts at %2$s.', 'nonprofit-manager' ),
+						esc_html__( 'The free plugin covers what most %1$s need. Nonprofit Manager Pro starts at %2$s when you want more.', 'nonprofit-manager' ),
 						esc_html( npmp_label( 'orgs_lc' ) ),
 						esc_html( npmp_get_pro_starting_price() )
 					);
 					?>
 				</p>
-				<p><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'That\'s under $4 a month for a contact list, %s tracking, newsletters and an event calendar, all inside your WordPress site.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></p>
 
 				<div class="npmp-upgrade-box">
 					<h3><?php esc_html_e( 'Upgrade to Nonprofit Manager Pro', 'nonprofit-manager' ); ?></h3>
-					<p><?php esc_html_e( 'Get access to advanced features including:', 'nonprofit-manager' ); ?></p>
 					<ul>
-						<li><?php esc_html_e( 'Advanced reporting and analytics', 'nonprofit-manager' ); ?></li>
-						<li><?php echo esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Recurring %s support', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Recurring %s and membership dues billing', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></li>
+						<li><?php esc_html_e( 'Groups with their own newsletters, events, calendars, and signup forms', 'nonprofit-manager' ); ?></li>
+						<li><?php esc_html_e( 'As many scheduled emails as you want for each event and group', 'nonprofit-manager' ); ?></li>
 						<li><?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donations, such as donations or contributions. */ __( 'Custom fields for %1$s and %2$s', 'nonprofit-manager' ), npmp_label( 'members_lc' ), npmp_label( 'donations_lc' ) ) ); ?></li>
-						<li><?php esc_html_e( 'Email automation workflows', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Advanced email list segmentation', 'nonprofit-manager' ); ?></li>
-						<li><?php esc_html_e( 'Priority support', 'nonprofit-manager' ); ?></li>
+						<li><?php esc_html_e( 'Email automations and saved segments', 'nonprofit-manager' ); ?></li>
+						<li><?php esc_html_e( 'Print or save as PDF for every admin list and report', 'nonprofit-manager' ); ?></li>
+						<li><?php esc_html_e( 'Email support', 'nonprofit-manager' ); ?></li>
 					</ul>
-					<a href="<?php echo esc_url( npmp_get_upgrade_url( 'overview' ) ); ?>" class="button button-primary" target="_blank">
-						<?php esc_html_e( 'Learn More and Upgrade', 'nonprofit-manager' ); ?>
+					<a href="<?php echo esc_url( npmp_get_upgrade_url( 'overview' ) ); ?>" class="button button-primary" target="_blank" rel="noopener">
+						<?php esc_html_e( 'See Pro', 'nonprofit-manager' ); ?>
 					</a>
 				</div>
 			</div>
