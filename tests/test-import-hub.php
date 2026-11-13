@@ -131,7 +131,12 @@ $labels = npmp_import_hub_step_labels();
 check( 'where text: step 2', 'On Switch Plugins, MailPoet is at step 2 of 5: Check the results.', npmp_import_hub_where_text( 'MailPoet', npmp_import_hub_step_states( array( 'imported' => true, 'active' => true, 'installed' => true ) ), $labels ) );
 check( 'where text: running', 'Until you finish it here, you see your MailPoet import as in progress on Switch Plugins.', npmp_import_hub_where_text( 'MailPoet', $s, $labels ) );
 check( 'where text: finished', 'You finished switching from MailPoet.', npmp_import_hub_where_text( 'MailPoet', npmp_import_hub_step_states( array( 'imported' => true, 'verified' => true, 'data_removed' => true, 'removal_available' => true ) ), $labels ) );
-foreach ( array( 'mailpoet-importer.php', 'tec-importer.php', 'newsletter-importer.php', 'pmpro-importer.php', 'gift-importer.php', 'event-importer.php' ) as $importer ) {
+foreach ( glob( dirname( __DIR__ ) . '/includes/import/*-importer.php' ) as $path ) {
+	if ( false !== strpos( file_get_contents( $path ), 'npmp_import_sources' ) ) {
+		check( basename( $path ) . ' with a hub source says when its import is running', 1, min( 1, substr_count( file_get_contents( $path ), "'import_running'" ) ) );
+	}
+}
+foreach ( array( 'mailpoet-importer.php', 'tec-importer.php', 'newsletter-importer.php', 'pmpro-importer.php', 'gift-importer.php', 'event-importer.php', 'ultimate-member-importer.php' ) as $importer ) {
 	check( "$importer links back with the hub's step", 1, substr_count( file_get_contents( dirname( __DIR__ ) . '/includes/import/' . $importer ), 'npmp_import_hub_back_link(' ) );
 }
 
