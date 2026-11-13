@@ -96,6 +96,9 @@ if ( ! empty( $npmp_features['members'] ) ) {
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/pmpro-importer.php';
 	// Ultimate Member, on the Paid Memberships Pro importer's writer.
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/ultimate-member-importer.php';
+
+	// Past newsletters from MailPoet and The Newsletter Plugin, after their contacts.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/past-newsletters.php';
 }
 
 if ( ! empty( $npmp_features['donations'] ) ) {
@@ -146,6 +149,8 @@ if ( ! empty( $npmp_features['members'] ) && ! empty( $npmp_features['donations'
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/gift-importer.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/givewp-source.php';
 	require_once plugin_dir_path( __FILE__ ) . 'includes/import/charitable-source.php';
+	// Past gifts from a CSV file (Zeffy, Givebutter, Donorbox, a spreadsheet), on the same engine.
+	require_once plugin_dir_path( __FILE__ ) . 'includes/import/gift-csv-source.php';
 }
 
 /* -------------------------------------------------------------------------

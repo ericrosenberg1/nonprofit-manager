@@ -180,6 +180,21 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   deletion (checked in EM 7.4.14, Sugar Lite 3.17.0, Newsletter 9.5.7, MailPoet 5.45.2, TEC 6.18.3.1). Unit `tests/test-past-gifts.php`,
   `tests/test-gift-sources.php`, rig `tests/rig/gift-sources.php` (real GiveWP 4.19.1.1 and Charitable
   1.8.15.1, Pro inactive).
+- **Past gifts from a file** (`includes/import/gift-csv-parse.php`, pure, and `gift-csv-source.php`). A CSV from Zeffy,
+  Givebutter, Donorbox, or a spreadsheet goes through the GiveWP/Charitable gift engine as source `gift_csv`. It opens from
+  a card on the Import screen (`npmp_import_source_cards`, printed in `admin-import.php`) and isn't on Switch Plugins, since
+  it has no plugin to turn off. Its gift-engine filter goes on only inside its own handlers (`npmp_gift_csv_engine_on()`),
+  so the plugin-switch gift screen never lists it. The check pass writes an index file beside the upload in `npmp-private/`,
+  one line per donor (`email TAB byte offsets`), and the engine's cursor is a byte position in that file, so 50,000 rows
+  cost one short string per donor. Presets map only columns the tool's own help center names: Givebutter's full list
+  (help.givebutter.com article 2219206, dates UTC), Zeffy's Amount, Payment method, Payment status, and Refunded amount
+  (support.zeffy.com, the rest by generic header match), and no Donorbox preset, since its help center never lists the
+  donation export's columns. The engine has no refunded state, so refunded, disputed, failed, and unfinished rows stay out,
+  a partial refund comes in as the amount kept, unknown statuses stay out until the owner ticks them, rows with no email
+  stay out, and recurring payments come in as past gifts with their frequency and no plan. Identity: the transaction ID
+  when mapped, else email, UTC date, amount, and currency. Uploads still expire three hours after the last step. Unit
+  `tests/test-gift-csv.php` (fixtures in `tests/fixtures/gift-csv-*.csv`), rig `tests/rig/gift-csv.php` (and `big` for
+  50,000 rows), run with Pro on and off.
 - **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
   `sugar-calendar-source.php`). One engine for event plugins other than TEC: sources register on
   `npmp_event_import_sources` and hand back one item per date, and the engine writes npmp_event posts with
@@ -280,6 +295,21 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
   empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
   site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
+- **Past newsletters from MailPoet and The Newsletter Plugin** (`includes/import/past-newsletters.php`, pure parts in
+  `past-newsletters-pure.php`, imported-newsletter guards in `includes/email-newsletter/imported.php`). A box on each importer's
+  Approve step (hooks `npmp_import_approve_parts` and `npmp_import_after_migrate`) runs after contacts. Only MailPoet `standard`
+  + `sent` + not deleted, and TNP `message` + `sent`, come over, as `npmp_newsletter` posts with status `sent`, `_npmp_import_key`
+  `<source>:<id>` (a rerun skips them), no stats, and `_npmp_newsletter_public` unset. MailPoet's stored rendered HTML
+  (`sending_queues.newsletter_rendered_body`, cleared after 30 days) wins over the JSON blocks, and the block converter reports which
+  newsletters lost formatting. Never run MailPoet or TNP code to render. `npmp_past_nl_sanitize()` strips scripts, forms, pixels, the
+  plugins' tracking (restoring the real link from MailPoet's `newsletter_links` or TNP's `nltr` and `/tnp/l/`), and unsubscribe, manage,
+  and view-in-browser links, and turns personal tags into `[first_name default="..."]`. An imported newsletter can never send:
+  `queue_newsletter()` returns 0, the drain empties its body, and the editor, Send now, and Send later all refuse
+  (`npmp_newsletter_is_imported()`). The runner sends the source in the ajax action name (`npmp_past_newsletters_<slug>`), since
+  `npmp-tec-import.js` posts only action, nonce, and restart. Pro's `includes/groups/past-newsletters.php` matches list names to existing
+  groups and never creates one. Unit `tests/test-past-newsletters.php` and `tests/test-newsletter-public-bulk.php`, rig
+  `tests/rig/past-newsletters.php` (real MailPoet 5.45.2 and Newsletter 9.5.7 together, `NPMP_RIG_SINK` set to `tests/rig/smtp-sink.py`'s
+  output, Pro on and off). The stub-based `tests/rig/mailpoet-importer.php` overwrites a real MailPoet, so it refuses to run beside one.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -291,10 +321,14 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
+- Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
+- Added an importer for MailPoet past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
+- Added an importer for The Newsletter Plugin past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
+- Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
 
 Pro (licence server changelog):
-- (none)
+- Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.
 
 ## Releasing: three systems, always in this order
 

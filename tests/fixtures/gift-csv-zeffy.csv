@@ -1,0 +1,10 @@
+﻿Payment date,First name,Last name,Email,Amount,Payment method,Payment status,Payout date,Donation,Refunded amount,Discount,Form title,Address,City,Region,Postal code,Country
+03/14/2025 10:22,Ivy,Fakename,ivy@example.org,$100.00,Card,Succeeded,03/20/2025,$100.00,$0.00,$0.00,Annual Gala,2 Test Road,Burlington,VT,05401,US
+03/28/2025 18:05,Ivy,Fakename,ivy@example.org,$100.00,Card,Partial refund,04/01/2025,$100.00,$40.00,$0.00,Annual Gala,,,,,
+04/02/2025 09:00,Jon,Sample,jon@example.org,$50.00,Card,Refunded,,$50.00,$50.00,$0.00,Annual Gala,,,,,
+04/03/2025 09:00,Kim,Sample,kim@example.org,$35.00,Card,Failed,,$35.00,$0.00,$0.00,Annual Gala,,,,,
+04/04/2025 09:00,Lee,Sample,lee@example.org,$20.00,ACH,Processing,,$20.00,$0.00,$0.00,Monthly,,,,,
+04/05/2025 09:00,Max,Sample,max@example.org,$80.00,Card,Disputed,,$80.00,$0.00,$0.00,Annual Gala,,,,,
+04/06/2025 09:00,Nia,Sample,nia@example.org,$12.00,Card,Stopped,,$12.00,$0.00,$0.00,Monthly,,,,,
+04/07/2025 09:00,Oli,Sample,oli@example.org,$5.00,Card,Abandoned,,$5.00,$0.00,$0.00,Annual Gala,,,,,
+04/08/2025 13:15,Pat,Example,pat@example.org,"$2,500.00",Cheque,Succeeded,04/15/2025,"$2,500.00",$0.00,$0.00,Capital Campaign,3 Fake St,Montreal,QC,H2X 1Y4,CA
