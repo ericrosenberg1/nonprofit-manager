@@ -588,6 +588,9 @@ function npmp_event_hub_source( $slug, $name, array $folders, $installed, array 
 		'is_imported'       => function () use ( $slug ) {
 			return npmp_event_import_state( $slug )['finished_at'] > 0;
 		},
+		'import_running'    => function () use ( $slug ) {
+			return ! empty( npmp_event_import_state( $slug )['running'] );
+		},
 		'can_import'        => function () use ( $slug, $name ) {
 			$sources = npmp_event_import_sources();
 			return npmp_import_hub_can_import_when( isset( $sources[ $slug ] ) && (bool) call_user_func( $sources[ $slug ]['has_data'] ), $name );
@@ -757,7 +760,7 @@ function npmp_event_import_render_page() {
 	/* translators: %s: old plugin name. */
 	echo '<h1>' . esc_html( sprintf( __( 'Import events from %s', 'nonprofit-manager' ), $source['name'] ) ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( $slug ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( $slug );
 
 	if ( $state['running'] ) {
 		npmp_event_import_render_results( $state['results'] );

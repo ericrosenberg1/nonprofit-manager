@@ -74,6 +74,37 @@ check( 'sender email starts unchecked when you saved one', false, $plan['from_em
 check( 'reply-to has no match here', 'unsupported', $plan['reply_to']['state'] );
 check( 'double opt-in on starts checked', true, $plan['double_optin']['checked'] );
 
+echo "Fill order\n";
+if ( ! defined( 'ARRAY_A' ) ) {
+	define( 'ARRAY_A', 'ARRAY_A' );
+}
+$GLOBALS['wpdb'] = new class() {
+	public $prefix = 'wp_';
+	public $sql    = array();
+	public function esc_like( $s ) {
+		return $s;
+	}
+	public function prepare( $q, ...$args ) {
+		return vsprintf( str_replace( '%s', "'%s'", $q ), is_array( $args[0] ?? null ) ? $args[0] : $args );
+	}
+	public function get_var( $q ) {
+		return 'wp_newsletter';
+	}
+	public function get_results( $q ) {
+		$this->sql[] = $q;
+		return array();
+	}
+};
+foreach ( array( 'subscribed', 'pending', 'rest' ) as $p ) {
+	npmp_tnp_read_rows( 0, 5, array(), $p );
+}
+$sql = $GLOBALS['wpdb']->sql;
+check( 'confirmed people come first', 1, preg_match( "/WHERE id > 0 AND status = 'C' ORDER BY id/", $sql[0] ?? '' ) );
+check( 'then people who have not confirmed', 1, preg_match( "/AND status = 'S' ORDER BY/", $sql[1] ?? '' ) );
+check( 'then everyone else, NULL included', 1, preg_match( "/AND \( status IS NULL OR status NOT IN \( 'C', 'S' \) \)/", $sql[2] ?? '' ) );
+$run = file_get_contents( $root . '/includes/import/newsletter-importer.php' );
+check( 'a short batch moves to the next pass and resets the cursor', 1, preg_match( '/npmp_import_fill_next_pass\(/', $run ) );
+
 echo "Secrets\n";
 $code = preg_replace( '#/\*.*?\*/|//[^\n]*#s', '', file_get_contents( $root . '/includes/import/newsletter-importer.php' ) );
 check( 'reads only three options by name', array( 'newsletter_lists', 'newsletter_main', 'newsletter_subscription' ), ( function () use ( $code ) {

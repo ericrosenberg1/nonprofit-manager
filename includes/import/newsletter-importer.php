@@ -219,7 +219,7 @@ function npmp_tnp_counts() {
  * @return object[] id, email, first_name, last_name, status (MailPoet's word),
  *                  group, created, confirmed, lists (names).
  */
-function npmp_tnp_read_rows( $after, $limit, array $lists ) {
+function npmp_tnp_read_rows( $after, $limit, array $lists, $pass = '' ) {
 	global $wpdb;
 	$table = npmp_tnp_table();
 	if ( ! $table ) {
@@ -229,8 +229,18 @@ function npmp_tnp_read_rows( $after, $limit, array $lists ) {
 	foreach ( array_keys( $lists ) as $i ) {
 		$list_cols .= ', list_' . (int) $i;
 	}
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table and list column names are built here, values are prepared.
-	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, email, name, surname, status, UNIX_TIMESTAMP(created) AS created_ts{$list_cols} FROM {$table} WHERE id > %d ORDER BY id ASC LIMIT %d", (int) $after, (int) $limit ), ARRAY_A );
+	// One pass of npmp_import_fill_passes(): confirmed (C), then not
+	// confirmed (S), then every other letter.
+	$where = '';
+	if ( 'subscribed' === $pass ) {
+		$where = " AND status = 'C'";
+	} elseif ( 'pending' === $pass ) {
+		$where = " AND status = 'S'";
+	} elseif ( 'rest' === $pass ) {
+		$where = " AND ( status IS NULL OR status NOT IN ( 'C', 'S' ) )";
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table and list column names are built here, $where is fixed text, values are prepared.
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, email, name, surname, status, UNIX_TIMESTAMP(created) AS created_ts{$list_cols} FROM {$table} WHERE id > %d{$where} ORDER BY id ASC LIMIT %d", (int) $after, (int) $limit ), ARRAY_A );
 	$out  = array();
 	foreach ( (array) $rows as $row ) {
 		$on = array();
@@ -300,6 +310,7 @@ function npmp_tnp_state() {
 	$state = is_array( $state ) ? $state : array();
 	return array(
 		'cursor'      => (int) ( $state['cursor'] ?? 0 ),
+		'pass'        => in_array( (string) ( $state['pass'] ?? '' ), npmp_import_fill_passes(), true ) ? (string) $state['pass'] : npmp_import_fill_next_pass( '' ),
 		'running'     => ! empty( $state['running'] ),
 		'finished_at' => (int) ( $state['finished_at'] ?? 0 ),
 		'handled'     => (int) ( $state['handled'] ?? 0 ),
@@ -329,6 +340,7 @@ function npmp_tnp_save_state( array $state ) {
 function npmp_tnp_start( array $skip, array $settings ) {
 	$state             = npmp_tnp_state();
 	$state['cursor']   = 0;
+	$state['pass']     = npmp_import_fill_next_pass( '' );
 	$state['running']  = true;
 	$state['handled']  = 0;
 	$state['skip']     = array_values( array_intersect( array_map( 'strval', $skip ), array_keys( npmp_tnp_status_groups() ) ) );
@@ -382,7 +394,9 @@ function npmp_tnp_run_locked( $seconds = NPMP_TNP_SECONDS, $limit = NPMP_TNP_BAT
 	$done  = false;
 
 	do {
-		$rows = npmp_tnp_read_rows( $state['cursor'], $limit, $lists );
+		// Confirmed subscribers first, so the free places go to people you
+		// can write to (npmp_import_fill_passes()).
+		$rows = npmp_tnp_read_rows( $state['cursor'], $limit, $lists, $state['pass'] );
 		if ( $rows ) {
 			$existing = npmp_mailpoet_find_contacts( wp_list_pluck( $rows, 'email' ) );
 		}
@@ -435,8 +449,10 @@ function npmp_tnp_run_locked( $seconds = NPMP_TNP_SECONDS, $limit = NPMP_TNP_BAT
 			}
 			$state['cursor'] = $row->id;
 		}
-		if ( count( $rows ) < $limit ) {
-			$done = true;
+		if ( ! $done && count( $rows ) < $limit ) {
+			$state['pass']   = npmp_import_fill_next_pass( $state['pass'] );
+			$state['cursor'] = 0;
+			$done            = '' === $state['pass'];
 		}
 		npmp_tnp_save_state( $state );
 	} while ( ! $done && ( microtime( true ) - $start ) < $seconds );
@@ -520,6 +536,9 @@ function npmp_tnp_register_hub_source( $sources ) {
 		},
 		'is_imported'       => function () {
 			return (bool) get_option( 'npmp_tnp_imported', 0 );
+		},
+		'import_running'    => function () {
+			return npmp_tnp_state()['running'];
 		},
 		'can_import'        => function () {
 			return '' !== npmp_tnp_table() ? true : __( 'You need The Newsletter Plugin\'s subscriber table to import, and this site doesn\'t have one. Install The Newsletter Plugin, turn it on once so it sets up its tables, and come back to this screen.', 'nonprofit-manager' );
@@ -707,7 +726,7 @@ function npmp_tnp_render_page() {
 	echo '<div class="wrap npmp-hub-wrap">';
 	echo '<h1>' . esc_html__( 'Import from The Newsletter Plugin', 'nonprofit-manager' ) . '</h1>';
 	echo '<hr class="wp-header-end">';
-	echo '<p><a href="' . esc_url( npmp_import_hub_url( 'newsletter' ) ) . '">&larr; ' . esc_html__( 'Back to Switch Plugins', 'nonprofit-manager' ) . '</a></p>';
+	npmp_import_hub_back_link( 'newsletter' );
 
 	if ( ! npmp_tnp_table() ) {
 		echo '<p>' . esc_html__( 'You need The Newsletter Plugin\'s subscriber table to import, and this site doesn\'t have one.', 'nonprofit-manager' ) . '</p></div>';
@@ -775,7 +794,7 @@ function npmp_tnp_render_page() {
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
 				number_format_i18n( npmp_import_free_remaining() )
 			)
-		) . '</p>';
+		) . ' ' . esc_html( npmp_import_fill_order_message() ) . '</p>';
 	}
 
 	echo '<h2>' . esc_html__( 'Settings', 'nonprofit-manager' ) . '</h2>';

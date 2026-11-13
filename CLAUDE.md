@@ -165,6 +165,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   A gift keeps the contact's status (`NPMP_Member_Manager::status_after_gift()`), only a contact with none becomes Donor.
   When a source's data comes back after step 5 finished, the hub forgets the old check and removal
   (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
+  A source's `import_running` callback puts step 1 at In progress while the importer screen is partway
+  through, and every importer screen prints `npmp_import_hub_back_link( $slug )` with the hub's current step.
+- **Never look contacts up by email one row at a time in an import.** `npmp_email` meta has no index, so
+  50,000 MailPoet rows took 1,415 seconds that way. Call `NPMP_Member_Manager::lookup_emails()` once per
+  batch. It fills a request-scoped index that `get_member_by_email()` reads, and `add_member()`,
+  `update_member()`, `delete_member()`, and any `npmp_email` meta write keep it right.
+- **Free imports fill in passes** (`npmp_import_fill_passes()`: subscribed, pending, rest). MailPoet and
+  Newsletter save the pass with the cursor and reset the cursor between passes, so a reload resumes in
+  the right pass. CSV and API imports keep file or provider order.
+- **TEC parents come from the term tables.** `npmp_tec_read_categories()` uses
+  `npmp_event_import_post_terms()`, which marks parents `assign => false`, so the migrate step makes
+  the whole tree with TEC off and assigns each event only its own categories (rig `tests/rig/tec-categories.php`).
 - **Past gifts from GiveWP and Charitable** (`includes/import/past-gifts.php`, `gift-importer.php`,
   `givewp-source.php`, `charitable-source.php`). A past gift is an `npmp_donation` post written directly,
   never through `log_donation()`, so Pro's automations mail no receipt and the first-donation milestone
@@ -366,6 +378,16 @@ Free (`readme.txt`):
 - Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and the date each contact joined.
 - Fixed imports with "Update existing contacts," which resubscribed contacts who had unsubscribed.
 - Fixed the import message about the Email column, which showed &quot; on screen.
+- Fixed slow imports from MailPoet, The Newsletter Plugin, GiveWP, Charitable, Paid Memberships Pro, and CSV files on sites with thousands of contacts.
+- Added MailPoet tags, which you now get in each contact's Tags field next to the tags they already have.
+- Fixed The Events Calendar imports dropping a parent category when only its child categories had events.
+- Fixed free imports from MailPoet and The Newsletter Plugin filling your free places in signup order. Subscribed people now come first.
+- Fixed MailPoet lists with no subscribed members, which you got as empty groups.
+- Added a link back to Switch Plugins on every import screen, and fixed the Switch Plugins step you saw while an import was still running.
+- Fixed the review request, which showed the threshold instead of your own contact or event count.
+- Fixed numbers of four digits or more without commas on the import and Switch Plugins screens.
+- Fixed the send queue keeping a newsletter you deleted.
+- Fixed the blank recurring donations total on the dashboard of SQLite sites.
 
 Pro (licence server changelog):
 - Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.

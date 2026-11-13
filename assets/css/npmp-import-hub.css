@@ -143,6 +143,12 @@
 	border: 1px solid #a7f3d0;
 }
 
+.npmp-hub-badge.is-running {
+	background: #ecfdf5;
+	color: #0f766e;
+	border: 1px dashed #0f766e;
+}
+
 .npmp-hub-badge.is-ready {
 	background: #0f766e;
 	color: #fff;

@@ -634,6 +634,17 @@ class NPMP_Member_Manager {
 	private static $instance = null;
 
 	/**
+	 * Addresses already looked up in this request: lowercase email => contact
+	 * ID, or 0 when no contact holds it. lookup_emails() fills it one batch at
+	 * a time, so an import's add_member() and get_member_by_email() calls skip
+	 * the unindexed meta_value scan they would each run otherwise. Cleared for
+	 * an address whenever its npmp_email meta changes.
+	 *
+	 * @var array<string,int>
+	 */
+	private $email_index = array();
+
+	/**
 	 * Singleton accessor.
 	 *
 	 * @return self
@@ -1146,6 +1157,18 @@ class NPMP_Member_Manager {
 			return $member;
 		}
 
+		$lower = strtolower( $email );
+		if ( isset( $this->email_index[ $lower ] ) ) {
+			if ( 0 === $this->email_index[ $lower ] ) {
+				return null;
+			}
+			$member = $this->get_member_by_id( $this->email_index[ $lower ] );
+			if ( $member && strtolower( (string) $member->email ) === $lower ) {
+				return $member;
+			}
+			unset( $this->email_index[ $lower ] );
+		}
+
 		$query = new WP_Query(
 			array(
 				'post_type'      => 'npmp_contact',
@@ -1181,6 +1204,63 @@ class NPMP_Member_Manager {
 	 */
 	public function email_exists( $email ) {
 		return (bool) $this->get_member_by_email( $email );
+	}
+
+	/**
+	 * Look up a batch of addresses in one query and remember the answers for
+	 * this request, so later get_member_by_email() and add_member() calls for
+	 * them cost no query. Every importer calls it once per batch.
+	 *
+	 * Matches the way get_member_by_email() matches (published contacts, the
+	 * database's own comparison), and the oldest contact wins an address two
+	 * contacts share.
+	 *
+	 * @param string[] $emails Email addresses.
+	 * @return array<string,array{id:int,status:string}> Contacts found, keyed by lowercase email.
+	 */
+	public function lookup_emails( array $emails ) {
+		global $wpdb;
+		$emails = array_values( array_unique( array_filter( array_map( 'sanitize_email', array_map( 'strval', $emails ) ) ) ) );
+		if ( ! $emails ) {
+			return array();
+		}
+
+		$found = array();
+		foreach ( array_chunk( $emails, 500 ) as $chunk ) {
+			$in = implode( ',', array_fill( 0, count( $chunk ), '%s' ) );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $in is a placeholder list.
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT e.post_id AS id, e.meta_value AS email, s.meta_value AS status FROM {$wpdb->postmeta} e INNER JOIN {$wpdb->posts} p ON p.ID = e.post_id LEFT JOIN {$wpdb->postmeta} s ON s.post_id = e.post_id AND s.meta_key = 'npmp_status' WHERE e.meta_key = 'npmp_email' AND p.post_type = 'npmp_contact' AND p.post_status = 'publish' AND e.meta_value IN ($in) ORDER BY e.post_id DESC", $chunk ) );
+			foreach ( (array) $rows as $row ) {
+				// Ordered newest first, so the oldest contact for an address wins.
+				$found[ strtolower( (string) $row->email ) ] = array(
+					'id'     => (int) $row->id,
+					'status' => '' === (string) $row->status ? 'subscribed' : (string) $row->status,
+				);
+			}
+		}
+
+		foreach ( $emails as $email ) {
+			$lower                       = strtolower( $email );
+			$this->email_index[ $lower ] = isset( $found[ $lower ] ) ? $found[ $lower ]['id'] : 0;
+		}
+		foreach ( $found as $lower => $contact ) {
+			$this->email_index[ $lower ] = $contact['id'];
+		}
+		return $found;
+	}
+
+	/**
+	 * Drop what lookup_emails() remembered about an address.
+	 *
+	 * @param string $email Email address, or '' to drop everything.
+	 * @return void
+	 */
+	public function forget_email( $email = '' ) {
+		if ( '' === (string) $email ) {
+			$this->email_index = array();
+			return;
+		}
+		unset( $this->email_index[ strtolower( (string) $email ) ] );
 	}
 
 	/**
@@ -1249,6 +1329,7 @@ class NPMP_Member_Manager {
 			return $post_id;
 		}
 
+		$this->email_index[ strtolower( $clean['email'] ) ] = (int) $post_id;
 		$member = $this->get_member_by_id( $post_id );
 		$this->cache_member( $member );
 
@@ -1321,6 +1402,10 @@ class NPMP_Member_Manager {
 
 		$new_email = $clean['email'] ?? $member->email;
 		$this->clear_cache( $member->id, $dirty_email );
+		if ( strtolower( (string) $new_email ) !== strtolower( (string) $dirty_email ) ) {
+			$this->forget_email( $dirty_email );
+			$this->forget_email( $new_email );
+		}
 		$this->cache_member( $this->get_member_by_id( $member->id ) );
 
 		return true;
@@ -1344,6 +1429,7 @@ class NPMP_Member_Manager {
 		}
 
 		$this->clear_cache( $member->id, $member->email );
+		$this->forget_email( $member->email );
 
 		return 1;
 	}
@@ -1909,9 +1995,31 @@ function npmp_member_cache_invalidate( $post_id ) {
 	$email = get_post_meta( $post_id, 'npmp_email', true );
 	if ( $email ) {
 		wp_cache_delete( 'npmp_member_email_' . strtolower( $email ), 'npmp_members' );
+		NPMP_Member_Manager::get_instance()->forget_email( $email );
 	}
 }
 add_action( 'save_post_npmp_contact', 'npmp_member_cache_invalidate' );
+
+/**
+ * Forget a looked-up address when anything writes a contact's npmp_email
+ * meta, so NPMP_Member_Manager::lookup_emails() never answers from a stale
+ * batch.
+ *
+ * @param mixed  $meta_ids   Meta ID or IDs (unused).
+ * @param int    $object_id  Post ID (unused).
+ * @param string $meta_key   Meta key.
+ * @param mixed  $meta_value Meta value.
+ * @return void
+ */
+function npmp_member_forget_email_meta( $meta_ids, $object_id, $meta_key, $meta_value = '' ) {
+	if ( 'npmp_email' !== $meta_key ) {
+		return;
+	}
+	NPMP_Member_Manager::get_instance()->forget_email( is_string( $meta_value ) ? $meta_value : '' );
+}
+add_action( 'added_post_meta', 'npmp_member_forget_email_meta', 10, 4 );
+add_action( 'updated_post_meta', 'npmp_member_forget_email_meta', 10, 4 );
+add_action( 'deleted_post_meta', 'npmp_member_forget_email_meta', 10, 4 );
 add_action( 'deleted_post', 'npmp_member_cache_invalidate' );
 add_action( 'trashed_post', 'npmp_member_cache_invalidate' );
 

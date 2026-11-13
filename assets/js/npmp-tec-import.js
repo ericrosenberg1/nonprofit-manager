@@ -13,6 +13,12 @@
 		return template.replace( '%1$s', a ).replace( '%2$s', b );
 	}
 
+	// Group the digits the way number_format_i18n() does on the server, so a
+	// count of 4300 reads 4,300 (the separator comes from data-thousands).
+	function group( n, sep ) {
+		return String( Math.round( Number( n ) || 0 ) ).replace( /\B(?=(\d{3})+(?!\d))/g, sep );
+	}
+
 	function initRunner( root ) {
 		var form = root.querySelector( '.npmp-tec-runner-form' );
 		var bar = root.querySelector( '.npmp-tec-bar' );
@@ -25,7 +31,8 @@
 			var pct = total > 0 ? Math.min( 100, Math.round( ( done / total ) * 100 ) ) : 100;
 			fill.style.width = pct + '%';
 			bar.setAttribute( 'aria-valuenow', String( pct ) );
-			text.textContent = format( root.getAttribute( 'data-label-progress' ), done, total );
+			var sep = root.hasAttribute( 'data-thousands' ) ? root.getAttribute( 'data-thousands' ) : ',';
+			text.textContent = format( root.getAttribute( 'data-label-progress' ), group( done, sep ), group( total, sep ) );
 		}
 
 		function fail( message ) {

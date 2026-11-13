@@ -203,5 +203,35 @@ check( 'after the move, the limit reads as a total, not one import', false, strp
 check( 'approve names how many stay in MailPoet', true, false !== strpos( $mp_src, 'so %3$s of the %4$s new contacts here stay in MailPoet' ) );
 check( 'free step 5 points at Pro, not at moving the rest', true, false !== strpos( $mp_src, 'past the free limit. Add Pro and run the import again' ) );
 
+echo "Tags\n";
+check( 'a new contact gets every tag', 'Board,Volunteers', npmp_mailpoet_merge_tags( '', array( 'Board', 'Volunteers' ) ) );
+check( 'an update adds after the tags already there', 'Donor,Board', npmp_mailpoet_merge_tags( 'Donor', array( 'Board' ) ) );
+check( 'a tag already there in another case adds nothing', '', npmp_mailpoet_merge_tags( 'board, Donor', array( 'Board' ) ) );
+check( 'no tags from MailPoet: leave the field alone', '', npmp_mailpoet_merge_tags( 'Donor', array() ) );
+check( 'a comma inside a tag name cannot split it in two', 'Donor,Friends of the Park', npmp_mailpoet_merge_tags( 'Donor', array( 'Friends, of the Park' ) ) );
+check( 'blank names drop out', 'Board', npmp_mailpoet_merge_tags( '', array( ' ', '', 'Board' ) ) );
+check( 'existing tags never get dropped', 'A,B,C,D', npmp_mailpoet_merge_tags( 'A;B,C', array( 'D', 'a' ) ) );
+check( 'the migrate step reads tags per batch', true, false !== strpos( $src, '$tags        = npmp_mailpoet_read_tags(' ) );
+check( 'tags come from mailpoet_tags and mailpoet_subscriber_tag', true, false !== strpos( $src, "npmp_mailpoet_table( 'subscriber_tag' )" ) && false !== strpos( $src, "npmp_mailpoet_table( 'tags' )" ) );
+check( 'the review step shows the tag count', true, false !== strpos( $src, "MailPoet tags into each contact\\'s Tags field" ) );
+
+echo "Empty lists\n";
+$lists = array(
+	3 => array( 'name' => 'Newsletter', 'count' => 40 ),
+	4 => array( 'name' => 'Old list', 'count' => 0 ),
+	5 => array( 'name' => 'Board', 'count' => 2 ),
+	6 => array( 'name' => '', 'count' => 9 ),
+);
+$split = npmp_mailpoet_split_lists( $lists, array( 5 ) );
+check( 'lists with subscribed members become groups', array( 3 => 'Newsletter' ), $split['keep'] );
+check( 'a list with no subscribed member stays behind', array( 4 => 'Old list' ), $split['empty'] );
+check( 'an unchecked list is neither', false, isset( $split['keep'][5] ) || isset( $split['empty'][5] ) );
+check( 'the list count leaves out people who left or bounced', true, false !== strpos( $src, "AND s.status NOT IN ( %s, %s ) GROUP BY ss.segment_id\", 'subscribed', 'unsubscribed', 'bounced'" ) );
+
+echo "Fill order\n";
+check( 'the migrate step reads one pass at a time', true, false !== strpos( $src, 'npmp_mailpoet_read_subscribers( (int) $stage[\'migrate_cursor\'], $limit, $pass )' ) );
+check( 'subscribed first, unconfirmed second, then the rest', true, false !== strpos( $src, '\'subscribed\' === $pass ) {' . "\n\t\t" . '$where = " AND status = \'subscribed\'";' ) && false !== strpos( $src, '" AND status = \'unconfirmed\'"' ) && false !== strpos( $src, "status NOT IN ( 'subscribed', 'unconfirmed' )" ) );
+check( 'the approve step says the order', true, false !== strpos( $src, 'npmp_import_fill_order_message()' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

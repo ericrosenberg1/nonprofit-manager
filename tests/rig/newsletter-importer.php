@@ -192,8 +192,10 @@ $ok( 'Newsletter saved 8 subscribers', 8 === (int) $wpdb->get_var( $wpdb->prepar
 $ok( 'Newsletter reads the lists back', isset( $tnp->get_lists()['1'] ) && 'Rig Members' === $tnp->get_lists()['1']->name );
 $ok( 'Newsletter reads double opt-in back', $tnp->get_option( 'noconfirmation', 'subscription' ) == 0 ); // phpcs:ignore Universal.Operators.StrictComparisons -- Newsletter's own loose check.
 
-$ok( 'old is a contact who unsubscribed', is_int( $members->add_member( array( 'name' => 'Old Friend', 'email' => 'old@' . $domain, 'status' => 'unsubscribed', 'source' => 'manual' ) ) ) );
-$ok( 'pen is a contact waiting as Pending', is_int( $members->add_member( array( 'name' => '', 'email' => 'pen@' . $domain, 'status' => 'pending', 'source' => 'manual' ) ) ) );
+// Added before Newsletter's own date for them, so the import never moves it
+// (a run that crossed a second boundary used to count old as updated).
+$ok( 'old is a contact who unsubscribed', is_int( $members->add_member( array( 'name' => 'Old Friend', 'email' => 'old@' . $domain, 'status' => 'unsubscribed', 'source' => 'manual', 'created_at' => '2020-01-01 00:00:00' ) ) ) );
+$ok( 'pen is a contact waiting as Pending', is_int( $members->add_member( array( 'name' => '', 'email' => 'pen@' . $domain, 'status' => 'pending', 'source' => 'manual', 'created_at' => '2020-01-01 00:00:00' ) ) ) );
 
 // Rows outside this rig (Newsletter adds the admin at setup) count too.
 $table      = $wpdb->prefix . 'newsletter';

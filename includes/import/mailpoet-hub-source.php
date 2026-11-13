@@ -114,6 +114,10 @@ function npmp_mailpoet_hub_register( $sources ) {
 		'plugin_folders'    => array( 'mailpoet' ),
 		'has_data'          => 'npmp_mailpoet_hub_has_data',
 		'is_imported'       => 'npmp_mailpoet_hub_is_imported',
+		'import_running'    => static function () {
+			$stage = npmp_mailpoet_get_stage();
+			return ! empty( $stage['approved'] ) && empty( $stage['migrated'] );
+		},
 		'can_import'        => 'npmp_mailpoet_hub_can_import',
 		'import_url'        => 'npmp_mailpoet_page_url',
 		'import_summary'    => 'npmp_mailpoet_hub_import_summary',

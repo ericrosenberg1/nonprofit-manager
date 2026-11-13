@@ -174,6 +174,10 @@ function npmp_tec_hub_register( $sources ) {
 		'plugin_folders'    => array( 'the-events-calendar' ),
 		'has_data'          => 'npmp_tec_hub_has_data',
 		'is_imported'       => 'npmp_tec_hub_is_imported',
+		'import_running'    => static function () {
+			$stage = npmp_tec_get_stage();
+			return ! empty( $stage['approved'] ) && empty( $stage['migrated'] );
+		},
 		'can_import'        => 'npmp_tec_hub_can_import',
 		'import_url'        => 'npmp_tec_page_url',
 		'import_summary'    => 'npmp_tec_hub_import_summary',
