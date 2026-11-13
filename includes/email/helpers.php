@@ -810,6 +810,9 @@ function npmp_email_safe_image_url( $url ) {
 function npmp_email_browser_only_content_filters() {
 	$filters = array(
 		array( 'CreativeCommonsImage', 'add_attribution_boxes' ),
+		// The calendar's Event Details box. An event email has its own
+		// placeholders for the date, time and place.
+		'npmp_append_event_details_to_content',
 	);
 	/**
 	 * Add or remove `the_content` callbacks that stay out of sent email.

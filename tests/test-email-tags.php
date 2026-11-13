@@ -56,9 +56,18 @@ check( 'a tag key with a slash is quoted safely', 'x', npmp_email_fill_recipient
 
 echo "Wiring\n";
 $manager = file_get_contents( dirname( __DIR__ ) . '/includes/email-newsletter/class-newsletter-manager.php' );
-check( 'body fills tags per recipient', 1, substr_count( $manager, '$content = self::fill_recipient_tags( $content, $user_id, $email, true );' ) );
+check( 'body fills tags per recipient', 1, substr_count( $manager, ': self::fill_recipient_tags( $content, $user_id, $email, true );' ) );
 check( 'queued send fills the subject', 1, substr_count( $manager, 'self::personalize_subject( get_the_title( $newsletter_id ), $user_id, $email )' ) );
-check( 'test send fills the subject', 1, substr_count( $manager, 'self::personalize_subject( get_the_title( $newsletter_id ), null, $user_email )' ) );
+// A test goes to an address, not a contact ID. Pete at U3A saw [first_name]
+// left as it was in an event test (wordpress.org, 2026-11-12), so tests fill
+// tags for the address, with the site user's own name when no contact has it.
+check( 'test send fills the body for the address', 1, substr_count( $manager, '? self::fill_test_recipient_tags( $content, (string) $email, true )' ) );
+check( 'test send fills the subject for the address', 1, substr_count( $manager, "self::fill_test_recipient_tags( html_entity_decode( (string) get_the_title( \$newsletter_id ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), \$user_email, false )" ) );
+check( 'a test falls back to the site user\'s name', 1, substr_count( $manager, "get_user_by( 'email', (string) \$email )" ) );
+$sched = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-scheduled-emails.php' );
+check( 'event test fills body tags for the address', 1, substr_count( $sched, "NPMP_Newsletter_Manager::fill_test_recipient_tags( \$html, (string) \$email, true )" ) );
+check( 'event test fills subject tags for the address', 1, substr_count( $sched, "NPMP_Newsletter_Manager::fill_test_recipient_tags( \$subject, (string) \$email, false )" ) );
+check( 'event test footer carries the address', 1, substr_count( $sched, "npmp_can_spam_shortcode( array( 'email' => (string) \$email ) )" ) );
 check( 'Pro can add tags', 1, substr_count( $manager, "'npmp_email_recipient_tags'" ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );

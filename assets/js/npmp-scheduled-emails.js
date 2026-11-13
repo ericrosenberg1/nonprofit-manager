@@ -49,6 +49,43 @@ jQuery(function ($) {
         });
     });
 
+    // The block editor saves an event without reloading the page, so the
+    // event box (free's or Pro's) would keep showing the plan from before the
+    // save. Once the editor finishes saving the boxes, ask for their send
+    // times again.
+    function refreshLive() {
+        $('.npmp-sched-live[data-event]').each(function () {
+            var $live = $(this);
+            $.post(cfg.ajaxUrl, {
+                action: 'npmp_sched_email_box_status',
+                event_id: $live.attr('data-event'),
+                nonce: $live.attr('data-nonce')
+            }).done(function (res) {
+                if (res && res.success && res.data && typeof res.data.html === 'string') {
+                    $live.html(res.data.html);
+                }
+            });
+        });
+    }
+    var wpData = window.wp && window.wp.data;
+    if (wpData && typeof wpData.subscribe === 'function' && $('.npmp-sched-live[data-event]').length) {
+        var wasSaving = false;
+        wpData.subscribe(function () {
+            var editPost = wpData.select('core/edit-post');
+            var editor = wpData.select('core/editor');
+            var saving = false;
+            if (editPost && typeof editPost.isSavingMetaBoxes === 'function') {
+                saving = !!editPost.isSavingMetaBoxes();
+            } else if (editor && typeof editor.isSavingPost === 'function') {
+                saving = !!editor.isSavingPost() && !(typeof editor.isAutosavingPost === 'function' && editor.isAutosavingPost());
+            }
+            if (wasSaving && !saving) {
+                refreshLive();
+            }
+            wasSaving = saving;
+        });
+    }
+
     // "Send later" on newsletters. Sends the same audience fields the
     // Send button sends, so the saved audience matches what's on screen.
     var $later = $('.npmp-send-later');

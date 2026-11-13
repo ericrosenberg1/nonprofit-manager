@@ -61,7 +61,7 @@ class NPMP_Newsletter_Manager {
 	 * =================================================================== */
 	public static function send_test_email( $newsletter_id, $user_email ) {
 		$content = self::get_newsletter_content( $newsletter_id, true, null, $user_email );
-		$subject = self::personalize_subject( get_the_title( $newsletter_id ), null, $user_email );
+		$subject = self::fill_test_recipient_tags( html_entity_decode( (string) get_the_title( $newsletter_id ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), $user_email, false );
 		return self::send_email( $user_email, $subject, $content, $newsletter_id );
 	}
 
@@ -357,7 +357,9 @@ class NPMP_Newsletter_Manager {
 	 * @return string
 	 */
 	private static function personalize_content( $content, $newsletter_id, $is_test, $user_id, $email ) {
-		$content = self::fill_recipient_tags( $content, $user_id, $email, true );
+		$content = ( $is_test && ! $user_id )
+			? self::fill_test_recipient_tags( $content, (string) $email, true )
+			: self::fill_recipient_tags( $content, $user_id, $email, true );
 
 		$track_opens  = (bool) get_option( 'npmp_newsletter_track_opens', true );
 		$track_clicks = (bool) get_option( 'npmp_newsletter_track_clicks', false );
@@ -416,6 +418,35 @@ class NPMP_Newsletter_Manager {
 	 * @return string
 	 */
 	private static function fill_recipient_tags( $text, $user_id, $email, $html ) {
+		return self::fill_tags_for( $text, $user_id, $email, $html, false );
+	}
+
+	/**
+	 * Fill the per-recipient tags of a test message for the address it goes
+	 * to: that contact's name, or, for a site user with no contact, the first
+	 * and last name on their WordPress profile. A real send fills them the
+	 * same way for each member, so a test reads like what members get.
+	 *
+	 * @param string $text  Body or subject.
+	 * @param string $email Address the test goes to.
+	 * @param bool   $html  True for the body.
+	 * @return string
+	 */
+	public static function fill_test_recipient_tags( $text, $email, $html ) {
+		return self::fill_tags_for( $text, null, $email, $html, true );
+	}
+
+	/**
+	 * Shared by fill_recipient_tags() and fill_test_recipient_tags().
+	 *
+	 * @param string   $text      Body or subject.
+	 * @param int|null $user_id   Recipient contact ID.
+	 * @param string   $email     Recipient address.
+	 * @param bool     $html      True for the body.
+	 * @param bool     $site_user Fall back to the site user with this address.
+	 * @return string
+	 */
+	private static function fill_tags_for( $text, $user_id, $email, $html, $site_user ) {
 		if ( ! function_exists( 'npmp_email_fill_recipient_tags' ) || false === strpos( (string) $text, '[' ) ) {
 			return (string) $text;
 		}
@@ -426,6 +457,14 @@ class NPMP_Newsletter_Manager {
 			$contact = $user_id ? $manager->get_member_by_id( $user_id ) : null;
 			if ( ! $contact && $email ) {
 				$contact = $manager->get_member_by_email( $email );
+			}
+		}
+
+		$name = $contact ? (string) $contact->name : '';
+		if ( ! $contact && $site_user && $email && function_exists( 'get_user_by' ) ) {
+			$user = get_user_by( 'email', (string) $email );
+			if ( $user ) {
+				$name = trim( get_user_meta( $user->ID, 'first_name', true ) . ' ' . get_user_meta( $user->ID, 'last_name', true ) );
 			}
 		}
 
@@ -440,7 +479,7 @@ class NPMP_Newsletter_Manager {
 		 */
 		$values = (array) apply_filters(
 			'npmp_email_recipient_tags',
-			npmp_email_recipient_tag_values( $contact ? (string) $contact->name : '' ),
+			npmp_email_recipient_tag_values( $name ),
 			$contact,
 			(string) $email
 		);
