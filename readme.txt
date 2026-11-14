@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.11
+Stable tag: 2026.11.12
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,28 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.12 =
+* Fixed contacts who unsubscribed coming back as subscribed when you ticked "Update existing contacts" for an import.
+* Added an importer for FluentCRM: contacts, statuses, signup dates, lists as groups, tags, custom fields, and sender settings.
+* Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and join dates.
+* Added custom fields to imports with Pro: extra CSV and Excel columns, Mailchimp merge fields, Constant Contact custom fields, and MailPoet custom fields.
+* Added an importer for past gifts from a file: donors and their paid gifts from a Zeffy, Givebutter, or Donorbox CSV, or a spreadsheet.
+* Added an importer for past newsletters from MailPoet and The Newsletter Plugin: each sent newsletter with its subject, send date, and content, off your public archive until you tick its box.
+* Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
+* Added MailPoet tags to the import, in each contact's Tags field next to the tags they already have.
+* Added a link back to Switch Plugins on every import screen.
+* Added a card with a button for the Pro note in the setup wizard.
+* Fixed slow imports from MailPoet, The Newsletter Plugin, GiveWP, Charitable, Paid Memberships Pro, and CSV files on sites with thousands of contacts.
+* Fixed free imports from MailPoet and The Newsletter Plugin: subscribed people now get your free places first.
+* Fixed the Switch Plugins step you saw while an import was still running.
+* Fixed the empty groups you got from MailPoet lists with no subscribed members.
+* Fixed the parent categories you lost from The Events Calendar when only their child categories had events.
+* Fixed the threshold you saw in the review request in place of your own contact or event count.
+* Fixed numbers of four digits or more without commas on the import and Switch Plugins screens.
+* Fixed newsletters you deleted staying in the send queue.
+* Fixed the blank recurring donations total on the dashboard of SQLite sites.
+* Fixed the HTML code you saw in place of quotation marks in the import message about the Email column.
 
 = 2026.11.11 =
 * Fixed welcome emails going to contacts brought in by the MailPoet, Newsletter, Paid Memberships Pro, and donation importers.
@@ -546,6 +568,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.12 =
+Update before your next import with "Update existing contacts" on, so people who unsubscribed stay unsubscribed.
 
 = 2026.11.11 =
 Update before you import a list from MailPoet, Newsletter, Paid Memberships Pro, GiveWP, or Charitable, so none of those contacts gets your Pro welcome email.

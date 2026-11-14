@@ -369,30 +369,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added an importer for past gifts from a file: upload a CSV from Zeffy, Givebutter, Donorbox, or a spreadsheet, check the columns, and bring donors and their paid gifts over as past gifts.
-- Changed the Pro note in the setup wizard to its own card with a button, so you can spot it.
-- Added an importer for MailPoet past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
-- Added an importer for The Newsletter Plugin past newsletters: every sent newsletter with its subject, send date, and content, hidden from your public archive until you pick it.
-- Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
-- Added custom fields to imports: with Pro, you can bring extra CSV and Excel columns, Mailchimp merge fields, Constant Contact custom fields, and MailPoet custom fields into your own custom fields.
-- Added an importer for FluentCRM: contacts, statuses, signup dates, lists as groups, tags, custom fields, and sender settings.
-- Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and the date each contact joined.
-- Fixed imports with "Update existing contacts," which resubscribed contacts who had unsubscribed.
-- Fixed the import message about the Email column, which showed &quot; on screen.
-- Fixed slow imports from MailPoet, The Newsletter Plugin, GiveWP, Charitable, Paid Memberships Pro, and CSV files on sites with thousands of contacts.
-- Added MailPoet tags, which you now get in each contact's Tags field next to the tags they already have.
-- Fixed The Events Calendar imports dropping a parent category when only its child categories had events.
-- Fixed free imports from MailPoet and The Newsletter Plugin filling your free places in signup order. Subscribed people now come first.
-- Fixed MailPoet lists with no subscribed members, which you got as empty groups.
-- Added a link back to Switch Plugins on every import screen, and fixed the Switch Plugins step you saw while an import was still running.
-- Fixed the review request, which showed the threshold instead of your own contact or event count.
-- Fixed numbers of four digits or more without commas on the import and Switch Plugins screens.
-- Fixed the send queue keeping a newsletter you deleted.
-- Fixed the blank recurring donations total on the dashboard of SQLite sites.
+- (none)
 
 Pro (licence server changelog):
-- Added groups to imported past newsletters, matched by list name, so a group-only archive lists them.
-- Added custom fields to imports: you can bring extra columns and old custom fields into your own custom fields, and we skip and count any value that doesn't fit.
+- (none)
 
 ## Releasing: three systems, always in this order
 
