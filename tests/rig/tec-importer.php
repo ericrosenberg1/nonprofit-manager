@@ -90,6 +90,15 @@ $fakes       = array(
 	'the-events-calendar-shortcode/the-events-calendar-shortcode.php' => "<?php\n/**\n * Plugin Name: The Events Calendar Shortcode & Templates\n * Version: 1.0\n */\n",
 	'npmp-rig-tec-addon/npmp-rig-tec-addon.php'                       => "<?php\n/**\n * Plugin Name: Rig TEC Add-on\n * Version: 1.0\n * Requires Plugins: the-events-calendar\n */\n",
 );
+// The first fake sits at a real wordpress.org plugin's path, and the end of the
+// run deletes both, so refuse to run beside a real copy of either.
+foreach ( $fakes as $rel => $code ) {
+	$fake_dir = dirname( $plugins_dir . '/' . $rel );
+	if ( file_exists( $fake_dir ) && ! ( is_file( $plugins_dir . '/' . $rel ) && file_get_contents( $plugins_dir . '/' . $rel ) === $code && array( basename( $rel ) ) === array_values( array_diff( (array) scandir( $fake_dir ), array( '.', '..' ) ) ) ) ) {
+		echo "Refusing: $fake_dir is already there, and this rig writes a stub plugin over it and then deletes it. Use a site without that plugin.\n";
+		exit( 1 );
+	}
+}
 foreach ( $fakes as $rel => $code ) {
 	wp_mkdir_p( dirname( $plugins_dir . '/' . $rel ) );
 	file_put_contents( $plugins_dir . '/' . $rel, $code );
