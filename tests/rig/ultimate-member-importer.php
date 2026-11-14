@@ -187,7 +187,9 @@ $child = function ( $phase, $env = '', $before = '' ) {
 };
 
 $fetch = function ( $page_id ) {
-	$r = wp_remote_get( add_query_arg( 'page_id', (int) $page_id, home_url( '/' ) ), array( 'timeout' => 20, 'redirection' => 0, 'cookies' => array() ) );
+	// With pretty permalinks WordPress answers ?page_id= with a 301 to the
+	// page's own address, so follow it the way a browser does.
+	$r = wp_remote_get( add_query_arg( 'page_id', (int) $page_id, home_url( '/' ) ), array( 'timeout' => 20, 'redirection' => 5, 'cookies' => array() ) );
 	return is_wp_error( $r ) ? 'ERROR ' . $r->get_error_message() : (string) wp_remote_retrieve_body( $r );
 };
 

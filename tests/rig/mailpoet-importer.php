@@ -18,7 +18,9 @@
 // Works on SQLite and MySQL. It writes two stub plugins (mailpoet and
 // mailpoet-premium, a header and one constant each) to test the deactivate
 // step, and removes them, the tables, the contacts, the groups, and the test
-// pages when it ends. Not run by the pre-push gate (it needs WordPress).
+// pages when it ends. It refuses to run when a real MailPoet or MailPoet
+// Premium is installed, since the stubs would replace their main files.
+// Not run by the pre-push gate (it needs WordPress).
 $wp_root = getenv( 'NPMP_RIG_WP' ) ?: '/tmp/npmp-rig/wp';
 $_SERVER['HTTP_HOST']       = '127.0.0.1';
 $_SERVER['REQUEST_URI']     = '/wp-admin/admin.php?page=npmp_mailpoet_import';
@@ -85,16 +87,29 @@ $keep = array();
 foreach ( array( 'npmp_email_settings', 'npmp_email_from_name', 'npmp_email_from_email', 'npmp_membership_form_settings', 'timezone_string', 'sidebars_widgets', 'npmp_mailpoet_imported' ) as $option ) {
 	$keep[ $option ] = get_option( $option, null );
 }
-// The stubs below overwrite mailpoet/mailpoet.php and the sweep drops
-// MailPoet's tables, so a real MailPoet on this site would be wrecked.
-if ( is_dir( WP_PLUGIN_DIR . '/mailpoet/lib' ) ) {
-	echo "Refusing: the real MailPoet is installed here, and this rig overwrites its files and tables. Use a site without it (tests/rig/past-newsletters.php and mailpoet-hub.php run on the real one).\n";
-	exit( 1 );
-}
 $stubs = array(
 	'mailpoet/mailpoet.php'                 => "<?php\n/**\n * Plugin Name: MailPoet\n * Version: 0.0.1-rig\n */\nif ( ! defined( 'MAILPOET_VERSION' ) ) {\n\tdefine( 'MAILPOET_VERSION', '0.0.1-rig' );\n}\n",
 	'mailpoet-premium/mailpoet-premium.php' => "<?php\n/**\n * Plugin Name: MailPoet Premium\n * Version: 0.0.1-rig\n */\n",
 );
+// The deactivate step looks for MailPoet's own plugin files, so the stubs
+// have to sit at mailpoet/mailpoet.php and mailpoet-premium/mailpoet-premium.php.
+// A real MailPoet or MailPoet Premium there would lose its main file to the
+// stub and then to the sweep. Run only when each folder is missing or holds
+// nothing but this rig's own stub from an earlier run.
+$rig_stub_left = function ( $rel, $code ) {
+	$dir = dirname( WP_PLUGIN_DIR . '/' . $rel );
+	if ( ! file_exists( $dir ) ) {
+		return true;
+	}
+	$entries = is_dir( $dir ) ? array_values( array_diff( (array) scandir( $dir ), array( '.', '..' ) ) ) : array( false );
+	return array( basename( $rel ) ) === $entries && file_get_contents( WP_PLUGIN_DIR . '/' . $rel ) === $code;
+};
+foreach ( $stubs as $rel => $code ) {
+	if ( ! $rig_stub_left( $rel, $code ) ) {
+		printf( "Refusing: %s is already installed in %s, and this rig writes a stub over its main file and then deletes it. Use a site without MailPoet or MailPoet Premium (tests/rig/past-newsletters.php and mailpoet-hub.php run on the real MailPoet).\n", 'mailpoet' === dirname( $rel ) ? 'MailPoet' : 'MailPoet Premium', dirname( WP_PLUGIN_DIR . '/' . $rel ) );
+		exit( 1 );
+	}
+}
 $rig_posts = array();
 $sweep     = function () use ( $wpdb, $mm, $domain, $tables, $stubs, &$rig_posts, $tax ) {
 	foreach ( $tables as $name ) {
@@ -119,9 +134,10 @@ $sweep     = function () use ( $wpdb, $mm, $domain, $tables, $stubs, &$rig_posts
 	$rig_posts = array();
 	deactivate_plugins( array_keys( $stubs ), true );
 	foreach ( array_keys( $stubs ) as $rel ) {
-		if ( file_exists( WP_PLUGIN_DIR . '/' . $rel ) ) {
+		// Delete only this rig's own stub, never a file someone else put there.
+		if ( file_exists( WP_PLUGIN_DIR . '/' . $rel ) && file_get_contents( WP_PLUGIN_DIR . '/' . $rel ) === $stubs[ $rel ] ) {
 			unlink( WP_PLUGIN_DIR . '/' . $rel );
-			rmdir( dirname( WP_PLUGIN_DIR . '/' . $rel ) );
+			@rmdir( dirname( WP_PLUGIN_DIR . '/' . $rel ) ); // Only succeeds when the folder is empty.
 		}
 	}
 	wp_clean_plugins_cache( false );

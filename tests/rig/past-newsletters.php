@@ -694,7 +694,9 @@ $wpdb->delete( $wpdb->prefix . 'npmp_scheduled_emails', array( 'id' => (int) $ro
 $wpdb->insert( $qt, array( 'newsletter_id' => $pa->ID, 'user_id' => 0, 'email' => $emails[0], 'status' => 'pending', 'queued_at' => current_time( 'mysql' ) ) );
 $qid = (int) $wpdb->insert_id;
 NPMP_Newsletter_Manager::process_queue();
-$ok( 'the mail queue drops a row for it unsent', 'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$qt} WHERE id = %d", $qid ) ) );
+// Since the drain clears rows for a newsletter it won't render (deleted or
+// imported), the row is gone rather than marked failed.
+$ok( 'the mail queue drops a row for it unsent', null === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$qt} WHERE id = %d", $qid ) ) );
 $wpdb->delete( $qt, array( 'id' => $qid ) );
 $ok( 'none of that sent an email', $mails_before === $wp_mails && $sink_before === $sink_lines(), array( $wp_mails - $mails_before, $sink_lines() - $sink_before ) );
 

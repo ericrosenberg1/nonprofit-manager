@@ -309,6 +309,12 @@ if ( 'data' === $phase ) {
 	$ok( 'remove data is next', 'ready' === npmp_import_hub_step_states( $facts )['remove_data'] );
 
 	// Event Tickets shares tribe-common's options, so its presence blocks the step.
+	// The check writes a stub at Event Tickets' own path and deletes it, so it
+	// refuses to run beside a real Event Tickets.
+	if ( file_exists( WP_PLUGIN_DIR . '/event-tickets' ) ) {
+		echo "Refusing: Event Tickets is installed in " . WP_PLUGIN_DIR . "/event-tickets, and this step writes a stub over its main file and then deletes it. Use a site without Event Tickets.\n";
+		exit( 1 );
+	}
 	wp_mkdir_p( WP_PLUGIN_DIR . '/event-tickets' );
 	file_put_contents( WP_PLUGIN_DIR . '/event-tickets/event-tickets.php', "<?php\n/**\n * Plugin Name: Event Tickets\n * Version: 1.0\n */\n" );
 	wp_clean_plugins_cache( false );
