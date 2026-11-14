@@ -16,8 +16,9 @@
  *   wp eval-file tests/rig/gift-csv.php
  *   wp eval-file tests/rig/gift-csv.php big
  *
- * It deletes every contact, gift, option, and file it made, so the site ends
- * as it started.
+ * It runs on New York time, since Zeffy's times read in the site's zone, and
+ * puts the site's zone back at the end. It deletes every contact, gift, option,
+ * and file it made, so the site ends as it started.
  */
 
 $phase = isset( $args[0] ) ? (string) $args[0] : 'main';
@@ -111,6 +112,13 @@ $fixtures = dirname( __DIR__ ) . '/fixtures/';
 $pro      = function_exists( 'npmp_is_pro' ) && npmp_is_pro();
 $members  = NPMP_Member_Manager::get_instance();
 printf( "Pro %s, free total %s\n", $pro ? 'active' : 'inactive', npmp_import_is_capped() ? 'on' : 'off' );
+
+// Zeffy's times read in the site's zone, and the checks below expect New York.
+// Each import step runs in its own `wp` process, so set the option, and put
+// the site's zone back at the end.
+$saved_tz     = get_option( 'timezone_string' );
+$saved_offset = get_option( 'gmt_offset' );
+update_option( 'timezone_string', 'America/New_York' );
 
 // Copy a fixture into the private folder the way an upload lands, then start.
 $start = function ( $fixture ) {
@@ -367,5 +375,7 @@ $ok( 'job and progress gone', false === get_option( NPMP_GIFT_CSV_JOB ) && false
 $left = glob( npmp_import_private_dir() . '{import-rig-*,gift-index-*}', GLOB_BRACE );
 $ok( 'no rig files left', ! $left, $left );
 unset( $ivy_id );
+update_option( 'timezone_string', (string) $saved_tz );
+update_option( 'gmt_offset', $saved_offset );
 
 printf( "\n%s\n", $fails ? "{$fails} FAILED" : 'ALL PASSED' );

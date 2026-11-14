@@ -489,7 +489,14 @@ rig_check( 'admin sees "Give a volunteer access"', true, false !== strpos( $list
 $user_new = rig_http( $djar, 'GET', admin_url( 'user-new.php?npmp_role=npmp_membership_manager' ) )['body'];
 rig_check( 'Add User preselects Membership Manager', true, (bool) preg_match( '/<option selected=[\'"]selected[\'"] value=[\'"]npmp_membership_manager[\'"]/', $user_new ) );
 rig_check( 'stored default role untouched', 'subscriber', get_option( 'default_role' ) );
+// The pricing form shows only once the site has a membership level, and a new
+// site has none, so lend it one for this request and put the option back.
+$rig_levels = get_option( 'npmp_membership_levels', null );
+if ( empty( $rig_levels ) ) {
+	update_option( 'npmp_membership_levels', array( 'Rig Level' ) );
+}
 $dues = rig_http( $djar, 'GET', admin_url( 'admin.php?page=npmp_membership_dues' ) )['body'];
+null === $rig_levels ? delete_option( 'npmp_membership_levels' ) : update_option( 'npmp_membership_levels', $rig_levels );
 rig_check( 'admin dues screen keeps pricing', true, false !== strpos( $dues, 'npmp_dues_save_settings' ) );
 $rec = rig_http( $djar, 'GET', admin_url( 'admin.php?page=npmp_recurring_donations' ) )['body'];
 rig_check( 'admin recurring screen keeps cancel', true, false !== strpos( $rec, 'npmp_action=cancel' ) );

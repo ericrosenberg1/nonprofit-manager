@@ -16,6 +16,9 @@
 // through wp-cli proves nothing, since WP_CLI switches the queue off on
 // purpose, so this loads wp-load.php in a plain PHP process instead.
 //
+// Run it with Pro inactive for the note's checks. With Pro active it checks
+// the wizard leaves the note out.
+//
 // Not run by the pre-push gate (it needs a WordPress).
 //
 // Hold all output until the end. In the CLI headers_sent() turns true at the
@@ -153,6 +156,14 @@ ob_start();
 npmp_render_setup_wizard();
 $html = ob_get_clean();
 $link = npmp_get_upgrade_url( 'setup_wizard' );
+// The note is for free sites only. With Pro active the wizard leaves it out.
+if ( is_plugin_active( 'nonprofit-manager-pro/nonprofit-manager-pro.php' ) ) {
+	rig_check( 'Pro active: no Pro note', false, false !== strpos( $html, 'Want more features?' ) );
+	rig_check( 'Pro active: no upgrade link', false, false !== strpos( $html, esc_url( $link ) ) );
+	printf( "\n%d passed, %d failed\n", $GLOBALS['rig_pass'], $GLOBALS['rig_fail'] );
+	ob_end_flush();
+	exit( $GLOBALS['rig_fail'] > 0 ? 1 : 0 );
+}
 rig_has( 'the note is on the page', 'Want more features?', $html );
 rig_has( 'it names what Pro adds', 'groups, recurring gifts, dues billing', $html );
 rig_has( 'the campaign-tagged link is in the markup', esc_url( $link ), $html );
