@@ -116,17 +116,9 @@ add_action( 'wp_enqueue_scripts', 'npmp_register_form_styles' );
  * @return void
  */
 function npmp_register_admin_scripts( $hook ) {
-	if ( in_array( $hook, array( 'post.php', 'post-new.php' ), true ) && 'npmp_newsletter' === get_post_type() ) {
-		$editor_path = 'includes/email-newsletter/assets/newsletter-editor.js';
-
-		wp_enqueue_script(
-			'npmp-newsletter-editor',
-			plugins_url( $editor_path, dirname( __FILE__ ) ),
-			array( 'jquery', 'wp-blocks', 'wp-i18n', 'wp-element', 'wp-editor' ),
-			npmp_get_asset_version( $editor_path ),
-			true
-		);
-	}
+	// The newsletter editor's script (newsletter-editor.js) loads once, as
+	// npmp-newsletter-admin in npmp_enqueue_newsletter_assets(). A second handle
+	// here ran it twice and sent two test emails (tests/test-script-handles.php).
 
 	if ( false !== strpos( (string) $hook, 'npmp_email_settings' ) ) {
 		wp_enqueue_script( 'jquery' );
