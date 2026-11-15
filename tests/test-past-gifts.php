@@ -34,6 +34,12 @@ check( 'offline stays offline', 'offline', npmp_past_gift_gateway( 'offline' ) )
 check( 'empty gateway is manual', 'manual', npmp_past_gift_gateway( '' ) );
 check( 'manual stays manual', 'manual', npmp_past_gift_gateway( 'manual' ) );
 
+check( 'a UTC date reads', 1700000000, npmp_past_gift_stamp( '2023-11-14 22:13:20' ) );
+check( 'an empty date is no date, never today', false, npmp_past_gift_stamp( '' ) );
+check( 'a zero date is no date', false, npmp_past_gift_stamp( '0000-00-00 00:00:00' ) );
+check( 'words are no date', false, npmp_past_gift_stamp( 'yesterday' ) );
+check( 'an array is no date', false, npmp_past_gift_stamp( array( '2024-01-01' ) ) );
+
 check( 'decimal string amount', 25.5, npmp_past_gift_amount( '25.50' ) );
 check( 'integer amount', 10.0, npmp_past_gift_amount( 10 ) );
 check( 'three decimals survive', 1.234, npmp_past_gift_amount( '1.234' ) );

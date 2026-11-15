@@ -141,7 +141,7 @@ function npmp_gift_import_donor( $slug, array $donor, array &$results ) {
 		} else {
 			++$results['gifts_invalid'];
 		}
-		$ts = (int) strtotime( (string) ( $gift['date_gmt'] ?? '' ) . ' UTC' );
+		$ts = (int) npmp_past_gift_stamp( $gift['date_gmt'] ?? '' );
 		if ( $ts >= $latest_ts ) {
 			$latest_ts      = $ts;
 			$latest_gateway = (string) ( $gift['gateway'] ?? '' );
