@@ -74,27 +74,27 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 
 Nonprofit Manager talks to outside services only where a feature needs it. Nothing below runs unless you turn that feature on or enter your own credentials.
 
-**Product update emails (optional, off by default)**
+**Product update emails**
 
 If you tick the product update box in the setup wizard, your email address and display name are sent once to our newsletter system at news.nonprofitmanager.app to start a double opt-in signup. You then get one confirmation email, and nothing else is sent unless you click it. Leave the box unticked and no request is made. Data sent: your email address and display name, at that one moment. Service: Listmonk, self-hosted by Rosenberg Digital LLC. Privacy policy: https://nonprofitmanager.app/privacy-policy/
 
-**Nonprofit Manager Pro licensing (only with Pro installed)**
+**Nonprofit Manager Pro licensing**
 
 The free plugin on its own does not contact our servers. If you also install Nonprofit Manager Pro, Pro checks your license and looks for updates at nonprofitmanager.app, sending your license key, your site URL, and the installed version. Terms: https://nonprofitmanager.app/terms-of-service/ Privacy policy: https://nonprofitmanager.app/privacy-policy/
 
-**Payment processors (only when you enable one)**
+**Payment processors**
 
 Donations are sent to the processor you configure with your own account credentials. Stripe (api.stripe.com), PayPal (paypal.com), and Venmo (venmo.com) receive donation amounts and the donor details you collect. Stripe: https://stripe.com/legal and https://stripe.com/privacy PayPal and Venmo: https://www.paypal.com/legalhub/useragreement-full and https://www.paypal.com/privacy
 
-**Spam protection (only when you enable one)**
+**Spam protection**
 
 If you turn on a captcha, form submissions are verified with Cloudflare Turnstile (challenges.cloudflare.com) or Google reCAPTCHA (google.com/recaptcha), using your own site keys. Cloudflare: https://www.cloudflare.com/website-terms/ and https://www.cloudflare.com/privacypolicy/ Google: https://policies.google.com/terms and https://policies.google.com/privacy
 
-**List imports (only when you run one)**
+**List imports**
 
 Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms and https://www.constantcontact.com/legal/privacy-notice
 
-**Social sharing (only when you connect an account)**
+**Social sharing**
 
 Auto-sharing posts sends the title, link, and excerpt you configure to the networks you connect, using your own account credentials.
 
