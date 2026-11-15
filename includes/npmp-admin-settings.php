@@ -126,7 +126,7 @@ function npmp_render_main_plugin_page() {
 						<tr>
 							<th scope="row"><?php echo esc_html( $npmp_feature_names['donations'] ); ?></th>
 							<td><label><input type="checkbox" name="npmp_feature_donations" <?php checked( $features['donations'] ); ?>>
-								<?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Take %s online and keep a record of each one.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></label></td>
+								<?php esc_html_e( 'Take gifts online through Stripe, PayPal, or Venmo. Stripe gifts land in your records.', 'nonprofit-manager' ); ?></label></td>
 						</tr>
 
 						<tr>
@@ -299,7 +299,7 @@ function npmp_render_main_plugin_page() {
 						<li><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Recurring %s and membership dues billing', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></li>
 						<li><?php esc_html_e( 'Groups with their own newsletters, events, calendars, and signup forms', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'As many scheduled emails as you want for each event and group', 'nonprofit-manager' ); ?></li>
-						<li><?php echo esc_html( sprintf( /* translators: 1: lowercase plural word for members, such as members, 2: lowercase plural word for donations, such as donations or contributions. */ __( 'Custom fields for %1$s and %2$s', 'nonprofit-manager' ), npmp_label( 'members_lc' ), npmp_label( 'donations_lc' ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'Custom fields for %s and events', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ) ); ?></li>
 						<li><?php esc_html_e( 'Email automations and saved segments', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Print or save as PDF for every admin list and report', 'nonprofit-manager' ); ?></li>
 						<li><?php esc_html_e( 'Email support', 'nonprofit-manager' ); ?></li>

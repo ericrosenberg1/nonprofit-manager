@@ -194,7 +194,7 @@ function npmp_convert_event_editor_button() {
 			.then(function(r) { return r.json(); })
 			.then(function(data) {
 				if (data.success) {
-					showStatus('<?php echo esc_js( __( 'Event created!', 'nonprofit-manager' ) ); ?> <a href="' + data.data.edit_url + '"><?php echo esc_js( __( 'Edit Event', 'nonprofit-manager' ) ); ?></a>', 'success');
+					showStatus('<?php echo esc_js( __( 'Event created.', 'nonprofit-manager' ) ); ?> <a href="' + data.data.edit_url + '"><?php echo esc_js( __( 'Edit Event', 'nonprofit-manager' ) ); ?></a>', 'success');
 					btn.style.display = 'none';
 					setTimeout(function() {
 						if (data.data.delete_original) window.location.href = '<?php echo esc_url( admin_url( 'edit.php?post_type=npmp_event' ) ); ?>';

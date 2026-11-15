@@ -35,6 +35,9 @@ function npmp_register_events_admin_menu() {
 		'dashicons-calendar-alt',
 		3.15
 	);
+	// Keep the screen IDs (events_page_npmp_event_settings) the same on a
+	// translated site, where "Events" would otherwise rename them.
+	npmp_pin_menu_hook( 'npmp-events', 'events' );
 
 	add_submenu_page(
 		'npmp-events',
@@ -743,7 +746,7 @@ function npmp_calendar_shortcode( $atts ) {
 		$print_context['end']   = $range[1];
 
 		$header = npmp_calendar_print_header_html(
-			get_option( 'npmp_calendar_list_show_past', 0 ) ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' ),
+			npmp_calendar_list_title(),
 			npmp_calendar_print_range_label( $range[0], $range[1], $timezone ),
 			$print_context
 		);
@@ -1158,7 +1161,7 @@ function npmp_calendar_render_toolbar( $view, $anchor, $timezone, $category, $sh
 		$prev          = $anchor->modify( '-1 week' );
 		$next          = $anchor->modify( '+1 week' );
 	} elseif ( 'list' === $view ) {
-		$title = __( 'Upcoming events', 'nonprofit-manager' );
+		$title = npmp_calendar_list_title();
 		$prev  = null;
 		$next  = null;
 	} else {
@@ -1315,6 +1318,18 @@ function npmp_calendar_render_week_view( $anchor, $timezone, $category, $context
 	$html .= '</tr></tbody></table>';
 
 	return $html;
+}
+
+/**
+ * Title for the calendar's list view, on screen and on the printout.
+ *
+ * With "Include past events in the list view" on, the list holds past
+ * events too, so "Upcoming events" would be wrong.
+ *
+ * @return string
+ */
+function npmp_calendar_list_title() {
+	return get_option( 'npmp_calendar_list_show_past', 0 ) ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' );
 }
 
 /**
@@ -1811,9 +1826,8 @@ function npmp_render_event_settings_page() {
 		$calendar_url = get_permalink( $current_calendar_id );
 		if ( $calendar_url ) {
 			echo '<p class="description">' . sprintf(
-				/* translators: %s: Calendar page URL */
-				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank" rel="noopener">%s</a>', 'nonprofit-manager' ) ),
-				esc_url( $calendar_url ),
+				/* translators: %1$s: Calendar page URL. */
+				wp_kses_post( __( 'View your calendar: <a href="%1$s" target="_blank" rel="noopener">%1$s</a>', 'nonprofit-manager' ) ),
 				esc_url( $calendar_url )
 			) . '</p>';
 		}

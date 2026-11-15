@@ -197,7 +197,11 @@ if ( ! function_exists( 'npmp_review_nudge_lead' ) ) {
 	function npmp_review_nudge_lead( $type ) {
 		switch ( (string) $type ) {
 			case 'donation':
-				return __( 'Your first donation came in through Nonprofit Manager.', 'nonprofit-manager' );
+				return sprintf(
+					/* translators: %s: lowercase singular word for a donation, such as donation, gift, or contribution. */
+					__( 'Your first %s came in through Nonprofit Manager.', 'nonprofit-manager' ),
+					npmp_label( 'donation_lc' )
+				);
 			case 'newsletter':
 				return __( 'Your first newsletter went out through Nonprofit Manager.', 'nonprofit-manager' );
 			case 'events':

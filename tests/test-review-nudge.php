@@ -49,6 +49,10 @@ function add_option( $name, $value = '', $deprecated = '', $autoload = 'yes' ) {
 function current_user_can( $cap ) {
 	return $GLOBALS['t_can'];
 }
+$GLOBALS['t_donation_word'] = 'donation';
+function npmp_label( $key ) {
+	return 'donation_lc' === $key ? $GLOBALS['t_donation_word'] : $key;
+}
 function get_current_screen() {
 	return $GLOBALS['t_screen'] ? (object) array( 'id' => $GLOBALS['t_screen'] ) : null;
 }
@@ -280,6 +284,9 @@ check( 'newsletter leaves the donation time alone', '0', $GLOBALS['t_options']['
 
 echo "\nLead lines\n";
 check( 'donation', 'Your first donation came in through Nonprofit Manager.', npmp_review_nudge_lead( 'donation' ) );
+$GLOBALS['t_donation_word'] = 'gift';
+check( 'donation lead uses the org type\'s word', 'Your first gift came in through Nonprofit Manager.', npmp_review_nudge_lead( 'donation' ) );
+$GLOBALS['t_donation_word'] = 'donation';
 check( 'newsletter', 'Your first newsletter went out through Nonprofit Manager.', npmp_review_nudge_lead( 'newsletter' ) );
 check( 'unknown type: no lead', '', npmp_review_nudge_lead( 'something-else' ) );
 check( 'older sites with no type: no lead', '', npmp_review_nudge_lead( '' ) );

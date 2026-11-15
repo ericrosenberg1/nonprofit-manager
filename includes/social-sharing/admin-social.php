@@ -176,7 +176,7 @@ function npmp_render_social_sharing_page() {
 		<p><?php esc_html_e( 'Connect your social networks, and new posts and events can go out to them when you publish.', 'nonprofit-manager' ); ?></p>
 
 		<?php if ( $connected ) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Network connected successfully.', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Network connected.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 		<?php if ( $disconnected ) : ?>
 			<div class="notice notice-info is-dismissible"><p><?php esc_html_e( 'Network disconnected.', 'nonprofit-manager' ); ?></p></div>
@@ -193,7 +193,7 @@ function npmp_render_social_sharing_page() {
 			</div>
 		<?php endif; ?>
 		<?php if ( $test_success ) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Test share sent successfully!', 'nonprofit-manager' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Test share sent.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 
 		<!-- Settings -->
