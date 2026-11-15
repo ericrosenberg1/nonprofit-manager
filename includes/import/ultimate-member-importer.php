@@ -885,6 +885,28 @@ function npmp_um_profile_fields_supported() {
  * @return array State after the run.
  */
 function npmp_um_run( $seconds = NPMP_UM_SECONDS, $limit = NPMP_UM_BATCH ) {
+	// One run at a time, like every other importer. Two tabs, or a reload
+	// while a batch was still running, read the same members and could make
+	// a contact twice.
+	if ( ! npmp_mail_queue_lock( 'import_ultimate_member', 120 ) ) {
+		return npmp_um_state();
+	}
+	try {
+		return npmp_um_run_locked( $seconds, $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_ultimate_member' );
+	}
+}
+
+/**
+ * The body of npmp_um_run(), run while holding its lock.
+ *
+ * @see npmp_um_run()
+ * @param int $seconds Time budget.
+ * @param int $limit   People per batch.
+ * @return array State after the run.
+ */
+function npmp_um_run_locked( $seconds = NPMP_UM_SECONDS, $limit = NPMP_UM_BATCH ) {
 	$state = npmp_um_state();
 	if ( ! $state['running'] || ! class_exists( 'NPMP_Member_Manager' ) ) {
 		return $state;

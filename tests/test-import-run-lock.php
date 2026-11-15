@@ -21,6 +21,7 @@ $runners = array(
 	'event-importer.php'      => array( 'npmp_event_import_run', "'import_event_' . \$slug" ),
 	'newsletter-importer.php' => array( 'npmp_tnp_run', "'import_newsletter'" ),
 	'pmpro-importer.php'      => array( 'npmp_pmpro_run', "'import_pmpro'" ),
+	'ultimate-member-importer.php' => array( 'npmp_um_run', "'import_ultimate_member'" ),
 );
 
 foreach ( $runners as $file => $spec ) {
