@@ -130,6 +130,12 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `npmp_events_loop_excerpt_html()` prints one `<p>` per paragraph. On the theme's own `/events/` and event
   category archives, `npmp_events_archive_excerpt()` (`get_the_excerpt` at 11) hands a classic theme's
   `the_excerpt()` the same text, so it prints paragraphs. Block themes' Post Excerpt block strips breaks itself.
+  `past` has three values (`npmp_events_loop_past_mode()`, since 2026.11.15): `"true"` lists only events that
+  already started, `"all"` lists past and upcoming, anything else upcoming. Before 2026.11.15 `"true"` meant all
+  (Pete, plord12). The Events block's "Include past events" toggle and the calendar's list view setting send `"all"`.
+  Pro adds a Groups column on the Events Overview through `npmp_events_overview_columns` and
+  `npmp_events_overview_cell`. The events post type sits outside core's menu, so the Events menu links
+  Event Categories itself.
   Real-WordPress check: `tests/rig/events-loop.php`.
 - **Email bodies render through `npmp_email_the_content()`, never bare `apply_filters( 'the_content' )`**
   (since 2026.11.5). It takes browser-only callbacks from other plugins off the filter for the
