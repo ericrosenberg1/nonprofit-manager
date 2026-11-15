@@ -425,9 +425,14 @@ rig_check( 'dashboard drops Activity', false, false !== strpos( $bodies['index.p
 // Add Newsletter is the menu's own first item (it opens the block editor on
 // a new newsletter). Core's automatic post type entries stay out.
 rig_check( 'newsletter menu has no core All Newsletters entry', false, false !== strpos( $list, "href='edit.php?post_type=npmp_newsletter'" ) );
-// Two links: the top-level menu takes its first item's URL, then the item.
-// A third would be core's own Add entry showing up again.
-rig_check( 'newsletter menu has one Add Newsletter entry', 2, substr_count( $list, "post-new.php?post_type=npmp_newsletter'" ) );
+// Two links in the sidebar menu: the top-level menu takes its first item's
+// URL, then the item. A third would be core's own Add entry showing up again.
+// Count inside #adminmenu only, since the admin bar's + New menu links to the
+// same screen (twice for a Membership Manager, whose + New holds only Newsletter).
+$rig_menu_start = strpos( $list, 'id="adminmenu"' );
+$rig_menu_end   = false === $rig_menu_start ? false : strpos( $list, 'id="wpcontent"', $rig_menu_start );
+$rig_menu       = ( false === $rig_menu_start || false === $rig_menu_end ) ? '' : substr( $list, $rig_menu_start, $rig_menu_end - $rig_menu_start );
+rig_check( 'newsletter menu has one Add Newsletter entry', 2, substr_count( $rig_menu, "post-new.php?post_type=npmp_newsletter'" ) );
 rig_check( 'newsletter editor offers Send to Selected Members', true, false !== strpos( $bodies[ 'post.php?post=' . $nl_id . '&action=edit' ], 'id="npmp-send-newsletter"' ) );
 
 // Member writes over HTTP: create, update, delete, each redirecting.
