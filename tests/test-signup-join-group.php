@@ -54,7 +54,7 @@ check( 'Captcha runs before the address is looked up', true, false !== $lookup &
 check( 'Rate limit runs before the address is looked up', true, strpos( $signup, "npmp_rate_limit_allows( 'signup'" ) < $lookup );
 check( 'One answer for every address', 1, substr_count( $signup, "\$answer = npmp_double_optin_enabled() ? 'check_email' : 'success';" ) );
 check( 'Unsubscribed and join both redirect with that answer', 2, substr_count( $signup, "npmp_membership_add_banner_arg( \$redirect, 'npmp_signup', \$answer )" ) );
-$join_at = strpos( $signup, "'pending' !== \$status && npmp_signup_join_names(" );
+$join_at = strpos( $signup, "'pending' !== \$status && npmp_signup_changes_contact(" );
 check( 'Existing contacts asking for groups are caught', true, false !== $join_at );
 check( 'Before double opt-in and before the instant paths', true, $join_at < strpos( $signup, 'if ( npmp_double_optin_enabled() ) {' ) && $join_at < strpos( $signup, "'status'           => 'subscribed'" ) );
 check( 'They get the join email when subscribed', 1, substr_count( $signup, "'subscribed' === \$status ? 'join' : 'signup'" ) );
@@ -83,6 +83,31 @@ check( 'The join key goes to the button', 1, substr_count( $resub, "'' !== \$joi
 check( 'The join key is checked with hash_equals and its kind', 1, substr_count( $resub, "'resubscribe' === ( \$pending['kind'] ?? '' ) && hash_equals( (string) ( \$pending['key'] ?? '' ), \$join )" ) );
 check( 'The key is deleted before listeners run', true, strpos( $resub, "delete_post_meta( (int) \$existing->id, '_npmp_signup_confirm' );" ) < strpos( $resub, "do_action( 'npmp_after_email_signup'" ) );
 
+echo "Notification checkboxes\n";
+// A stranger used to change an existing contact's checkboxes on submit with
+// double opt-in off. Now they ride the same confirm link.
+$prefs_src = file_get_contents( $root . '/includes/npmp-subscription-preferences.php' );
+if ( ! function_exists( 'get_post_meta' ) ) {
+	function get_post_meta( $id, $key, $single = false ) {
+		return $GLOBALS['sjg_meta'][ $id ][ $key ] ?? '';
+	}
+}
+eval( '?>' . '<?php ' . npmp_sjg_section( $prefs_src, 'function npmp_get_subscriber_preferences', '/**' ) );
+eval( '?>' . '<?php ' . npmp_sjg_section( $prefs_src, 'function npmp_signup_preferences_from_post', '/**' ) );
+eval( '?>' . '<?php ' . npmp_sjg_section( $prefs_src, 'function npmp_signup_preferences_would_change', '/* ====' ) );
+$GLOBALS['sjg_meta'][9] = array( '_npmp_notify_posts' => '1', '_npmp_notify_events' => '1', '_npmp_weekly_digest' => '' );
+check( 'Same boxes as stored: no change', false, npmp_signup_preferences_would_change( 9, array( 'npmp_notify_posts' => '1', 'npmp_notify_events' => '1' ) ) );
+check( 'Unticking one is a change', true, npmp_signup_preferences_would_change( 9, array( 'npmp_notify_posts' => '1' ) ) );
+check( 'Ticking the digest is a change', true, npmp_signup_preferences_would_change( 9, array( 'npmp_notify_posts' => '1', 'npmp_notify_events' => '1', 'npmp_weekly_digest' => '1' ) ) );
+check( 'The listener saves what the comparison reads', 1, substr_count( npmp_sjg_section( $prefs_src, 'function npmp_save_signup_preferences', '/**' ), 'npmp_save_subscriber_preferences( $contact_id, npmp_signup_preferences_from_post( $post_data ) );' ) );
+check( 'The form asks for confirmation when groups or boxes would change', 1, substr_count( $signup, "'pending' !== \$status && npmp_signup_changes_contact( (int) \$existing->id, \$posted, \$atts_token )" ) );
+$changes = npmp_sjg_section( $forms, 'function npmp_signup_changes_contact', '/**' );
+check( 'That covers both', 1, substr_count( $changes, 'npmp_signup_join_names( (int) $contact_id, $post, $atts_token ) || npmp_signup_prefs_change( (int) $contact_id, $post )' ) );
+check( 'Its email asks to confirm the choices', 1, substr_count( $send, "__( 'Confirm your email choices', 'nonprofit-manager' )" ) );
+$confirm = npmp_sjg_section( $forms, 'function npmp_handle_confirm_signup', 'function npmp_render_email_link_confirm_page' );
+check( 'Its page says what the button does', 1, substr_count( $confirm, "__( 'Press the button to save your email choices.', 'nonprofit-manager' )" ) );
+check( 'And lands on the saved banner', 1, substr_count( $confirm, "\$names ? 'joined' : 'saved'" ) );
+
 echo "Copy\n";
 $copy = array(
 	"Confirm you want to join %s",
@@ -92,6 +117,11 @@ $copy = array(
 	'Press the button to join %s.',
 	"Thanks for confirming. You\\'re in your new groups.",
 	'Thanks! Check your inbox for an email from us and click the link in it to confirm.',
+	'Confirm your email choices',
+	"We got a request to change which emails you get from %1\\\$s.",
+	'Confirming also saves the email choices you picked.',
+	'Press the button to save your email choices.',
+	'Thanks for confirming. We saved your email choices.',
 );
 foreach ( $copy as $line ) {
 	check( 'Present: ' . substr( $line, 0, 40 ), true, false !== strpos( $forms, $line ) );
