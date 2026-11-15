@@ -45,6 +45,7 @@ $hooks = array(
 	'npmp_signup_form_default_atts'    => array( 'filter', 'includes/npmp-membership-forms.php', 'npmp_signup_form_default_atts' ),
 	'npmp_signup_form_after_fields'    => array( 'filter', 'includes/npmp-membership-forms.php', 'npmp_email_signup_shortcode' ),
 	'npmp_after_email_signup'          => array( 'action', 'includes/npmp-membership-forms.php', 'npmp_handle_membership_form' ),
+	'npmp_signup_join_names'           => array( 'filter', 'includes/npmp-membership-forms.php', 'npmp_signup_join_names' ),
 	'npmp_email_signup_block_atts'     => array( 'filter', 'includes/npmp-content-blocks.php', 'npmp_email_signup_block_render' ),
 	'npmp_preferences_form_fields'     => array( 'action', 'includes/npmp-subscription-preferences.php', 'npmp_manage_preferences_shortcode' ),
 	'npmp_preferences_saved'           => array( 'action', 'includes/npmp-subscription-preferences.php', 'npmp_manage_preferences_shortcode' ),

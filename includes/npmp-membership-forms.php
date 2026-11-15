@@ -577,7 +577,10 @@ function npmp_get_banner_html( $type, $settings ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'You\'re unsubscribed. We won\'t send you any more of these emails.', 'nonprofit-manager' ) . '</p></div>';
 		}
 		if ( 'check_email' === $status ) {
-			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks! Check your inbox for an email from us and click the link in it to confirm your subscription.', 'nonprofit-manager' ) . '</p></div>';
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks! Check your inbox for an email from us and click the link in it to confirm.', 'nonprofit-manager' ) . '</p></div>';
+		}
+		if ( 'joined' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks for confirming. You\'re in your new groups.', 'nonprofit-manager' ) . '</p></div>';
 		}
 		if ( 'confirmed' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ) . '</p></div>';
@@ -894,9 +897,37 @@ function npmp_handle_membership_form() {
 		}
 
 		$existing   = $member_manager->get_member_by_email( $email );
+		$status     = $existing ? (string) ( $existing->status ?? '' ) : '';
 		$contact_id = 0;
 		$atts_token = sanitize_text_field( wp_unslash( $_POST['npmp_signup_atts'] ?? '' ) );
-		if ( ( ! $existing || 'unsubscribed' !== ( $existing->status ?? '' ) ) && npmp_double_optin_enabled() ) {
+		$posted     = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only npmp_signup_fields_to_keep() reads it, and listeners sanitize what they read.
+		// Every address gets the same answer, so the form never tells a
+		// visitor who is on the list or what state they're in.
+		$answer = npmp_double_optin_enabled() ? 'check_email' : 'success';
+
+		if ( $existing && 'unsubscribed' === $status ) {
+			// Someone who unsubscribed is only put back on the list once they
+			// confirm from their own inbox. The form used to flip them straight
+			// back to subscribed, so anyone could re-subscribe a stranger. The
+			// link carries a single-use key for what the form asked, so the
+			// groups they picked come along when they confirm.
+			$key = npmp_signup_save_pending( (int) $existing->id, $name, $posted, $atts_token, false, 'resubscribe' );
+			npmp_send_resubscribe_confirmation( $email, $key );
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
+			exit;
+		}
+		if ( $existing && 'pending' !== $status && npmp_signup_join_names( (int) $existing->id, $posted, $atts_token ) ) {
+			// A contact we already have asks to join groups. Anyone can type
+			// any address, so nothing changes until the owner confirms from
+			// their own inbox, with or without double opt-in. Pete at U3A
+			// re-used the form for an existing subscriber, saw no new groups,
+			// and got a "please confirm your subscription" email that read
+			// as a mistake.
+			npmp_send_signup_confirmation( (int) $existing->id, $email, $name, $posted, $atts_token, false, 'subscribed' === $status ? 'join' : 'signup' );
+			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
+			exit;
+		}
+		if ( npmp_double_optin_enabled() ) {
 			// Double opt-in: nothing a subscriber would notice happens until
 			// they click the link in their own inbox. A new address is saved as
 			// Pending, which no newsletter, digest or notification reaches. The
@@ -921,16 +952,8 @@ function npmp_handle_membership_form() {
 				}
 				$contact_id = (int) $added;
 			}
-			npmp_send_signup_confirmation( $contact_id, $email, $name, wp_unslash( $_POST ), $atts_token, $is_new ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Stored for npmp_after_email_signup, whose listeners sanitize what they read.
+			npmp_send_signup_confirmation( $contact_id, $email, $name, $posted, $atts_token, $is_new );
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'check_email' ) );
-			exit;
-		} elseif ( $existing && 'unsubscribed' === ( $existing->status ?? '' ) ) {
-			// Someone who unsubscribed is only put back on the list once they
-			// confirm from their own inbox. The form used to flip them straight
-			// back to subscribed, so anyone could re-subscribe a stranger. The
-			// visitor sees the same answer either way.
-			npmp_send_resubscribe_confirmation( $email );
-			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'success' ) );
 			exit;
 		} elseif ( $existing ) {
 			// Existing contact: subscribe them, but never overwrite a name or
@@ -977,6 +1000,10 @@ function npmp_handle_membership_form() {
 			 *
 			 * Pro adds the new or returning member to the form's groups
 			 * from `$atts['groups']` (and any group checkboxes it printed).
+			 * A contact we already have (other than Pending) only gets here
+			 * with groups after confirming from their inbox: through the
+			 * confirm link, or the resubscribe link when they had
+			 * unsubscribed.
 			 *
 			 * @param int   $contact_id Contact post ID.
 			 * @param array $post_data  Submitted form data.
@@ -1079,18 +1106,21 @@ function npmp_generate_resubscribe_token( $email ) {
 /**
  * Email an unsubscribed contact a signed link that puts them back on the list.
  *
- * @param string $email Recipient email address.
+ * @param string $email    Recipient email address.
+ * @param string $join_key Key of the signup saved by npmp_signup_save_pending(),
+ *                         so the groups the form asked for come along. '' for none.
  * @return void
  */
-function npmp_send_resubscribe_confirmation( $email ) {
-	$url = add_query_arg(
-		array(
-			'action' => 'npmp_confirm_resubscribe',
-			'email'  => rawurlencode( $email ),
-			'token'  => npmp_generate_resubscribe_token( $email ),
-		),
-		admin_url( 'admin-post.php' )
+function npmp_send_resubscribe_confirmation( $email, $join_key = '' ) {
+	$args = array(
+		'action' => 'npmp_confirm_resubscribe',
+		'email'  => rawurlencode( $email ),
+		'token'  => npmp_generate_resubscribe_token( $email ),
 	);
+	if ( '' !== (string) $join_key ) {
+		$args['join'] = (string) $join_key;
+	}
+	$url = add_query_arg( $args, admin_url( 'admin-post.php' ) );
 	$subject = __( 'Confirm you want to subscribe again', 'nonprofit-manager' );
 	$body    = sprintf(
 		/* translators: 1: site name, 2: confirmation URL. */
@@ -1103,6 +1133,13 @@ If you didn't ask for this, ignore this email and you'll stay unsubscribed.", 'n
 		get_bloginfo( 'name' ),
 		$url
 	);
+	if ( '' !== (string) $join_key && class_exists( 'NPMP_Member_Manager' ) ) {
+		$contact = NPMP_Member_Manager::get_instance()->get_member_by_email( $email );
+		$pending = $contact ? get_post_meta( (int) $contact->id, '_npmp_signup_confirm', true ) : null;
+		if ( is_array( $pending ) ) {
+			$body = npmp_signup_add_confirmation_lines( $body, (int) $contact->id, (array) ( $pending['post'] ?? array() ), (string) ( $pending['atts'] ?? '' ) );
+		}
+	}
 	if ( function_exists( 'npmp_send_mail' ) ) {
 		npmp_send_mail( $email, $subject, $body );
 	}
@@ -1122,6 +1159,7 @@ function npmp_handle_confirm_resubscribe() {
 	// phpcs:disable WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Token-authenticated email link.
 	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
 	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
+	$join  = isset( $_REQUEST['join'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['join'] ) ) : '';
 	// phpcs:enable
 	$valid  = $email && is_email( $email ) && hash_equals( npmp_generate_resubscribe_token( $email ), $token );
 	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
@@ -1137,7 +1175,8 @@ function npmp_handle_confirm_resubscribe() {
 			__( 'Subscribe', 'nonprofit-manager' ),
 			'npmp_confirm_resubscribe',
 			$email,
-			$token
+			$token,
+			'' !== $join ? array( 'join' => $join ) : array()
 		);
 	}
 
@@ -1146,6 +1185,15 @@ function npmp_handle_confirm_resubscribe() {
 		$existing = $manager->get_member_by_email( $email );
 		if ( $existing ) {
 			$manager->update_member( $existing->id, array( 'status' => 'subscribed' ) );
+			// The link from the signup form carries the key of what the form
+			// asked (its groups and checkboxes). It works once, and only the
+			// newest one does.
+			$pending = '' !== $join ? get_post_meta( (int) $existing->id, '_npmp_signup_confirm', true ) : null;
+			if ( is_array( $pending ) && 'resubscribe' === ( $pending['kind'] ?? '' ) && hash_equals( (string) ( $pending['key'] ?? '' ), $join ) ) {
+				delete_post_meta( (int) $existing->id, '_npmp_signup_confirm' );
+				/** This action is documented in includes/npmp-membership-forms.php */
+				do_action( 'npmp_after_email_signup', (int) $existing->id, (array) ( $pending['post'] ?? array() ), npmp_signup_atts_from_token( (string) ( $pending['atts'] ?? '' ) ), false );
+			}
 		}
 	}
 	wp_die( esc_html__( "You're subscribed again. Thanks for coming back.", 'nonprofit-manager' ), esc_html__( 'Subscribe', 'nonprofit-manager' ), array( 'response' => 200, 'back_link' => true ) );
@@ -1192,21 +1240,23 @@ function npmp_signup_fields_to_keep( $post ) {
 }
 
 /**
- * Save a pending signup and email the subscriber a link to confirm it.
+ * Keep a signup until its owner confirms it from their inbox.
  *
- * Each email gets a fresh single-use key, so an old link stops working once
+ * Each call makes a fresh single-use key, so an old link stops working once
  * a newer one is sent or the signup is confirmed, and a link can't put back
  * someone who confirmed and later unsubscribed.
  *
  * @param int    $contact_id Contact ID.
- * @param string $email      Subscriber address.
  * @param string $name       Name they typed.
  * @param array  $post       Unslashed $_POST.
  * @param string $atts_token The form's signed attributes.
  * @param bool   $is_new     True when this signup created the contact.
- * @return void
+ * @param string $kind       'signup' (subscribe), 'join' (a subscriber asks
+ *                           for groups), or 'resubscribe' (rides the
+ *                           resubscribe link).
+ * @return string The key.
  */
-function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts_token, $is_new ) {
+function npmp_signup_save_pending( $contact_id, $name, $post, $atts_token, $is_new, $kind = 'signup' ) {
 	$key = wp_generate_password( 32, false );
 	update_post_meta(
 		(int) $contact_id,
@@ -1217,40 +1267,74 @@ function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts
 			'post'   => npmp_signup_fields_to_keep( $post ),
 			'atts'   => (string) $atts_token,
 			'is_new' => (bool) $is_new,
+			'kind'   => in_array( $kind, array( 'join', 'resubscribe' ), true ) ? $kind : 'signup',
 			'time'   => time(),
 		)
 	);
+	return $key;
+}
 
-	$url = add_query_arg(
-		array(
-			'action' => 'npmp_confirm_signup',
-			'email'  => rawurlencode( $email ),
-			'token'  => $key,
-		),
-		admin_url( 'admin-post.php' )
-	);
-	$subject = sprintf(
-		/* translators: %s: site name. */
-		__( 'Please confirm your subscription to %s', 'nonprofit-manager' ),
-		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
-	);
-	$body = sprintf(
-		/* translators: 1: site name, 2: confirmation URL. */
-		__( "Thanks for signing up for email from %1\$s.
+/**
+ * Names of the groups a signup would add a contact to.
+ *
+ * @param int    $contact_id Contact ID.
+ * @param array  $post       Unslashed $_POST, or the fields kept until they confirm.
+ * @param string $atts_token The form's signed attributes.
+ * @return string[] Plain-text names ('' in free).
+ */
+function npmp_signup_join_names( $contact_id, $post, $atts_token ) {
+	/**
+	 * Filter the names of the groups a signup would add this contact to,
+	 * leaving out any they're already in. Pro answers from the form's groups
+	 * and the boxes the visitor ticked. When the list isn't empty for a
+	 * contact we already have, the form asks the owner to confirm by email
+	 * before anything changes.
+	 *
+	 * @param string[] $names      Group names (none in free).
+	 * @param int      $contact_id Contact ID.
+	 * @param array    $fields     The signup's kept form fields (npmp_signup_fields_to_keep()).
+	 * @param array    $atts       The form's attributes, read back from its signed field.
+	 */
+	$names = apply_filters( 'npmp_signup_join_names', array(), (int) $contact_id, npmp_signup_fields_to_keep( $post ), npmp_signup_atts_from_token( (string) $atts_token ) );
+	return array_values( array_filter( array_map( 'wp_strip_all_tags', array_filter( (array) $names, 'is_scalar' ) ), 'strlen' ) );
+}
 
-To confirm, open this link and press the button:
-%2\$s
+/**
+ * Names as a sentence: "Art", "Art and History", "Art, History, and Walking".
+ *
+ * @param string[] $names Names.
+ * @return string
+ */
+function npmp_signup_names_sentence( $names ) {
+	$names = array_values( array_map( 'strval', (array) $names ) );
+	$count = count( $names );
+	if ( $count < 2 ) {
+		return $count ? $names[0] : '';
+	}
+	$and = _x( 'and', 'joins the last two names in a list', 'nonprofit-manager' );
+	if ( 2 === $count ) {
+		return $names[0] . ' ' . $and . ' ' . $names[1];
+	}
+	$last = array_pop( $names );
+	return implode( ', ', $names ) . ', ' . $and . ' ' . $last;
+}
 
-If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofit-manager' ),
-		wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
-		$url
-	);
-
+/**
+ * Put add-ons' lines (Pro's "You asked to join ...") after an email's first
+ * paragraph.
+ *
+ * @param string $body       Plain-text email body.
+ * @param int    $contact_id Contact ID.
+ * @param array  $post       Unslashed $_POST, or the fields kept until they confirm.
+ * @param string $atts_token The form's signed attributes.
+ * @return string
+ */
+function npmp_signup_add_confirmation_lines( $body, $contact_id, $post, $atts_token ) {
 	/**
 	 * Filter extra lines for the "please confirm" email, as plain text. Each
 	 * line becomes its own paragraph after the thank-you line. Pro adds the
 	 * groups the signup asked to join. Free adds nothing, so its email is
-	 * unchanged.
+	 * unchanged. The resubscribe email from the signup form gets them too.
 	 *
 	 * @param string[] $lines      Plain-text lines ('' in free).
 	 * @param int      $contact_id Contact ID.
@@ -1262,6 +1346,74 @@ If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofi
 	if ( $lines ) {
 		$parts = explode( "\n\n", $body, 2 );
 		$body  = $parts[0] . "\n\n" . implode( "\n\n", $lines ) . ( isset( $parts[1] ) ? "\n\n" . $parts[1] : '' );
+	}
+	return $body;
+}
+
+/**
+ * Save a pending signup and email the subscriber a link to confirm it.
+ *
+ * @param int    $contact_id Contact ID.
+ * @param string $email      Subscriber address.
+ * @param string $name       Name they typed.
+ * @param array  $post       Unslashed $_POST.
+ * @param string $atts_token The form's signed attributes.
+ * @param bool   $is_new     True when this signup created the contact.
+ * @param string $kind       'signup', or 'join' for a subscriber who asks for
+ *                           groups (npmp_signup_save_pending()).
+ * @return void
+ */
+function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts_token, $is_new, $kind = 'signup' ) {
+	$key   = npmp_signup_save_pending( $contact_id, $name, $post, $atts_token, $is_new, $kind );
+	$site  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+	$names = 'join' === $kind ? npmp_signup_join_names( (int) $contact_id, $post, $atts_token ) : array();
+
+	$url = add_query_arg(
+		array(
+			'action' => 'npmp_confirm_signup',
+			'email'  => rawurlencode( $email ),
+			'token'  => $key,
+		),
+		admin_url( 'admin-post.php' )
+	);
+
+	if ( $names ) {
+		$groups  = npmp_signup_names_sentence( $names );
+		$subject = sprintf(
+			/* translators: %s: group names, for example "Art and History". */
+			__( 'Confirm you want to join %s', 'nonprofit-manager' ),
+			$groups
+		);
+		$body = sprintf(
+			/* translators: 1: group names, for example "Art and History", 2: site name, 3: confirmation URL. */
+			__( "We got a request to add you to %1\$s at %2\$s.
+
+To confirm, open this link and press the button:
+%3\$s
+
+If you didn't ask for this, ignore this email and nothing will change.", 'nonprofit-manager' ),
+			$groups,
+			$site,
+			$url
+		);
+	} else {
+		$subject = sprintf(
+			/* translators: %s: site name. */
+			__( 'Please confirm your subscription to %s', 'nonprofit-manager' ),
+			$site
+		);
+		$body = sprintf(
+			/* translators: 1: site name, 2: confirmation URL. */
+			__( "Thanks for signing up for email from %1\$s.
+
+To confirm, open this link and press the button:
+%2\$s
+
+If you didn't sign up, ignore this email and you won't hear from us.", 'nonprofit-manager' ),
+			$site,
+			$url
+		);
+		$body = npmp_signup_add_confirmation_lines( $body, (int) $contact_id, $post, $atts_token );
 	}
 	if ( function_exists( 'npmp_send_mail' ) ) {
 		npmp_send_mail( $email, $subject, $body );
@@ -1287,7 +1439,9 @@ function npmp_handle_confirm_signup() {
 	$manager = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance() : null;
 	$contact = ( $manager && $email && is_email( $email ) ) ? $manager->get_member_by_email( $email ) : null;
 	$pending = $contact ? get_post_meta( (int) $contact->id, '_npmp_signup_confirm', true ) : null;
-	$valid   = is_array( $pending ) && '' !== $token && hash_equals( (string) ( $pending['key'] ?? '' ), $token );
+	// A key that rides the resubscribe link only works there.
+	$valid   = is_array( $pending ) && '' !== $token && 'resubscribe' !== ( $pending['kind'] ?? '' ) && hash_equals( (string) ( $pending['key'] ?? '' ), $token );
+	$join    = $valid && 'join' === ( $pending['kind'] ?? '' );
 
 	if ( ! $valid ) {
 		$already = $contact && 'subscribed' === ( $contact->status ?? '' ) && ! is_array( $pending );
@@ -1303,9 +1457,15 @@ function npmp_handle_confirm_signup() {
 	}
 
 	if ( 'POST' !== $method ) {
+		$names = $join ? npmp_signup_join_names( (int) $contact->id, (array) ( $pending['post'] ?? array() ), (string) ( $pending['atts'] ?? '' ) ) : array();
 		npmp_render_email_link_confirm_page(
-			$title,
-			__( 'Press the button to start getting our emails at this address.', 'nonprofit-manager' ),
+			$join ? __( 'Confirm your groups', 'nonprofit-manager' ) : $title,
+			$join
+				? ( $names
+					/* translators: %s: group names, for example "Art and History". */
+					? sprintf( __( 'Press the button to join %s.', 'nonprofit-manager' ), npmp_signup_names_sentence( $names ) )
+					: __( 'Press the button to confirm.', 'nonprofit-manager' ) )
+				: __( 'Press the button to start getting our emails at this address.', 'nonprofit-manager' ),
 			__( 'Confirm', 'nonprofit-manager' ),
 			'npmp_confirm_signup',
 			$email,
@@ -1314,7 +1474,9 @@ function npmp_handle_confirm_signup() {
 	}
 
 	$contact_id = (int) $contact->id;
-	$update     = array( 'status' => 'subscribed' );
+	// A subscriber who asked for groups keeps their status. If they
+	// unsubscribed before pressing the button, they stay unsubscribed.
+	$update = $join ? array() : array( 'status' => 'subscribed' );
 	if ( '' === trim( (string) $contact->name ) || $contact->name === $contact->email ) {
 		$update['name'] = (string) ( $pending['name'] ?? '' );
 	}
@@ -1322,7 +1484,9 @@ function npmp_handle_confirm_signup() {
 		$default_level              = sanitize_text_field( get_option( 'npmp_default_membership_level', '' ) );
 		$update['membership_level'] = $default_level ? $default_level : 'member';
 	}
-	$manager->update_member( $contact_id, $update );
+	if ( $update ) {
+		$manager->update_member( $contact_id, $update );
+	}
 	delete_post_meta( $contact_id, '_npmp_signup_confirm' );
 
 	$is_new = ! empty( $pending['is_new'] );
@@ -1342,10 +1506,14 @@ function npmp_handle_confirm_signup() {
 	$settings = npmp_get_membership_form_settings();
 	$page_id  = absint( $settings['signup_page_id'] ?? 0 );
 	if ( $page_id && 'publish' === get_post_status( $page_id ) && get_permalink( $page_id ) ) {
-		wp_safe_redirect( npmp_membership_add_banner_arg( get_permalink( $page_id ), 'npmp_signup', 'confirmed' ) );
+		wp_safe_redirect( npmp_membership_add_banner_arg( get_permalink( $page_id ), 'npmp_signup', $join ? 'joined' : 'confirmed' ) );
 		exit;
 	}
-	wp_die( esc_html__( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ), esc_html( $title ), array( 'response' => 200, 'back_link' => true ) );
+	wp_die(
+		esc_html( $join ? __( 'Thanks for confirming. You\'re in your new groups.', 'nonprofit-manager' ) : __( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ) ),
+		esc_html( $join ? __( 'Confirm your groups', 'nonprofit-manager' ) : $title ),
+		array( 'response' => 200, 'back_link' => true )
+	);
 }
 
 /**
@@ -1361,15 +1529,19 @@ function npmp_handle_confirm_signup() {
  * @param string $action  admin-post action.
  * @param string $email   Email from the link.
  * @param string $token   Token from the link.
+ * @param array  $extra   More hidden fields, name => value.
  * @return void
  */
-function npmp_render_email_link_confirm_page( $title, $message, $button, $action, $email, $token ) {
+function npmp_render_email_link_confirm_page( $title, $message, $button, $action, $email, $token, $extra = array() ) {
 	$html  = '<p>' . esc_html( $message ) . '</p>';
 	$html .= '<p><strong>' . esc_html( $email ) . '</strong></p>';
 	$html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 	$html .= '<input type="hidden" name="action" value="' . esc_attr( $action ) . '">';
 	$html .= '<input type="hidden" name="email" value="' . esc_attr( $email ) . '">';
 	$html .= '<input type="hidden" name="token" value="' . esc_attr( $token ) . '">';
+	foreach ( (array) $extra as $field => $value ) {
+		$html .= '<input type="hidden" name="' . esc_attr( sanitize_key( (string) $field ) ) . '" value="' . esc_attr( (string) $value ) . '">';
+	}
 	$html .= '<input type="hidden" name="npmp_confirm" value="1">';
 	$html .= '<p><button type="submit" class="button button-primary">' . esc_html( $button ) . '</button></p>';
 	$html .= '</form>';
