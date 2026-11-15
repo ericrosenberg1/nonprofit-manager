@@ -28,18 +28,26 @@ jQuery(function ($) {
         }
         var label = $button.text();
         $button.prop('disabled', true).text(cfg.working || label);
-        $.post(cfg.ajaxUrl, {
+        var data = {
             action: 'npmp_sched_email_event',
             op: $button.data('op'),
             event_id: $wrap.data('event'),
             nonce: $wrap.data('nonce'),
             body_id: $box.find('.npmp-sched-body').val() || '',
             subject: $box.find('#npmp-sched-subject').val() || ''
-        }).done(function (res) {
-            var data = (res && res.data) || {};
-            $message.text(data.message || cfg.failed || '');
-            if (res && res.success && data.summary) {
-                $box.find('.npmp-sched-summary').text(data.summary);
+        };
+        // The template picked now, saved or not. The picker is its own box,
+        // so it's read from the page. Left out when the page has no picker,
+        // so the test falls back to the saved choice.
+        var $picker = $('#npmp_event_email_template');
+        if ($picker.length) {
+            data.template = $picker.val() || '';
+        }
+        $.post(cfg.ajaxUrl, data).done(function (res) {
+            var reply = (res && res.data) || {};
+            $message.text(reply.message || cfg.failed || '');
+            if (res && res.success && reply.summary) {
+                $box.find('.npmp-sched-summary').text(reply.summary);
                 $button.remove();
             }
         }).fail(function () {

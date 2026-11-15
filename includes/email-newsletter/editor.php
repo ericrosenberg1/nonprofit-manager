@@ -434,7 +434,7 @@ function npmp_render_newsletter_archive() {
             echo '<td>' . esc_html($sent_at ? mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $sent_at) : '—') . '</td>';
             echo '<td>' . esc_html($recipient_total) . '</td>';
             echo '<td>' . esc_html('1' === (string) get_post_meta($post_id, NPMP_NEWSLETTER_PUBLIC_META, true) ? __('Yes', 'nonprofit-manager') : __('No', 'nonprofit-manager')) . '</td>';
-            echo '<td><a class="button button-small" href="' . esc_url(get_preview_post_link($post_id)) . '" target="_blank" rel="noopener">' . esc_html__('Preview', 'nonprofit-manager') . '</a> ';
+            echo '<td><a class="button button-small" href="' . esc_url(npmp_newsletter_preview_url($post_id)) . '" target="_blank" rel="noopener">' . esc_html__('Preview', 'nonprofit-manager') . '</a> ';
             echo '<a class="button button-small" href="' . esc_url($duplicate_url) . '">' . esc_html__('Duplicate', 'nonprofit-manager') . '</a></td>';
             echo '</tr>';
         }
@@ -591,13 +591,17 @@ function npmp_newsletter_send_controls_html($post) {
      */
     do_action('npmp_newsletter_recipient_options', $post->ID);
 
+    $npmp_list_words = npmp_newsletter_list_words();
     echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('All subscribed %s', 'nonprofit-manager'), npmp_label('members_lc')))
         /* translators: %s: group names, such as "Art Club, Walking". */
         . '" data-groups-only="' . esc_attr__('Members of %s', 'nonprofit-manager')
         /* translators: 1: membership levels, 2: group names. */
-        . '" data-groups-within="' . esc_attr__('%1$s in %2$s', 'nonprofit-manager') . '">' . esc_html($audience_label) . '</span></p>';
+        . '" data-groups-within="' . esc_attr__('%1$s in %2$s', 'nonprofit-manager')
+        . '" data-list-between="' . esc_attr($npmp_list_words['between'])
+        . '" data-list-last="' . esc_attr($npmp_list_words['between_last_two'])
+        . '" data-list-two="' . esc_attr($npmp_list_words['between_only_two']) . '">' . esc_html($audience_label) . '</span></p>';
 
-    $preview_link = get_preview_post_link($post);
+    $preview_link = npmp_newsletter_preview_url($post->ID);
     if ($preview_link) {
         echo '<p><a class="button" target="_blank" rel="noopener" href="' . esc_url($preview_link) . '">' . esc_html__('Preview in new tab', 'nonprofit-manager') . '</a></p>';
     }
@@ -850,6 +854,30 @@ function npmp_save_newsletter_meta($post_id) {
     npmp_newsletter_store_meta($post_id, $levels, $preheader);
 }
 add_action('save_post_npmp_newsletter', 'npmp_save_newsletter_meta');
+
+/**
+ * The words that join a list of names, the same ones wp_sprintf( '%l' ) uses
+ * (Pro saves a group newsletter's label with it). The editor's script joins
+ * group names with these, so the live label and the saved one read the same,
+ * "Art and History" or "Art, History, and Walking", in the site's language.
+ *
+ * @return array{between:string,between_last_two:string,between_only_two:string}
+ */
+function npmp_newsletter_list_words() {
+    $words = apply_filters(
+        'wp_sprintf_l', // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core's own filter, so a site's change shows in both labels.
+        array(
+            'between'          => sprintf(__('%1$s, %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string, as wp_sprintf_l() reads it.
+            'between_last_two' => sprintf(__('%1$s, and %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain
+            'between_only_two' => sprintf(__('%1$s and %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain
+        )
+    );
+    return array(
+        'between'          => (string) ($words['between'] ?? ', '),
+        'between_last_two' => (string) ($words['between_last_two'] ?? ', and '),
+        'between_only_two' => (string) ($words['between_only_two'] ?? ' and '),
+    );
+}
 
 /**
  * Add duplicate action to newsletter rows.

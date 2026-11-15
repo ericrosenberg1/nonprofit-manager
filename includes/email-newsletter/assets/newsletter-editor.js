@@ -27,6 +27,31 @@ jQuery(function ($) {
         return names;
     };
 
+    // Joins names the way wp_sprintf( '%l' ) does, with the words the page
+    // prints (npmp_newsletter_list_words()), so the live label matches the
+    // one Pro saves: "A and B", "A, B, and C".
+    const joinList = (items) => {
+        const between = $audienceLabel.data('listBetween');
+        const last = $audienceLabel.data('listLast');
+        const two = $audienceLabel.data('listTwo');
+        const words = {
+            between: typeof between === 'string' ? between : ', ',
+            last: typeof last === 'string' ? last : ', and ',
+            two: typeof two === 'string' ? two : ' and '
+        };
+        if (items.length < 2) {
+            return items.join('');
+        }
+        if (items.length === 2) {
+            return items[0] + words.two + items[1];
+        }
+        let out = items[0];
+        for (let i = 1; i < items.length - 1; i++) {
+            out += words.between + items[i];
+        }
+        return out + words.last + items[items.length - 1];
+    };
+
     const gatherAudience = () => {
         return {
             levels: $levelInputs.filter(':checked').map((_, el) => $(el).val()).get(),
@@ -54,8 +79,8 @@ jQuery(function ($) {
         if (groups.length) {
             // The same words Pro saves after the save (npmp_pro_groups_audience_label()).
             const template = everyone || !names.length
-                ? String($audienceLabel.data('groupsOnly') || '%s').replace('%s', groups.join(', '))
-                : String($audienceLabel.data('groupsWithin') || '%1$s in %2$s').replace('%1$s', names.join(', ')).replace('%2$s', groups.join(', '));
+                ? String($audienceLabel.data('groupsOnly') || '%s').replace('%s', joinList(groups))
+                : String($audienceLabel.data('groupsWithin') || '%1$s in %2$s').replace('%1$s', names.join(', ')).replace('%2$s', joinList(groups));
             $audienceLabel.text(template);
             return;
         }
