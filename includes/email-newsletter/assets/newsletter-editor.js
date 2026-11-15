@@ -157,6 +157,8 @@ jQuery(function ($) {
         });
     };
 
+    // We send the test and send answers as plain text (editor.php), so we
+    // pass them to alert() as they are and never put them in the page as HTML.
     $('#npmp-send-test').on('click', function () {
         const button = $(this);
 

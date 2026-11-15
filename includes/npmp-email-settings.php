@@ -67,7 +67,10 @@ function npmp_render_email_settings_page() {
 		$new_settings['smtp']['auto_tls'] = isset( $_POST['npmp_smtp_auto_tls'] ) ? 1 : 0;
 		$new_settings['smtp']['username'] = sanitize_text_field( wp_unslash( $_POST['npmp_smtp_username'] ?? '' ) );
 
-		$password_input = isset( $_POST['npmp_smtp_password'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_smtp_password'] ) ) : '';
+		// Never sanitize_text_field() here. With it we saved passwords with
+		// "%41", a tag shape, or doubled spaces as different passwords
+		// (npmp_email_clean_secret()).
+		$password_input = isset( $_POST['npmp_smtp_password'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_smtp_password'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A password must keep every other character.
 		if ( '' !== $password_input ) {
 			$new_settings['smtp']['password'] = $password_input;
 		}
