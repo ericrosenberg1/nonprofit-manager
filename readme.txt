@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.13
+Stable tag: 2026.11.14
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,18 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.14 =
+* Fixed the Preview button in the Newsletter Archive and the newsletter editor, so you can read any newsletter, imported ones included.
+* Fixed the signup form so nobody can put an Inactive contact back on your list unless that person confirms by email.
+* Fixed "Send a test to me" in the event editor, so you get the template you picked, saved or not.
+* Fixed newsletters whose template you deleted, so you get the default template, as you do in event emails.
+* Fixed the group names in the newsletter editor's audience label, so you see "Art and History" before and after you save.
+* Added a limit of three signup confirmation emails an hour for each address.
+* Added a Donate button to newsletters and event emails in place of the donation form, since mail apps don't support forms.
+* Added name and email prefill on donation forms for signed-in users and for readers who come from a newsletter.
+* Added a Payment link option, so you can send donors to any payment page with the amount, name, email, currency, and note filled in.
+* Added the donor's name and email to the PayPal donation link.
 
 = 2026.11.13 =
 * Fixed the second test email and second pop-up you got each time you sent a test newsletter.
@@ -581,6 +593,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.14 =
+Update so nobody can put an Inactive contact back on your list from your signup form.
 
 = 2026.11.13 =
 Update so nobody can change another person's groups or email choices from your signup form.

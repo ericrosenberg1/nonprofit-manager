@@ -387,10 +387,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Donate button in emails: newsletter and event email readers get a button to your donation page instead of a form mail apps can't use.
-- Prefill: logged-in users and readers who come from a newsletter find their email, and their name where the form asks, filled in.
-- Payment link option: you can send donors to any payment page with the amount, name, email, currency, and note filled in.
-- PayPal link: we pass the donor's name and email to PayPal.
+- (none)
 
 Pro (licence server changelog):
 - (none)
