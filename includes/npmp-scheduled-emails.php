@@ -286,6 +286,8 @@ function npmp_scheduled_emails_placeholder_help() {
 		'[event_location]' => __( 'Where it is', 'nonprofit-manager' ),
 		'[event_url]'      => __( 'The event page on your site', 'nonprofit-manager' ),
 		'[join_link]'      => __( 'The event link (a meeting link, say), or the event page', 'nonprofit-manager' ),
+		'[meeting_id]'     => __( 'The meeting ID. When the event has none, we take its whole line out of the email', 'nonprofit-manager' ),
+		'[passcode]'       => __( 'The meeting passcode. When the event has none, we take its whole line out of the email', 'nonprofit-manager' ),
 		'[ical_link]'      => sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'A calendar file %s can add to their calendar', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
 		'[event_image]'    => __( 'The event\'s featured image', 'nonprofit-manager' ),
 		'[event_excerpt]'  => __( 'The start of the event description, with its paragraph breaks. [event_excerpt words="200"] sets the length (55 words if you leave it out)', 'nonprofit-manager' ),
@@ -354,6 +356,16 @@ function npmp_scheduled_emails_fill( $text, $map, $html = true ) {
 		unset( $map['[event_description]'] );
 	}
 
+	$empty = array();
+	foreach ( npmp_scheduled_emails_collapsible_tags() as $tag ) {
+		if ( array_key_exists( $tag, $map ) && '' === trim( (string) $map[ $tag ] ) ) {
+			$empty[] = $tag;
+		}
+	}
+	if ( $empty ) {
+		$text = npmp_scheduled_emails_collapse_empty( $text, $empty, $html );
+	}
+
 	$pairs = array();
 	foreach ( $map as $tag => $value ) {
 		$tag   = (string) $tag;
@@ -371,6 +383,103 @@ function npmp_scheduled_emails_fill( $text, $map, $html = true ) {
 		$pairs[ $tag ] = $value;
 	}
 	return strtr( $text, $pairs );
+}
+
+/**
+ * Placeholders whose line leaves the email when they have no value.
+ *
+ * @return string[]
+ */
+function npmp_scheduled_emails_collapsible_tags() {
+	return array( '[meeting_id]', '[passcode]' );
+}
+
+/**
+ * Take out the lines that hold an empty placeholder, so a body with
+ * "Meeting ID: [meeting_id]" reads cleanly for an event with no meeting ID.
+ *
+ * In HTML, a line is one <br>-separated part of a paragraph or list item. A
+ * paragraph or list item left with no text goes too, with its block comments,
+ * so the email matches one written without those lines. In plain text, a line
+ * ends at a newline. A tag anywhere else (a heading, a table cell) just
+ * becomes empty.
+ *
+ * @param string   $text Body or subject.
+ * @param string[] $tags Tags with no value, for example '[meeting_id]'.
+ * @param bool     $html True for the body.
+ * @return string
+ */
+function npmp_scheduled_emails_collapse_empty( $text, $tags, $html = true ) {
+	$text = (string) $text;
+	$tags = array_values( array_filter( array_map( 'strval', (array) $tags ) ) );
+	$has  = static function ( $chunk ) use ( $tags ) {
+		foreach ( $tags as $tag ) {
+			if ( false !== strpos( $chunk, $tag ) ) {
+				return true;
+			}
+		}
+		return false;
+	};
+	if ( ! $tags || ! $has( $text ) ) {
+		return $text;
+	}
+
+	if ( ! $html ) {
+		$lines = preg_split( '/(\r\n|\n|\r)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+		if ( count( $lines ) > 1 ) {
+			$out = '';
+			for ( $i = 0, $n = count( $lines ); $i < $n; $i += 2 ) {
+				if ( $has( $lines[ $i ] ) ) {
+					continue;
+				}
+				$out .= $lines[ $i ] . ( $lines[ $i + 1 ] ?? '' );
+			}
+			return $out;
+		}
+		foreach ( $tags as $tag ) {
+			$text = (string) preg_replace( '/ ?' . preg_quote( $tag, '/' ) . '/', '', $text );
+		}
+		return $text;
+	}
+
+	$text = (string) preg_replace_callback(
+		'#<(p|li)\b([^>]*)>(.*?)</\1>#is',
+		static function ( $m ) use ( $has ) {
+			if ( ! $has( $m[3] ) || preg_match( '#<(p|li|ul|ol)\b#i', $m[3] ) ) {
+				return $m[0];
+			}
+			$parts = preg_split( '#(<br\s*/?>)#i', $m[3], -1, PREG_SPLIT_DELIM_CAPTURE );
+			$keep  = array();
+			for ( $i = 0, $n = count( $parts ); $i < $n; $i += 2 ) {
+				if ( ! $has( $parts[ $i ] ) ) {
+					$keep[] = array( $parts[ $i ], $parts[ $i - 1 ] ?? '' );
+				}
+			}
+			$inner = '';
+			foreach ( $keep as $k => $part ) {
+				$inner .= ( $k ? ( '' !== $part[1] ? $part[1] : '<br>' ) : '' ) . $part[0];
+			}
+			$plain = trim( str_replace( array( '&nbsp;', "\xC2\xA0" ), ' ', wp_strip_all_tags( $inner ) ) );
+			if ( '' === $plain ) {
+				return '';
+			}
+			return '<' . $m[1] . $m[2] . '>' . $inner . '</' . $m[1] . '>';
+		},
+		$text
+	);
+	// Block comments left around nothing go, with the blank line after them.
+	$text = (string) preg_replace( '#<!-- wp:(paragraph|list-item)(\s[^>]*?)? -->\s*<!-- /wp:\1 -->\s*#', '', $text );
+
+	// Plain-text lines outside any tag (a body with no blocks).
+	$lines = preg_split( '/(\r\n|\n|\r)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE );
+	$out   = '';
+	for ( $i = 0, $n = count( $lines ); $i < $n; $i += 2 ) {
+		if ( $has( $lines[ $i ] ) && false === strpos( $lines[ $i ], '<' ) ) {
+			continue;
+		}
+		$out .= $lines[ $i ] . ( $lines[ $i + 1 ] ?? '' );
+	}
+	return str_replace( $tags, '', $out );
 }
 
 /**
@@ -731,6 +840,7 @@ function npmp_scheduled_emails_ical_url( $event_id ) {
 function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 	$event_id = (int) $event_id;
 	$details  = npmp_scheduled_emails_event_details( $event_id );
+	$meeting  = function_exists( 'npmp_event_meeting_details' ) ? npmp_event_meeting_details( $event_id ) : array( 'url' => $details['url'], 'meeting_id' => '', 'passcode' => '' );
 	$tz       = wp_timezone();
 	$start_ts = $details['start'] ? npmp_scheduled_emails_local_to_ts( $details['start'] ) : 0;
 	$all_day  = $details['start'] && '00:00:00' === substr( $details['start'], 11 );
@@ -742,7 +852,10 @@ function npmp_scheduled_emails_placeholders( $event_id, $row = null ) {
 		'[event_time]'     => $start_ts ? ( $all_day ? __( 'All day', 'nonprofit-manager' ) : (string) wp_date( (string) get_option( 'time_format' ), $start_ts, $tz ) ) : '',
 		'[event_location]' => '' !== $details['location'] ? $details['location'] : __( 'See the event page', 'nonprofit-manager' ),
 		'[event_url]'      => $page,
-		'[join_link]'      => '' !== $details['url'] ? $details['url'] : $page,
+		// Emails always get the meeting details, even when the event keeps them off the site.
+		'[join_link]'      => '' !== $meeting['url'] ? $meeting['url'] : $page,
+		'[meeting_id]'     => $meeting['meeting_id'],
+		'[passcode]'       => $meeting['passcode'],
 		'[ical_link]'      => npmp_scheduled_emails_ical_url( $event_id ),
 		'[event_image]'    => npmp_scheduled_emails_image( $event_id ),
 		'[event_excerpt]'  => npmp_scheduled_emails_excerpt_source( $event_id ),
@@ -1341,9 +1454,16 @@ add_action( 'init', 'npmp_register_email_body_post_type' );
 /**
  * The two built-in bodies, with their subjects.
  *
+ * Since the release after 2026.11.16, "Tomorrow" carries the meeting ID and
+ * passcode under the join link. Each line drops out of the email when the
+ * event has no value for it, so an event without them gets the same email as
+ * before.
+ *
+ * @param bool $meeting False for the bodies as they were before, which the
+ *                      upgrade compares a site's copy against.
  * @return array<string,array{title:string,subject:string,content:string}>
  */
-function npmp_scheduled_emails_builtin_bodies() {
+function npmp_scheduled_emails_builtin_bodies( $meeting = true ) {
 	$p = static function ( $html ) {
 		return '<!-- wp:paragraph --><p>' . $html . '</p><!-- /wp:paragraph -->' . "\n\n";
 	};
@@ -1363,6 +1483,7 @@ function npmp_scheduled_emails_builtin_bodies() {
 				. $p( __( 'A quick reminder that [event_title] is tomorrow, [event_date], at [event_time].', 'nonprofit-manager' ) )
 				. $p( '<strong>' . __( 'Where:', 'nonprofit-manager' ) . '</strong> [event_location]' )
 				. $p( sprintf( /* translators: 1: link to the event, 2: link to the calendar file. */ __( 'Here\'s %1$s, and you can %2$s if you haven\'t yet.', 'nonprofit-manager' ), '<a href="[join_link]">' . __( 'the link to join', 'nonprofit-manager' ) . '</a>', '<a href="[ical_link]">' . __( 'add it to your calendar', 'nonprofit-manager' ) . '</a>' ) )
+				. ( $meeting ? $p( '<strong>' . __( 'Meeting ID:', 'nonprofit-manager' ) . '</strong> [meeting_id]<br><strong>' . __( 'Passcode:', 'nonprofit-manager' ) . '</strong> [passcode]' ) : '' )
 				. $p( __( 'See you tomorrow.', 'nonprofit-manager' ) ),
 		),
 	);
@@ -1403,6 +1524,48 @@ function npmp_scheduled_emails_seed_bodies() {
 	update_option( 'npmp_scheduled_email_bodies', $ids );
 }
 add_action( 'init', 'npmp_scheduled_emails_seed_bodies', 20 );
+
+/**
+ * Give a seeded "Tomorrow" body nobody edited the meeting ID and passcode
+ * lines, once. A body that differs from the old built-in text in any way
+ * other than spacing stays exactly as its author left it.
+ *
+ * @return void
+ */
+function npmp_scheduled_emails_upgrade_bodies() {
+	if ( get_option( 'npmp_scheduled_email_bodies_meeting' ) ) {
+		return;
+	}
+	$ids = get_option( 'npmp_scheduled_email_bodies' );
+	if ( ! is_array( $ids ) ) {
+		return; // Not seeded yet. The seed writes the new text.
+	}
+	// Claim it first so two requests can't both rewrite.
+	if ( ! add_option( 'npmp_scheduled_email_bodies_meeting', 1, '', false ) ) {
+		return;
+	}
+	$id   = (int) ( $ids['tomorrow'] ?? 0 );
+	$post = $id ? get_post( $id ) : null;
+	if ( ! $post || 'npmp_email_body' !== $post->post_type ) {
+		return;
+	}
+	$squash = static function ( $html ) {
+		return trim( (string) preg_replace( '/\s+/', ' ', (string) $html ) );
+	};
+	$old = npmp_scheduled_emails_builtin_bodies( false )['tomorrow']['content'];
+	if ( $squash( $post->post_content ) !== $squash( $old ) ) {
+		return;
+	}
+	wp_update_post(
+		wp_slash(
+			array(
+				'ID'           => $id,
+				'post_content' => npmp_scheduled_emails_builtin_bodies()['tomorrow']['content'],
+			)
+		)
+	);
+}
+add_action( 'init', 'npmp_scheduled_emails_upgrade_bodies', 21 );
 
 /**
  * Published bodies for the pickers.
@@ -1632,6 +1795,10 @@ function npmp_scheduled_emails_build_newsletter( $row, $event_id, $prefix = '' )
 	}
 	update_post_meta( $newsletter_id, '_npmp_newsletter_scheduled_row', (int) $row->id );
 	update_post_meta( $newsletter_id, '_npmp_newsletter_scheduled_event', (int) $event_id );
+	// Its body carries meeting details the event keeps off the site, so it never gets a public page.
+	if ( function_exists( 'npmp_event_meeting_is_private' ) && npmp_event_meeting_is_private( $event_id ) ) {
+		update_post_meta( $newsletter_id, NPMP_NEWSLETTER_MEETING_PRIVATE_META, '1' );
+	}
 
 	return (int) $newsletter_id;
 }
