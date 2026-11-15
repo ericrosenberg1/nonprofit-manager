@@ -17,6 +17,7 @@ $pro  = npmp_allowed_gateways( true );
 
 check( 'free: PayPal link allowed', true, in_array( 'paypal_link', $free, true ) );
 check( 'free: Venmo link allowed', true, in_array( 'venmo_link', $free, true ) );
+check( 'free: payment link allowed', true, in_array( 'payment_link', $free, true ) );
 check( 'free: Stripe allowed (one-time gifts)', true, in_array( 'stripe', $free, true ) );
 check( 'free: PayPal API needs Pro', false, in_array( 'paypal_api', $free, true ) );
 check( 'Pro: everything free has', true, array() === array_diff( $free, $pro ) );
