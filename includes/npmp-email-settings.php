@@ -171,7 +171,7 @@ function npmp_render_email_settings_page() {
 			$settings  = $new_settings;
 			$notices[] = array(
 				'type'    => 'success',
-				'message' => __( 'Email settings saved successfully.', 'nonprofit-manager' ),
+				'message' => __( 'Email settings saved.', 'nonprofit-manager' ),
 			);
 		} else {
 			$settings  = $new_settings;

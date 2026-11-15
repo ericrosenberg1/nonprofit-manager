@@ -557,7 +557,7 @@ function npmp_render_members_page() {
 		switch ( $message_code ) {
 			case 'created':
 				$classes[] = 'notice-success';
-				$text      = __( 'Contact created successfully.', 'nonprofit-manager' );
+				$text      = __( 'Contact added.', 'nonprofit-manager' );
 				break;
 			case 'updated':
 				$classes[] = 'notice-success';
