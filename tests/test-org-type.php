@@ -137,6 +137,8 @@ foreach ( array(
 ) as $slug => $base ) {
 	check( "menu $slug is pinned to $base", 1, substr_count( $main, "npmp_pin_menu_hook( '$slug', '$base' );" ) );
 }
+$cal = file_get_contents( dirname( __DIR__ ) . '/includes/npmp-calendar.php' );
+check( 'menu npmp-events is pinned to events', 1, substr_count( $cal, "npmp_pin_menu_hook( 'npmp-events', 'events' );" ) );
 
 echo "\nEvery npmp_label key in use exists\n";
 $used = array();

@@ -35,6 +35,9 @@ function npmp_register_events_admin_menu() {
 		'dashicons-calendar-alt',
 		3.15
 	);
+	// Keep the screen IDs (events_page_npmp_event_settings) the same on a
+	// translated site, where "Events" would otherwise rename them.
+	npmp_pin_menu_hook( 'npmp-events', 'events' );
 
 	add_submenu_page(
 		'npmp-events',
