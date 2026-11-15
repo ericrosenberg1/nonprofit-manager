@@ -114,6 +114,12 @@ if ( class_exists( 'ZipArchive' ) ) {
 	echo "  SKIP  ZipArchive is not installed\n";
 }
 
+echo "\nFile picker\n";
+$screen = (string) file_get_contents( dirname( __DIR__ ) . '/includes/import/admin-import.php' );
+// The upload takes .csv and .xlsx only (wp_handle_upload mimes), so an
+// offered .xls file failed with WordPress's file type error.
+check( 'the picker never offers .xls', 0, preg_match( '/accept[^\n]*\.xls\b/', $screen ) );
+
 restore_error_handler();
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

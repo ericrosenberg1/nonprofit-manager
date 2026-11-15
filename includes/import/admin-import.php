@@ -1237,7 +1237,7 @@ function npmp_import_render_page() {
 				<!-- CSV / XLSX upload -->
 				<div class="npmp-source-panel" data-source="csv xlsx">
 					<p><label for="npmp-import-file"><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></label></p>
-					<input type="file" id="npmp-import-file" accept=".csv,.xlsx,.xls">
+					<input type="file" id="npmp-import-file" accept=".csv,.xlsx">
 				</div>
 
 				<!-- Google Sheets URL -->
@@ -1658,7 +1658,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			// CSV and XLSX share the file-upload panel.
 			if (val === 'csv' || val === 'xlsx') {
 				$('.npmp-source-panel[data-source="csv xlsx"]').show();
-				var accept = val === 'xlsx' ? '.xlsx,.xls' : '.csv';
+				var accept = val === 'xlsx' ? '.xlsx' : '.csv';
 				$('#npmp-import-file').attr('accept', accept);
 			} else {
 				$('.npmp-source-panel[data-source="' + val + '"]').show();
