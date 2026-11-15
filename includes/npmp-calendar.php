@@ -1826,9 +1826,8 @@ function npmp_render_event_settings_page() {
 		$calendar_url = get_permalink( $current_calendar_id );
 		if ( $calendar_url ) {
 			echo '<p class="description">' . sprintf(
-				/* translators: %s: Calendar page URL */
-				wp_kses_post( __( 'View your calendar: <a href="%s" target="_blank" rel="noopener">%s</a>', 'nonprofit-manager' ) ),
-				esc_url( $calendar_url ),
+				/* translators: %1$s: Calendar page URL. */
+				wp_kses_post( __( 'View your calendar: <a href="%1$s" target="_blank" rel="noopener">%1$s</a>', 'nonprofit-manager' ) ),
 				esc_url( $calendar_url )
 			) . '</p>';
 		}

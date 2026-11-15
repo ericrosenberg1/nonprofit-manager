@@ -90,16 +90,14 @@ if ( ! function_exists( 'npmp_powered_by_html' ) ) {
 
 		if ( 'email' === $context ) {
 			$link = '<a href="' . $url . '" style="color:#8a8a8a;text-decoration:underline;" target="_blank" rel="noopener">' . $label . '</a>';
-			/* translators: %s: linked plugin name. */
 			return '<p style="margin:16px 0 0;padding:0;font-size:12px;line-height:1.5;color:#8a8a8a;text-align:center;">'
-				. sprintf( esc_html__( 'Powered by %s', 'nonprofit-manager' ), $link )
+				. sprintf( /* translators: %s: linked plugin name. */ esc_html__( 'Powered by %s', 'nonprofit-manager' ), $link )
 				. '</p>';
 		}
 
 		$link = '<a href="' . $url . '" target="_blank" rel="noopener">' . $label . '</a>';
-		/* translators: %s: linked plugin name. */
 		return '<p class="npmp-powered-by" style="margin:12px 0 0;font-size:12px;color:#8a8a8a;text-align:center;">'
-			. sprintf( esc_html__( 'Powered by %s', 'nonprofit-manager' ), $link )
+			. sprintf( /* translators: %s: linked plugin name. */ esc_html__( 'Powered by %s', 'nonprofit-manager' ), $link )
 			. '</p>';
 	}
 }
