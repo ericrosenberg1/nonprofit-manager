@@ -76,7 +76,7 @@ function npmp_newsletter_imported_notice_html( $post ) {
 	) . '</p>';
 	echo '<p>' . esc_html__( 'You can\'t send it again from here. To send it to your list, duplicate it and send the copy.', 'nonprofit-manager' ) . '</p>';
 	echo '<p>' . esc_html__( 'We have no open or click numbers for it, since those stayed in the old plugin.', 'nonprofit-manager' ) . '</p>';
-	$preview = get_preview_post_link( $post );
+	$preview = npmp_newsletter_preview_url( $post->ID );
 	if ( $preview ) {
 		echo '<p><a class="button" target="_blank" rel="noopener" href="' . esc_url( $preview ) . '">' . esc_html__( 'Preview in new tab', 'nonprofit-manager' ) . '</a></p>';
 	}

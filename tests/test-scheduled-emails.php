@@ -393,7 +393,14 @@ $GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
 // Two call sites: the queued send in build_newsletter() and "Send a test to
 // me" in render_test(). A test that showed a different wrapper from the send
 // is the bug this guards.
-check( 'the test send reads the same picker as the real send', 2, substr_count( $src, '= npmp_scheduled_emails_pick_template( $event_id, $body );' ) );
+check( 'the queued send reads the saved picker', 1, substr_count( $src, '= npmp_scheduled_emails_pick_template( $event_id, $body );' ) );
+// The test send reads the same function, with the choice on screen first.
+check( 'the test send reads the same picker, with the unsaved pick', 1, substr_count( $src, '= npmp_scheduled_emails_pick_template( $event_id, $body, $picked );' ) );
+// A pick on screen beats the saved one, and it can be '' or 'none' too.
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 35;
+check( 'a pick of none beats the saved template', 'none', npmp_scheduled_emails_pick_template( 7, $body_default, 'none' ) );
+check( 'a pick of nothing reads as the default, not the saved template', '', npmp_scheduled_emails_pick_template( 7, $body_default, '' ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

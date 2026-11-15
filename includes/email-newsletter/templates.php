@@ -225,6 +225,17 @@ function npmp_get_default_template() {
 }
 
 /**
+ * Whether an ID is a live template: an npmp_nl_template that isn't trashed.
+ *
+ * @param int $template_id Template ID.
+ * @return bool
+ */
+function npmp_newsletter_template_exists($template_id) {
+    $template = $template_id > 0 ? get_post($template_id) : null;
+    return $template && 'npmp_nl_template' === $template->post_type && 'trash' !== $template->post_status;
+}
+
+/**
  * Apply template to newsletter content
  *
  * @param string $content Newsletter content
