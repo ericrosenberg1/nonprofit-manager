@@ -12,6 +12,8 @@
  *   translators never saw them.
  * - "View your calendar" used two bare %s for one URL. It uses %1$s twice.
  * - Success notices drop "successfully" and the exclamation points.
+ * - readme: the TEC FAQ named a menu item that doesn't exist, and the
+ *   import lists left out Brevo.
  *
  * Run: php tests/test-core-copy.php
  */
@@ -46,6 +48,14 @@ check( 'no "successfully" on Social Sharing', false, stripos( $social, 'successf
 check( 'Network connected.', true, false !== strpos( $social, "'Network connected.'" ) );
 check( 'Test share sent.', true, false !== strpos( $social, "'Test share sent.'" ) );
 check( 'Event created. without the exclamation point', true, false !== strpos( $read( 'npmp-convert-to-event.php' ), "__( 'Event created.', 'nonprofit-manager' )" ) );
+
+echo "readme\n";
+list( $readme ) = explode( '== Changelog ==', file_get_contents( dirname( __DIR__ ) . '/readme.txt' ) );
+check( 'no "Import from TEC" menu path', false, strpos( $readme, 'Import from TEC' ) );
+check( 'TEC FAQ names the real menu items', true, false !== strpos( $readme, 'Go to Nonprofit Manager > Switch Plugins, or Events > Import from The Events Calendar.' ) );
+check( 'Brevo in both import lists', 2, substr_count( $readme, 'Mailchimp, Constant Contact, or Brevo' ) );
+check( 'Brevo is a source on the Import screen', true, false !== strpos( $read( 'import/admin-import.php' ), 'name="import_source" value="brevo"' ) );
+check( 'Switch Plugins section', true, false !== strpos( $readme, "**Switching plugins**" ) );
 
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );

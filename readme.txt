@@ -26,7 +26,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Members and donors share one contact list, so you can see anyone's lifetime giving at a glance
 * Add signup and unsubscribe forms to any page as blocks or shortcodes, protected by Cloudflare Turnstile
 * Google reCAPTCHA v3 on your forms*
-* Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact
+* Import your existing list from CSV, XLSX, Google Sheets, Mailchimp, Constant Contact, or Brevo
 * Give a volunteer a Membership Manager login that sees members, donations, and newsletters, and none of your settings
 * Custom member fields with 8 field types and drag-and-drop ordering*
 * Segment members with an AND/OR condition builder*
@@ -37,6 +37,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Accept one-time donations through PayPal, Venmo, and Stripe. Stripe gifts land in your Donations list, and PayPal and Venmo gifts show up in those accounts
 * Drop a donation form on any page as a block or shortcode, with a thank-you message on the page
 * Take gifts in US, Canadian, Australian, or New Zealand dollars, pounds, euros, yen, and 9 more currencies (Venmo is US dollars only)
+* Bring donors and past gifts over from Zeffy, Givebutter, Donorbox, or a spreadsheet
 * Recurring donations*
 * Membership dues auto-billing*
 * Donor thank-you emails with the gift amount and date*
@@ -63,6 +64,11 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * A Print or save as PDF button on calendars and event lists, with a setting to turn it off
 * Move your events over from The Events Calendar, review each one, and keep redirects from the old event URLs
 * Print or save as PDF any admin list or report*
+
+**Switching plugins**
+
+* Move over from MailPoet, The Newsletter Plugin, FluentCRM, Paid Memberships Pro, Ultimate Member, GiveWP, Charitable, The Events Calendar, Events Manager, Sugar Calendar, Event Organiser, My Calendar, or WP Event Manager on the Switch Plugins screen
+* Import, check the results, then turn off and delete the old plugin, one step at a time
 
 **Sharing and outreach**
 
@@ -129,7 +135,7 @@ Yes. Nonprofit Manager works with any properly coded WordPress theme, and its fo
 
 = Can I move my events from The Events Calendar? =
 
-Yes. Go to Events > Import from TEC. You can import your events, review each one, and then switch over. Anyone who follows an old event URL lands on the new event page.
+Yes. Go to Nonprofit Manager > Switch Plugins, or Events > Import from The Events Calendar. You can import your events, review each one, and then switch over. Anyone who follows an old event URL lands on the new event page.
 
 = Can I show past newsletters on my site? =
 
@@ -145,7 +151,7 @@ Yes. Use the "Convert to Event" action on any post or page. It carries your cont
 
 = How do I import my existing email list? =
 
-Go to Membership > Import and choose CSV, XLSX, Google Sheets, Mailchimp, or Constant Contact. The importer detects your columns for you. The free plugin imports up to 100 supporters in total, and Pro removes the cap.
+Go to Membership > Import and choose CSV, XLSX, Google Sheets, Mailchimp, Constant Contact, or Brevo. The importer detects your columns for you. The free plugin imports up to 100 supporters in total, and Pro removes the cap.
 
 = Where can I get support? =
 
