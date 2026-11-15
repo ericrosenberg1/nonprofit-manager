@@ -84,6 +84,12 @@ check( 'no wp_mail', 0, substr_count( $code, 'wp_mail(' ) );
 check( 'the tag write runs as an import, so no tag automation fires', 1, substr_count( $code, 'npmp_import_run_as_import( $write )' ) );
 check( 'never reads the WordPress user', 0, preg_match( '/get_user(data|_by)|wp_update_user|\{\$wpdb->users\}/', $code ) );
 check( 'data removal is unavailable', false, (bool) preg_match( "/'batch'\s*=>/", $code ) );
+// Subscriber meta holds what a visitor typed into a signup form, so stored
+// values are read with classes off: an "O:" string never builds an object.
+check( 'never maybe_unserialize', 0, substr_count( $code, 'maybe_unserialize(' ) );
+check( 'mailpoet custom fields never maybe_unserialize', 0, substr_count( (string) file_get_contents( $root . '/includes/import/mailpoet-custom-fields.php' ), 'maybe_unserialize(' ) );
+check( 'a serialized object stays text', 'O:8:"stdClass":0:{}', npmp_mailpoet_parse_setting( 'O:8:"stdClass":0:{}' ) );
+check( 'a serialized checkbox list still reads', array( 'A', 'B' ), npmp_mailpoet_parse_setting( serialize( array( 'A', 'B' ) ) ) );
 $main = file_get_contents( $root . '/nonprofit-manager.php' );
 check( 'loaded after the MailPoet importer', true, strpos( $main, 'fluentcrm-importer.php' ) > strpos( $main, 'mailpoet-importer.php' ) );
 

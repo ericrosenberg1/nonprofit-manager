@@ -357,7 +357,7 @@ function npmp_fcrm_extra_fields() {
 	}
 	global $wpdb;
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb->prefix.
-	$defs = maybe_unserialize( (string) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$meta} WHERE object_type = %s AND `key` = %s LIMIT 1", 'option', 'contact_custom_fields' ) ) );
+	$defs = npmp_mailpoet_parse_setting( (string) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$meta} WHERE object_type = %s AND `key` = %s LIMIT 1", 'option', 'contact_custom_fields' ) ) );
 	foreach ( is_array( $defs ) ? array_slice( $defs, 0, 200 ) : array() as $field ) {
 		if ( ! is_array( $field ) || empty( $field['slug'] ) ) {
 			continue;
@@ -365,7 +365,7 @@ function npmp_fcrm_extra_fields() {
 		$slug    = (string) $field['slug'];
 		$samples = array();
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT value FROM {$values} WHERE object_type = %s AND `key` = %s AND value <> '' ORDER BY subscriber_id ASC LIMIT %d", 'custom_field', $slug, 3 ) ) as $raw ) {
-			$value     = maybe_unserialize( $raw );
+			$value     = npmp_mailpoet_parse_setting( (string) $raw );
 			$samples[] = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
 		}
 		$label                       = trim( wp_strip_all_tags( (string) ( $field['label'] ?? $slug ) ) );
@@ -421,7 +421,7 @@ function npmp_fcrm_extra_values( $subscriber_id, array $keys ) {
 		$values = array();
 		foreach ( (array) $rows as $row ) {
 			if ( isset( $slugs[ $row->slug ] ) ) {
-				$value = maybe_unserialize( (string) $row->value );
+				$value = npmp_mailpoet_parse_setting( (string) $row->value );
 				$values[ (int) $row->subscriber_id ][ $slugs[ $row->slug ] ] = is_array( $value ) ? array_values( array_map( 'strval', $value ) ) : (string) $value;
 			}
 		}
