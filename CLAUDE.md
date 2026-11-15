@@ -369,7 +369,9 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added a search box to the Newsletter Archive, so you can find a newsletter by its title or text.
+- Added sortable Title, Last Sent, Recipients, and Public columns to the Newsletter Archive.
+- Added Newsletter to the + New menu in the admin bar, for everyone who can write newsletters, Membership Managers included.
 
 Pro (licence server changelog):
 - (none)

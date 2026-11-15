@@ -11,6 +11,10 @@ function npmp_register_newsletter_cpt() {
         'public' => false,
         'show_ui' => true,
         'show_in_menu' => false, // We add it manually via our submenu
+        // Lists "Newsletter" under + New in the admin bar. With show_in_menu
+        // false WordPress would default this to false. Core shows the entry
+        // only to users who hold create_posts, which is edit_npmp_newsletters.
+        'show_in_admin_bar' => true,
         'menu_position' => 56,
         'supports' => ['title', 'editor'],
         'show_in_rest' => true, // enables Gutenberg
@@ -146,17 +150,127 @@ function npmp_render_newsletter_editor() {
 }
 
 /**
+ * The Newsletter Archive screen's search, sort and filters, from a request
+ * array ($_GET, or the npmp_view array a bulk form posts back). Returns only
+ * what differs from the default view, every value cleaned, so a link built
+ * from it stays short and can't carry anything else.
+ *
+ * @param array $src Request array, still slashed.
+ * @return array<string,string> Any of s, npmp_topic, npmp_status, orderby, order, paged.
+ */
+function npmp_newsletter_archive_view_args(array $src) {
+    $view = [];
+
+    $search = isset($src['s']) && is_scalar($src['s']) ? trim(sanitize_text_field(wp_unslash((string) $src['s']))) : '';
+    if ('' !== $search) {
+        $view['s'] = $search;
+    }
+
+    $topic = isset($src['npmp_topic']) && is_scalar($src['npmp_topic']) ? sanitize_text_field(wp_unslash((string) $src['npmp_topic'])) : '';
+    if ('' !== $topic) {
+        $view['npmp_topic'] = $topic;
+    }
+
+    $status = isset($src['npmp_status']) && is_scalar($src['npmp_status']) ? sanitize_key(wp_unslash((string) $src['npmp_status'])) : '';
+    if (in_array($status, ['publish', 'draft', 'pending'], true)) {
+        $view['npmp_status'] = $status;
+    }
+
+    $sort = npmp_newsletter_archive_sort(
+        isset($src['orderby']) && is_scalar($src['orderby']) ? sanitize_key(wp_unslash((string) $src['orderby'])) : '',
+        isset($src['order']) && is_scalar($src['order']) ? sanitize_key(wp_unslash((string) $src['order'])) : ''
+    );
+    if ('' !== $sort['orderby']) {
+        $view['orderby'] = $sort['orderby'];
+        $view['order']   = strtolower($sort['order']);
+    }
+
+    $paged = isset($src['paged']) && is_scalar($src['paged']) ? absint($src['paged']) : 0;
+    if ($paged > 1) {
+        $view['paged'] = (string) $paged;
+    }
+
+    return $view;
+}
+
+/**
+ * One sortable column header, in the markup WordPress list tables use, so the
+ * arrows and the screen reader text come from core's own styles.
+ *
+ * @param string $label  Column label.
+ * @param string $column Key from npmp_newsletter_archive_sort_columns().
+ * @param array  $view   Current view from npmp_newsletter_archive_view_args().
+ * @param array  $sort   Current sort from npmp_newsletter_archive_sort().
+ * @return string HTML.
+ */
+function npmp_newsletter_archive_sort_header($label, $column, array $view, array $sort) {
+    unset($view['paged']); // A new sort starts on page 1.
+    $next   = npmp_newsletter_archive_sort_next($sort, $column);
+    $sorted = $sort['orderby'] === $column;
+    $url    = add_query_arg(
+        array_merge($view, ['orderby' => $column, 'order' => $next]),
+        admin_url('admin.php?page=npmp_newsletter_archive')
+    );
+    $class = 'manage-column sortable ' . ($sorted ? 'sorted ' . strtolower($sort['order']) : ('asc' === $next ? 'desc' : 'asc'));
+    $aria  = $sorted ? ' aria-sort="' . ('ASC' === $sort['order'] ? 'ascending' : 'descending') . '"' : '';
+
+    return '<th scope="col" class="' . esc_attr($class) . '"' . $aria . '><a href="' . esc_url($url) . '"><span>' . esc_html($label) . '</span>'
+        . '<span class="sorting-indicators"><span class="sorting-indicator asc" aria-hidden="true"></span><span class="sorting-indicator desc" aria-hidden="true"></span></span>'
+        . '<span class="screen-reader-text">' . esc_html('asc' === $next ? __('Sort ascending.', 'nonprofit-manager') : __('Sort descending.', 'nonprofit-manager')) . '</span></a></th>';
+}
+
+/**
+ * Sort the Newsletter Archive in SQL. The sort columns that come from post
+ * meta use one LEFT JOIN, so a newsletter with no value still lists. Only
+ * queries that carry npmp_archive_sort (set by the screen, from a whitelist)
+ * are touched.
+ *
+ * @param array    $clauses Query clauses.
+ * @param WP_Query $query   Query.
+ * @return array
+ */
+function npmp_newsletter_archive_sort_clauses($clauses, $query) {
+    global $wpdb;
+    $column = (string) $query->get('npmp_archive_sort');
+    $order  = 'ASC' === strtoupper((string) $query->get('npmp_archive_order')) ? 'ASC' : 'DESC';
+    if ('' === $column || !isset(npmp_newsletter_archive_sort_columns()[$column])) {
+        return $clauses;
+    }
+
+    $metas = [
+        'sent'       => ['_npmp_newsletter_queued_at', "COALESCE(npmp_sort.meta_value, '')"],
+        'recipients' => ['_npmp_newsletter_recipient_total', 'CAST(COALESCE(npmp_sort.meta_value, 0) AS UNSIGNED)'],
+        'public'     => [NPMP_NEWSLETTER_PUBLIC_META, "CASE WHEN npmp_sort.meta_value = '1' THEN 1 ELSE 0 END"],
+    ];
+
+    if ('title' === $column) {
+        $expr = "{$wpdb->posts}.post_title";
+    } else {
+        list($key, $expr) = $metas[$column];
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} AS npmp_sort ON ({$wpdb->posts}.ID = npmp_sort.post_id AND npmp_sort.meta_key = %s)", $key); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names only.
+    }
+
+    // Ties fall back to newest first, so a page never reshuffles between loads.
+    $clauses['orderby'] = "{$expr} {$order}, {$wpdb->posts}.post_date DESC, {$wpdb->posts}.ID DESC";
+    return $clauses;
+}
+add_filter('posts_clauses', 'npmp_newsletter_archive_sort_clauses', 10, 2);
+
+/**
  * Render the Newsletter Archive admin page.
  */
 function npmp_render_newsletter_archive() {
     npmp_verify_admin_access('edit_npmp_newsletters');
 
-    $per_page       = 20;
+    $per_page = 20;
     // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only query parameters drive archive filtering and are sanitized.
-    $paged          = isset($_GET['paged']) ? max(1, absint($_GET['paged'])) : 1;
-    $selected_topic = isset($_GET['npmp_topic']) ? sanitize_text_field(wp_unslash($_GET['npmp_topic'])) : '';
-    $selected_status = isset($_GET['npmp_status']) ? sanitize_key(wp_unslash($_GET['npmp_status'])) : 'any';
+    $view  = npmp_newsletter_archive_view_args($_GET);
+    $paged = isset($view['paged']) ? (int) $view['paged'] : 1;
     // phpcs:enable WordPress.Security.NonceVerification.Recommended
+    $selected_topic  = $view['npmp_topic'] ?? '';
+    $selected_status = $view['npmp_status'] ?? 'any';
+    $search          = $view['s'] ?? '';
+    $sort            = npmp_newsletter_archive_sort($view['orderby'] ?? '', $view['order'] ?? '');
 
     $query_args = [
         'post_type'      => 'npmp_newsletter',
@@ -165,6 +279,18 @@ function npmp_render_newsletter_archive() {
         'orderby'        => 'date',
         'order'          => 'DESC',
     ];
+
+    if ('' !== $search) {
+        // Core searches the title, excerpt and body with one LIKE per word.
+        $query_args['s'] = $search;
+    }
+
+    if ('' !== $sort['orderby']) {
+        // Sorted in SQL by npmp_newsletter_archive_sort_clauses(), so a list
+        // of thousands never loads into PHP.
+        $query_args['npmp_archive_sort']  = $sort['orderby'];
+        $query_args['npmp_archive_order'] = $sort['order'];
+    }
 
     if ('any' !== $selected_status && '' !== $selected_status) {
         $query_args['post_status'] = $selected_status;
@@ -198,6 +324,15 @@ function npmp_render_newsletter_archive() {
 
     echo '<form method="get" class="tablenav top npmp-filter-bar">';
     echo '<input type="hidden" name="page" value="npmp_newsletter_archive">';
+    if ('' !== $sort['orderby']) {
+        echo '<input type="hidden" name="orderby" value="' . esc_attr($sort['orderby']) . '">';
+        echo '<input type="hidden" name="order" value="' . esc_attr(strtolower($sort['order'])) . '">';
+    }
+    echo '<p class="search-box">';
+    echo '<label class="screen-reader-text" for="npmp-archive-search">' . esc_html__('Search newsletters', 'nonprofit-manager') . '</label>';
+    echo '<input type="search" id="npmp-archive-search" name="s" value="' . esc_attr($search) . '">';
+    submit_button(esc_html__('Search newsletters', 'nonprofit-manager'), '', '', false, ['id' => 'npmp-archive-search-submit']);
+    echo '</p>';
     echo '<div class="alignleft actions">';
 
     echo '<label class="screen-reader-text" for="npmp_topic">' . esc_html__('Filter by topic', 'nonprofit-manager') . '</label>';
@@ -222,8 +357,22 @@ function npmp_render_newsletter_archive() {
     echo '</select> ';
 
     submit_button(esc_html__('Filter', 'nonprofit-manager'), 'secondary', '', false);
+    if ($view) {
+        echo ' <a class="button" href="' . esc_url(npmp_newsletter_public_bulk_back()) . '">' . esc_html__('Clear', 'nonprofit-manager') . '</a>';
+    }
     echo '</div>';
     echo '</form>';
+
+    if ('' !== $search) {
+        echo '<p class="npmp-archive-search-note">' . esc_html(
+            sprintf(
+                /* translators: 1: number of newsletters, 2: the words searched for. */
+                _n('%1$s newsletter matches "%2$s".', '%1$s newsletters match "%2$s".', (int) $query->found_posts, 'nonprofit-manager'),
+                number_format_i18n((int) $query->found_posts),
+                $search
+            )
+        ) . '</p>';
+    }
 
     if (function_exists('npmp_newsletter_public_bulk_notices')) {
         npmp_newsletter_public_bulk_notices();
@@ -231,7 +380,7 @@ function npmp_render_newsletter_archive() {
 
     if ($query->have_posts()) {
         // Show in or hide from the public archive, for whoever can send.
-        $bulk = function_exists('npmp_newsletter_public_bulk_controls') && npmp_newsletter_public_bulk_controls();
+        $bulk = function_exists('npmp_newsletter_public_bulk_controls') && npmp_newsletter_public_bulk_controls($view);
         // Scrolls sideways on a phone instead of pushing the whole screen wider.
         echo '<div class="npmp-archive-table-wrap" style="overflow-x:auto">';
         echo '<table class="widefat striped">';
@@ -239,12 +388,12 @@ function npmp_render_newsletter_archive() {
         if ($bulk) {
             echo npmp_newsletter_public_bulk_header(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
         }
-        echo '<th scope="col">' . esc_html__('Title', 'nonprofit-manager') . '</th>';
+        echo npmp_newsletter_archive_sort_header(__('Title', 'nonprofit-manager'), 'title', $view, $sort); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
         echo '<th scope="col">' . esc_html__('Topics', 'nonprofit-manager') . '</th>';
         echo '<th scope="col">' . esc_html__('Audience', 'nonprofit-manager') . '</th>';
-        echo '<th scope="col">' . esc_html__('Last Sent', 'nonprofit-manager') . '</th>';
-        echo '<th scope="col">' . esc_html__('Recipients', 'nonprofit-manager') . '</th>';
-        echo '<th scope="col">' . esc_html__('Public', 'nonprofit-manager') . '</th>';
+        echo npmp_newsletter_archive_sort_header(__('Last Sent', 'nonprofit-manager'), 'sent', $view, $sort); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
+        echo npmp_newsletter_archive_sort_header(__('Recipients', 'nonprofit-manager'), 'recipients', $view, $sort); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
+        echo npmp_newsletter_archive_sort_header(__('Public', 'nonprofit-manager'), 'public', $view, $sort); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
         echo '<th scope="col">' . esc_html__('Actions', 'nonprofit-manager') . '</th>';
         echo '</tr></thead><tbody>';
 
@@ -294,7 +443,7 @@ function npmp_render_newsletter_archive() {
 
         $pagination = paginate_links(
             [
-                'base'      => add_query_arg('paged', '%#%'),
+                'base'      => add_query_arg(array_merge($view, ['paged' => '%#%']), admin_url('admin.php?page=npmp_newsletter_archive')),
                 'format'    => '',
                 'prev_text' => __('&laquo;', 'nonprofit-manager'),
                 'next_text' => __('&raquo;', 'nonprofit-manager'),
