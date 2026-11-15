@@ -49,7 +49,10 @@ check( 'Preferences link only when the site has a preferences page', 1, substr_c
 
 echo "Confirm email lines\n";
 $forms   = file_get_contents( $root . '/includes/npmp-membership-forms.php' );
-$confirm = npmp_swe_section( $forms, 'function npmp_send_signup_confirmation', 'function npmp_handle_confirm_signup' );
+// The lines helper serves the "please confirm" email and the resubscribe
+// email from the signup form.
+$confirm = npmp_swe_section( $forms, 'function npmp_signup_add_confirmation_lines', 'function npmp_send_signup_confirmation' );
+check( 'The "please confirm" email adds the lines', 1, substr_count( npmp_swe_section( $forms, 'function npmp_send_signup_confirmation', 'function npmp_handle_confirm_signup' ), 'npmp_signup_add_confirmation_lines( $body, (int) $contact_id, $post, $atts_token )' ) );
 check( 'Filter offers extra lines with the signup fields and signed attributes', 1, substr_count( $confirm, "apply_filters( 'npmp_signup_confirmation_lines', array(), (int) \$contact_id, npmp_signup_fields_to_keep( \$post ), npmp_signup_atts_from_token( (string) \$atts_token ) )" ) );
 check( 'Lines are stripped to plain text', 1, substr_count( $confirm, "array_map( 'wp_strip_all_tags'" ) );
 check( 'Lines go after the thank-you paragraph', 1, substr_count( $confirm, "explode( \"\\n\\n\", \$body, 2 )" ) );
