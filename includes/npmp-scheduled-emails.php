@@ -1055,7 +1055,7 @@ function npmp_scheduled_emails_sync_event( $event_id ) {
 	} elseif ( 'publish' !== $post->post_status ) {
 		$reason = __( 'The event isn\'t live on the site.', 'nonprofit-manager' );
 	} elseif ( npmp_scheduled_emails_event_is_cancelled( $event_id ) ) {
-		$reason = __( 'Someone cancelled the event.', 'nonprofit-manager' );
+		$reason = __( 'Someone canceled the event.', 'nonprofit-manager' );
 	} elseif ( ! $start_ts ) {
 		$reason = __( 'The event has no start date.', 'nonprofit-manager' );
 	}
@@ -2209,7 +2209,7 @@ function npmp_scheduled_emails_status_label( $row ) {
 		case 'skipped':
 			return __( 'Skipped', 'nonprofit-manager' );
 		case 'cancelled':
-			return __( 'Cancelled', 'nonprofit-manager' );
+			return __( 'Canceled', 'nonprofit-manager' );
 	}
 	return (string) $row->status;
 }
@@ -2795,8 +2795,8 @@ function npmp_scheduled_emails_ajax_send_later() {
 	$row = npmp_scheduled_emails_list_row( $post_id );
 
 	if ( ! empty( $_POST['cancel'] ) ) {
-		npmp_scheduled_emails_cancel_target( 'list', $post_id, __( 'You cancelled the schedule.', 'nonprofit-manager' ) );
-		wp_send_json_success( array( 'message' => __( 'You cancelled the schedule, so nothing goes out.', 'nonprofit-manager' ) ) );
+		npmp_scheduled_emails_cancel_target( 'list', $post_id, __( 'You canceled the schedule.', 'nonprofit-manager' ) );
+		wp_send_json_success( array( 'message' => __( 'You canceled the schedule, so nothing goes out.', 'nonprofit-manager' ) ) );
 	}
 	if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $post_id ) ) {
 		wp_send_json_error( array( 'message' => __( 'You imported this newsletter after it went out from your old plugin, so you can\'t send it again. Duplicate it to send a new copy.', 'nonprofit-manager' ) ) );
