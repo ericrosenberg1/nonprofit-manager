@@ -100,7 +100,8 @@ function npmp_turnstile_verify( $response_field = 'cf-turnstile-response' ) {
 		'body'    => array(
 			'secret'   => get_option( 'npmp_turnstile_secret_key', '' ),
 			'response' => $token,
-			'remoteip' => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
+			// The visitor's address as the site's rate limits see it.
+			'remoteip' => function_exists( 'npmp_client_ip' ) ? npmp_client_ip() : '',
 		),
 	);
 	$response = wp_remote_post( 'https://challenges.cloudflare.com/turnstile/v0/siteverify', $args );

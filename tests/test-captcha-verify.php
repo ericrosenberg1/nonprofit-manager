@@ -65,6 +65,14 @@ function wp_remote_post( $url, $args = array() ) {
 function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? $r['body'] : ''; }
 function wp_remote_retrieve_response_code( $r ) { return is_array( $r ) ? (int) $r['response']['code'] : ''; }
 
+// The site's own filter on the visitor's address (npmp_client_ip()), so a
+// test can play a site behind a proxy.
+$GLOBALS['t_client_ip'] = null;
+function apply_filters( $hook, $value ) {
+	return ( 'npmp_client_ip' === $hook && null !== $GLOBALS['t_client_ip'] ) ? $GLOBALS['t_client_ip'] : $value;
+}
+
+require_once __DIR__ . '/../includes/npmp-rate-limit.php';
 require_once __DIR__ . '/../includes/npmp-captcha.php';
 
 // --- Provider answers, as documented ----------------------------------------------
@@ -88,6 +96,7 @@ function reset_world( $options = array() ) {
 	$GLOBALS['t_is_pro']  = false;
 	$_POST                = array();
 	$_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+	$GLOBALS['t_client_ip'] = null;
 }
 function turnstile_site() {
 	return array( 'npmp_captcha_provider' => 'turnstile', 'npmp_turnstile_enabled' => 1, 'npmp_turnstile_site_key' => '0x4AAAAAAASiteKey', 'npmp_turnstile_secret_key' => '0x4AAAAAAASecretKeyXXXXXXXXXXXXXX' );
@@ -131,6 +140,10 @@ $body = last_body();
 check( 'secret is the stored secret key', '0x4AAAAAAASecretKeyXXXXXXXXXXXXXX', $body['secret'] );
 check( 'response is the posted token', '0.abc123.token', $body['response'] );
 check( 'remoteip is the visitor address', '203.0.113.7', $body['remoteip'] );
+$GLOBALS['t_client_ip'] = '198.51.100.20';
+npmp_turnstile_verify();
+check( 'behind a proxy, Turnstile sends the address npmp_client_ip() gives', '198.51.100.20', last_body()['remoteip'] );
+$GLOBALS['t_client_ip'] = null;
 check( 'request has a timeout', 10, $GLOBALS['t_calls'][0]['args']['timeout'] );
 check( 'only the three documented fields are sent', array( 'secret', 'response', 'remoteip' ), array_keys( $body ) );
 
@@ -238,6 +251,15 @@ $GLOBALS['t_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
 check( 'network failure: false', false, npmp_recaptcha_verify() );
 $GLOBALS['t_reply'] = array( 500, array( 'success' => true, 'score' => 0.9 ) );
 check( 'success on a non-200 status is not trusted', false, npmp_recaptcha_verify() );
+$GLOBALS['t_reply'] = array( 200, array( 'success' => true, 'score' => 0.9, 'action' => 'login', 'hostname' => 'example.org' ) );
+check( 'a token made for another action fails', false, npmp_recaptcha_verify() );
+$GLOBALS['t_reply'] = array( 200, array( 'success' => true, 'score' => 0.9, 'hostname' => 'example.org' ) );
+check( 'an answer with no action fails', false, npmp_recaptcha_verify() );
+$GLOBALS['t_client_ip'] = '198.51.100.20';
+$GLOBALS['t_calls']     = array();
+$GLOBALS['t_reply']     = recaptcha_ok( 0.9 );
+npmp_recaptcha_verify();
+check( 'behind a proxy, remoteip is the address npmp_client_ip() gives', '198.51.100.20', last_body()['remoteip'] );
 $GLOBALS['t_reply'] = array( 200, 'not json' );
 check( 'unreadable body: false', false, npmp_recaptcha_verify() );
 
