@@ -50,11 +50,30 @@ function npmp_newsletter_archive_is_public( $post ) {
 	if ( ! $post || 'npmp_newsletter' !== $post->post_type ) {
 		return false;
 	}
+	if ( npmp_newsletter_archive_holds_private_meeting( $post->ID ) ) {
+		return false;
+	}
 	return npmp_newsletter_archive_listable(
 		$post->post_status,
 		(string) get_post_meta( $post->ID, '_npmp_newsletter_status', true ),
 		get_post_meta( $post->ID, NPMP_NEWSLETTER_PUBLIC_META, true )
 	);
+}
+
+/**
+ * Whether a newsletter is an event email carrying meeting details the event
+ * shows only in emails. Checks the mark the email got when it was built, and
+ * the event as it is now, so ticking the box later still keeps it off the site.
+ *
+ * @param int $id Newsletter ID.
+ * @return bool
+ */
+function npmp_newsletter_archive_holds_private_meeting( $id ) {
+	if ( defined( 'NPMP_NEWSLETTER_MEETING_PRIVATE_META' ) && '1' === (string) get_post_meta( (int) $id, NPMP_NEWSLETTER_MEETING_PRIVATE_META, true ) ) {
+		return true;
+	}
+	$event_id = (int) get_post_meta( (int) $id, '_npmp_newsletter_scheduled_event', true );
+	return $event_id && function_exists( 'npmp_event_meeting_is_private' ) && npmp_event_meeting_is_private( $event_id );
 }
 
 /**
@@ -712,6 +731,11 @@ function npmp_newsletter_archive_query_args( $atts, $settings, $paged = 1 ) {
 			'key'     => '_npmp_newsletter_scheduled_event',
 			'compare' => 'NOT EXISTS',
 		);
+	} elseif ( defined( 'NPMP_NEWSLETTER_MEETING_PRIVATE_META' ) ) {
+		$meta_query[] = array(
+			'key'     => NPMP_NEWSLETTER_MEETING_PRIVATE_META,
+			'compare' => 'NOT EXISTS',
+		);
 	}
 
 	$args = array(
@@ -838,6 +862,10 @@ function npmp_newsletter_archive_render( $atts, $for_block = false ) {
 	$out  = '<div ' . $root . '><div class="npmp-newsletters-items">';
 
 	foreach ( $query->posts as $post ) {
+		// An event email whose event kept its meeting details for emails after it went out.
+		if ( npmp_newsletter_archive_holds_private_meeting( $post->ID ) ) {
+			continue;
+		}
 		$title = npmp_newsletter_archive_title( $post->ID );
 		$url   = npmp_newsletter_archive_url( $post->ID, $from );
 		$sent  = npmp_newsletter_archive_sent_at( $post->ID );
@@ -1098,7 +1126,9 @@ function npmp_newsletter_archive_meta_box_html( $post ) {
 	if ( ! $can ) {
 		echo '<p class="description">' . esc_html__( 'An editor, an administrator, or a Membership Manager can change this setting.', 'nonprofit-manager' ) . '</p>';
 	}
-	if ( $checked && $sent && npmp_newsletter_archive_is_public( $post ) ) {
+	if ( $checked && npmp_newsletter_archive_holds_private_meeting( $post->ID ) ) {
+		echo '<p class="description">' . esc_html__( 'You show this event\'s meeting link only in emails, so we never give this email a public page.', 'nonprofit-manager' ) . '</p>';
+	} elseif ( $checked && $sent && npmp_newsletter_archive_is_public( $post ) ) {
 		echo '<p><a href="' . esc_url( npmp_newsletter_archive_url( $post->ID ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'View the public page', 'nonprofit-manager' ) . '</a></p>';
 	} elseif ( $checked ) {
 		echo '<p class="description">' . esc_html__( 'You\'ll see the newsletter in the archive once we finish sending the emails.', 'nonprofit-manager' ) . '</p>';

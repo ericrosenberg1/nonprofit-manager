@@ -421,6 +421,7 @@ function npmp_render_event_meta_box( $post ) {
 	$end          = get_post_meta( $post->ID, '_npmp_event_end', true );
 	$location     = get_post_meta( $post->ID, '_npmp_event_location', true );
 	$external_url = get_post_meta( $post->ID, '_npmp_event_url', true );
+	$meeting      = npmp_event_meeting_own( $post->ID );
 
 	// Back-compat with legacy meta.
 	if ( empty( $start ) ) {
@@ -456,6 +457,15 @@ function npmp_render_event_meta_box( $post ) {
 
 	echo '<p><label for="npmp_event_url"><strong>' . esc_html__( 'Event Link', 'nonprofit-manager' ) . '</strong></label><br>';
 	echo '<input type="url" id="npmp_event_url" name="npmp_event_url" value="' . esc_attr( $external_url ) . '" class="widefat" placeholder="' . esc_attr__( 'https://example.org', 'nonprofit-manager' ) . '"></p>';
+
+	echo '<p><label for="npmp_event_meeting_id">' . esc_html__( 'Meeting ID', 'nonprofit-manager' ) . '</label><br>';
+	echo '<input type="text" id="npmp_event_meeting_id" name="npmp_event_meeting_id" value="' . esc_attr( $meeting['meeting_id'] ) . '" class="widefat" maxlength="100" autocomplete="off"></p>';
+
+	echo '<p><label for="npmp_event_passcode">' . esc_html__( 'Passcode', 'nonprofit-manager' ) . '</label><br>';
+	echo '<input type="text" id="npmp_event_passcode" name="npmp_event_passcode" value="' . esc_attr( $meeting['passcode'] ) . '" class="widefat" maxlength="100" autocomplete="off"></p>';
+
+	echo '<p><label><input type="checkbox" id="npmp_event_link_email_only" name="npmp_event_link_email_only" value="1"' . checked( $meeting['email_only'], true, false ) . '> ' . esc_html__( 'Show the meeting link only in emails', 'nonprofit-manager' ) . '</label><br>';
+	echo '<span class="description">' . esc_html__( 'Visitors to your site won\'t see the link, meeting ID, or passcode. Your members still get all three in event emails.', 'nonprofit-manager' ) . '</span></p>';
 
 	/**
 	 * Fires at the end of the Event Details box, after the Event Link field.
@@ -495,6 +505,9 @@ function npmp_save_event_meta( $post_id ) {
 	$end_time   = sanitize_text_field( wp_unslash( $_POST['npmp_event_end_time'] ?? '' ) );
 	$location   = sanitize_text_field( wp_unslash( $_POST['npmp_event_location'] ?? '' ) );
 	$url        = esc_url_raw( wp_unslash( $_POST['npmp_event_url'] ?? '' ) );
+	$meeting_id = npmp_event_meeting_clean( wp_unslash( $_POST['npmp_event_meeting_id'] ?? '' ) );
+	$passcode   = npmp_event_meeting_clean( wp_unslash( $_POST['npmp_event_passcode'] ?? '' ) );
+	$email_only = ! empty( $_POST['npmp_event_link_email_only'] );
 
 	$start = '';
 	if ( $start_date ) {
@@ -538,6 +551,14 @@ function npmp_save_event_meta( $post_id ) {
 		delete_post_meta( $post_id, '_npmp_event_url' );
 	}
 
+	foreach ( array( NPMP_EVENT_MEETING_ID_META => $meeting_id, NPMP_EVENT_PASSCODE_META => $passcode, NPMP_EVENT_EMAIL_ONLY_META => $email_only ? '1' : '' ) as $meta_key => $meta_value ) {
+		if ( '' !== $meta_value ) {
+			update_post_meta( $post_id, $meta_key, $meta_value );
+		} else {
+			delete_post_meta( $post_id, $meta_key );
+		}
+	}
+
 	/**
 	 * Fires after the Event Details box saves its meta, once the nonce,
 	 * autosave, and capability checks have passed. Pro saves the event's
@@ -565,16 +586,28 @@ add_action( 'save_post_npmp_event', 'npmp_save_event_meta' );
 /**
  * Retrieve structured event details.
  *
- * @param int $post_id Event ID.
- * @return array<string,string>
+ * Safe for web pages by default: when the event shows its meeting link only
+ * in emails, url, meeting_id, and passcode come back blank. Pass true to get
+ * them anyway (emails, admin screens).
+ *
+ * @param int  $post_id         Event ID.
+ * @param bool $include_private Return meeting details kept for emails.
+ * @return array start, end, location, url, meeting_id, passcode (strings), email_only (bool).
  */
-function npmp_get_event_details( $post_id ) {
+function npmp_get_event_details( $post_id, $include_private = false ) {
+	$meeting = npmp_event_meeting_own( $post_id );
 	$details = array(
-		'start'    => get_post_meta( $post_id, '_npmp_event_start', true ),
-		'end'      => get_post_meta( $post_id, '_npmp_event_end', true ),
-		'location' => get_post_meta( $post_id, '_npmp_event_location', true ),
-		'url'      => get_post_meta( $post_id, '_npmp_event_url', true ),
+		'start'      => get_post_meta( $post_id, '_npmp_event_start', true ),
+		'end'        => get_post_meta( $post_id, '_npmp_event_end', true ),
+		'location'   => get_post_meta( $post_id, '_npmp_event_location', true ),
+		'url'        => $meeting['url'],
+		'meeting_id' => $meeting['meeting_id'],
+		'passcode'   => $meeting['passcode'],
+		'email_only' => $meeting['email_only'],
 	);
+	if ( ! $include_private ) {
+		$details = npmp_event_meeting_public( $details );
+	}
 
 	if ( empty( $details['start'] ) ) {
 		$legacy_date = get_post_meta( $post_id, '_npmp_event_date', true );
@@ -1580,6 +1613,15 @@ function npmp_append_event_details_to_content( $content ) {
 
 	if ( $url ) {
 		$meta .= '<li><strong>' . esc_html__( 'More information:', 'nonprofit-manager' ) . '</strong> <a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . esc_html( $url ) . '</a></li>';
+	}
+
+	// Blank already when the event keeps its meeting details for emails.
+	if ( ! empty( $details['meeting_id'] ) ) {
+		$meta .= '<li><strong>' . esc_html__( 'Meeting ID:', 'nonprofit-manager' ) . '</strong> ' . esc_html( $details['meeting_id'] ) . '</li>';
+	}
+
+	if ( ! empty( $details['passcode'] ) ) {
+		$meta .= '<li><strong>' . esc_html__( 'Passcode:', 'nonprofit-manager' ) . '</strong> ' . esc_html( $details['passcode'] ) . '</li>';
 	}
 
 	$meta .= '</ul></section>';

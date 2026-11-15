@@ -382,6 +382,19 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   (`payment_link`, free, option `npmp_payment_links`, up to 5) saves only https templates with no placeholder in the host, and
   swaps the placeholders out around `esc_url_raw()`, which strips braces. Unit `tests/test-donation-links.php`, rig
   `tests/rig/donation-links.php` (set `NPMP_RIG_URL` for the HTTP prefill checks, run with Pro on and off).
+- **Meeting ID, passcode, and "Show the meeting link only in emails"** (`includes/npmp-event-meeting.php`, loaded on
+  every request). Meta `_npmp_event_meeting_id`, `_npmp_event_passcode`, `_npmp_event_link_email_only` sit beside the
+  unchanged `_npmp_event_url`. With the box ticked, we leave all three off the event page, and `npmp_get_event_details()`
+  returns them blank unless the caller passes `true`. We never printed the link on any other public surface (lists,
+  blocks, calendar views, iCal, REST, oEmbed, feeds, search), so print it on a new one only through
+  `npmp_event_meeting_public()`. Emails read `npmp_event_meeting_details()` (filter `npmp_event_meeting_details`, where
+  Pro adds group defaults), and we take out the whole line of a `[meeting_id]` or `[passcode]` with no value
+  (`npmp_scheduled_emails_collapse_empty()`). We mark an event email from a private event with
+  `_npmp_newsletter_meeting_private` and never give it a public newsletter page. We added the two lines to the built-in
+  Tomorrow body once, only where nobody changed it (option `npmp_scheduled_email_bodies_meeting`). Unit
+  `tests/test-event-meeting.php`, rig `tests/rig/meeting-links.php` (run its `before` phase on the released free, then
+  the branch, and we compare an old event's page and email byte for byte). After you swap the plugin symlink under
+  `php -S`, restart the server, or its workers keep serving the old real path.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
