@@ -1099,7 +1099,7 @@ function npmp_render_donation_form() {
 		if ( 'success' === $donation_status ) {
 			$status_banner = '<div class="npmp-form-banner npmp-status-success" role="status"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Thank you! We received your %s.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
 		} elseif ( 'cancelled' === $donation_status ) {
-			$status_banner = '<div class="npmp-form-banner npmp-status-error" role="status"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'You cancelled your %s. We didn\'t charge you.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
+			$status_banner = '<div class="npmp-form-banner npmp-status-error" role="status"><p>' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'You canceled your %s. We didn\'t charge you.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</p></div>';
 		}
 		if ( $status_banner && wp_style_is( 'npmp-forms', 'registered' ) ) {
 			wp_enqueue_style( 'npmp-forms' );

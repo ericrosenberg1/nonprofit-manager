@@ -1054,7 +1054,12 @@ function npmp_import_hub_free_total_text( $capped, $total, $left ) {
 	}
 	return sprintf(
 		/* translators: 1: the free import total, such as 100, 2: places left. */
-		__( 'In the free version you can bring over %1$s new contacts in total, from every plugin on this screen and every file you import, and you have %2$s places left. Contacts you already have and events don\'t use a place. Anyone past the limit stays in the old plugin.', 'nonprofit-manager' ),
+		_n(
+			'In the free version you can bring over %1$s new contacts in total, from every plugin on this screen and every file you import, and you have %2$s place left. Contacts you already have and events don\'t use a place. Anyone past the limit stays in the old plugin.',
+			'In the free version you can bring over %1$s new contacts in total, from every plugin on this screen and every file you import, and you have %2$s places left. Contacts you already have and events don\'t use a place. Anyone past the limit stays in the old plugin.',
+			(int) $left,
+			'nonprofit-manager'
+		),
 		number_format_i18n( $total ),
 		number_format_i18n( $left )
 	);

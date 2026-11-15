@@ -319,11 +319,17 @@ if ( ! function_exists( 'number_format_i18n' ) ) {
 		return number_format( (float) $n );
 	}
 }
+if ( ! function_exists( '_n' ) ) {
+	function _n( $single, $plural, $number, $domain = null ) {
+		return 1 === (int) $number ? $single : $plural;
+	}
+}
 check( 'nothing with Pro', '', npmp_import_hub_free_total_text( false, 100, 0 ) );
 $t = npmp_import_hub_free_total_text( true, 100, 40 );
 check( 'names the total and places left', true, false !== strpos( $t, '100 new contacts in total' ) && false !== strpos( $t, '40 places left' ) );
 check( 'says it covers every plugin and file', true, false !== strpos( $t, 'every plugin on this screen and every file you import' ) );
 check( 'says who stays behind', true, false !== strpos( $t, 'stays in the old plugin' ) );
+check( 'one place left reads as one', true, false !== strpos( npmp_import_hub_free_total_text( true, 100, 1 ), 'you have 1 place left.' ) );
 check( 'no places left gets its own words', true, false !== strpos( npmp_import_hub_free_total_text( true, 100, 0 ), 'used all 100 free contact places' ) );
 
 echo "Step 1 with nothing to read\n";

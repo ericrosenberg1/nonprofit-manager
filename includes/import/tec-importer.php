@@ -2171,7 +2171,7 @@ function npmp_tec_render_review( array $stage ) {
 		}
 		echo '</th><td><strong>' . esc_html( $item['title'] ) . '</strong>';
 		if ( ! empty( $item['tec_state'] ) ) {
-			$label = 'canceled' === $item['tec_state'] ? __( 'Cancelled, comes over as a draft', 'nonprofit-manager' ) : __( 'Postponed, comes over as a draft', 'nonprofit-manager' );
+			$label = 'canceled' === $item['tec_state'] ? __( 'Canceled, comes over as a draft', 'nonprofit-manager' ) : __( 'Postponed, comes over as a draft', 'nonprofit-manager' );
 			echo ' <span class="npmp-tec-status">' . esc_html( $label ) . '</span>';
 		} elseif ( 'publish' !== $item['status'] ) {
 			echo ' <span class="npmp-tec-status">' . esc_html( get_post_status_object( $item['status'] ) ? get_post_status_object( $item['status'] )->label : $item['status'] ) . '</span>';
