@@ -1376,7 +1376,13 @@ function npmp_calendar_render_list_view( $category, $context = array() ) {
 			'block'    => false,
 		),
 		(array) $context,
-		array( 'view' => 'list' )
+		// With past events on, upcoming events still come first (soonest
+		// first), then past ones (newest first), so the limit never fills
+		// with the oldest events.
+		array(
+			'view'           => 'list',
+			'upcoming_first' => 'all' === $past,
+		)
 	);
 
 	// Embedded: the calendar around it carries the print button and header.

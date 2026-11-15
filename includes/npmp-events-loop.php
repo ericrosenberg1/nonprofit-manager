@@ -447,6 +447,66 @@ function npmp_events_loop_query_args( $atts, $settings, $context = array() ) {
 }
 
 /**
+ * What an empty list says, for its `past` mode.
+ *
+ * @param string $mode 'upcoming', 'past' or 'all' (npmp_events_loop_past_mode()).
+ * @return string
+ */
+function npmp_events_loop_empty_message( $mode ) {
+	if ( 'upcoming' === $mode ) {
+		return __( 'No upcoming events.', 'nonprofit-manager' );
+	}
+	if ( 'past' === $mode ) {
+		return __( 'No past events.', 'nonprofit-manager' );
+	}
+	return __( 'No events found.', 'nonprofit-manager' );
+}
+
+/**
+ * Past and upcoming events with upcoming first: upcoming events soonest
+ * first, then past events newest first, up to the list's limit. The
+ * calendar's list view asks for this with `upcoming_first` in its context,
+ * since one query sorted by date can only fill the limit from one end.
+ *
+ * @param array $atts     Normalised attributes (category, limit, past).
+ * @param array $settings Resolved settings.
+ * @param array $context  Query context for npmp_events_query_args.
+ * @return array { 0: WP_Query, 1: position of the first past event, 0 when the list has no upcoming or no past events }
+ */
+function npmp_events_loop_upcoming_first_query( $atts, $settings, $context ) {
+	$limit = (int) ( $atts['limit'] ?? -1 );
+	if ( $limit <= 0 ) {
+		$limit = -1;
+	}
+
+	$up_args           = npmp_events_loop_query_args( array_merge( $atts, array( 'past' => 'false', 'limit' => $limit ) ), array_merge( $settings, array( 'order' => 'asc' ) ), $context );
+	$up_args['fields'] = 'ids';
+	$up_ids            = array_map( 'intval', ( new WP_Query( $up_args ) )->posts );
+
+	$past_ids = array();
+	$left     = -1 === $limit ? -1 : $limit - count( $up_ids );
+	if ( 0 !== $left ) {
+		$past_args           = npmp_events_loop_query_args( array_merge( $atts, array( 'past' => 'true', 'limit' => $left ) ), array_merge( $settings, array( 'order' => 'desc' ) ), $context );
+		$past_args['fields'] = 'ids';
+		$past_ids            = array_map( 'intval', ( new WP_Query( $past_args ) )->posts );
+	}
+
+	$ids   = array_values( array_unique( array_merge( $up_ids, $past_ids ) ) );
+	$query = new WP_Query(
+		array(
+			'post_type'           => 'npmp_event',
+			'post_status'         => 'publish',
+			'post__in'            => $ids ? $ids : array( 0 ),
+			'orderby'             => 'post__in',
+			'posts_per_page'      => -1,
+			'no_found_rows'       => true,
+			'ignore_sticky_posts' => true,
+		)
+	);
+	return array( $query, ( $up_ids && $past_ids ) ? count( $up_ids ) : 0 );
+}
+
+/**
  * Turn a block-gap value from the editor into CSS. Core only writes block gap
  * for blocks with a layout, so the loop writes its own. Accepts a length
  * ("2rem"), a spacing preset ("var:preset|spacing|40"), or the split
@@ -550,12 +610,20 @@ function npmp_events_loop_last_range( $set = null ) {
  */
 function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, $context = array() ) {
 	$settings = npmp_events_loop_settings( $atts );
-	$events   = new WP_Query( npmp_events_loop_query_args( $atts, $settings, array_merge( array( 'block' => (bool) $for_block ), (array) $context ) ) );
+	$mode     = npmp_events_loop_past_mode( $atts['past'] ?? 'false' );
+	$context  = array_merge( array( 'block' => (bool) $for_block ), (array) $context );
+	// Where past events start in an upcoming-first list, 0 for none.
+	$past_from = 0;
+	if ( 'all' === $mode && ! empty( $context['upcoming_first'] ) ) {
+		list( $events, $past_from ) = npmp_events_loop_upcoming_first_query( $atts, $settings, $context );
+	} else {
+		$events = new WP_Query( npmp_events_loop_query_args( $atts, $settings, $context ) );
+	}
 
 	npmp_events_loop_last_range( array( 0, 0 ) );
 
 	if ( ! $events->have_posts() ) {
-		return '<div class="npmp-events-list npmp-events-empty">' . esc_html__( 'No events found.', 'nonprofit-manager' ) . '</div>';
+		return '<div class="npmp-events-list npmp-events-empty">' . esc_html( npmp_events_loop_empty_message( $mode ) ) . '</div>';
 	}
 
 	$has_print  = ! $embedded && function_exists( 'npmp_calendar_print_wants_button' );
@@ -587,8 +655,13 @@ function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, 
 
 	ob_start();
 
+	$index = 0;
 	while ( $events->have_posts() ) {
 		$events->the_post();
+		if ( $past_from && $index === $past_from ) {
+			echo '<p class="npmp-events-past-label"><strong>' . esc_html__( 'Past events', 'nonprofit-manager' ) . '</strong></p>';
+		}
+		++$index;
 		$post       = get_post();
 		$title      = get_the_title();
 		$permalink  = get_permalink();
@@ -657,7 +730,6 @@ function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, 
 
 	$print = '';
 	if ( $has_print ) {
-		$mode   = npmp_events_loop_past_mode( $atts['past'] ?? 'false' );
 		$titles = array(
 			'upcoming' => __( 'Upcoming events', 'nonprofit-manager' ),
 			'past'     => __( 'Past events', 'nonprofit-manager' ),

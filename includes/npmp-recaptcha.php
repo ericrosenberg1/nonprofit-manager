@@ -64,18 +64,22 @@ function npmp_recaptcha_enqueue_script() {
 		wp_enqueue_script( $handle );
 	}
 
-	// Add inline script to execute reCAPTCHA on form submission
+	// Fetch a fresh token on every submit. reCAPTCHA tokens work once and for
+	// two minutes, and a form the browser brings back (the Back button, or a
+	// submit that never got through) still holds the old one, which used to
+	// go out again and fail. form.submit() fires no submit event, so this
+	// never runs twice for one press. No less-than sign or double ampersand
+	// in here: wptexturize mangles both in inline scripts on block themes.
 	$inline_script = "
 	document.addEventListener('DOMContentLoaded', function() {
 		var forms = document.querySelectorAll('form[data-recaptcha=\"true\"]');
 		forms.forEach(function(form) {
 			form.addEventListener('submit', function(e) {
-				if (form.querySelector('input[name=\"g-recaptcha-response\"]')) {
-					return; // Already has token
-				}
 				e.preventDefault();
+				var old = form.querySelectorAll('input[name=\"g-recaptcha-response\"]');
+				old.forEach(function(input) { input.parentNode.removeChild(input); });
 				grecaptcha.ready(function() {
-					grecaptcha.execute('" . esc_js( $site_key ) . "', {action: 'submit'}).then(function(token) {
+					grecaptcha.execute('" . esc_js( $site_key ) . "', {action: '" . esc_js( npmp_recaptcha_action() ) . "'}).then(function(token) {
 						var input = document.createElement('input');
 						input.type = 'hidden';
 						input.name = 'g-recaptcha-response';
@@ -89,7 +93,43 @@ function npmp_recaptcha_enqueue_script() {
 	});
 	";
 
-	wp_add_inline_script( $handle, $inline_script );
+	// Once a page, or a page with two forms sends each of them twice.
+	static $added = false;
+	if ( ! $added ) {
+		wp_add_inline_script( $handle, $inline_script );
+		$added = true;
+	}
+}
+
+/**
+ * The action name our forms send with a reCAPTCHA v3 token, and the one the
+ * server expects back from Google.
+ *
+ * @return string
+ */
+function npmp_recaptcha_action() {
+	return 'submit';
+}
+
+/**
+ * Whether Google's siteverify answer passes: a success, the action our forms
+ * send, and a score at the threshold or above.
+ *
+ * @param mixed $data      Decoded siteverify body.
+ * @param float $threshold Minimum score.
+ * @return bool
+ */
+function npmp_recaptcha_answer_passes( $data, $threshold = 0.5 ) {
+	if ( ! is_array( $data ) || empty( $data['success'] ) ) {
+		return false;
+	}
+	// A token made for another action (another site's form on the same key,
+	// or a replayed token) doesn't count.
+	if ( ! isset( $data['action'] ) || npmp_recaptcha_action() !== $data['action'] ) {
+		return false;
+	}
+	$score = isset( $data['score'] ) ? (float) $data['score'] : 0.0;
+	return $score >= (float) $threshold;
 }
 
 /**
@@ -107,12 +147,12 @@ function npmp_recaptcha_render_widget() {
 
 	// Add data attribute to form to enable reCAPTCHA
 	echo '<input type="hidden" name="recaptcha-enabled" value="1">';
+	// Every form on the page, not only the first one.
 	echo '<script>
 		document.addEventListener("DOMContentLoaded", function() {
-			var form = document.querySelector("form input[name=\"recaptcha-enabled\"]");
-			if (form) {
-				form.closest("form").setAttribute("data-recaptcha", "true");
-			}
+			document.querySelectorAll("form input[name=\"recaptcha-enabled\"]").forEach(function(input) {
+				input.closest("form").setAttribute("data-recaptcha", "true");
+			});
 		});
 	</script>';
 }
@@ -146,7 +186,9 @@ function npmp_recaptcha_verify( $response_field = 'g-recaptcha-response', $thres
 		'body'    => array(
 			'secret'   => $secret,
 			'response' => $token,
-			'remoteip' => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
+			// The visitor's address as the site's rate limits see it, so a
+			// site behind a proxy sends the visitor, not the proxy.
+			'remoteip' => function_exists( 'npmp_client_ip' ) ? npmp_client_ip() : '',
 		),
 	);
 
@@ -159,19 +201,11 @@ function npmp_recaptcha_verify( $response_field = 'g-recaptcha-response', $thres
 	$code = (int) wp_remote_retrieve_response_code( $response );
 	$data = json_decode( wp_remote_retrieve_body( $response ), true );
 
-	if ( 200 !== $code || ! is_array( $data ) ) {
+	if ( 200 !== $code ) {
 		return false;
 	}
 
-	// Check if verification was successful
-	if ( empty( $data['success'] ) ) {
-		return false;
-	}
-
-	// Check score (v3 returns a score between 0.0 and 1.0)
-	$score = isset( $data['score'] ) ? (float) $data['score'] : 0.0;
-
-	return $score >= $threshold;
+	return npmp_recaptcha_answer_passes( $data, $threshold );
 }
 
 /**

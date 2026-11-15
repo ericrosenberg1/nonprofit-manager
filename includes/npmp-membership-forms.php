@@ -1116,8 +1116,58 @@ function npmp_generate_unsubscribe_token( $email ) {
  * @param string $email Recipient email address.
  * @return string
  */
-function npmp_generate_resubscribe_token( $email ) {
-	return substr( hash_hmac( 'sha256', 'resubscribe|' . strtolower( (string) $email ), wp_salt( 'auth' ) ), 0, 20 );
+function npmp_generate_resubscribe_token( $email, $issued = 0 ) {
+	$issued = (int) $issued;
+	$data   = 'resubscribe|' . strtolower( (string) $email ) . ( $issued > 0 ? '|' . $issued : '' );
+	return substr( hash_hmac( 'sha256', $data, wp_salt( 'auth' ) ), 0, 20 );
+}
+
+/**
+ * How long a signup or resubscribe confirmation link works, in seconds.
+ *
+ * @return int Seconds, or 0 when links never expire.
+ */
+function npmp_signup_confirm_ttl() {
+	/**
+	 * Filter how long the confirmation links in signup and resubscribe
+	 * emails keep working. Return 0 to keep them working until used.
+	 *
+	 * @param int $seconds Seconds. Default 7 days.
+	 */
+	return max( 0, (int) apply_filters( 'npmp_signup_confirm_expiry', 7 * DAY_IN_SECONDS ) );
+}
+
+/**
+ * Whether a confirmation link sent at $issued still works.
+ *
+ * @param int $issued Unix time the link was made.
+ * @param int $now    Unix time to check against. Defaults to now.
+ * @return bool
+ */
+function npmp_signup_confirm_is_fresh( $issued, $now = 0 ) {
+	$ttl = npmp_signup_confirm_ttl();
+	if ( 0 === $ttl ) {
+		return true;
+	}
+	$issued = (int) $issued;
+	$now    = $now ? (int) $now : time();
+	return $issued > 0 && ( $now - $issued ) <= $ttl;
+}
+
+/**
+ * Tell the visitor a confirmation link expired, with a link to sign up
+ * again, and stop.
+ *
+ * @param string $title Page title.
+ * @return void
+ */
+function npmp_signup_expired_die( $title ) {
+	$settings = npmp_get_membership_form_settings();
+	$page_id  = absint( $settings['signup_page_id'] ?? 0 );
+	$url      = ( $page_id && 'publish' === get_post_status( $page_id ) && get_permalink( $page_id ) ) ? get_permalink( $page_id ) : home_url( '/' );
+	$html     = '<p>' . esc_html__( 'This link is too old to use, so we didn\'t change anything.', 'nonprofit-manager' ) . '</p>';
+	$html    .= '<p><a href="' . esc_url( $url ) . '">' . esc_html__( 'Sign up again', 'nonprofit-manager' ) . '</a></p>';
+	wp_die( wp_kses( $html, array( 'p' => array(), 'a' => array( 'href' => array() ) ) ), esc_html( $title ), array( 'response' => 410 ) );
 }
 
 /**
@@ -1130,10 +1180,14 @@ function npmp_generate_resubscribe_token( $email ) {
  * @return void
  */
 function npmp_send_resubscribe_confirmation( $email, $join_key = '' ) {
-	$args = array(
+	// The link carries when we made it, and the token signs that time, so
+	// the link stops working after npmp_signup_confirm_ttl().
+	$issued = time();
+	$args   = array(
 		'action' => 'npmp_confirm_resubscribe',
 		'email'  => rawurlencode( $email ),
-		'token'  => npmp_generate_resubscribe_token( $email ),
+		'ts'     => $issued,
+		'token'  => npmp_generate_resubscribe_token( $email, $issued ),
 	);
 	if ( '' !== (string) $join_key ) {
 		$args['join'] = (string) $join_key;
@@ -1178,15 +1232,36 @@ function npmp_handle_confirm_resubscribe() {
 	$email = isset( $_REQUEST['email'] ) ? sanitize_email( wp_unslash( $_REQUEST['email'] ) ) : '';
 	$token = isset( $_REQUEST['token'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['token'] ) ) : '';
 	$join  = isset( $_REQUEST['join'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['join'] ) ) : '';
+	$ts    = isset( $_REQUEST['ts'] ) ? absint( wp_unslash( $_REQUEST['ts'] ) ) : 0;
 	// phpcs:enable
-	$valid  = $email && is_email( $email ) && hash_equals( npmp_generate_resubscribe_token( $email ), $token );
+	$valid  = $email && is_email( $email ) && hash_equals( npmp_generate_resubscribe_token( $email, $ts ), $token );
 	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 
 	if ( ! $valid ) {
 		wp_die( esc_html__( 'This link is invalid. Please use the signup form on our website.', 'nonprofit-manager' ), esc_html__( 'Subscribe', 'nonprofit-manager' ), array( 'response' => 400, 'back_link' => true ) );
 	}
 
+	if ( $ts ) {
+		$fresh = npmp_signup_confirm_is_fresh( $ts );
+	} else {
+		// A link from before links carried their time. It works only while
+		// the signup it came with is still waiting and still fresh.
+		$contact = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance()->get_member_by_email( $email ) : null;
+		$pending = $contact ? get_post_meta( (int) $contact->id, '_npmp_signup_confirm', true ) : null;
+		$fresh   = is_array( $pending ) && 'resubscribe' === ( $pending['kind'] ?? '' ) && npmp_signup_confirm_is_fresh( (int) ( $pending['time'] ?? 0 ) );
+	}
+	if ( ! $fresh ) {
+		npmp_signup_expired_die( __( 'Subscribe', 'nonprofit-manager' ) );
+	}
+
 	if ( 'POST' !== $method ) {
+		$extra = array();
+		if ( '' !== $join ) {
+			$extra['join'] = $join;
+		}
+		if ( $ts ) {
+			$extra['ts'] = $ts;
+		}
 		npmp_render_email_link_confirm_page(
 			__( 'Subscribe again', 'nonprofit-manager' ),
 			__( 'Press the button to add this address back to our email list.', 'nonprofit-manager' ),
@@ -1194,7 +1269,7 @@ function npmp_handle_confirm_resubscribe() {
 			'npmp_confirm_resubscribe',
 			$email,
 			$token,
-			'' !== $join ? array( 'join' => $join ) : array()
+			$extra
 		);
 	}
 
@@ -1526,6 +1601,10 @@ function npmp_handle_confirm_signup() {
 	// A key that rides the resubscribe link only works there.
 	$valid   = is_array( $pending ) && '' !== $token && 'resubscribe' !== ( $pending['kind'] ?? '' ) && hash_equals( (string) ( $pending['key'] ?? '' ), $token );
 	$join    = $valid && 'join' === ( $pending['kind'] ?? '' );
+
+	if ( $valid && ! npmp_signup_confirm_is_fresh( (int) ( $pending['time'] ?? 0 ) ) ) {
+		npmp_signup_expired_die( $title );
+	}
 
 	if ( ! $valid ) {
 		$already = $contact && 'subscribed' === ( $contact->status ?? '' ) && ! is_array( $pending );

@@ -771,6 +771,22 @@ function npmp_process_weekly_digest() {
 add_action( 'npmp_process_digest_queue', 'npmp_process_digest_queue' );
 
 /**
+ * Whether a queued digest reader still wants the digest: a contact with the
+ * digest on whose status npmp_process_weekly_digest() would queue.
+ *
+ * @param array  $contacts From NPMP_Member_Manager::lookup_emails().
+ * @param string $email    Queued address.
+ * @return bool
+ */
+function npmp_digest_still_wanted( $contacts, $email ) {
+	$key = strtolower( (string) $email );
+	if ( ! isset( $contacts[ $key ] ) || in_array( $contacts[ $key ]['status'] ?? '', array( 'unsubscribed', 'pending' ), true ) ) {
+		return false;
+	}
+	return '1' === (string) get_post_meta( (int) $contacts[ $key ]['id'], '_npmp_weekly_digest', true );
+}
+
+/**
  * Drain a throttled batch of the weekly digest queue. Runs on a per-minute
  * cron tick (scheduled by npmp_process_weekly_digest() above) instead of
  * mailing every subscriber inline inside one wp-cron run, so a large list
@@ -831,8 +847,17 @@ function npmp_drain_digest_batch() {
 	$subject = $pending_content['subject'];
 	$content = $pending_content['content'];
 
+	// Someone can unsubscribe, or turn the digest off, after this week's
+	// queue was built. Look the batch up once and mail only who still wants it.
+	$contacts = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance()->lookup_emails( wp_list_pluck( $batch, 'email' ) ) : null;
+
 	foreach ( $batch as $row ) {
 		$email = sanitize_email( $row->email );
+
+		if ( null !== $contacts && ! npmp_digest_still_wanted( $contacts, $email ) ) {
+			$wpdb->delete( $table, array( 'id' => $row->id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			continue;
+		}
 
 		$personal_body = $content;
 		$personal_body .= '<hr style="margin:20px 0;border:none;border-top:1px solid #eee;">';

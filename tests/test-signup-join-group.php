@@ -78,8 +78,9 @@ check( 'The key is deleted before listeners run', true, strpos( $confirm, "delet
 
 echo "Resubscribe link\n";
 $resub = npmp_sjg_section( $forms, 'function npmp_handle_confirm_resubscribe', 'Double opt-in: confirm a new signup' );
-check( 'The signed token is still checked first', true, strpos( $resub, 'npmp_generate_resubscribe_token( $email ), $token' ) < strpos( $resub, "'POST' !== \$method" ) );
-check( 'The join key goes to the button', 1, substr_count( $resub, "'' !== \$join ? array( 'join' => \$join ) : array()" ) );
+check( 'The signed token is still checked first', true, false !== strpos( $resub, 'npmp_generate_resubscribe_token( $email, $ts ), $token' ) && strpos( $resub, 'npmp_generate_resubscribe_token( $email, $ts ), $token' ) < strpos( $resub, "'POST' !== \$method" ) );
+check( 'The join key goes to the button', 1, substr_count( $resub, "\$extra['join'] = \$join;" ) );
+check( 'The link time goes to the button', 1, substr_count( $resub, "\$extra['ts'] = \$ts;" ) );
 check( 'The join key is checked with hash_equals and its kind', 1, substr_count( $resub, "'resubscribe' === ( \$pending['kind'] ?? '' ) && hash_equals( (string) ( \$pending['key'] ?? '' ), \$join )" ) );
 check( 'The key is deleted before listeners run', true, strpos( $resub, "delete_post_meta( (int) \$existing->id, '_npmp_signup_confirm' );" ) < strpos( $resub, "do_action( 'npmp_after_email_signup'" ) );
 

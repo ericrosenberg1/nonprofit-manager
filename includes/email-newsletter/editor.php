@@ -722,6 +722,7 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
         npmp_scheduled_emails_cancel_target('list', $post_id, __('You sent it by hand first.', 'nonprofit-manager'));
     }
 
+    $already = NPMP_Newsletter_Manager::last_queue_already_sent();
     if ($queued > 0) {
         $message = sprintf(
             /* translators: 1: Number of queued recipients. 2: Audience description. */
@@ -729,7 +730,17 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
             (int) $queued,
             npmp_newsletter_get_audience_label($post_id)
         );
+        if ($already > 0) {
+            $message .= ' ' . sprintf(
+                /* translators: %d: number of recipients who already got this newsletter. */
+                _n('We skipped %d recipient who already got this newsletter.', 'We skipped %d recipients who already got this newsletter.', $already, 'nonprofit-manager'),
+                (int) $already
+            );
+        }
         wp_send_json_success($message);
+    }
+    if ($already > 0) {
+        wp_send_json_error(__('Everyone in this audience already got this newsletter, so we sent nothing new.', 'nonprofit-manager'));
     }
 
     wp_send_json_error(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('No subscribed %s matched your selected audience.', 'nonprofit-manager'), npmp_label('members_lc')));
