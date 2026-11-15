@@ -9,7 +9,10 @@
 // ever added. An unsubscribed contact keeps the resubscribe email and gets
 // the groups when they confirm. Pending contacts work as before. The visitor
 // sees the same banner for every address. Nonce, captcha, and rate limit
-// still stop a request before any email. Mail is caught with pre_wp_mail.
+// still stop a request before any email. The form's notification checkboxes
+// follow the same rule: for a contact we already have (other than Pending),
+// a stranger's submit changes nothing and the button behind the emailed link
+// saves them. Mail is caught with pre_wp_mail.
 // Leaves no contacts, groups, pages, or settings behind. Not run by the
 // pre-push gate.
 $wp_root = getenv( 'NPMP_RIG_WP' ) ?: '/tmp/npmp-rig/wp';
@@ -125,7 +128,7 @@ function rig_groups( $email ) {
 }
 
 // --- Clean slate ---------------------------------------------------------
-$emails = array( 'rig-join-sub@example.org', 'rig-join-both@example.org', 'rig-join-new@example.org', 'rig-join-new2@example.org', 'rig-join-off@example.org', 'rig-join-gone@example.org', 'rig-join-pend@example.org', 'rig-join-pend2@example.org', 'rig-join-limit@example.org' );
+$emails = array( 'rig-join-sub@example.org', 'rig-join-both@example.org', 'rig-join-new@example.org', 'rig-join-new2@example.org', 'rig-join-off@example.org', 'rig-join-gone@example.org', 'rig-join-pend@example.org', 'rig-join-pend2@example.org', 'rig-join-limit@example.org', 'rig-prefs-off@example.org', 'rig-prefs-on@example.org', 'rig-prefs-both@example.org', 'rig-prefs-same@example.org', 'rig-prefs-new@example.org', 'rig-prefs-pend@example.org', 'rig-prefs-vol@example.org', 'rig-prefs-gone@example.org' );
 $sweep  = function () use ( $mm, $emails ) {
 	foreach ( $emails as $e ) {
 		$m = $mm->get_member_by_email( $e );
@@ -281,8 +284,112 @@ delete_transient( 'npmp_rl_' . substr( md5( 'signup|' . $_SERVER['REMOTE_ADDR'] 
 $GLOBALS['rig_limit']   = 0;
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
+echo "== Notification checkboxes ==\n";
+// Show all three boxes on the form for this section only, without saving
+// the settings.
+$rig_pref_opts = array( 'npmp_enable_post_notifications', 'npmp_enable_event_notifications', 'npmp_enable_weekly_digest' );
+foreach ( $rig_pref_opts as $opt ) {
+	add_filter( 'pre_option_' . $opt, '__return_true' );
+}
+$pform = do_shortcode( '[npmp_email_signup groups="rig-join-art,rig-join-history" choose="yes"]' );
+rig_check( 'The form shows the three notification boxes', 3, preg_match_all( '/name="npmp_(notify_posts|notify_events|weekly_digest)"/', $pform ) );
+$on_posts = array( 'notify_posts' => true, 'notify_events' => true, 'weekly_digest' => false );
+$digest   = array( 'npmp_weekly_digest' => '1' ); // Posts and events unticked, digest ticked.
+$want     = array( 'notify_posts' => false, 'notify_events' => false, 'weekly_digest' => true );
+$prefs_of = function ( $email ) use ( $mm ) {
+	$m = $mm->get_member_by_email( $email );
+	return $m ? npmp_get_subscriber_preferences( (int) $m->id ) : null;
+};
+$seed = function ( $email, $status ) use ( $mm, $on_posts ) {
+	$id = $mm->add_member( array( 'email' => $email, 'name' => 'Rig Prefs', 'status' => $status ) );
+	npmp_save_subscriber_preferences( (int) $id, $on_posts );
+	return (int) $id;
+};
+$mail_with = function ( $needle ) {
+	foreach ( $GLOBALS['rig_mails'] as $m ) {
+		if ( false !== strpos( (string) $m['message'], $needle ) ) {
+			return $m;
+		}
+	}
+	return array();
+};
+
+// Double opt-in off: the gap. A stranger's submit used to save at once.
+$GLOBALS['rig_doi'] = false;
+$GLOBALS['rig_mails'] = array();
+$new_banner = rig_signup( $pform, 'rig-prefs-new@example.org', array(), $digest );
+rig_check( 'Off: a new address still saves its boxes at once', $want, $prefs_of( 'rig-prefs-new@example.org' ) );
+$seed( 'rig-prefs-off@example.org', 'subscribed' );
+$GLOBALS['rig_mails'] = array();
+$banner = rig_signup( $pform, 'rig-prefs-off@example.org', array(), $digest );
+rig_check( 'Off: same banner as a new address', $new_banner, $banner );
+rig_check( 'Off: a stranger\'s submit changes no boxes', $on_posts, $prefs_of( 'rig-prefs-off@example.org' ) );
+rig_check( 'Off: the owner gets one email', array( 'rig-prefs-off@example.org' ), array_column( $GLOBALS['rig_mails'], 'to' ) );
+$mail = $GLOBALS['rig_mails'][0] ?? array();
+rig_check( 'Off: it asks to confirm the email choices', 'Confirm your email choices', (string) ( $mail['subject'] ?? '' ) );
+$link = rig_link_from( $mail, 'npmp_confirm_signup' );
+$stop = rig_open( $link, 'GET', 'npmp_handle_confirm_signup' );
+rig_check( 'Off: GET shows a button and says what it does', true, $stop && false !== strpos( $stop->payload, 'Press the button to save your email choices.' ) );
+rig_check( 'Off: GET changes no boxes', $on_posts, $prefs_of( 'rig-prefs-off@example.org' ) );
+$stop = rig_open( preg_replace( '/token=[^&]+/', 'token=forged0000000000000000000000000', $link ), 'POST', 'npmp_handle_confirm_signup' );
+rig_check( 'Off: a wrong key changes no boxes', $on_posts, $prefs_of( 'rig-prefs-off@example.org' ) );
+$stop = rig_open( $link, 'POST', 'npmp_handle_confirm_signup' );
+rig_check( 'Off: the button saves the boxes they ticked', $want, $prefs_of( 'rig-prefs-off@example.org' ) );
+rig_check( 'Off: and says so', true, $stop && false !== strpos( $stop->payload, 'We saved your email choices.' ) );
+rig_check( 'Off: still subscribed', 'subscribed', $mm->get_member_by_email( 'rig-prefs-off@example.org' )->status );
+
+$seed( 'rig-prefs-same@example.org', 'subscribed' );
+$GLOBALS['rig_mails'] = array();
+$banner = rig_signup( $pform, 'rig-prefs-same@example.org', array(), array( 'npmp_notify_posts' => '1', 'npmp_notify_events' => '1' ) );
+rig_check( 'Off: the same boxes they have: same banner', $new_banner, $banner );
+rig_check( 'Off: and no email, since nothing would change', 0, count( $GLOBALS['rig_mails'] ) );
+rig_check( 'Off: and the boxes stay', $on_posts, $prefs_of( 'rig-prefs-same@example.org' ) );
+
+$seed( 'rig-prefs-both@example.org', 'subscribed' );
+$GLOBALS['rig_mails'] = array();
+rig_signup( $pform, 'rig-prefs-both@example.org', array( $hist ), $digest );
+rig_check( 'Off: groups and boxes: nothing changes on submit', array( array(), $on_posts ), array( rig_groups( 'rig-prefs-both@example.org' ), $prefs_of( 'rig-prefs-both@example.org' ) ) );
+$mail = $GLOBALS['rig_mails'][0] ?? array();
+rig_check( 'Off: one join email that also mentions the choices', array( 'Confirm you want to join Rig Join History', true ), array( (string) ( $mail['subject'] ?? '' ), false !== strpos( (string) ( $mail['message'] ?? '' ), 'Confirming also saves the email choices you picked.' ) ) );
+rig_open( rig_link_from( $mail, 'npmp_confirm_signup' ), 'POST', 'npmp_handle_confirm_signup' );
+rig_check( 'Off: the button saves both', array( array( $hist ), $want ), array( rig_groups( 'rig-prefs-both@example.org' ), $prefs_of( 'rig-prefs-both@example.org' ) ) );
+
+$seed( 'rig-prefs-vol@example.org', 'volunteer' );
+$GLOBALS['rig_mails'] = array();
+$banner = rig_signup( $pform, 'rig-prefs-vol@example.org', array(), $digest );
+rig_check( 'Off: a volunteer\'s boxes wait too, behind the same banner', array( $new_banner, $on_posts ), array( $banner, $prefs_of( 'rig-prefs-vol@example.org' ) ) );
+rig_open( rig_link_from( $GLOBALS['rig_mails'][0] ?? array(), 'npmp_confirm_signup' ), 'POST', 'npmp_handle_confirm_signup' );
+rig_check( 'Off: and their button saves them', $want, $prefs_of( 'rig-prefs-vol@example.org' ) );
+
+$seed( 'rig-prefs-gone@example.org', 'unsubscribed' );
+$GLOBALS['rig_mails'] = array();
+$banner = rig_signup( $pform, 'rig-prefs-gone@example.org', array(), $digest );
+rig_check( 'Off: an unsubscribed contact\'s boxes wait, behind the same banner', array( $new_banner, $on_posts ), array( $banner, $prefs_of( 'rig-prefs-gone@example.org' ) ) );
+$stop = rig_open( rig_link_from( $mail_with( 'npmp_confirm_resubscribe' ), 'npmp_confirm_resubscribe' ), 'GET', 'npmp_handle_confirm_resubscribe' );
+rig_open( add_query_arg( $stop ? rig_page_fields( $stop->payload ) : array(), admin_url( 'admin-post.php' ) ), 'POST', 'npmp_handle_confirm_resubscribe' );
+rig_check( 'Off: the resubscribe button saves them', $want, $prefs_of( 'rig-prefs-gone@example.org' ) );
+
+$seed( 'rig-prefs-pend@example.org', 'pending' );
+rig_signup( $pform, 'rig-prefs-pend@example.org', array(), $digest );
+rig_check( 'Off: a Pending contact still saves at once, as before', $want, $prefs_of( 'rig-prefs-pend@example.org' ) );
+
+// Double opt-in on.
+$GLOBALS['rig_doi'] = true;
+$seed( 'rig-prefs-on@example.org', 'subscribed' );
+$GLOBALS['rig_mails'] = array();
+$banner = rig_signup( $pform, 'rig-prefs-on@example.org', array(), $digest );
+rig_check( 'On: same banner as every address', 'check_email', $banner );
+rig_check( 'On: a stranger\'s submit changes no boxes', $on_posts, $prefs_of( 'rig-prefs-on@example.org' ) );
+rig_check( 'On: the email asks to confirm the choices', 'Confirm your email choices', (string) ( $GLOBALS['rig_mails'][0]['subject'] ?? '' ) );
+rig_open( rig_link_from( $GLOBALS['rig_mails'][0] ?? array(), 'npmp_confirm_signup' ), 'POST', 'npmp_handle_confirm_signup' );
+rig_check( 'On: the button saves them', $want, $prefs_of( 'rig-prefs-on@example.org' ) );
+
+foreach ( $rig_pref_opts as $opt ) {
+	remove_filter( 'pre_option_' . $opt, '__return_true' );
+}
+
 echo "== Banners ==\n";
-foreach ( array( 'check_email' => 'Check your inbox', 'joined' => 'in your new groups' ) as $value => $text ) {
+foreach ( array( 'check_email' => 'Check your inbox', 'joined' => 'in your new groups', 'saved' => 'We saved your email choices' ) as $value => $text ) {
 	$_GET = array( 'npmp_signup' => $value, 'npmp_signup_nonce' => wp_create_nonce( 'npmp_banner_npmp_signup_' . $value ) );
 	rig_check( "Banner $value", true, false !== strpos( do_shortcode( '[npmp_email_signup]' ), $text ) );
 }

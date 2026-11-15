@@ -579,6 +579,9 @@ function npmp_get_banner_html( $type, $settings ) {
 		if ( 'check_email' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks! Check your inbox for an email from us and click the link in it to confirm.', 'nonprofit-manager' ) . '</p></div>';
 		}
+		if ( 'saved' === $status ) {
+			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks for confirming. We saved your email choices.', 'nonprofit-manager' ) . '</p></div>';
+		}
 		if ( 'joined' === $status ) {
 			return '<div class="npmp-form-banner npmp-' . esc_attr( $type ) . ' npmp-status-success" role="status"><p>' . esc_html__( 'Thanks for confirming. You\'re in your new groups.', 'nonprofit-manager' ) . '</p></div>';
 		}
@@ -916,13 +919,13 @@ function npmp_handle_membership_form() {
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
 			exit;
 		}
-		if ( $existing && 'pending' !== $status && npmp_signup_join_names( (int) $existing->id, $posted, $atts_token ) ) {
-			// A contact we already have asks to join groups. Anyone can type
-			// any address, so nothing changes until the owner confirms from
-			// their own inbox, with or without double opt-in. Pete at U3A
-			// re-used the form for an existing subscriber, saw no new groups,
-			// and got a "please confirm your subscription" email that read
-			// as a mistake.
+		if ( $existing && 'pending' !== $status && npmp_signup_changes_contact( (int) $existing->id, $posted, $atts_token ) ) {
+			// A contact we already have asks to join groups or to change
+			// their notification checkboxes. Anyone can type any address, so
+			// nothing changes until the owner confirms from their own inbox,
+			// with or without double opt-in. Pete at U3A re-used the form for
+			// an existing subscriber, saw no new groups, and got a "please
+			// confirm your subscription" email that read as a mistake.
 			npmp_send_signup_confirmation( (int) $existing->id, $email, $name, $posted, $atts_token, false, 'subscribed' === $status ? 'join' : 'signup' );
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
 			exit;
@@ -1300,6 +1303,30 @@ function npmp_signup_join_names( $contact_id, $post, $atts_token ) {
 }
 
 /**
+ * Whether a signup would change the notification checkboxes a contact has.
+ *
+ * @param int   $contact_id Contact ID.
+ * @param array $post       Unslashed $_POST, or the fields kept until they confirm.
+ * @return bool
+ */
+function npmp_signup_prefs_change( $contact_id, $post ) {
+	return function_exists( 'npmp_signup_preferences_would_change' ) && npmp_signup_preferences_would_change( (int) $contact_id, npmp_signup_fields_to_keep( $post ) );
+}
+
+/**
+ * Whether a signup would change anything for a contact we already have:
+ * groups to join, or different notification checkboxes.
+ *
+ * @param int    $contact_id Contact ID.
+ * @param array  $post       Unslashed $_POST.
+ * @param string $atts_token The form's signed attributes.
+ * @return bool
+ */
+function npmp_signup_changes_contact( $contact_id, $post, $atts_token ) {
+	return npmp_signup_join_names( (int) $contact_id, $post, $atts_token ) || npmp_signup_prefs_change( (int) $contact_id, $post );
+}
+
+/**
  * Names as a sentence: "Art", "Art and History", "Art, History, and Walking".
  *
  * @param string[] $names Names.
@@ -1367,6 +1394,7 @@ function npmp_send_signup_confirmation( $contact_id, $email, $name, $post, $atts
 	$key   = npmp_signup_save_pending( $contact_id, $name, $post, $atts_token, $is_new, $kind );
 	$site  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
 	$names = 'join' === $kind ? npmp_signup_join_names( (int) $contact_id, $post, $atts_token ) : array();
+	$prefs = 'join' === $kind && npmp_signup_prefs_change( (int) $contact_id, $post );
 
 	$url = add_query_arg(
 		array(
@@ -1393,6 +1421,23 @@ To confirm, open this link and press the button:
 
 If you didn't ask for this, ignore this email and nothing will change.", 'nonprofit-manager' ),
 			$groups,
+			$site,
+			$url
+		);
+		if ( $prefs ) {
+			$parts = explode( "\n\n", $body, 2 );
+			$body  = $parts[0] . "\n\n" . __( 'Confirming also saves the email choices you picked.', 'nonprofit-manager' ) . "\n\n" . $parts[1];
+		}
+	} elseif ( $prefs ) {
+		$subject = __( 'Confirm your email choices', 'nonprofit-manager' );
+		$body    = sprintf(
+			/* translators: 1: site name, 2: confirmation URL. */
+			__( "We got a request to change which emails you get from %1\$s.
+
+To confirm, open this link and press the button:
+%2\$s
+
+If you didn't ask for this, ignore this email and nothing will change.", 'nonprofit-manager' ),
 			$site,
 			$url
 		);
@@ -1456,15 +1501,20 @@ function npmp_handle_confirm_signup() {
 		);
 	}
 
+	// A subscriber's link asks to join groups, or only to save new email
+	// choices. The page and the thank-you say which.
+	$names = $join ? npmp_signup_join_names( (int) $contact->id, (array) ( $pending['post'] ?? array() ), (string) ( $pending['atts'] ?? '' ) ) : array();
+	if ( $join ) {
+		$title = $names ? __( 'Confirm your groups', 'nonprofit-manager' ) : __( 'Confirm your email choices', 'nonprofit-manager' );
+	}
 	if ( 'POST' !== $method ) {
-		$names = $join ? npmp_signup_join_names( (int) $contact->id, (array) ( $pending['post'] ?? array() ), (string) ( $pending['atts'] ?? '' ) ) : array();
 		npmp_render_email_link_confirm_page(
-			$join ? __( 'Confirm your groups', 'nonprofit-manager' ) : $title,
+			$title,
 			$join
 				? ( $names
 					/* translators: %s: group names, for example "Art and History". */
 					? sprintf( __( 'Press the button to join %s.', 'nonprofit-manager' ), npmp_signup_names_sentence( $names ) )
-					: __( 'Press the button to confirm.', 'nonprofit-manager' ) )
+					: __( 'Press the button to save your email choices.', 'nonprofit-manager' ) )
 				: __( 'Press the button to start getting our emails at this address.', 'nonprofit-manager' ),
 			__( 'Confirm', 'nonprofit-manager' ),
 			'npmp_confirm_signup',
@@ -1506,14 +1556,15 @@ function npmp_handle_confirm_signup() {
 	$settings = npmp_get_membership_form_settings();
 	$page_id  = absint( $settings['signup_page_id'] ?? 0 );
 	if ( $page_id && 'publish' === get_post_status( $page_id ) && get_permalink( $page_id ) ) {
-		wp_safe_redirect( npmp_membership_add_banner_arg( get_permalink( $page_id ), 'npmp_signup', $join ? 'joined' : 'confirmed' ) );
+		wp_safe_redirect( npmp_membership_add_banner_arg( get_permalink( $page_id ), 'npmp_signup', $join ? ( $names ? 'joined' : 'saved' ) : 'confirmed' ) );
 		exit;
 	}
-	wp_die(
-		esc_html( $join ? __( 'Thanks for confirming. You\'re in your new groups.', 'nonprofit-manager' ) : __( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' ) ),
-		esc_html( $join ? __( 'Confirm your groups', 'nonprofit-manager' ) : $title ),
-		array( 'response' => 200, 'back_link' => true )
-	);
+	if ( $join ) {
+		$done = $names ? __( 'Thanks for confirming. You\'re in your new groups.', 'nonprofit-manager' ) : __( 'Thanks for confirming. We saved your email choices.', 'nonprofit-manager' );
+	} else {
+		$done = __( 'You\'re subscribed. Thanks for confirming.', 'nonprofit-manager' );
+	}
+	wp_die( esc_html( $done ), esc_html( $title ), array( 'response' => 200, 'back_link' => true ) );
 }
 
 /**
