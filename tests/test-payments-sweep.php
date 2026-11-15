@@ -38,6 +38,7 @@ function npmp_test_extract( $file, $fn ) {
 
 npmp_test_extract( 'includes/payments/npmp-payment-gateways.php', 'npmp_stripe_session_error_message' );
 npmp_test_extract( 'includes/npmp-payments-settings.php', 'npmp_gateway_label' );
+npmp_test_extract( 'includes/npmp-payments-settings.php', 'npmp_donation_donor_name' );
 npmp_test_extract( 'includes/npmp-payments-settings.php', 'npmp_frequency_label' );
 npmp_test_extract( 'includes/npmp-payments-settings.php', 'npmp_payment_setup_gaps' );
 npmp_test_extract( 'includes/npmp-currency.php', 'npmp_group_totals_by_currency' );
@@ -49,6 +50,12 @@ npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_feature_off' 
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_skip_without_members' );
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_skip_without_donations' );
 npmp_test_extract( 'includes/onboarding/tour-data.php', 'npmp_tour_skip_without_calendar' );
+
+echo "\n== Donor name on the Donations table ==\n";
+check( 'name and email', 'Ann Lee', npmp_donation_donor_name( 'Ann Lee (ann@example.org)', 'ann@example.org' ) );
+check( 'brackets in the name stay', 'Jane (Jim) Doe', npmp_donation_donor_name( 'Jane (Jim) Doe (jane@example.org)', 'jane@example.org' ) );
+check( 'no name shows the email', 'ann@example.org', npmp_donation_donor_name( 'ann@example.org', 'ann@example.org' ) );
+check( 'another shape keeps the old reading', 'Ann', npmp_donation_donor_name( 'Ann (old@example.org)', 'new@example.org' ) );
 
 echo "\n== 1. Stripe errors a donor sees ==\n";
 $key_error = npmp_stripe_session_error_message( 401, array( 'error' => array( 'message' => 'Invalid API Key provided: sk_live_****abcd' ) ) );

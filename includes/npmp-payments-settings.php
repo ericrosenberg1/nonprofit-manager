@@ -146,13 +146,7 @@ function npmp_render_donations_dashboard() {
 			$amount   = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_AMOUNT, true );
 			$email    = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_EMAIL, true );
 			$gateway  = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_GATEWAY, true );
-			$donor_name = $donation->post_title;
-
-			// Extract name from title if it contains email in parentheses
-			$paren_pos = strpos( $donor_name, '(' );
-			if ( false !== $paren_pos ) {
-				$donor_name = trim( substr( $donor_name, 0, $paren_pos ) );
-			}
+			$donor_name = npmp_donation_donor_name( $donation->post_title, $email );
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
@@ -185,13 +179,7 @@ function npmp_render_donations_dashboard() {
 			$email     = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_EMAIL, true );
 			$frequency = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_FREQUENCY, true );
 			$gateway   = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_GATEWAY, true );
-			$donor_name = $donation->post_title;
-
-			// Extract name from title if it contains email in parentheses
-			$paren_pos = strpos( $donor_name, '(' );
-			if ( false !== $paren_pos ) {
-				$donor_name = trim( substr( $donor_name, 0, $paren_pos ) );
-			}
+			$donor_name = npmp_donation_donor_name( $donation->post_title, $email );
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
@@ -233,6 +221,27 @@ function npmp_donations_empty_next_step() {
 		return ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_payment_settings' ) ) . '">' . esc_html__( 'Set up a payment method', 'nonprofit-manager' ) . '</a>';
 	}
 	return ' <a href="' . esc_url( admin_url( 'admin.php?page=npmp_donation_settings' ) ) . '">' . esc_html( sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Pick a page for your %s form', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) . '</a>';
+}
+
+/**
+ * The donor's name from a donation's title, "Name (email)".
+ *
+ * Only the trailing " (email)" goes, so a name with its own brackets, such as
+ * "Jane (Jim) Doe", stays whole. It used to be cut at the first "(".
+ *
+ * @param string $title Donation post title.
+ * @param string $email Donor email saved with the donation.
+ * @return string
+ */
+function npmp_donation_donor_name( $title, $email ) {
+	$title  = (string) $title;
+	$suffix = ' (' . (string) $email . ')';
+	if ( '' !== (string) $email && strlen( $title ) > strlen( $suffix ) && substr( $title, -strlen( $suffix ) ) === $suffix ) {
+		return trim( substr( $title, 0, -strlen( $suffix ) ) );
+	}
+	// A title in another shape: keep the old reading.
+	$paren_pos = strpos( $title, '(' );
+	return false !== $paren_pos ? trim( substr( $title, 0, $paren_pos ) ) : $title;
 }
 
 /**
