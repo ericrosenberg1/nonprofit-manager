@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.16
+Stable tag: 2026.11.17
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.17 =
+* Added Meeting ID and Passcode fields beside an event's link, and [meeting_id] and [passcode] email tags.
+* Added "Show the meeting link only in emails" to events, so you can keep the link, meeting ID, and passcode off your site.
+* Added the meeting ID and passcode to the built-in Tomorrow email.
 
 = 2026.11.16 =
 * Fixed newsletters you send again, so readers who already got one don't get a second copy.
