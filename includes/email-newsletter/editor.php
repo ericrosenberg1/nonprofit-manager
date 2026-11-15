@@ -634,6 +634,11 @@ function npmp_newsletter_send_controls_html($post) {
 
 /**
  * AJAX: Send Test Email
+ *
+ * We answer this request and the send below in plain text, because we show
+ * the answer with alert() in newsletter-editor.js, where you'd read an
+ * escaped answer as "you can&#039;t send it again". Never put the answer into
+ * the page as HTML.
  */
 add_action('wp_ajax_npmp_send_test_newsletter', function () {
     $post_id = isset($_POST['post_id']) ? (int) sanitize_text_field(wp_unslash($_POST['post_id'])) : 0;
@@ -644,7 +649,7 @@ add_action('wp_ajax_npmp_send_test_newsletter', function () {
         !current_user_can('edit_post', $post_id) ||
         !wp_verify_nonce($nonce, 'npmp_send_test_' . $post_id)
     ) {
-        wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
+        wp_send_json_error(__('Permission denied', 'nonprofit-manager'));
     }
 
     $levels    = array_key_exists('levels', $_POST) ? array_map('sanitize_text_field', (array) wp_unslash($_POST['levels'])) : null;
@@ -658,17 +663,17 @@ add_action('wp_ajax_npmp_send_test_newsletter', function () {
     if ($sent) {
         $message = sprintf(
             /* translators: %s: Email address the test email was sent to. */
-            esc_html__('Sent a test email to %s.', 'nonprofit-manager'),
-            esc_html($user->user_email)
+            __('Sent a test email to %s.', 'nonprofit-manager'),
+            $user->user_email
         );
         // Images left as SVG, WebP or AVIF, so the author hears before the real send.
         $image_notice = npmp_email_unconverted_images_notice();
         if ('' !== $image_notice) {
-            $message .= ' ' . esc_html($image_notice);
+            $message .= ' ' . $image_notice;
         }
         wp_send_json_success($message);
     } else {
-        wp_send_json_error(esc_html__('Failed to send test email.', 'nonprofit-manager'));
+        wp_send_json_error(__('Failed to send test email.', 'nonprofit-manager'));
     }
 });
 
@@ -699,10 +704,10 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
         !current_user_can(npmp_newsletter_send_capability()) ||
         !wp_verify_nonce($nonce, 'npmp_send_newsletter_' . $post_id)
     ) {
-        wp_send_json_error(esc_html__('Permission denied', 'nonprofit-manager'));
+        wp_send_json_error(__('Permission denied', 'nonprofit-manager'));
     }
     if (function_exists('npmp_newsletter_is_imported') && npmp_newsletter_is_imported($post_id)) {
-        wp_send_json_error(esc_html__('You imported this newsletter after it went out from your old plugin, so you can\'t send it again. Duplicate it to send a new copy.', 'nonprofit-manager'));
+        wp_send_json_error(__('You imported this newsletter after it went out from your old plugin, so you can\'t send it again. Duplicate it to send a new copy.', 'nonprofit-manager'));
     }
 
     $levels    = array_key_exists('levels', $_POST) ? array_map('sanitize_text_field', (array) wp_unslash($_POST['levels'])) : null;
@@ -720,14 +725,14 @@ add_action('wp_ajax_npmp_send_newsletter_now', function () {
     if ($queued > 0) {
         $message = sprintf(
             /* translators: 1: Number of queued recipients. 2: Audience description. */
-            esc_html__('Queued for delivery to %1$d recipients (%2$s).', 'nonprofit-manager'),
+            __('Queued for delivery to %1$d recipients (%2$s).', 'nonprofit-manager'),
             (int) $queued,
-            esc_html(npmp_newsletter_get_audience_label($post_id))
+            npmp_newsletter_get_audience_label($post_id)
         );
         wp_send_json_success($message);
     }
 
-    wp_send_json_error(esc_html(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('No subscribed %s matched your selected audience.', 'nonprofit-manager'), npmp_label('members_lc'))));
+    wp_send_json_error(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('No subscribed %s matched your selected audience.', 'nonprofit-manager'), npmp_label('members_lc')));
 });
 
 /**
@@ -909,12 +914,14 @@ add_filter('post_row_actions', 'npmp_newsletter_row_actions', 10, 2);
 
 /**
  * Meta a duplicated newsletter keeps. Groups come along with the levels, or
- * a copy of a group newsletter would go to everyone.
+ * a copy of a group newsletter would go to everyone. We copy the template
+ * choice too. Before, you'd open the copy on "Use Default Template" and send
+ * it in a different wrapper from the newsletter you copied.
  *
  * @return string[]
  */
 function npmp_newsletter_duplicate_meta_keys() {
-    return ['_npmp_newsletter_preheader', '_npmp_newsletter_levels', '_npmp_newsletter_groups'];
+    return ['_npmp_newsletter_preheader', '_npmp_newsletter_levels', '_npmp_newsletter_groups', '_npmp_newsletter_template'];
 }
 
 /**

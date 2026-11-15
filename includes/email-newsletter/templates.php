@@ -63,7 +63,7 @@ function npmp_template_settings_meta_box($post) {
             <?php esc_html_e('Set as default template', 'nonprofit-manager'); ?>
         </label>
         <br>
-        <span class="description"><?php esc_html_e('New newsletters start with this template.', 'nonprofit-manager'); ?></span>
+        <span class="description"><?php esc_html_e('You get this template on every newsletter set to "Use Default Template", and on event emails with no other template picked.', 'nonprofit-manager'); ?></span>
     </p>
 
     <script>
@@ -302,16 +302,32 @@ function npmp_apply_newsletter_template($content, $template_id = null) {
 /**
  * Shortcode to insert a newsletter template
  * Usage: [npmp_nl_template id="123"]
+ *
+ * We used to render a template that holds its own shortcode, or two that
+ * hold each other, until the request ran out of memory. Now we keep a stack
+ * of the IDs we're rendering and print nothing for one already on it.
+ *
+ * @param array|string $atts Shortcode attributes.
+ * @return string
  */
-add_shortcode('npmp_nl_template', function ($atts) {
+function npmp_nl_template_shortcode($atts) {
+    static $rendering = [];
+
     $atts = shortcode_atts(['id' => 0], $atts);
+    $id   = (int) $atts['id'];
 
-    $post = get_post($atts['id']);
+    $post = get_post($id);
     if (!$post || $post->post_type !== 'npmp_nl_template') return '';
+    if (isset($rendering[$id])) return '';
 
+    $rendering[$id] = true;
     // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Reuse core 'the_content' filters to match post formatting.
-    return apply_filters('the_content', $post->post_content);
-});
+    $html = apply_filters('the_content', $post->post_content);
+    unset($rendering[$id]);
+
+    return $html;
+}
+add_shortcode('npmp_nl_template', 'npmp_nl_template_shortcode');
 
 /**
  * The [email_content] shortcode: a visible marker for where the newsletter

@@ -312,12 +312,23 @@ class NPMP_Newsletter_Tracker {
 	 * @return void
 	 */
 	private function render_tracking_pixel() {
+		$pixel = self::tracking_pixel_bytes();
 		nocache_headers();
 		header( 'Content-Type: image/gif' );
-		header( 'Content-Length: 43' ); // Length of the decoded pixel data.
+		// Counted, never typed. We used to send 43 for a 34-byte GIF.
+		header( 'Content-Length: ' . strlen( $pixel ) );
 
-		echo base64_decode( 'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo $pixel; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed GIF bytes.
 		exit;
+	}
+
+	/**
+	 * The 1x1 transparent GIF the open pixel answers with.
+	 *
+	 * @return string Raw bytes.
+	 */
+	public static function tracking_pixel_bytes() {
+		return base64_decode( 'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- A fixed image, not obfuscation.
 	}
 }
 

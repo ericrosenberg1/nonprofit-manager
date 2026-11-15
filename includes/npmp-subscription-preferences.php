@@ -354,6 +354,10 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 		return;
 	}
 
+	if ( npmp_post_notification_is_import( $post, $old_status ) ) {
+		return;
+	}
+
 	$meta_key = null;
 	if ( 'post' === $post->post_type && get_option( 'npmp_enable_post_notifications', false ) ) {
 		$meta_key = '_npmp_notify_posts';
@@ -373,6 +377,44 @@ function npmp_maybe_send_post_notification( $new_status, $old_status, $post ) {
 	// editor's Publish click waited on one SMTP round trip per subscriber,
 	// which hangs or times out with a few hundred opted-in contacts.
 	wp_schedule_single_event( time() + 10, 'npmp_async_post_notification', array( $post->ID, $meta_key ) );
+}
+
+/**
+ * Whether a post or event comes from an import rather than someone
+ * publishing it.
+ *
+ * We write imported events straight in as published, outside
+ * npmp_import_run_as_import(), so a site that moved its events over from The
+ * Events Calendar, Events Manager, or another calendar plugin queued one
+ * "New event" email per event for every subscriber who asked for them. We
+ * skip anything inserted while the WordPress importer runs (WP_IMPORTING) for
+ * the same reason. Only the import itself counts: when someone publishes an
+ * imported draft later, we still send the email.
+ *
+ * @param WP_Post $post       The post.
+ * @param string  $old_status Status before this change.
+ * @return bool
+ */
+function npmp_post_notification_is_import( $post, $old_status ) {
+	if ( defined( 'WP_IMPORTING' ) && WP_IMPORTING ) {
+		return true;
+	}
+	if ( 'new' !== $old_status ) {
+		return false;
+	}
+	if ( function_exists( 'npmp_is_importing' ) && npmp_is_importing() ) {
+		return true;
+	}
+	// We write these with the post through meta_input, and WordPress saves
+	// meta_input before it fires the status change: _npmp_import_key for
+	// Events Manager, Sugar Calendar, and the rest, _npmp_tec_source_id for
+	// The Events Calendar.
+	foreach ( array( '_npmp_import_key', '_npmp_tec_source_id' ) as $key ) {
+		if ( '' !== (string) get_post_meta( $post->ID, $key, true ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 add_action( 'npmp_async_post_notification', 'npmp_process_post_notification', 10, 3 );

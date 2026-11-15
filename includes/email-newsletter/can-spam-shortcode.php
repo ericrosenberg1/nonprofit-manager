@@ -198,4 +198,20 @@ if ( ! function_exists( 'npmp_can_spam_get_unsubscribe_url' ) ) {
 	}
 }
 
-add_shortcode( 'npmp_can_spam', 'npmp_can_spam_shortcode' );
+if ( ! function_exists( 'npmp_can_spam_shortcode_tag' ) ) {
+	/**
+	 * The [npmp_can_spam] shortcode: the bare footer, every attribute
+	 * ignored. We used to pass `email` straight through, so anyone who can
+	 * write a post or a newsletter could print the signed unsubscribe link of
+	 * any address with `[npmp_can_spam email="someone@example.org"]` and use
+	 * it. For a send we build each reader's footer with
+	 * npmp_can_spam_shortcode() itself.
+	 *
+	 * @return string
+	 */
+	function npmp_can_spam_shortcode_tag() {
+		return npmp_can_spam_shortcode();
+	}
+}
+
+add_shortcode( 'npmp_can_spam', 'npmp_can_spam_shortcode_tag' );

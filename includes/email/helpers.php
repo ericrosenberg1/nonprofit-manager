@@ -105,6 +105,26 @@ function npmp_email_update_settings( $settings ) {
 }
 
 /**
+ * Clean a password typed on Email Settings without changing it.
+ *
+ * We used sanitize_text_field() here, and it's for text, not secrets. With
+ * it we saved a password typed as "ab%41cd<ef>  gh" as "abcd gh" (percent
+ * escapes and anything shaped like a tag come out, runs of spaces fold into
+ * one), and every send failed to log in. Here we drop only control
+ * characters, line breaks included, so none can reach a mail header, and the
+ * spaces at either end.
+ *
+ * @param mixed $value Unslashed input.
+ * @return string
+ */
+function npmp_email_clean_secret( $value ) {
+	if ( ! is_scalar( $value ) ) {
+		return '';
+	}
+	return trim( (string) preg_replace( '/[\x00-\x1F\x7F]/', '', (string) $value ) );
+}
+
+/**
  * Tracks whether execution is currently inside a Nonprofit Manager-originated
  * wp_mail() call. Backed by a counter rather than a bool so a reentrant
  * wp_mail() call (e.g. a hook fired during a send that itself sends mail)
