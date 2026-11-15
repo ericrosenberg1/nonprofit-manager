@@ -1065,8 +1065,13 @@ function npmp_handle_membership_form() {
 		// one-click link now proves address ownership. The response is
 		// identical whether or not the address is on the list, so this form
 		// can't be used to check who's subscribed.
+		// We cap the requests above per visitor and for the whole site, so
+		// many visitors could still flood one person. We send each address at
+		// most 3 of these an hour, the same as the signup form's emails
+		// (npmp_rate_limit_max, bucket 'unsubscribe_address'). Past the cap we
+		// send nothing and show the visitor the usual answer.
 		$existing = $member_manager->get_member_by_email( $email );
-		if ( $existing && function_exists( 'npmp_get_one_click_unsubscribe_url' ) ) {
+		if ( $existing && function_exists( 'npmp_get_one_click_unsubscribe_url' ) && npmp_rate_limit_allows( 'unsubscribe_address', 3, HOUR_IN_SECONDS, 'address:' . strtolower( trim( $email ) ) ) ) {
 			$confirm_url = npmp_get_one_click_unsubscribe_url( $email );
 			$subject     = __( 'Confirm your unsubscribe request', 'nonprofit-manager' );
 			$body        = sprintf(
