@@ -377,17 +377,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added a search box to the Newsletter Archive, so you can find a newsletter by its title or text.
-- Added sortable Title, Last Sent, Recipients, and Public columns to the Newsletter Archive.
-- Added Newsletter to the + New menu in the admin bar, for everyone who can write newsletters, Membership Managers included.
-- Fixed the newsletter editor and Newsletter Archive, where you saw "All subscribed members" and All Members ticked again after you picked a group.
-- Fixed Duplicate on a group newsletter, where you got a copy with no group.
-- Fixed where you find Event Details in the event editor: in the sidebar, even if you moved the box in an older version.
-- Added an Email Template picker to the event editor, the same one the newsletter editor has.
+- (none)
 
 Pro (licence server changelog):
-- Fixed where you find Scheduled Emails in the event editor: in the sidebar, even if you moved the box in an older version.
-- Added a Body choice to the event's Scheduled Emails box, so you can give one event its own email body and keep the schedule.
+- (none)
 
 ## Releasing: three systems, always in this order
 

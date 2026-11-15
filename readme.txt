@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.12
+Stable tag: 2026.11.13
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,19 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.13 =
+* Fixed the second test email and second pop-up you got each time you sent a test newsletter.
+* Fixed the newsletter editor and Newsletter Archive, where you saw "All subscribed members" and All Members ticked again after you picked a group.
+* Fixed Duplicate on a group newsletter, where you got a copy with no group.
+* Fixed where you find Event Details in the event editor: in the sidebar, even if you moved the box in an older version.
+* Fixed the signup form for current subscribers, so they can join a new group once they confirm by email.
+* Fixed the groups you lost when someone who had unsubscribed signed up again with the form.
+* Fixed the signup form so nobody can change another person's groups or email choices by typing their address.
+* Fixed the signup form message, so you see the same one for every address.
+* Added an Email Template picker to the event editor, like the one in the newsletter editor.
+* Added a search box and sortable Title, Last Sent, Recipients, and Public columns to the Newsletter Archive.
+* Added Newsletter to the + New menu in the admin bar.
 
 = 2026.11.12 =
 * Fixed contacts who unsubscribed coming back as subscribed when you ticked "Update existing contacts" for an import.
@@ -568,6 +581,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.13 =
+Update so nobody can change another person's groups or email choices from your signup form.
 
 = 2026.11.12 =
 Update before your next import with "Update existing contacts" on, so people who unsubscribed stay unsubscribed.
