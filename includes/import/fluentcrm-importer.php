@@ -357,7 +357,7 @@ function npmp_fcrm_extra_fields() {
 	}
 	global $wpdb;
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb->prefix.
-	$defs = maybe_unserialize( (string) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$meta} WHERE object_type = %s AND `key` = %s LIMIT 1", 'option', 'contact_custom_fields' ) ) );
+	$defs = npmp_mailpoet_parse_setting( (string) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$meta} WHERE object_type = %s AND `key` = %s LIMIT 1", 'option', 'contact_custom_fields' ) ) );
 	foreach ( is_array( $defs ) ? array_slice( $defs, 0, 200 ) : array() as $field ) {
 		if ( ! is_array( $field ) || empty( $field['slug'] ) ) {
 			continue;
@@ -365,7 +365,7 @@ function npmp_fcrm_extra_fields() {
 		$slug    = (string) $field['slug'];
 		$samples = array();
 		foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT value FROM {$values} WHERE object_type = %s AND `key` = %s AND value <> '' ORDER BY subscriber_id ASC LIMIT %d", 'custom_field', $slug, 3 ) ) as $raw ) {
-			$value     = maybe_unserialize( $raw );
+			$value     = npmp_mailpoet_parse_setting( (string) $raw );
 			$samples[] = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
 		}
 		$label                       = trim( wp_strip_all_tags( (string) ( $field['label'] ?? $slug ) ) );
@@ -421,7 +421,7 @@ function npmp_fcrm_extra_values( $subscriber_id, array $keys ) {
 		$values = array();
 		foreach ( (array) $rows as $row ) {
 			if ( isset( $slugs[ $row->slug ] ) ) {
-				$value = maybe_unserialize( (string) $row->value );
+				$value = npmp_mailpoet_parse_setting( (string) $row->value );
 				$values[ (int) $row->subscriber_id ][ $slugs[ $row->slug ] ] = is_array( $value ) ? array_values( array_map( 'strval', $value ) ) : (string) $value;
 			}
 		}
@@ -973,12 +973,18 @@ function npmp_fcrm_render_page() {
 	echo '</ul>';
 
 	if ( function_exists( 'npmp_is_pro' ) && ! npmp_is_pro() && function_exists( 'npmp_import_free_remaining' ) ) {
+		$places_left = npmp_import_free_remaining();
 		echo '<p>' . esc_html(
 			sprintf(
 				/* translators: 1: free total of new contacts, 2: places left. */
-				__( 'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A FluentCRM contact who\'s already your contact doesn\'t use a place.', 'nonprofit-manager' ),
+				_n(
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s place left. A FluentCRM contact who\'s already your contact doesn\'t use a place.',
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A FluentCRM contact who\'s already your contact doesn\'t use a place.',
+					(int) $places_left,
+					'nonprofit-manager'
+				),
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
-				number_format_i18n( npmp_import_free_remaining() )
+				number_format_i18n( $places_left )
 			)
 		) . '</p>';
 	}

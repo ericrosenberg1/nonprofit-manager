@@ -30,6 +30,29 @@ class NPMP_Import_Manager {
 	private static $importing = false;
 
 	/**
+	 * Most columns an XLSX sheet can have (Excel's column XFD).
+	 */
+	const XLSX_MAX_COLUMNS = 16384;
+
+	/**
+	 * Whether a file row has no value in any cell.
+	 *
+	 * @param mixed $row Row as parsed.
+	 * @return bool
+	 */
+	public static function row_is_blank( $row ) {
+		if ( ! is_array( $row ) ) {
+			return true;
+		}
+		foreach ( $row as $cell ) {
+			if ( '' !== trim( (string) $cell ) ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Whether an imported row is being written right now.
 	 *
 	 * @return bool
@@ -631,6 +654,13 @@ class NPMP_Import_Manager {
 
 		$records = array();
 		foreach ( $rows_to_do as $row_number => $row ) {
+			// A blank line (or a row of empty cells a spreadsheet leaves at the
+			// end) holds no contact. It used to come back as an
+			// "Invalid email format" error.
+			if ( self::row_is_blank( $row ) ) {
+				unset( $rows_to_do[ $row_number ] );
+				continue;
+			}
 			$records[ $row_number ] = $this->map_indexed_row( $row, $mapping );
 		}
 		// One lookup for the batch instead of two meta scans per row.
@@ -866,7 +896,14 @@ class NPMP_Import_Manager {
 		while ( ( $row = fgetcsv( $handle, 0, ',', '"', '\\' ) ) !== false ) {
 			// $total doubles as the 0-based physical row index during the loop.
 			if ( $total >= $skip && ( null === $keep_limit || count( $rows ) < $keep_limit ) ) {
-				$rows[] = array_map( 'trim', $row );
+				// fgetcsv() hands back array( null ) for a blank line, and trim()
+				// on null is deprecated from PHP 8.1.
+				$rows[] = array_map(
+					static function ( $cell ) {
+						return trim( (string) $cell );
+					},
+					$row
+				);
 			}
 			$total++;
 		}
@@ -991,6 +1028,13 @@ class NPMP_Import_Manager {
 				$cell_ref = (string) $cell['r']; // e.g. "B3"
 				$col_idx  = ( '' !== $cell_ref ) ? $this->xlsx_col_index( $cell_ref ) : $col_cursor;
 				$type     = isset( $cell['t'] ) ? (string) $cell['t'] : '';
+
+				// Excel stops at column XFD (16,384 columns). A reference past it
+				// ("ZZZZZZ1") made the gap filler below build an array of
+				// hundreds of millions of cells and run the site out of memory.
+				if ( $col_idx >= self::XLSX_MAX_COLUMNS ) {
+					continue;
+				}
 
 				if ( 's' === $type ) {
 					// Shared string reference.

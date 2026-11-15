@@ -96,8 +96,11 @@ function npmp_cc_get_contacts( $access_token, $list_id, $cursor = null ) {
 		$url
 	);
 
-	if ( ! empty( $cursor ) ) {
-		$url = add_query_arg( 'cursor', $cursor, $url );
+	if ( ! empty( $cursor ) && is_string( $cursor ) ) {
+		// add_query_arg() leaves values as they are, and the cursor came out of
+		// parse_str() decoded, so a "+" or "=" in it has to be encoded again or
+		// the next page request asks for the wrong page.
+		$url = add_query_arg( 'cursor', rawurlencode( $cursor ), $url );
 	}
 
 	$response = wp_remote_get(

@@ -1237,7 +1237,7 @@ function npmp_import_render_page() {
 				<!-- CSV / XLSX upload -->
 				<div class="npmp-source-panel" data-source="csv xlsx">
 					<p><label for="npmp-import-file"><strong><?php esc_html_e( 'Select your file:', 'nonprofit-manager' ); ?></strong></label></p>
-					<input type="file" id="npmp-import-file" accept=".csv,.xlsx,.xls">
+					<input type="file" id="npmp-import-file" accept=".csv,.xlsx">
 				</div>
 
 				<!-- Google Sheets URL -->
@@ -1309,7 +1309,7 @@ function npmp_import_render_page() {
 					<p>
 						<label for="npmp-brevo-api-key"><strong><?php esc_html_e( 'Brevo API key', 'nonprofit-manager' ); ?></strong></label><br>
 						<span class="description">
-							<?php esc_html_e( 'In Brevo, open your name in the top corner, then SMTP & API, then API keys, and make a key for this import. We send the key to Brevo for this import only and never save the key. Delete the key in Brevo once you finish.', 'nonprofit-manager' ); ?>
+							<?php esc_html_e( 'In Brevo, open your name in the top corner, then SMTP & API, then API keys, and make a key for this import. We send the key only to Brevo, and only for this import. While the import runs, your site keeps the key locked, so your database alone never holds it. Delete the key in Brevo once you finish.', 'nonprofit-manager' ); ?>
 						</span>
 					</p>
 					<input type="password" id="npmp-brevo-api-key" class="regular-text" placeholder="xkeysib-..." autocomplete="off" spellcheck="false" style="width:100%;max-width:400px;">
@@ -1658,7 +1658,7 @@ function npmp_import_render_scripts( $field_labels ) {
 			// CSV and XLSX share the file-upload panel.
 			if (val === 'csv' || val === 'xlsx') {
 				$('.npmp-source-panel[data-source="csv xlsx"]').show();
-				var accept = val === 'xlsx' ? '.xlsx,.xls' : '.csv';
+				var accept = val === 'xlsx' ? '.xlsx' : '.csv';
 				$('#npmp-import-file').attr('accept', accept);
 			} else {
 				$('.npmp-source-panel[data-source="' + val + '"]').show();

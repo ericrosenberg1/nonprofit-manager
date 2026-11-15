@@ -188,6 +188,24 @@ function npmp_past_gift_donor( $email, $name, $source, array $extra = array() ) 
 }
 
 /**
+ * The Unix time of a past gift's UTC date, or false when it has none.
+ *
+ * strtotime( ' UTC' ) is the current time, so a gift with an empty date was
+ * recorded as given today, and a zero date ("0000-00-00 00:00:00") as year -1.
+ *
+ * @param mixed $date_gmt Y-m-d H:i:s in UTC.
+ * @return int|false
+ */
+function npmp_past_gift_stamp( $date_gmt ) {
+	$date_gmt = trim( is_scalar( $date_gmt ) ? (string) $date_gmt : '' );
+	if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}/', $date_gmt ) || 0 === strpos( $date_gmt, '0000' ) ) {
+		return false;
+	}
+	$stamp = strtotime( $date_gmt . ' UTC' );
+	return ( false === $stamp || $stamp <= 0 ) ? false : $stamp;
+}
+
+/**
  * Record one past gift, or skip it when you brought it over before.
  *
  * @param array $gift {
@@ -213,8 +231,7 @@ function npmp_past_gift_record( array $gift ) {
 	$email    = sanitize_email( (string) ( $gift['email'] ?? '' ) );
 	$amount   = npmp_past_gift_amount( $gift['amount'] ?? 0 );
 	$currency = npmp_normalize_currency_code( $gift['currency'] ?? '' );
-	$date_gmt = (string) ( $gift['date_gmt'] ?? '' );
-	$stamp    = strtotime( $date_gmt . ' UTC' );
+	$stamp    = npmp_past_gift_stamp( $gift['date_gmt'] ?? '' );
 	if ( '' === $email || $amount <= 0 || '' === $currency || false === $stamp ) {
 		return 'invalid';
 	}

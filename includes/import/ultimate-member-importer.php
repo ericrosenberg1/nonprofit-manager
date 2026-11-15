@@ -885,6 +885,28 @@ function npmp_um_profile_fields_supported() {
  * @return array State after the run.
  */
 function npmp_um_run( $seconds = NPMP_UM_SECONDS, $limit = NPMP_UM_BATCH ) {
+	// One run at a time, like every other importer. Two tabs, or a reload
+	// while a batch was still running, read the same members and could make
+	// a contact twice.
+	if ( ! npmp_mail_queue_lock( 'import_ultimate_member', 120 ) ) {
+		return npmp_um_state();
+	}
+	try {
+		return npmp_um_run_locked( $seconds, $limit );
+	} finally {
+		npmp_mail_queue_unlock( 'import_ultimate_member' );
+	}
+}
+
+/**
+ * The body of npmp_um_run(), run while holding its lock.
+ *
+ * @see npmp_um_run()
+ * @param int $seconds Time budget.
+ * @param int $limit   People per batch.
+ * @return array State after the run.
+ */
+function npmp_um_run_locked( $seconds = NPMP_UM_SECONDS, $limit = NPMP_UM_BATCH ) {
 	$state = npmp_um_state();
 	if ( ! $state['running'] || ! class_exists( 'NPMP_Member_Manager' ) ) {
 		return $state;
@@ -1536,12 +1558,18 @@ function npmp_um_render_approve( array $state ) {
 	echo '</ul>';
 
 	if ( function_exists( 'npmp_is_pro' ) && ! npmp_is_pro() && function_exists( 'npmp_import_free_remaining' ) ) {
+		$places_left = npmp_import_free_remaining();
 		echo '<p>' . esc_html(
 			sprintf(
 				/* translators: 1: free total of new contacts, 2: places left. */
-				__( 'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A member who\'s already a contact doesn\'t use a place.', 'nonprofit-manager' ),
+				_n(
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s place left. A member who\'s already a contact doesn\'t use a place.',
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A member who\'s already a contact doesn\'t use a place.',
+					(int) $places_left,
+					'nonprofit-manager'
+				),
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
-				number_format_i18n( npmp_import_free_remaining() )
+				number_format_i18n( $places_left )
 			)
 		) . '</p>';
 	}

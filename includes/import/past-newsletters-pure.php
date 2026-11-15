@@ -301,6 +301,23 @@ function npmp_past_nl_is_web_url( $url ) {
 }
 
 /**
+ * Whether a link or image address uses a scheme that runs code or reads
+ * local data (javascript:, vbscript:, data:, file:).
+ *
+ * Browsers ignore control characters and spaces in a scheme, and libxml
+ * drops C0 control characters when it writes the page back out, so
+ * "\x01javascript:" became "javascript:" after the check had passed. The
+ * test strips them first.
+ *
+ * @param string $url Address as it sits in the attribute.
+ * @return bool
+ */
+function npmp_past_nl_unsafe_scheme( $url ) {
+	$bare = preg_replace( '/[\x00-\x20\x7f]+/', '', (string) $url );
+	return (bool) preg_match( '/^(javascript|vbscript|data|file):/i', (string) $bare );
+}
+
+/**
  * What to do with one link (href) from an old newsletter.
  *
  * @param string $url URL as it sits in the attribute.
@@ -321,7 +338,7 @@ function npmp_past_nl_classify_link( $url, array $ctx = array() ) {
 	if ( '' === $raw || '#' === $raw[0] ) {
 		return $out( 'keep', $raw );
 	}
-	if ( preg_match( '/^\s*(javascript|vbscript|data|file):/i', $raw ) ) {
+	if ( npmp_past_nl_unsafe_scheme( $raw ) ) {
 		return $out( 'unwrap' );
 	}
 
@@ -704,7 +721,7 @@ function npmp_past_nl_sanitize( $html, array $ctx = array() ) {
 					}
 					continue;
 				}
-				if ( preg_match( '/^\s*(javascript|vbscript|data|file):/i', $src ) || '' === $src ) {
+				if ( npmp_past_nl_unsafe_scheme( $src ) || '' === $src ) {
 					$node->removeChild( $child );
 					continue;
 				}
@@ -735,7 +752,7 @@ function npmp_past_nl_sanitize( $html, array $ctx = array() ) {
 				} elseif ( 'target' === $lower ) {
 					$child->setAttribute( $name, '_blank' );
 				} elseif ( 'href' === $lower || 'src' === $lower ) {
-					if ( preg_match( '/^\s*(javascript|vbscript|data|file):/i', $child->getAttribute( $name ) ) ) {
+					if ( npmp_past_nl_unsafe_scheme( $child->getAttribute( $name ) ) ) {
 						$child->removeAttribute( $name );
 					}
 				}

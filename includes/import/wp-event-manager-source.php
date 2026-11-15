@@ -273,7 +273,7 @@ function npmp_wpem_register_event_source( $sources ) {
 		'leaves'   => array(
 			__( 'Organizers, event types, ticket prices, and registration links and emails.', 'nonprofit-manager' ),
 			__( 'Health guidelines and event videos. You get online events with no location line, since WP Event Manager has no link field for an online event.', 'nonprofit-manager' ),
-			__( 'Settings with no match here: the list or box layout, date formats, and hiding expired or cancelled events.', 'nonprofit-manager' ),
+			__( 'Settings with no match here: the list or box layout, date formats, and hiding expired or canceled events.', 'nonprofit-manager' ),
 		),
 		'warning'  => __( 'If you sell tickets or take registrations with WP Event Manager\'s paid add-ons or WooCommerce, export those orders and attendees before you delete WP Event Manager\'s data. We can\'t copy orders or attendees.', 'nonprofit-manager' ),
 	);

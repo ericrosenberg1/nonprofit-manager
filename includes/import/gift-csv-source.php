@@ -588,12 +588,18 @@ function npmp_gift_csv_render_styles() {
  */
 function npmp_gift_csv_render_free_line() {
 	if ( function_exists( 'npmp_is_pro' ) && ! npmp_is_pro() && function_exists( 'npmp_import_free_remaining' ) && function_exists( 'npmp_import_is_capped' ) && npmp_import_is_capped() ) {
+		$places_left = npmp_import_free_remaining();
 		echo '<p>' . esc_html(
 			sprintf(
 				/* translators: 1: free total of new contacts, 2: places left. */
-				__( 'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A donor who\'s already a contact doesn\'t use a place. We leave out any donor past the limit, with every one of their gifts, and you can bring those donors in by running the import again with Pro.', 'nonprofit-manager' ),
+				_n(
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s place left. A donor who\'s already a contact doesn\'t use a place. We leave out any donor past the limit, with every one of their gifts, and you can bring those donors in by running the import again with Pro.',
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A donor who\'s already a contact doesn\'t use a place. We leave out any donor past the limit, with every one of their gifts, and you can bring those donors in by running the import again with Pro.',
+					(int) $places_left,
+					'nonprofit-manager'
+				),
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
-				number_format_i18n( npmp_import_free_remaining() )
+				number_format_i18n( $places_left )
 			)
 		) . '</p>';
 	}
@@ -638,7 +644,7 @@ function npmp_gift_csv_render_upload() {
 	echo '<li>' . esc_html__( 'Donorbox: open Donations, click Export, and pick all columns.', 'nonprofit-manager' ) . '</li>';
 	echo '<li>' . esc_html__( 'A spreadsheet: save it as CSV with a header row and one gift on each row.', 'nonprofit-manager' ) . '</li>';
 	echo '</ul>';
-	echo '<p>' . esc_html__( 'We recognise Givebutter and Zeffy exports and match their columns for you. For any other file, you match the columns on the next step.', 'nonprofit-manager' ) . '</p>';
+	echo '<p>' . esc_html__( 'We recognize Givebutter and Zeffy exports and match their columns for you. For any other file, you match the columns on the next step.', 'nonprofit-manager' ) . '</p>';
 
 	npmp_gift_csv_render_scope();
 	npmp_gift_csv_render_free_line();

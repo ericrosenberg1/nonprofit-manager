@@ -1099,12 +1099,18 @@ function npmp_pmpro_render_page() {
 	echo '</ul>';
 
 	if ( function_exists( 'npmp_is_pro' ) && ! npmp_is_pro() && function_exists( 'npmp_import_free_remaining' ) ) {
+		$places_left = npmp_import_free_remaining();
 		echo '<p>' . esc_html(
 			sprintf(
 				/* translators: 1: free total of new contacts, 2: places left. */
-				__( 'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A member who\'s already a contact doesn\'t use a place.', 'nonprofit-manager' ),
+				_n(
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s place left. A member who\'s already a contact doesn\'t use a place.',
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A member who\'s already a contact doesn\'t use a place.',
+					(int) $places_left,
+					'nonprofit-manager'
+				),
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
-				number_format_i18n( npmp_import_free_remaining() )
+				number_format_i18n( $places_left )
 			)
 		) . '</p>';
 	}

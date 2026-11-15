@@ -118,7 +118,7 @@ function npmp_mailpoet_extra_fields() {
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names from $wpdb->prefix.
 	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, name, type, params FROM {$fields} WHERE deleted_at IS NULL ORDER BY id ASC LIMIT %d", 200 ) );
 	foreach ( (array) $rows as $row ) {
-		$params  = maybe_unserialize( (string) $row->params );
+		$params  = npmp_mailpoet_parse_setting( (string) $row->params );
 		$params  = is_array( $params ) ? $params : array();
 		$shape   = npmp_mailpoet_extra_field_shape( (string) $row->type, $params );
 		$samples = $wpdb->get_col( $wpdb->prepare( "SELECT value FROM {$values} WHERE custom_field_id = %d AND value <> '' ORDER BY subscriber_id ASC LIMIT %d", (int) $row->id, 3 ) );

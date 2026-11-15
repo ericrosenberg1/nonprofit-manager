@@ -141,7 +141,7 @@ function npmp_gift_import_donor( $slug, array $donor, array &$results ) {
 		} else {
 			++$results['gifts_invalid'];
 		}
-		$ts = (int) strtotime( (string) ( $gift['date_gmt'] ?? '' ) . ' UTC' );
+		$ts = (int) npmp_past_gift_stamp( $gift['date_gmt'] ?? '' );
 		if ( $ts >= $latest_ts ) {
 			$latest_ts      = $ts;
 			$latest_gateway = (string) ( $gift['gateway'] ?? '' );
@@ -297,10 +297,14 @@ function npmp_gift_hub_source( $slug, $name, array $folders, $installed, array $
 		'import_summary'    => function () use ( $slug ) {
 			$n = npmp_gift_import_imported_counts( $slug );
 			return sprintf(
-				/* translators: 1: number of gifts, 2: number of donors. */
-				__( 'You have %1$s gifts here from %2$s donors.', 'nonprofit-manager' ),
+				/* translators: 1: number of gifts, 2: a number of donors, such as "3 donors". */
+				_n( 'You have %1$s gift here from %2$s.', 'You have %1$s gifts here from %2$s.', (int) $n['gifts'], 'nonprofit-manager' ),
 				number_format_i18n( $n['gifts'] ),
-				number_format_i18n( $n['donors'] )
+				sprintf(
+					/* translators: %s: number of donors. */
+					_n( '%s donor', '%s donors', (int) $n['donors'], 'nonprofit-manager' ),
+					number_format_i18n( $n['donors'] )
+				)
 			);
 		},
 		'counts'            => function () use ( $slug ) {
@@ -510,7 +514,12 @@ function npmp_gift_import_render_page() {
 		echo '<p>' . esc_html(
 			sprintf(
 				/* translators: 1: free total of new contacts, 2: places left. */
-				__( 'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A donor who\'s already a contact doesn\'t use a place. A donor past the limit stays in the old plugin with every one of their gifts.', 'nonprofit-manager' ),
+				_n(
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s place left. A donor who\'s already a contact doesn\'t use a place. A donor past the limit stays in the old plugin with every one of their gifts.',
+					'With the free plugin, you can add up to %1$s new contacts through imports, and you have %2$s places left. A donor who\'s already a contact doesn\'t use a place. A donor past the limit stays in the old plugin with every one of their gifts.',
+					(int) $left,
+					'nonprofit-manager'
+				),
 				number_format_i18n( NPMP_IMPORT_FREE_MAX_ROWS ),
 				number_format_i18n( $left )
 			)
@@ -564,7 +573,12 @@ function npmp_gift_import_render_results( array $r ) {
 	if ( $r['over_limit'] ) {
 		$lines[] = sprintf(
 			/* translators: 1: number of donors, 2: number of gifts. */
-			__( 'Donors past the free limit: %1$s, with %2$s gifts. Pro brings them over.', 'nonprofit-manager' ),
+			_n(
+				'Donors past the free limit: %1$s, with %2$s gift. Pro brings them over.',
+				'Donors past the free limit: %1$s, with %2$s gifts. Pro brings them over.',
+				(int) $r['over_limit_gifts'],
+				'nonprofit-manager'
+			),
 			number_format_i18n( $r['over_limit'] ),
 			number_format_i18n( $r['over_limit_gifts'] )
 		);

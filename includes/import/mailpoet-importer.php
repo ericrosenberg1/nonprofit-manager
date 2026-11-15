@@ -2262,7 +2262,12 @@ function npmp_mailpoet_render_approve( array $stage ) {
 	if ( $new > $places ) {
 		$note = sprintf(
 			/* translators: 1: free import total, such as 100, 2: places left, 3: new contacts that stay behind, 4: number of new contacts. */
-			__( 'In the free version you can import %1$s contacts in total, and you have %2$s places left, so %3$s of the %4$s new contacts here stay in MailPoet. You can still update contacts you already have.', 'nonprofit-manager' ),
+			_n(
+				'In the free version you can import %1$s contacts in total, and you have %2$s place left, so %3$s of the %4$s new contacts here stay in MailPoet. You can still update contacts you already have.',
+				'In the free version you can import %1$s contacts in total, and you have %2$s places left, so %3$s of the %4$s new contacts here stay in MailPoet. You can still update contacts you already have.',
+				(int) $places,
+				'nonprofit-manager'
+			),
 			number_format_i18n( $total ),
 			number_format_i18n( $places ),
 			number_format_i18n( $new - $places ),
