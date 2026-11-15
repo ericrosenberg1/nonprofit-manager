@@ -55,9 +55,13 @@ if ( ! is_wp_error( $att ) ) {
 }
 
 echo "Default shortcode (an unsaved site)\n";
+// Pete (plord12), 2026-11-15: past="true" listed the future Meeting D too.
 $html = do_shortcode( '[npmp_events past="true" category="meetings" limit="-1"]' );
 preg_match_all( '#npmp-event-title"><a [^>]*>([^<]+)#', $html, $m );
-$ok( 'archive lists newest first: D, C, B, A', array( 'Meeting D', 'Meeting C', 'Meeting B', 'Meeting A' ) === $m[1] );
+$ok( 'past="true" lists only past events, newest first: C, B, A', array( 'Meeting C', 'Meeting B', 'Meeting A' ) === $m[1] );
+$html = do_shortcode( '[npmp_events past="all" category="meetings" limit="-1"]' );
+preg_match_all( '#npmp-event-title"><a [^>]*>([^<]+)#', $html, $m );
+$ok( 'past="all" lists everything newest first: D, C, B, A', array( 'Meeting D', 'Meeting C', 'Meeting B', 'Meeting A' ) === $m[1] );
 $ok( 'plain list layout', false !== strpos( $html, 'npmp-events--list' ) );
 $ok( 'no image markup by default', false === strpos( $html, 'npmp-event-media' ) );
 $ok( 'manual excerpt used for B', false !== strpos( $html, 'A written summary for B.' ) );
@@ -70,27 +74,27 @@ echo "Upcoming list stays soonest first\n";
 $html = do_shortcode( '[npmp_events category="meetings"]' );
 preg_match_all( '#npmp-event-title"><a [^>]*>([^<]+)#', $html, $m );
 $ok( 'only the future event, no past ones', array( 'Meeting D' ) === $m[1] );
-$html = do_shortcode( '[npmp_events past="true" order="asc" category="meetings"]' );
+$html = do_shortcode( '[npmp_events past="all" order="asc" category="meetings"]' );
 preg_match_all( '#npmp-event-title"><a [^>]*>([^<]+)#', $html, $m );
 $ok( 'order="asc" overrides the archive default', 'Meeting A' === $m[1][0] );
 
 echo "Layouts, images, tiles\n";
-$html = do_shortcode( '[npmp_events past="true" layout="grid" columns="4" image="yes" readmore="yes" category="meetings"]' );
+$html = do_shortcode( '[npmp_events past="all" layout="grid" columns="4" image="yes" readmore="yes" category="meetings"]' );
 $ok( 'grid root class', false !== strpos( $html, 'npmp-events--grid npmp-events--cols-4 npmp-events--with-image' ) );
 $ok( 'featured image on B', 1 === preg_match( '#npmp-event--has-image.*?npmp-event-image#s', $html ) );
 $ok( 'date tile on the others', substr_count( $html, 'npmp-event-media-fallback' ) === 3 );
 $ok( 'read more link has screen reader title', false !== strpos( $html, 'screen-reader-text"> Meeting A' ) );
 foreach ( array( 'cards', 'mosaic' ) as $layout ) {
-	$html = do_shortcode( '[npmp_events past="true" layout="' . $layout . '" category="meetings"]' );
+	$html = do_shortcode( '[npmp_events past="all" layout="' . $layout . '" category="meetings"]' );
 	$ok( $layout . ' renders four events', 4 === substr_count( $html, '<article' ) );
 }
 
 echo "Saved settings drive the shortcode\n";
 update_option( 'npmp_events_loop', array( 'layout' => 'cards', 'columns' => 2, 'image' => 1, 'excerpt' => 0, 'location' => 0 ) );
-$html = do_shortcode( '[npmp_events past="true" category="meetings"]' );
+$html = do_shortcode( '[npmp_events past="all" category="meetings"]' );
 $ok( 'saved layout applies', false !== strpos( $html, 'npmp-events--cards npmp-events--cols-2' ) );
 $ok( 'saved excerpt off applies', false === strpos( $html, 'npmp-event-excerpt' ) );
-$html = do_shortcode( '[npmp_events past="true" excerpt="yes" layout="list" category="meetings"]' );
+$html = do_shortcode( '[npmp_events past="all" excerpt="yes" layout="list" category="meetings"]' );
 $ok( 'shortcode attribute beats saved setting', false !== strpos( $html, 'npmp-event-excerpt' ) && false !== strpos( $html, 'npmp-events--list' ) );
 
 echo "Calendar list view stays a plain list in date order\n";

@@ -357,6 +357,28 @@ function npmp_events_archive_excerpt( $excerpt, $post = null ) {
 add_filter( 'get_the_excerpt', 'npmp_events_archive_excerpt', 11, 2 );
 
 /**
+ * Which events a list shows, from its `past` attribute.
+ *
+ * `past="true"` lists only events that already started (an archive page),
+ * `past="all"` lists past and upcoming together (the Events block's "Include
+ * past events" toggle and the calendar's list view setting), and anything
+ * else lists upcoming events. Before 2026.11.15 `past="true"` meant "all".
+ *
+ * @param mixed $value The `past` attribute.
+ * @return string 'upcoming', 'past' or 'all'.
+ */
+function npmp_events_loop_past_mode( $value ) {
+	$value = strtolower( trim( (string) $value ) );
+	if ( in_array( $value, array( 'true', '1', 'yes', 'only' ), true ) ) {
+		return 'past';
+	}
+	if ( in_array( $value, array( 'all', 'include', 'both' ), true ) ) {
+		return 'all';
+	}
+	return 'upcoming';
+}
+
+/**
  * Query arguments for the loop.
  *
  * @param array $atts     Normalised attributes (category, limit, past).
@@ -367,7 +389,8 @@ add_filter( 'get_the_excerpt', 'npmp_events_archive_excerpt', 11, 2 );
  * @return array
  */
 function npmp_events_loop_query_args( $atts, $settings, $context = array() ) {
-	$past = 'true' === strtolower( (string) $atts['past'] );
+	$mode = npmp_events_loop_past_mode( $atts['past'] ?? 'false' );
+	$past = 'upcoming' !== $mode;
 
 	$args = array(
 		'post_type'      => 'npmp_event',
@@ -381,13 +404,13 @@ function npmp_events_loop_query_args( $atts, $settings, $context = array() ) {
 		'post_status'    => 'publish',
 	);
 
-	if ( ! $past ) {
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Upcoming event filtering requires meta comparisons.
+	if ( 'all' !== $mode ) {
+		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Upcoming and past filtering requires meta comparisons.
 		$args['meta_query'] = array(
 			array(
 				'key'     => '_npmp_event_start',
 				'value'   => current_time( 'mysql' ),
-				'compare' => '>=',
+				'compare' => 'past' === $mode ? '<' : '>=',
 				'type'    => 'DATETIME',
 			),
 		);
@@ -634,9 +657,14 @@ function npmp_events_loop_render( $atts, $for_block = false, $embedded = false, 
 
 	$print = '';
 	if ( $has_print ) {
-		$past   = 'true' === strtolower( (string) ( $atts['past'] ?? 'false' ) );
+		$mode   = npmp_events_loop_past_mode( $atts['past'] ?? 'false' );
+		$titles = array(
+			'upcoming' => __( 'Upcoming events', 'nonprofit-manager' ),
+			'past'     => __( 'Past events', 'nonprofit-manager' ),
+			'all'      => __( 'Events', 'nonprofit-manager' ),
+		);
 		$print .= npmp_calendar_print_header_html(
-			$past ? __( 'Events', 'nonprofit-manager' ) : __( 'Upcoming events', 'nonprofit-manager' ),
+			$titles[ $mode ],
 			npmp_calendar_print_range_label( $first_start, $last_start ),
 			array(
 				'source'   => 'events',

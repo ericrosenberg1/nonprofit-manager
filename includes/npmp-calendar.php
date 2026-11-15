@@ -61,6 +61,16 @@ function npmp_register_events_admin_menu() {
 		'post-new.php?post_type=npmp_event'
 	);
 
+	// The events post type sits outside core's menu, so core never links its
+	// category screen. Without this the categories on All Events had no screen.
+	add_submenu_page(
+		'npmp-events',
+		__( 'Event Categories', 'nonprofit-manager' ),
+		__( 'Categories', 'nonprofit-manager' ),
+		'manage_categories',
+		'edit-tags.php?taxonomy=npmp_event_category&post_type=npmp_event'
+	);
+
 	add_submenu_page(
 		'npmp-events',
 		__( 'Calendar Settings', 'nonprofit-manager' ),
@@ -139,6 +149,52 @@ function npmp_register_event_taxonomy() {
 	);
 
 	register_taxonomy( 'npmp_event_category', array( 'npmp_event' ), $args );
+}
+
+/**
+ * Extra columns on the Events Overview tables, after Event, When, and Location.
+ *
+ * @return array Column key => label.
+ */
+function npmp_events_overview_extra_columns() {
+	/**
+	 * Filter the extra columns on the Events Overview's Upcoming and Recent
+	 * Past tables. Pro adds `'groups' => 'Groups'`. Print each cell on
+	 * `npmp_events_overview_cell`.
+	 *
+	 * @param array $columns Column key => label.
+	 */
+	$columns = apply_filters( 'npmp_events_overview_columns', array() );
+	$clean   = array();
+	foreach ( is_array( $columns ) ? $columns : array() as $key => $label ) {
+		$key = sanitize_key( (string) $key );
+		if ( '' !== $key && is_scalar( $label ) && ! in_array( $key, array( 'event', 'when', 'location' ), true ) ) {
+			$clean[ $key ] = (string) $label;
+		}
+	}
+	return $clean;
+}
+
+/**
+ * Print one row's extra Events Overview cells.
+ *
+ * @param array $columns  Column key => label, from npmp_events_overview_extra_columns().
+ * @param int   $event_id Event post ID.
+ * @return void
+ */
+function npmp_events_overview_extra_cells( $columns, $event_id ) {
+	foreach ( array_keys( $columns ) as $key ) {
+		ob_start();
+		/**
+		 * Print the inner HTML of one extra Events Overview cell, escaped.
+		 *
+		 * @param string $key      Column key from npmp_events_overview_columns.
+		 * @param int    $event_id Event post ID.
+		 */
+		do_action( 'npmp_events_overview_cell', $key, (int) $event_id );
+		$html = trim( (string) ob_get_clean() );
+		echo '<td>' . ( '' === $html ? '&mdash;' : $html ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each cell's callback escapes its own output.
+	}
 }
 
 /**
@@ -228,6 +284,8 @@ function npmp_render_events_dashboard() {
 	/** This action is documented in includes/npmp-pro-feature-pages.php. */
 	do_action( 'npmp_admin_table_toolbar', 'events', array( 'view' => 'overview' ) );
 
+	$extra_columns = npmp_events_overview_extra_columns();
+
 	// Upcoming Events Card
 	echo '<div class="card npmp-events-card">';
 	echo '<h2 class="title">' . esc_html__( 'Upcoming Events', 'nonprofit-manager' ) . '</h2>';
@@ -238,6 +296,9 @@ function npmp_render_events_dashboard() {
 		echo '<th scope="col">' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
+		foreach ( $extra_columns as $column_label ) {
+			echo '<th scope="col">' . esc_html( $column_label ) . '</th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		while ( $upcoming_query->have_posts() ) {
@@ -251,8 +312,7 @@ function npmp_render_events_dashboard() {
 			echo '<td><a href="' . esc_url( get_edit_post_link() ) . '">' . esc_html( get_the_title() ) . '</a></td>';
 			echo '<td>' . wp_kses_post( npmp_format_event_datetime( $details ) ) . '</td>';
 			echo '<td>' . esc_html( $location ? $location : '—' ) . '</td>';
-
-
+			npmp_events_overview_extra_cells( $extra_columns, get_the_ID() );
 			echo '</tr>';
 		}
 		echo '</tbody></table>';
@@ -272,6 +332,9 @@ function npmp_render_events_dashboard() {
 		echo '<th scope="col">' . esc_html__( 'Event', 'nonprofit-manager' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'When', 'nonprofit-manager' ) . '</th>';
 		echo '<th scope="col">' . esc_html__( 'Location', 'nonprofit-manager' ) . '</th>';
+		foreach ( $extra_columns as $column_label ) {
+			echo '<th scope="col">' . esc_html( $column_label ) . '</th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		while ( $past_query->have_posts() ) {
@@ -285,8 +348,7 @@ function npmp_render_events_dashboard() {
 			echo '<td><a href="' . esc_url( get_edit_post_link() ) . '">' . esc_html( get_the_title() ) . '</a></td>';
 			echo '<td>' . wp_kses_post( npmp_format_event_datetime( $details ) ) . '</td>';
 			echo '<td>' . esc_html( $location ? $location : '—' ) . '</td>';
-
-
+			npmp_events_overview_extra_cells( $extra_columns, get_the_ID() );
 			echo '</tr>';
 		}
 		echo '</tbody></table>';
@@ -1267,7 +1329,8 @@ function npmp_calendar_render_list_view( $category, $context = array() ) {
 	if ( $limit < 1 ) {
 		$limit = 10;
 	}
-	$past = get_option( 'npmp_calendar_list_show_past', 0 ) ? 'true' : 'false';
+	// "Include past events in the list view": past and upcoming together.
+	$past = get_option( 'npmp_calendar_list_show_past', 0 ) ? 'all' : 'false';
 
 	// Attributes an add-on registered on the calendar (Pro's group) pass on to
 	// the list when the events loop accepts them too.
@@ -1863,6 +1926,11 @@ function npmp_render_event_settings_page() {
 	echo '</tr>';
 
 	echo '<tr>';
+	echo '<td><code>[npmp_events past="all"]</code></td>';
+	echo '<td>' . esc_html__( 'Lists past and upcoming events together, newest first.', 'nonprofit-manager' ) . '</td>';
+	echo '</tr>';
+
+	echo '<tr>';
 	echo '<td><code>[npmp_events category="fundraisers"]</code></td>';
 	echo '<td>' . esc_html__( 'Filter events by category slug (replace "fundraisers" with your category).', 'nonprofit-manager' ) . '</td>';
 	echo '</tr>';
@@ -1908,6 +1976,10 @@ add_filter( 'parent_file', 'npmp_events_parent_menu' );
 function npmp_events_submenu_highlight( $submenu_file ) {
 	global $plugin_page;
 	$screen = get_current_screen();
+
+	if ( $screen && 'npmp_event_category' === $screen->taxonomy ) {
+		return 'edit-tags.php?taxonomy=npmp_event_category&post_type=npmp_event';
+	}
 
 	if ( $screen && 'npmp_event' === $screen->post_type ) {
 		if ( 'post-new.php' === $screen->base ) {

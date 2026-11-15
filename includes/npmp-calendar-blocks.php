@@ -230,7 +230,8 @@ function npmp_events_block_render( $attributes ) {
 
 	$atts = array(
 		'limit'    => $limit,
-		'past'     => empty( $attributes['past'] ) ? 'false' : 'true',
+		// The block's toggle reads "Include past events": past and upcoming together.
+		'past'     => empty( $attributes['past'] ) ? 'false' : 'all',
 		'category' => ! empty( $attributes['category'] ) ? sanitize_text_field( $attributes['category'] ) : '',
 	);
 

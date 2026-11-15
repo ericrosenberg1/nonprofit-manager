@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.14
+Stable tag: 2026.11.15
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -163,6 +163,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.15 =
+* Fixed `[npmp_events past="true"]`, so you see only past events. For past and upcoming together, use `past="all"`.
+* Added a Categories link to the Events menu, so you can rename or delete old event categories.
+* Added a Groups column to the Events Overview with Nonprofit Manager Pro.
 
 = 2026.11.14 =
 * Fixed the Preview button in the Newsletter Archive and the newsletter editor, so you can read any newsletter, imported ones included.
@@ -593,6 +598,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.15 =
+Update so `[npmp_events past="true"]` lists only past events.
 
 = 2026.11.14 =
 Update so nobody can put an Inactive contact back on your list from your signup form.
