@@ -248,6 +248,13 @@ check( 'stored body serialized', '<p>b</p>', npmp_past_nl_mailpoet_rendered_html
 check( 'stored body cleaned up by MailPoet', '', npmp_past_nl_mailpoet_rendered_html( null ) );
 check( 'hidden preheader span goes', '<p>x</p>', npmp_past_nl_sanitize( '<span style="display:none !important">pre</span><p>x</p>' )['html'] );
 
+echo "\nSchemes hidden behind control characters\n";
+foreach ( array( "\x01javascript:alert(1)", "java\x01script:alert(1)", "\x1fjavascript:alert(1)", "\x7fjavascript:alert(1)", " javascript:alert(1)" ) as $npmp_bad ) {
+	$npmp_out = npmp_past_nl_sanitize( '<a href="' . $npmp_bad . '">x</a><img src="' . $npmp_bad . '">' )['html'];
+	check( 'no javascript: survives ' . json_encode( $npmp_bad ), false, false !== stripos( $npmp_out, 'javascript' ) );
+}
+check( 'an ordinary link with a space before it stays', '<a href="https://example.org/a">x</a>', npmp_past_nl_sanitize( '<a href=" https://example.org/a">x</a>' )['html'] );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );
 
