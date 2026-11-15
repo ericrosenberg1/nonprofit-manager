@@ -134,11 +134,36 @@ function npmp_render_preference_checkboxes( $html ) {
 add_action( 'npmp_after_email_signup', 'npmp_save_signup_preferences', 10, 2 );
 
 function npmp_save_signup_preferences( $contact_id, $post_data ) {
-	npmp_save_subscriber_preferences( $contact_id, array(
+	npmp_save_subscriber_preferences( $contact_id, npmp_signup_preferences_from_post( $post_data ) );
+}
+
+/**
+ * The notification preferences a signup form submits.
+ *
+ * @param array $post_data Submitted fields, or the fields kept until they confirm.
+ * @return array { notify_posts: bool, notify_events: bool, weekly_digest: bool }
+ */
+function npmp_signup_preferences_from_post( $post_data ) {
+	$post_data = (array) $post_data;
+	return array(
 		'notify_posts'  => ! empty( $post_data['npmp_notify_posts'] ),
 		'notify_events' => ! empty( $post_data['npmp_notify_events'] ),
 		'weekly_digest' => ! empty( $post_data['npmp_weekly_digest'] ),
-	) );
+	);
+}
+
+/**
+ * Whether saving a signup's preferences would change what a contact has.
+ * The signup form asks a contact we already have to confirm by email before
+ * it changes them, so a stranger can't turn someone's emails on or off by
+ * typing their address.
+ *
+ * @param int   $contact_id Contact ID.
+ * @param array $post_data  Submitted fields.
+ * @return bool
+ */
+function npmp_signup_preferences_would_change( $contact_id, $post_data ) {
+	return npmp_signup_preferences_from_post( $post_data ) !== npmp_get_subscriber_preferences( (int) $contact_id );
 }
 
 /* =====================================================================

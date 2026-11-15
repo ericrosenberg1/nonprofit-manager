@@ -36,7 +36,7 @@ echo "Signup\n";
 $signup = section( $forms, "'email_signup' === \$action", '/* ---------------- UNSUBSCRIBE' );
 check( 'Double opt-in branch runs before the old subscribe paths', true, strpos( $signup, 'npmp_double_optin_enabled()' ) < strpos( $signup, "'status'           => 'subscribed'" ) );
 check( 'New address is saved as pending', 1, substr_count( $signup, "'status'           => 'pending'" ) );
-check( 'Unsubscribed contacts keep the resubscribe path', true, false !== strpos( $signup, "'unsubscribed' !== ( \$existing->status ?? '' ) ) && npmp_double_optin_enabled()" ) );
+check( 'Unsubscribed contacts keep the resubscribe path, ahead of double opt-in', true, false !== strpos( $signup, "npmp_send_resubscribe_confirmation( \$email, \$key );" ) && strpos( $signup, "\$existing && 'unsubscribed' === \$status" ) < strpos( $signup, 'if ( npmp_double_optin_enabled() ) {' ) );
 check( 'Visitor is told to check their inbox', 1, substr_count( $signup, "'npmp_signup', 'check_email'" ) );
 
 echo "Confirm link\n";

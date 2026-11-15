@@ -135,18 +135,29 @@ class NPMP_Newsletter_Manager {
 		update_post_meta( $newsletter_id, '_npmp_newsletter_queued_at', $now );
 		update_post_meta( $newsletter_id, '_npmp_newsletter_recipient_total', $queued );
 
+		update_post_meta( $newsletter_id, '_npmp_newsletter_audience_label', self::audience_label( $newsletter_id ) );
+
+		return $queued;
+	}
+
+	/**
+	 * Who a newsletter goes to, in words, from its saved levels plus what
+	 * an add-on adds through the filter (Pro names its groups).
+	 *
+	 * @param int $newsletter_id Newsletter ID.
+	 * @return string
+	 */
+	public static function audience_label( $newsletter_id ) {
 		$levels = get_post_meta( $newsletter_id, '_npmp_newsletter_levels', true );
 		/**
-		 * Filter the audience label saved with a queued newsletter (Reports
-		 * and the archive show it). Pro names the groups for a group newsletter.
+		 * Filter a newsletter's audience label. The editor's Current
+		 * selection, the Newsletter Archive screen, Reports, and the public
+		 * archive box show it. Pro names the groups for a group newsletter.
 		 *
 		 * @param string $label         Label built from the levels.
 		 * @param int    $newsletter_id Newsletter ID.
 		 */
-		$label = apply_filters( 'npmp_newsletter_audience_label', self::describe_audience( $levels ), $newsletter_id );
-		update_post_meta( $newsletter_id, '_npmp_newsletter_audience_label', (string) $label );
-
-		return $queued;
+		return (string) apply_filters( 'npmp_newsletter_audience_label', self::describe_audience( $levels ), (int) $newsletter_id );
 	}
 
 	public static function process_queue() {
