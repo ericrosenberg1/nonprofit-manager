@@ -413,11 +413,15 @@ function npmp_import_ajax_preview() {
 			// Store credentials + column order so the step handler knows what
 			// fields to extract for each member, in the order the UI's mapping
 			// references.
-			$token = wp_generate_password( 16, false );
+			// The key stays sealed between requests, the way Brevo's does
+			// (npmp_brevo_seal()): the site keeps the box and only the
+			// browser holds the secret, so the database alone never has it.
+			$token  = wp_generate_password( 16, false );
+			$sealed = npmp_brevo_seal( $api_key );
 			set_transient(
 				'npmp_import_mc_' . $token,
 				array(
-					'api_key'      => $api_key,
+					'box'          => $sealed['box'],
 					'list_id'      => $list_id,
 					'column_order' => $column_order,
 					'merge_fields' => $merge_fields,
@@ -435,9 +439,10 @@ function npmp_import_ajax_preview() {
 					'rows'       => $rows,
 					'total_rows' => isset( $result['total_items'] ) ? $result['total_items'] : count( $rows ),
 					'auto_map'   => $auto_map,
-					'file_token' => $token,
-					'source'     => 'mailchimp',
-					'extra'      => npmp_import_extra_wizard_payload( $extra_cols ),
+					'file_token'    => $token,
+					'import_secret' => $sealed['secret'],
+					'source'        => 'mailchimp',
+					'extra'         => npmp_import_extra_wizard_payload( $extra_cols ),
 				)
 			);
 			break;
@@ -478,11 +483,13 @@ function npmp_import_ajax_preview() {
 				);
 			}
 
-			$token = wp_generate_password( 16, false );
+			// Sealed like the Mailchimp key above.
+			$token  = wp_generate_password( 16, false );
+			$sealed = npmp_brevo_seal( $access_token );
 			set_transient(
 				'npmp_import_cc_' . $token,
 				array(
-					'access_token' => $access_token,
+					'box'          => $sealed['box'],
 					'list_id'      => $list_id,
 					'column_order' => $column_order,
 					'extra_known'  => $extra_known,
@@ -515,8 +522,9 @@ function npmp_import_ajax_preview() {
 					'rows'       => $rows,
 					'total_rows' => count( $result['contacts'] ),
 					'auto_map'   => $auto_map,
-					'file_token' => $token,
-					'source'     => 'constant_contact',
+					'file_token'    => $token,
+					'import_secret' => $sealed['secret'],
+					'source'        => 'constant_contact',
 					'extra'      => npmp_import_extra_wizard_payload( npmp_import_extra_wizard_columns( $headers, $rows, $auto_map, $extra_known ) ),
 				)
 			);
@@ -525,6 +533,26 @@ function npmp_import_ajax_preview() {
 		default:
 			wp_send_json_error( __( 'Invalid import source.', 'nonprofit-manager' ) );
 	}
+}
+
+/**
+ * Open the Mailchimp key or Constant Contact token an import keeps sealed in
+ * its transient, with the secret the browser sends on each request.
+ *
+ * @param array  $creds The import's transient.
+ * @param string $field 'api_key' or 'access_token', the plain field a job
+ *                      started before sealing kept.
+ * @return string The key, or '' when the secret doesn't fit.
+ */
+function npmp_import_open_creds( $creds, $field ) {
+	$creds = (array) $creds;
+	if ( isset( $creds['box'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Every caller checked the import nonce first.
+		$secret = isset( $_POST['import_secret'] ) ? sanitize_text_field( wp_unslash( $_POST['import_secret'] ) ) : '';
+		return npmp_brevo_unseal( (string) $creds['box'], $secret );
+	}
+	// A job that started before the update, which expires within the hour.
+	return isset( $creds[ $field ] ) ? (string) $creds[ $field ] : '';
 }
 
 /**
@@ -590,8 +618,10 @@ function npmp_import_ajax_execute() {
 			return;
 
 		case 'constant_contact':
-			$creds = get_transient( 'npmp_import_cc_' . $file_token );
-			if ( empty( $creds ) ) {
+			$creds    = get_transient( 'npmp_import_cc_' . $file_token );
+			$cc_token = is_array( $creds ) ? npmp_import_open_creds( $creds, 'access_token' ) : '';
+			if ( '' === $cc_token ) {
+				delete_transient( 'npmp_import_cc_' . $file_token );
 				wp_send_json_error( __( 'Constant Contact session expired. Please start over.', 'nonprofit-manager' ) );
 			}
 
@@ -605,7 +635,7 @@ function npmp_import_ajax_execute() {
 				}
 			}
 
-			$stats = $import->import_constant_contact( $creds['access_token'], $creds['list_id'], $named_map, $options );
+			$stats = $import->import_constant_contact( $cc_token, $creds['list_id'], $named_map, $options );
 			delete_transient( 'npmp_import_cc_' . $file_token );
 			break;
 
@@ -729,9 +759,11 @@ function npmp_import_ajax_step() {
 	$import = NPMP_Import_Manager::get_instance();
 
 	if ( 'mailchimp' === $state['source'] ) {
-		$creds = get_transient( 'npmp_import_mc_' . $job_token );
-		if ( empty( $creds ) ) {
+		$creds  = get_transient( 'npmp_import_mc_' . $job_token );
+		$mc_key = is_array( $creds ) ? npmp_import_open_creds( $creds, 'api_key' ) : '';
+		if ( '' === $mc_key ) {
 			delete_transient( $state_key );
+			delete_transient( 'npmp_import_mc_' . $job_token );
 			wp_send_json_error( __( 'Mailchimp session expired. Please start over.', 'nonprofit-manager' ) );
 		}
 
@@ -777,7 +809,7 @@ function npmp_import_ajax_step() {
 		}
 
 		$page = $import->import_mailchimp_page(
-			$creds['api_key'],
+			$mc_key,
 			$creds['list_id'],
 			$named_map,
 			$state['options'],
@@ -1025,9 +1057,11 @@ function npmp_import_ajax_step() {
 	// request, committing each page immediately.
 	// ------------------------------------------------------------------
 	if ( 'constant_contact' === $state['source'] ) {
-		$creds = get_transient( 'npmp_import_cc_' . $job_token );
-		if ( empty( $creds ) ) {
+		$creds    = get_transient( 'npmp_import_cc_' . $job_token );
+		$cc_token = is_array( $creds ) ? npmp_import_open_creds( $creds, 'access_token' ) : '';
+		if ( '' === $cc_token ) {
 			delete_transient( $state_key );
+			delete_transient( 'npmp_import_cc_' . $job_token );
 			wp_send_json_error( __( 'Constant Contact session expired. Please start over.', 'nonprofit-manager' ) );
 		}
 
@@ -1046,7 +1080,7 @@ function npmp_import_ajax_step() {
 
 		$cc_cursor = isset( $state['cc_cursor'] ) ? $state['cc_cursor'] : null;
 
-		$page = $import->import_constant_contact_page( $creds['access_token'], $creds['list_id'], $named_map, $state['options'], $cc_cursor );
+		$page = $import->import_constant_contact_page( $cc_token, $creds['list_id'], $named_map, $state['options'], $cc_cursor );
 
 		if ( is_wp_error( $page ) ) {
 			delete_transient( $state_key );
@@ -1955,7 +1989,8 @@ function npmp_import_render_scripts( $field_labels ) {
 				import_source_tag:  $('#npmp-opt-source').val(),
 				extra_label:        {},
 				extra_type:         {},
-				brevo_secret:       previewData.brevo_secret || ''
+				brevo_secret:       previewData.brevo_secret || '',
+				import_secret:      previewData.import_secret || ''
 			};
 			$.each(mapping, function(col, field) {
 				var cols = (previewData.extra && previewData.extra.columns) || {};
