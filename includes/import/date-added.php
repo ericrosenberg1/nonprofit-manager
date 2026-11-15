@@ -16,9 +16,10 @@ if ( ! function_exists( 'npmp_import_parse_added_date' ) ) {
 	 * Turn an imported "date added" value into the contact's post dates.
 	 *
 	 * Accepts a Unix timestamp, an ISO 8601 date with its own offset (Mailchimp's
-	 * timestamp_opt), or a plain date or date and time, which is read in the
-	 * site's time zone (MailPoet's export). A slash date whose first part is
-	 * over 12 is read day first (31/01/2024). Returns null for an empty value,
+	 * timestamp_opt), an Excel serial day (an .xlsx date cell), or a plain date
+	 * or date and time. Serial days and plain dates are read in the site's time
+	 * zone (MailPoet's export). A slash date whose first part is over 12 is read
+	 * day first (31/01/2024). Returns null for an empty value,
 	 * one it can't read, one before 1970, or one in the future, so a bad cell
 	 * leaves the contact's date alone.
 	 *
@@ -43,6 +44,11 @@ if ( ! function_exists( 'npmp_import_parse_added_date' ) ) {
 		try {
 			if ( preg_match( '/^\d{9,10}$/', $raw ) ) {
 				$date = new DateTimeImmutable( '@' . $raw );
+			} elseif ( preg_match( '/^\d{5}(\.\d+)?$/', $raw ) && (float) $raw > 20000 && (float) $raw < 80000 ) {
+				// An Excel serial day, which is how an .xlsx file stores a date
+				// cell: days since 1899-12-30, read on the site's clock.
+				$seconds = (int) round( ( (float) $raw - 25569 ) * 86400 );
+				$date    = new DateTimeImmutable( gmdate( 'Y-m-d H:i:s', $seconds ), $tz );
 			} elseif ( preg_match( '#^(\d{1,2})/(\d{1,2})/(\d{4})(.*)$#', $raw, $m ) && (int) $m[1] > 12 ) {
 				$date = new DateTimeImmutable( sprintf( '%04d-%02d-%02d%s', $m[3], $m[2], $m[1], $m[4] ), $tz );
 			} else {

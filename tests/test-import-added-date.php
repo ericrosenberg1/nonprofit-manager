@@ -49,6 +49,15 @@ check( 'Day-first slash date', '2024-01-31 00:00:00', $d['local'] ?? null );
 $d = $parse( '01/31/2024' );
 check( 'Month-first slash date', '2024-01-31 00:00:00', $d['local'] ?? null );
 
+// An .xlsx date cell arrives as Excel's serial day count (wordpress.org
+// users import from Excel, and the serial used to leave the date alone).
+$d = $parse( '45292' );
+check( 'Excel serial day', '2024-01-01 00:00:00', $d['local'] ?? null );
+$d = $parse( '45488.5' );
+check( 'Excel serial with a time is site-local', '2024-07-15 12:00:00', $d['local'] ?? null );
+check( 'Excel serial with a time, GMT', '2024-07-15 11:00:00', $d['gmt'] ?? null );
+check( 'A future serial is refused', null, $parse( '47500' ) );
+
 // Values that must leave the contact's date alone.
 check( 'Empty cell', null, $parse( '' ) );
 check( 'Whitespace cell', null, $parse( '   ' ) );
