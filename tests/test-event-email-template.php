@@ -152,14 +152,14 @@ check( 'event box offers the default', true, false !== strpos( $event_html, '>Us
 check( 'event box offers no template', true, false !== strpos( $event_html, '>No Template (Plain Content)<' ) );
 check( 'event box lists every pickable template', 2, substr_count( $event_html, '<option value="3' ) );
 check( 'event box names the current default', true, false !== strpos( $event_html, 'Current default template:' ) );
-check( 'event box says what the template wraps', true, false !== strpos( $event_html, 'Wraps the email this event sends.' ) );
-check( 'newsletter box is unchanged, with no event note', false, strpos( $newsletter_html, 'Wraps the email this event sends.' ) );
+check( 'event box says what the template wraps', true, false !== strpos( $event_html, 'Wraps every email this event sends.' ) );
+check( 'newsletter box is unchanged, with no event note', false, strpos( $newsletter_html, 'Wraps every email this event sends.' ) );
 // The point of the shared picker: strip each screen's own field name and the
 // rest of the markup has to match, or the two editors have drifted again.
 $normalise = function ( $html, $field ) {
 	// Drop the event box's extra note, swap in a neutral field name, and
 	// collapse whitespace, so only real markup differences can fail this.
-	$html = preg_replace( '#<p class="description">Wraps the email this event sends\.</p>#', '', $html );
+	$html = preg_replace( '#<p class="description">Wraps every email this event sends\.</p>#', '', $html );
 	// Quoted, so this swaps the for/name/id attributes and leaves the Manage
 	// Templates page slug (page=npmp_newsletter_templates) alone.
 	return trim( preg_replace( '/\s+/', ' ', str_replace( '"' . $field . '"', '"FIELD"', $html ) ) );

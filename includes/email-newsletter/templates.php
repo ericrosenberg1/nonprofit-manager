@@ -495,7 +495,7 @@ function npmp_event_email_template_meta_box($post) {
         'name' => 'npmp_event_email_template',
         'id' => 'npmp_event_email_template',
         'selected' => get_post_meta($post->ID, '_npmp_event_email_template', true),
-        'note' => __('Wraps the email this event sends.', 'nonprofit-manager'),
+        'note' => __('Wraps every email this event sends.', 'nonprofit-manager'),
     ]);
 }
 

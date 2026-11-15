@@ -1463,16 +1463,29 @@ function npmp_scheduled_emails_get_body( $body_id ) {
  * (includes/email-newsletter/templates.php), so one event can use a different
  * wrapper from the body every other event shares (Peter Lord, 2026-11-13).
  *
+ * A choice that names a template someone deleted or trashed counts as no
+ * choice. npmp_apply_newsletter_template() sends the body bare for an ID that
+ * isn't a template, while the picker reopens on "Use Default Template", so
+ * the email would go out unwrapped with the screen saying otherwise.
+ *
  * @param int   $event_id Event ID.
  * @param array $body     Body from npmp_scheduled_emails_get_body().
  * @return string '' for the default, 'none' for none, or a template ID.
  */
 function npmp_scheduled_emails_pick_template( $event_id, $body ) {
-	$own = (string) get_post_meta( (int) $event_id, '_npmp_event_email_template', true );
-	if ( '' !== $own ) {
-		return $own;
+	foreach ( array( (string) get_post_meta( (int) $event_id, '_npmp_event_email_template', true ), (string) $body['template'] ) as $choice ) {
+		if ( '' === $choice ) {
+			continue;
+		}
+		if ( 'none' === $choice ) {
+			return 'none';
+		}
+		$template = is_numeric( $choice ) && (int) $choice > 0 ? get_post( (int) $choice ) : null;
+		if ( $template && 'npmp_nl_template' === $template->post_type && 'trash' !== $template->post_status ) {
+			return (string) (int) $choice;
+		}
 	}
-	return (string) $body['template'];
+	return '';
 }
 
 /**
@@ -2230,12 +2243,14 @@ function npmp_scheduled_emails_read_timing( $in ) {
  * @param int|string $current     Selected body ID, '' for the site default.
  * @param bool       $use_default Offer "use the site default".
  * @param string     $id          Optional id for the select, so a label can point at it.
+ * @param string     $default     Optional words for the "use the site default" choice.
+ *                                Pro's event box says "From the schedule".
  * @return void
  */
-function npmp_scheduled_emails_body_select( $name, $current, $use_default, $id = '' ) {
+function npmp_scheduled_emails_body_select( $name, $current, $use_default, $id = '', $default = '' ) {
 	echo '<select' . ( $id ? ' id="' . esc_attr( $id ) . '"' : '' ) . ' name="' . esc_attr( $name ) . '" class="npmp-sched-body">';
 	if ( $use_default ) {
-		echo '<option value=""' . selected( (string) $current, '', false ) . '>' . esc_html__( 'Site default', 'nonprofit-manager' ) . '</option>';
+		echo '<option value=""' . selected( (string) $current, '', false ) . '>' . esc_html( '' !== (string) $default ? (string) $default : __( 'Site default', 'nonprofit-manager' ) ) . '</option>';
 	}
 	$bodies = npmp_scheduled_emails_bodies();
 	$seeded = get_option( 'npmp_scheduled_email_bodies', array() );

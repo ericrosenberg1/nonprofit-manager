@@ -319,6 +319,14 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   from the newsletter editor. Event Details and Pro's Scheduled Emails use `side`, with `widefat` inputs, and
   Pro stacks its tables there with `td[data-label]`. Every admin h1 needs `hr.wp-header-end` within two
   lines or core puts notices above the title (`tests/test-admin-ui.php` scans for it).
+  Changing a box's context isn't enough: `do_meta_boxes()` re-adds each ID in the user option
+  `meta-box-order_<screen>` in its saved area, so anyone who reordered a box while it sat in `normal`
+  keeps it there (Pete again on 2026.11.12). `includes/npmp-editor-boxes.php` takes our IDs out of every
+  area but `side` on `get_user_option_meta-box-order_npmp_event` and `_npmp_newsletter`. Every new box on
+  those screens goes on `npmp_sidebar_box_ids()` (Pro adds its own through the filter of that name).
+  Unit `tests/test-editor-box-order.php` scans `includes/` for unlisted boxes, rig `tests/rig/editor-box-order.php`
+  reads the areas the block editor gets over HTTP (Pro on and off). The event editor's Email Template box
+  (`templates.php`) feeds `npmp_scheduled_emails_pick_template()`, which skips a deleted or trashed template.
 - **Every marketing email to a contact ends with `npmp_email_recipient_footer( $email )`** (newsletter
   footer with that reader's unsubscribe link, plus the preferences link) and carries
   `npmp_get_list_unsubscribe_headers()`. Notifications and the digest use it, and Pro's automation engine
@@ -369,10 +377,12 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed where you find Event Details in the event editor: in the sidebar, even if you moved the box in an older version.
+- Added an Email Template picker to the event editor, the same one the newsletter editor has.
 
 Pro (licence server changelog):
-- (none)
+- Fixed where you find Scheduled Emails in the event editor: in the sidebar, even if you moved the box in an older version.
+- Added a Body choice to the event's Scheduled Emails box, so you can give one event its own email body and keep the schedule.
 
 ## Releasing: three systems, always in this order
 
