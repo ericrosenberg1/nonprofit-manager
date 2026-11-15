@@ -9,6 +9,7 @@ defined( 'ABSPATH' ) || exit;
 
 require_once plugin_dir_path( __FILE__ ) . 'payments/class-donation-manager.php';
 require_once plugin_dir_path( __FILE__ ) . 'payments/npmp-payment-gateways.php';
+require_once plugin_dir_path( __FILE__ ) . 'payments/npmp-donation-links.php';
 
 /* ==============================================================
  * Donations Dashboard
@@ -246,8 +247,9 @@ function npmp_gateway_label( $gateway ) {
 		'paypal_api'  => __( 'PayPal', 'nonprofit-manager' ),
 		'paypal'      => __( 'PayPal', 'nonprofit-manager' ),
 		'paypal_link' => __( 'PayPal', 'nonprofit-manager' ),
-		'venmo_link'  => __( 'Venmo', 'nonprofit-manager' ),
-		'venmo'       => __( 'Venmo', 'nonprofit-manager' ),
+		'venmo_link'   => __( 'Venmo', 'nonprofit-manager' ),
+		'venmo'        => __( 'Venmo', 'nonprofit-manager' ),
+		'payment_link' => __( 'Payment link', 'nonprofit-manager' ),
 	);
 	$gateway = (string) $gateway;
 	return $labels[ $gateway ] ?? ucfirst( str_replace( '_', ' ', $gateway ) );
@@ -503,6 +505,32 @@ function npmp_render_payment_settings_page() {
 			update_option( 'npmp_venmo_handle', sanitize_text_field( wp_unslash( $_POST['npmp_venmo_handle'] ) ) );
 		}
 
+		// Payment links. A row that fails its check keeps every saved link as
+		// it was, and the screen shows what was typed with the reason.
+		if ( isset( $_POST['npmp_payment_link_url'] ) ) {
+			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each value is cleaned in npmp_payment_links_from_post().
+			$link_result = npmp_payment_links_from_post(
+				isset( $_POST['npmp_payment_link_label'] ) ? (array) wp_unslash( $_POST['npmp_payment_link_label'] ) : array(),
+				(array) wp_unslash( $_POST['npmp_payment_link_url'] ),
+				isset( $_POST['npmp_payment_link_note'] ) ? (array) wp_unslash( $_POST['npmp_payment_link_note'] ) : array()
+			);
+			// phpcs:enable
+			if ( empty( $link_result['errors'] ) ) {
+				update_option( 'npmp_payment_links', $link_result['links'] );
+			} else {
+				$link_errors = $link_result['errors'];
+				$link_rows   = array();
+				$posted_urls = (array) wp_unslash( $_POST['npmp_payment_link_url'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Shown back escaped, never saved.
+				foreach ( $posted_urls as $i => $posted_url ) {
+					$link_rows[] = array(
+						'label' => sanitize_text_field( (string) ( wp_unslash( $_POST['npmp_payment_link_label'][ $i ] ?? '' ) ) ),
+						'url'   => sanitize_text_field( (string) $posted_url ),
+						'note'  => sanitize_text_field( (string) ( wp_unslash( $_POST['npmp_payment_link_note'][ $i ] ?? '' ) ) ),
+					);
+				}
+			}
+		}
+
 		// PayPal API (Pro only)
 		if ( $is_pro ) {
 			// Save PayPal mode
@@ -599,12 +627,22 @@ function npmp_render_payment_settings_page() {
 
 	$site_currency        = npmp_currency();
 	$active_subscriptions = (int) apply_filters( 'npmp_active_subscription_count', 0 );
+	if ( ! isset( $link_rows ) ) {
+		$link_rows = npmp_get_payment_links();
+	}
 
 	?>
 	<div class="wrap npmp-admin-page">
 		<?php npmp_admin_page_title( __( 'Payment Settings', 'nonprofit-manager' ) ); ?>
 		<?php if ( ! empty( $saved ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Payment settings saved.', 'nonprofit-manager' ); ?></p></div>
+		<?php endif; ?>
+		<?php if ( ! empty( $link_errors ) ) : ?>
+			<div class="notice notice-error"><p><?php esc_html_e( 'We didn\'t save your payment links. Fix the link below and save again.', 'nonprofit-manager' ); ?></p>
+				<?php foreach ( $link_errors as $link_error ) : ?>
+					<p><?php echo esc_html( $link_error ); ?></p>
+				<?php endforeach; ?>
+			</div>
 		<?php endif; ?>
 		<p><?php echo esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'Pick your currency and the ways people can send you %s.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ); ?></p>
 
@@ -677,6 +715,8 @@ function npmp_render_payment_settings_page() {
 							</p>
 						<?php endif; ?>
 
+						<label><input type="checkbox" name="npmp_gateways[]" value="payment_link" <?php checked( in_array( 'payment_link', $enabled_gateways, true ) ); ?> class="npmp-gateway-checkbox" data-gateway="payment_link"> <?php esc_html_e( 'Payment link (any service)', 'nonprofit-manager' ); ?></label><br>
+
 						<!-- Pro Options -->
 						<label>
 							<input type="checkbox" name="npmp_gateways[]" value="paypal_api" <?php checked( in_array( 'paypal_api', $enabled_gateways, true ) ); ?> <?php disabled( ! $is_pro ); ?> class="npmp-gateway-checkbox" data-gateway="paypal_api">
@@ -714,7 +754,7 @@ function npmp_render_payment_settings_page() {
 			<div class="npmp-gateway-settings npmp-gateway-paypal_link" style="<?php echo ! in_array( 'paypal_link', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 				<hr>
 				<h3><?php esc_html_e( 'PayPal Link Configuration', 'nonprofit-manager' ); ?></h3>
-				<p><?php esc_html_e( 'The PayPal button opens PayPal in a new tab with the amount filled in, and the donor finishes there. These gifts show in your PayPal account, not in your Donations list here.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'Donors pick the PayPal button, see PayPal in a new tab with the amount filled in, and finish the gift on PayPal. We pass the donor\'s name and email to PayPal too. You\'ll see these gifts in your PayPal account, not in your Donations list here, and we send no thank-you email for PayPal gifts.', 'nonprofit-manager' ); ?></p>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_paypal_email"><?php esc_html_e( 'PayPal Email Address', 'nonprofit-manager' ); ?></label></th>
@@ -739,6 +779,42 @@ function npmp_render_payment_settings_page() {
 							<p class="description"><?php esc_html_e( 'Your Venmo username, with or without the @.', 'nonprofit-manager' ); ?></p>
 						</td>
 					</tr>
+				</table>
+			</div>
+
+			<!-- Payment Link Settings -->
+			<div class="npmp-gateway-settings npmp-gateway-payment_link" style="<?php echo ! in_array( 'payment_link', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
+				<hr>
+				<h3><?php esc_html_e( 'Payment Link Configuration', 'nonprofit-manager' ); ?></h3>
+				<p><?php esc_html_e( 'Paste the address of a payment page from any service you use. Where the donor\'s details belong, type {amount}, {name}, {email}, {currency}, or {note}. When a donor picks a link\'s button, we fill in each placeholder, and the donor lands on the payment page in a new tab to finish the gift.', 'nonprofit-manager' ); ?></p>
+				<p>
+					<?php
+					printf(
+						/* translators: %s: an example payment link template. */
+						esc_html__( 'Example for Monzo.me: %s', 'nonprofit-manager' ),
+						'<code>https://monzo.me/yourname/{amount}?d={note}</code>'
+					);
+					?>
+				</p>
+				<p><?php esc_html_e( 'As with the PayPal and Venmo links, you\'ll see these gifts only in that service\'s account, never in your Donations list here, and we send no thank-you email for these gifts. Use an https address for each link. Donors see one button per link, with the label you type.', 'nonprofit-manager' ); ?></p>
+				<table class="widefat striped" style="max-width:960px;">
+					<thead>
+						<tr>
+							<th scope="col"><?php esc_html_e( 'Button label', 'nonprofit-manager' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Link address', 'nonprofit-manager' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Note for {note}', 'nonprofit-manager' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php for ( $row_i = 0; $row_i < NPMP_PAYMENT_LINKS_MAX; $row_i++ ) : ?>
+							<?php $row = $link_rows[ $row_i ] ?? array( 'label' => '', 'url' => '', 'note' => '' ); ?>
+							<tr>
+								<td><input type="text" name="npmp_payment_link_label[]" value="<?php echo esc_attr( $row['label'] ); ?>" class="widefat" placeholder="<?php esc_attr_e( 'Pay with Monzo', 'nonprofit-manager' ); ?>" aria-label="<?php esc_attr_e( 'Button label', 'nonprofit-manager' ); ?>"></td>
+								<td><input type="text" name="npmp_payment_link_url[]" value="<?php echo esc_attr( $row['url'] ); ?>" class="widefat code" placeholder="https://" aria-label="<?php esc_attr_e( 'Link address', 'nonprofit-manager' ); ?>"></td>
+								<td><input type="text" name="npmp_payment_link_note[]" value="<?php echo esc_attr( $row['note'] ); ?>" class="widefat" placeholder="<?php esc_attr_e( 'Donation', 'nonprofit-manager' ); ?>" aria-label="<?php esc_attr_e( 'Note for {note}', 'nonprofit-manager' ); ?>"></td>
+							</tr>
+						<?php endfor; ?>
+					</tbody>
 				</table>
 			</div>
 
@@ -969,6 +1045,9 @@ function npmp_payment_setup_gaps( $enabled, $is_pro ) {
 	if ( in_array( 'venmo_link', $enabled, true ) && '' === trim( (string) get_option( 'npmp_venmo_handle', '' ) ) ) {
 		$gaps[] = __( 'Venmo is on, but you haven\'t saved your Venmo username, so the Venmo button won\'t show. Add it below.', 'nonprofit-manager' );
 	}
+	if ( in_array( 'payment_link', $enabled, true ) && function_exists( 'npmp_get_payment_links' ) && ! npmp_get_payment_links() ) {
+		$gaps[] = __( 'Payment links are on, but you haven\'t saved a link yet, so donors won\'t see a payment link button. Add one below.', 'nonprofit-manager' );
+	}
 	if ( in_array( 'stripe', $enabled, true ) ) {
 		$test = 'test' === get_option( 'npmp_stripe_mode', 'live' );
 		$pk   = get_option( $test ? 'npmp_stripe_test_publishable_key' : 'npmp_stripe_live_publishable_key', '' );
@@ -996,6 +1075,12 @@ function npmp_payment_setup_gaps( $enabled, $is_pro ) {
 add_shortcode( 'npmp_donation_form', 'npmp_render_donation_form' );
 
 function npmp_render_donation_form() {
+	// Mail apps don't run forms or scripts, so inside a newsletter, event
+	// email, or test send the form is a Donate button to the donation page.
+	if ( function_exists( 'npmp_email_is_rendering' ) && npmp_email_is_rendering() ) {
+		return npmp_donation_email_button();
+	}
+
 	// A donor coming back from Stripe lands on this same page with a status
 	// flag. Without this banner, people who just paid real money got no
 	// acknowledgment of any kind.

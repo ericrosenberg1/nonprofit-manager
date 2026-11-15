@@ -879,14 +879,43 @@ function npmp_email_the_content( $content ) {
 		}
 	}
 
-	// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter, so blocks and shortcodes in an email body render the way they do in a post.
-	$content = apply_filters( 'the_content', $content );
+	// Blocks and shortcodes ask npmp_email_is_rendering() to print an
+	// email-safe version (the donation form becomes a Donate button link).
+	npmp_email_rendering_depth( 1 );
+	try {
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter, so blocks and shortcodes in an email body render the way they do in a post.
+		$content = apply_filters( 'the_content', $content );
+	} finally {
+		npmp_email_rendering_depth( -1 );
+	}
 
 	foreach ( $removed as $entry ) {
 		add_filter( 'the_content', $entry[0], $entry[1], $entry[2] );
 	}
 
 	return $content;
+}
+
+/**
+ * How many npmp_email_the_content() renders are running right now.
+ *
+ * @param int $delta 1 to enter a render, -1 to leave it, 0 to read.
+ * @return int
+ */
+function npmp_email_rendering_depth( $delta = 0 ) {
+	static $depth = 0;
+	$depth = max( 0, $depth + (int) $delta );
+	return $depth;
+}
+
+/**
+ * True while an email body renders through npmp_email_the_content(), so a
+ * block or shortcode can print markup a mail app can use instead of a form.
+ *
+ * @return bool
+ */
+function npmp_email_is_rendering() {
+	return npmp_email_rendering_depth( 0 ) > 0;
 }
 
 /**

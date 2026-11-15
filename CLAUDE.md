@@ -366,6 +366,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   groups and never creates one. Unit `tests/test-past-newsletters.php` and `tests/test-newsletter-public-bulk.php`, rig
   `tests/rig/past-newsletters.php` (real MailPoet 5.45.2 and Newsletter 9.5.7 together, `NPMP_RIG_SINK` set to `tests/rig/smtp-sink.py`'s
   output, Pro on and off). The stub-based `tests/rig/mailpoet-importer.php` overwrites a real MailPoet, so it refuses to run beside one.
+- **Donation forms inside an email and prefill** (`includes/payments/npmp-donation-links.php`). `npmp_email_the_content()`
+  sets `npmp_email_is_rendering()` for its render, and `npmp_render_donation_form()` then prints a table-based Donate button
+  to the donation page (option `npmp_donation_page_id`, else the first published page holding the form, else nothing). The
+  link ends in `npmp_donor=[npmp_donor_key]`, added after `esc_url()` because WordPress 7.1's `esc_url()` percent-encodes the
+  brackets. A newsletter fills the tag through `npmp_email_recipient_tags` with a signed token (HMAC scoped `donor-prefill|`,
+  90 days), and a `wp_mail` filter strips an unfilled tag from plugin mail. Forms prefill only from the logged-in user or a token
+  that verifies, never from a bare address, and set `DONOTCACHEPAGE` when a token fills one in. The Payment link gateway
+  (`payment_link`, free, option `npmp_payment_links`, up to 5) saves only https templates with no placeholder in the host, and
+  swaps the placeholders out around `esc_url_raw()`, which strips braces. Unit `tests/test-donation-links.php`, rig
+  `tests/rig/donation-links.php` (set `NPMP_RIG_URL` for the HTTP prefill checks, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -377,7 +387,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Donate button in emails: newsletter and event email readers get a button to your donation page instead of a form mail apps can't use.
+- Prefill: logged-in users and readers who come from a newsletter find their email, and their name where the form asks, filled in.
+- Payment link option: you can send donors to any payment page with the amount, name, email, currency, and note filled in.
+- PayPal link: we pass the donor's name and email to PayPal.
 
 Pro (licence server changelog):
 - (none)
