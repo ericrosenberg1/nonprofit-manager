@@ -1964,12 +1964,20 @@ function npmp_scheduled_emails_process_list_row( $row, $now ) {
 	npmp_scheduled_emails_update_row( $row->id, array( 'newsletter_id' => $newsletter_id ) );
 	do_action( 'npmp_scheduled_email_newsletter_created', $newsletter_id, $row );
 	$count = NPMP_Newsletter_Manager::queue_newsletter( $newsletter_id );
+	if ( $count ) {
+		$note = '';
+	} elseif ( NPMP_Newsletter_Manager::last_queue_already_sent() ) {
+		$note = __( 'Everyone in the audience already got this newsletter, so we sent nothing new.', 'nonprofit-manager' );
+	} else {
+		/* translators: %s: lowercase plural word for members, such as members. */
+		$note = sprintf( __( 'No subscribed %s matched.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) );
+	}
 	npmp_scheduled_emails_update_row(
 		$row->id,
 		array(
 			'status'          => 'sent',
 			'recipient_count' => (int) $count,
-			'note'            => $count ? '' : sprintf( /* translators: %s: lowercase plural word for members, such as members. */ __( 'No subscribed %s matched.', 'nonprofit-manager' ), npmp_label( 'members_lc' ) ),
+			'note'            => $note,
 		)
 	);
 	npmp_scheduled_emails_note_lateness( $row, $now );

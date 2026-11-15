@@ -24,6 +24,14 @@ class NPMP_Newsletter_Manager {
 	const ACTION_CLICK          = 'click';
 
 	/**
+	 * Readers the last queue_newsletter() call left out because they already
+	 * got that newsletter.
+	 *
+	 * @var int
+	 */
+	private static $last_already_sent = 0;
+
+	/**
 	 * Convert a stored audience array into a readable label.
 	 *
 	 * @param array $levels Membership level keys.
@@ -71,18 +79,48 @@ class NPMP_Newsletter_Manager {
 	public static function queue_newsletter( $newsletter_id ) {
 		global $wpdb;
 
-		$newsletter_id = absint( $newsletter_id );
+		$newsletter_id           = absint( $newsletter_id );
+		self::$last_already_sent = 0;
 		// A newsletter imported from another plugin already went out from there.
 		if ( function_exists( 'npmp_newsletter_is_imported' ) && npmp_newsletter_is_imported( $newsletter_id ) ) {
 			return 0;
 		}
 		$recipients    = self::apply_recipient_filter( self::get_recipient_list( $newsletter_id ), $newsletter_id );
 		$table         = $wpdb->prefix . 'npmp_newsletter_queue';
-		$queued        = 0;
 
-		// Clear any prior queue rows for this newsletter so a re-send starts
-		// clean instead of stacking on a previous run's entries.
-		$wpdb->delete( $table, array( 'newsletter_id' => $newsletter_id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+		// Send now pressed again, or a Send later after Send now, while the
+		// queue still drains. Readers we already mailed keep their sent rows
+		// and never get a second copy, and readers still waiting keep their
+		// row, so a batch that's mailing right now can't mail them twice.
+		// Failed rows start over, so a failed address gets another try, and a
+		// waiting row for someone the new audience leaves out goes away.
+		$audience = array();
+		foreach ( $recipients as $recipient ) {
+			$email = sanitize_email( $recipient->user_email ?? '' );
+			if ( $email ) {
+				$audience[ strtolower( $email ) ] = true;
+			}
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, read right before the writes below.
+		$existing = (array) $wpdb->get_results( $wpdb->prepare( "SELECT id, email, status FROM {$table} WHERE newsletter_id = %d", $newsletter_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+		$sent     = array();
+		$waiting  = array();
+		$drop     = array();
+		foreach ( $existing as $row ) {
+			$key = strtolower( (string) $row->email );
+			if ( 'sent' === $row->status ) {
+				$sent[ $key ] = true;
+			} elseif ( 'pending' === $row->status && isset( $audience[ $key ] ) && ! isset( $waiting[ $key ] ) ) {
+				$waiting[ $key ] = true;
+			} else {
+				$drop[] = (int) $row->id;
+			}
+		}
+		foreach ( array_chunk( $drop, 500 ) as $ids ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			$wpdb->query( "DELETE FROM {$table} WHERE id IN (" . implode( ',', array_map( 'intval', $ids ) ) . ')' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared -- Fixed table name and integer IDs.
+		}
+		$queued = count( $waiting );
 
 		$now = current_time( 'mysql' );
 
@@ -101,6 +139,16 @@ class NPMP_Newsletter_Manager {
 			if ( ! $email ) {
 				continue;
 			}
+			$key = strtolower( $email );
+			if ( isset( $sent[ $key ] ) ) {
+				++self::$last_already_sent;
+				continue;
+			}
+			if ( isset( $waiting[ $key ] ) ) {
+				continue;
+			}
+			// Twice in the list (two contacts with one address) is one email.
+			$waiting[ $key ] = true;
 
 			$rows[] = array(
 				$newsletter_id,
@@ -131,13 +179,49 @@ class NPMP_Newsletter_Manager {
 			}
 		}
 
-		update_post_meta( $newsletter_id, '_npmp_newsletter_status', $queued ? 'queued' : 'no_recipients' );
-		update_post_meta( $newsletter_id, '_npmp_newsletter_queued_at', $now );
-		update_post_meta( $newsletter_id, '_npmp_newsletter_recipient_total', $queued );
+		if ( $queued ) {
+			$status = 'queued';
+		} elseif ( self::$last_already_sent ) {
+			// Everyone in the audience already got it, so nothing waits.
+			$status = 'sent';
+		} else {
+			$status = 'no_recipients';
+		}
+		update_post_meta( $newsletter_id, '_npmp_newsletter_status', $status );
+		// Reports and the public archive show this as the send date, so a
+		// queue run that adds no one leaves it alone.
+		if ( 'sent' !== $status ) {
+			update_post_meta( $newsletter_id, '_npmp_newsletter_queued_at', $now );
+		}
+		// Every row the newsletter has, the sent rows kept above included, so
+		// this matches Reports' Total Recipients.
+		update_post_meta( $newsletter_id, '_npmp_newsletter_recipient_total', $queued + count( $sent ) );
 
 		update_post_meta( $newsletter_id, '_npmp_newsletter_audience_label', self::audience_label( $newsletter_id ) );
 
 		return $queued;
+	}
+
+	/**
+	 * Whether a queued reader is still a subscribed contact.
+	 *
+	 * @param array  $contacts From NPMP_Member_Manager::lookup_emails().
+	 * @param string $email    Queued address.
+	 * @return bool
+	 */
+	public static function still_subscribed( $contacts, $email ) {
+		$key = strtolower( (string) $email );
+		return isset( $contacts[ $key ] ) && 'subscribed' === ( $contacts[ $key ]['status'] ?? '' );
+	}
+
+	/**
+	 * How many readers the last queue_newsletter() call left out because
+	 * they already got that newsletter.
+	 *
+	 * @return int
+	 */
+	public static function last_queue_already_sent() {
+		return (int) self::$last_already_sent;
 	}
 
 	/**
@@ -208,6 +292,11 @@ class NPMP_Newsletter_Manager {
 		$bodies  = array();
 		$gone    = array();
 
+		// Someone can unsubscribe, or an admin can delete or change a contact,
+		// after the newsletter was queued. Look the batch up once and mail
+		// only contacts who are still subscribed.
+		$contacts = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance()->lookup_emails( wp_list_pluck( $batch, 'email' ) ) : null;
+
 		foreach ( $batch as $row ) {
 			$queue_id      = (int) $row->id;
 			$newsletter_id = (int) $row->newsletter_id;
@@ -226,6 +315,17 @@ class NPMP_Newsletter_Manager {
 					array( '%d' )
 				);
 				if ( $newsletter_id && ! isset( $touched[ $newsletter_id ] ) ) {
+					$touched[ $newsletter_id ] = false;
+				}
+				continue;
+			}
+
+			if ( null !== $contacts && ! self::still_subscribed( $contacts, $email ) ) {
+				// Their row goes away, so Reports counts only the readers we
+				// mailed or tried to, and a later Send now reaches them only if
+				// they subscribe again.
+				$wpdb->delete( $table, array( 'id' => $queue_id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+				if ( ! isset( $touched[ $newsletter_id ] ) ) {
 					$touched[ $newsletter_id ] = false;
 				}
 				continue;
