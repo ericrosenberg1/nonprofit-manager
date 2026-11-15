@@ -84,7 +84,7 @@ function npmp_social_share_shortcode( $atts ) {
 	$items = '';
 	foreach ( $wanted as $key ) {
 		if ( 'copy' === $key ) {
-			$items .= '<li><button type="button" class="npmp-share-btn npmp-share-copy" data-npmp-share-url="' . esc_attr( $url ) . '">'
+			$items .= '<li><button type="button" class="npmp-share-btn npmp-share-copy" data-npmp-share-url="' . esc_attr( $url ) . '" data-npmp-copied="' . esc_attr__( 'Copied', 'nonprofit-manager' ) . '">'
 				. esc_html__( 'Copy link', 'nonprofit-manager' ) . '</button></li>';
 			continue;
 		}
