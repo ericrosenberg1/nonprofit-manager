@@ -10,6 +10,17 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
+ * The Graph API version the share calls. Meta keeps each version for about
+ * two years (developers.facebook.com/docs/graph-api/changelog/versions):
+ * v19.0 expired May 21, 2026, and v26.0 came out July 29, 2026.
+ *
+ * @return string Such as 'v26.0'.
+ */
+function npmp_social_facebook_graph_version() {
+	return 'v26.0';
+}
+
+/**
  * Share a post to a Facebook Page.
  *
  * Credentials required:
@@ -32,7 +43,7 @@ function npmp_social_share_facebook( $result, $share_data, $credentials ) {
 	);
 
 	$response = wp_remote_post(
-		'https://graph.facebook.com/v19.0/me/feed',
+		'https://graph.facebook.com/' . npmp_social_facebook_graph_version() . '/me/feed',
 		array(
 			'timeout' => 30,
 			'body'    => $body,
