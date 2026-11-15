@@ -908,14 +908,19 @@ function npmp_handle_membership_form() {
 		// visitor who is on the list or what state they're in.
 		$answer = npmp_double_optin_enabled() ? 'check_email' : 'success';
 
-		if ( $existing && 'unsubscribed' === $status ) {
-			// Someone who unsubscribed is only put back on the list once they
-			// confirm from their own inbox. The form used to flip them straight
-			// back to subscribed, so anyone could re-subscribe a stranger. The
-			// link carries a single-use key for what the form asked, so the
-			// groups they picked come along when they confirm.
-			$key = npmp_signup_save_pending( (int) $existing->id, $name, $posted, $atts_token, false, 'resubscribe' );
-			npmp_send_resubscribe_confirmation( $email, $key );
+		if ( $existing && npmp_signup_status_left_list( $status ) ) {
+			// Someone who unsubscribed, or whom the site marked Inactive, is
+			// only put back on the list once they confirm from their own
+			// inbox, with double opt-in on or off. The form used to flip them
+			// straight back to subscribed, so anyone could re-subscribe a
+			// stranger. The link carries a single-use key for what the form
+			// asked, so the groups they picked come along when they confirm.
+			// Past the per-address cap we send nothing and keep the newest
+			// link working, and the visitor still sees the usual answer.
+			if ( npmp_signup_address_mail_allows( $email ) ) {
+				$key = npmp_signup_save_pending( (int) $existing->id, $name, $posted, $atts_token, false, 'resubscribe' );
+				npmp_send_resubscribe_confirmation( $email, $key );
+			}
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
 			exit;
 		}
@@ -926,7 +931,9 @@ function npmp_handle_membership_form() {
 			// with or without double opt-in. Pete at U3A re-used the form for
 			// an existing subscriber, saw no new groups, and got a "please
 			// confirm your subscription" email that read as a mistake.
-			npmp_send_signup_confirmation( (int) $existing->id, $email, $name, $posted, $atts_token, false, 'subscribed' === $status ? 'join' : 'signup' );
+			if ( npmp_signup_address_mail_allows( $email ) ) {
+				npmp_send_signup_confirmation( (int) $existing->id, $email, $name, $posted, $atts_token, false, 'subscribed' === $status ? 'join' : 'signup' );
+			}
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', $answer ) );
 			exit;
 		}
@@ -955,7 +962,9 @@ function npmp_handle_membership_form() {
 				}
 				$contact_id = (int) $added;
 			}
-			npmp_send_signup_confirmation( $contact_id, $email, $name, $posted, $atts_token, $is_new );
+			if ( npmp_signup_address_mail_allows( $email ) ) {
+				npmp_send_signup_confirmation( $contact_id, $email, $name, $posted, $atts_token, $is_new );
+			}
 			wp_safe_redirect( npmp_membership_add_banner_arg( $redirect, 'npmp_signup', 'check_email' ) );
 			exit;
 		} elseif ( $existing ) {
@@ -1107,7 +1116,8 @@ function npmp_generate_resubscribe_token( $email ) {
 }
 
 /**
- * Email an unsubscribed contact a signed link that puts them back on the list.
+ * Email an Unsubscribed or Inactive contact a signed link that puts them back
+ * on the list.
  *
  * @param string $email    Recipient email address.
  * @param string $join_key Key of the signup saved by npmp_signup_save_pending(),
@@ -1205,6 +1215,30 @@ function npmp_handle_confirm_resubscribe() {
 /* ====================================================================
  * Double opt-in: confirm a new signup from the subscriber's own inbox
  * ==================================================================== */
+
+/**
+ * Whether a contact's status means they left the list, so the public form
+ * may only put them back after they confirm from their own inbox.
+ *
+ * @param string $status Contact status.
+ * @return bool
+ */
+function npmp_signup_status_left_list( $status ) {
+	return in_array( (string) $status, array( 'unsubscribed', 'inactive' ), true );
+}
+
+/**
+ * Count one confirmation email to an address the signup form names, and say
+ * whether it may go out. The per-visitor and site-wide caps still let many
+ * visitors send one person a flood, so this caps each address at 3 an hour.
+ * Filter it through npmp_rate_limit_max ('signup_address').
+ *
+ * @param string $email Address the form names.
+ * @return bool
+ */
+function npmp_signup_address_mail_allows( $email ) {
+	return npmp_rate_limit_allows( 'signup_address', 3, HOUR_IN_SECONDS, 'address:' . strtolower( trim( (string) $email ) ) );
+}
 
 /**
  * Whether a Pending contact's unconfirmed signup created them.
