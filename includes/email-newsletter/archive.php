@@ -244,14 +244,18 @@ function npmp_newsletter_archive_back_link() {
 /**
  * The whole public page for one newsletter.
  *
- * @param int $id Newsletter ID.
+ * @param int  $id            Newsletter ID.
+ * @param bool $admin_preview True for the admin's preview: noindex, no canonical, and a link back to the Newsletter Archive screen.
  * @return string
  */
-function npmp_newsletter_archive_page_html( $id ) {
+function npmp_newsletter_archive_page_html( $id, $admin_preview = false ) {
 	$title     = npmp_newsletter_archive_title( $id );
 	$sent_at   = npmp_newsletter_archive_sent_at( $id );
-	$back      = npmp_newsletter_archive_back_link();
-	$robots    = npmp_newsletter_archive_indexable() ? 'index, follow' : 'noindex, follow';
+	$back      = $admin_preview ? array(
+		'url'   => admin_url( 'admin.php?page=npmp_newsletter_archive' ),
+		'label' => __( 'Back to the Newsletter Archive', 'nonprofit-manager' ),
+	) : npmp_newsletter_archive_back_link();
+	$robots    = $admin_preview ? 'noindex, nofollow' : ( npmp_newsletter_archive_indexable() ? 'index, follow' : 'noindex, follow' );
 	$canonical = npmp_newsletter_archive_url( $id );
 
 	$out  = '<!DOCTYPE html><html ' . get_language_attributes() . '><head>';
@@ -259,7 +263,9 @@ function npmp_newsletter_archive_page_html( $id ) {
 	$out .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
 	$out .= '<meta name="robots" content="' . esc_attr( $robots ) . '">';
 	$out .= '<title>' . esc_html( $title . ' | ' . get_bloginfo( 'name' ) ) . '</title>';
-	$out .= '<link rel="canonical" href="' . esc_url( $canonical ) . '">';
+	if ( ! $admin_preview ) {
+		$out .= '<link rel="canonical" href="' . esc_url( $canonical ) . '">';
+	}
 	$out .= '<style>' . npmp_newsletter_archive_page_css() . '</style>';
 	$out .= '</head><body class="npmp-newsletter-view">';
 	$out .= '<header class="npmp-nlv-bar"><a href="' . esc_url( $back['url'] ) . '">&larr; ' . esc_html( $back['label'] ) . '</a></header>';
@@ -1193,3 +1199,52 @@ function npmp_newsletter_archive_index_field() {
 	echo '<label><input type="checkbox" name="npmp_newsletter_archive_index" value="1"' . checked( (bool) get_option( 'npmp_newsletter_archive_index', false ), true, false ) . '> ' . esc_html__( 'Let search engines index public newsletters', 'nonprofit-manager' ) . '</label>';
 	echo '<p class="description">' . esc_html__( 'Off by default, so search engines leave public newsletter pages out of their results and readers find each page through your links.', 'nonprofit-manager' ) . '</p>';
 }
+
+
+/**
+ * The admin's preview link for a newsletter, the Preview button on the
+ * Newsletter Archive screen and the editor's "Preview in new tab".
+ *
+ * The newsletter post type isn't public, so core's preview link
+ * (/?p=ID&preview=true) goes to the front end, finds no viewable post, and
+ * answers 404 for every newsletter, imported or not. This link stays in
+ * wp-admin, checks the viewer's right to edit it, and works for a draft, a
+ * sent newsletter, and one imported from another plugin.
+ *
+ * @param int $id Newsletter ID.
+ * @return string
+ */
+function npmp_newsletter_preview_url( $id ) {
+	$id = (int) $id;
+	return add_query_arg(
+		array(
+			'action'        => 'npmp_preview_newsletter',
+			'newsletter_id' => $id,
+			'_wpnonce'      => wp_create_nonce( 'npmp_preview_newsletter_' . $id ),
+		),
+		admin_url( 'admin.php' )
+	);
+}
+
+/**
+ * Show a newsletter the way the public page does, to someone who may edit it.
+ *
+ * @return void
+ */
+function npmp_newsletter_preview_handle() {
+	$id = isset( $_GET['newsletter_id'] ) ? absint( $_GET['newsletter_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Checked on the next line.
+	check_admin_referer( 'npmp_preview_newsletter_' . $id );
+	$post = $id ? get_post( $id ) : null;
+	if ( ! $post || 'npmp_newsletter' !== $post->post_type || 'trash' === $post->post_status ) {
+		wp_die( esc_html__( 'That newsletter no longer exists.', 'nonprofit-manager' ), '', array( 'response' => 404 ) );
+	}
+	if ( ! current_user_can( 'edit_post', $id ) ) {
+		wp_die( esc_html__( 'You can\'t open this newsletter.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
+	}
+	nocache_headers();
+	header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+	header( 'X-Robots-Tag: noindex, nofollow' );
+	echo npmp_newsletter_archive_page_html( $id, true ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built from escaped parts and the scrubbed newsletter body.
+	exit;
+}
+add_action( 'admin_action_npmp_preview_newsletter', 'npmp_newsletter_preview_handle' );

@@ -22,6 +22,9 @@ function npmp_render_gateway_donation_form( $gateway ) {
 				return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Venmo only accepts US dollars, so it is not offered for this currency.', 'nonprofit-manager' ) . '</p></div>';
 			}
 			return npmp_render_venmo_link_form();
+		case 'payment_link':
+			// One button per saved link, on the same form as the rest.
+			return npmp_render_multi_gateway_donation_form( array( 'payment_link' ) );
 		case 'paypal_api':
 			if ( npmp_is_pro() ) {
 				return npmp_render_paypal_api_form();
@@ -56,6 +59,14 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 	$decimals = npmp_currency_decimals( $currency );
 	$input    = npmp_currency_input_attrs( $currency );
 	$min_msg  = npmp_currency_min_amount_message( 'enter', $currency );
+	$prefill  = npmp_donation_prefill();
+	$links    = in_array( 'payment_link', $gateways, true ) ? npmp_get_payment_links() : array();
+	// PayPal and payment links can carry the donor's name, so ask for it.
+	$ask_name = in_array( 'paypal_link', $gateways, true ) || ! empty( $links );
+
+	if ( array( 'payment_link' ) === array_values( $gateways ) && empty( $links ) ) {
+		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Payment links are not configured. Please contact the administrator.', 'nonprofit-manager' ) . '</p></div>';
+	}
 
 	// Every comparison in the inline scripts below is written "min > amount",
 	// never with a less-than sign. A block theme runs the whole page through
@@ -74,8 +85,13 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
 			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-donation-amount" required style="width:100%;"></label></p>
 
+			<?php if ( $ask_name ) : ?>
+				<p><label><?php esc_html_e( 'Your Name', 'nonprofit-manager' ); ?><br>
+				<input type="text" name="name" id="npmp-donation-name" autocomplete="name" value="<?php echo esc_attr( $prefill['name'] ); ?>" style="width:100%;"></label></p>
+			<?php endif; ?>
+
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
-			<input type="email" name="email" id="npmp-donation-email" required style="width:100%;"></label></p>
+			<input type="email" name="email" id="npmp-donation-email" autocomplete="email" value="<?php echo esc_attr( $prefill['email'] ); ?>" required style="width:100%;"></label></p>
 
 			<p><strong><?php esc_html_e( 'Choose a payment method', 'nonprofit-manager' ); ?></strong></p>
 
@@ -109,6 +125,14 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 							<?php endif; ?>
 							<?php break; ?>
 
+						<?php case 'payment_link': ?>
+							<?php foreach ( $links as $link ) : ?>
+								<div style="margin-bottom: 10px;">
+									<button type="button" class="npmp-paylink-button" data-gateway="payment_link" data-template="<?php echo esc_attr( $link['url'] ); ?>" data-note="<?php echo esc_attr( '' !== $link['note'] ? $link['note'] : npmp_label( 'donation' ) ); ?>" style="background-color: #0f766e; color: #ffffff; border: none; padding: 12px 24px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold;"><?php echo esc_html( $link['label'] ); ?></button>
+								</div>
+							<?php endforeach; ?>
+							<?php break; ?>
+
 						<?php case 'paypal_api': ?>
 							<?php if ( npmp_is_pro() ) : ?>
 								<div id="paypal-button-container-multi" style="margin-bottom: 10px;"></div>
@@ -136,6 +160,7 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 			var amountInput = document.getElementById('npmp-donation-amount');
 			var emailInput = document.getElementById('npmp-donation-email');
 			var multiError = document.getElementById('npmp-multi-error');
+			var nameInput = document.getElementById('npmp-donation-name');
 			var npmpMinAmount = <?php echo (float) npmp_currency_min_donation( $currency ); ?>;
 
 			if (!amountInput || !emailInput) {
@@ -155,6 +180,16 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 				if (multiError) {
 					multiError.style.display = 'none';
 				}
+			}
+
+			// First word and the rest, for PayPal's first_name and last_name.
+			function npmpNameParts() {
+				var full = nameInput ? nameInput.value.trim() : '';
+				var at = full.indexOf(' ');
+				if (-1 === at) {
+					return [full, ''];
+				}
+				return [full.slice(0, at), full.slice(at + 1).trim()];
 			}
 
 			// PayPal Link handler
@@ -183,7 +218,54 @@ function npmp_render_multi_gateway_donation_form( $gateways ) {
 						return;
 					}
 					var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(paypalEmail) + '&amount=' + amount + '&currency_code=<?php echo esc_js( $currency ); ?>&item_name=' + encodeURIComponent('Donation');
+					// PayPal's auto-fill variables for its payment buttons (email,
+					// first_name, last_name), cut to the lengths PayPal lists.
+					var nameParts = npmpNameParts();
+					paypalUrl += '&email=' + encodeURIComponent(email.slice(0, 127));
+					if (nameParts[0]) {
+						paypalUrl += '&first_name=' + encodeURIComponent(nameParts[0].slice(0, 32));
+					}
+					if (nameParts[1]) {
+						paypalUrl += '&last_name=' + encodeURIComponent(nameParts[1].slice(0, 32));
+					}
 					window.open(paypalUrl, '_blank');
+				});
+			});
+
+			// Payment link handler: fill the site owner's template and go.
+			var payLinkButtons = document.querySelectorAll('.npmp-paylink-button');
+			payLinkButtons.forEach(function(button) {
+				button.addEventListener('click', function(e) {
+					e.preventDefault();
+					npmpClearMultiError();
+					var amount = parseFloat(amountInput.value);
+					var email = emailInput.value;
+
+					if (!amount || npmpMinAmount > amount) {
+						npmpShowMultiError('<?php echo esc_js( $min_msg ); ?>');
+						return;
+					}
+
+					if (!email) {
+						npmpShowMultiError('<?php echo esc_js( __( 'Please enter your email address.', 'nonprofit-manager' ) ); ?>');
+						return;
+					}
+
+					var values = {
+						amount: amount.toFixed(<?php echo (int) $decimals; ?>),
+						name: nameInput ? nameInput.value.trim() : '',
+						email: email,
+						currency: '<?php echo esc_js( $currency ); ?>',
+						note: button.getAttribute('data-note') || ''
+					};
+					var url = (button.getAttribute('data-template') || '').replace(/\{(amount|name|email|currency|note)\}/g, function(match, key) {
+						return encodeURIComponent(values[key]);
+					});
+					if (0 !== url.indexOf('https://')) {
+						npmpShowMultiError('<?php echo esc_js( __( 'This payment link is not set up correctly. Please contact the site administrator.', 'nonprofit-manager' ) ); ?>');
+						return;
+					}
+					window.open(url, '_blank', 'noopener');
 				});
 			});
 
@@ -381,6 +463,7 @@ function npmp_render_paypal_link_form() {
 	$opts     = npmp_get_donation_form_options();
 	$currency = npmp_currency();
 	$input    = npmp_currency_input_attrs( $currency );
+	$prefill  = npmp_donation_prefill();
 
 	ob_start();
 	?>
@@ -392,8 +475,11 @@ function npmp_render_paypal_link_form() {
 			<p><label><?php echo esc_html( $opts['amount_lbl'] ); ?><br>
 			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-amount" required style="width:100%;"></label></p>
 
+			<p><label><?php esc_html_e( 'Your Name', 'nonprofit-manager' ); ?><br>
+			<input type="text" name="name" id="npmp-name" autocomplete="name" value="<?php echo esc_attr( $prefill['name'] ); ?>" style="width:100%;"></label></p>
+
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
-			<input type="email" name="email" id="npmp-email" required style="width:100%;"></label></p>
+			<input type="email" name="email" id="npmp-email" autocomplete="email" value="<?php echo esc_attr( $prefill['email'] ); ?>" required style="width:100%;"></label></p>
 
 			<?php if ( npmp_has_multiple_frequencies( 'paypal_link' ) ) : ?>
 				<p><label><?php esc_html_e( 'Frequency', 'nonprofit-manager' ); ?><br>
@@ -421,11 +507,27 @@ function npmp_render_paypal_link_form() {
 		var form = document.getElementById('npmp-paypal-link-form');
 		var amount = form.querySelector('#npmp-amount').value;
 		var business = form.querySelector('#npmp-paypal-business').value;
+		var email = form.querySelector('#npmp-email').value;
+		var fullName = form.querySelector('#npmp-name').value.trim();
+		var at = fullName.indexOf(' ');
+		var firstName = -1 === at ? fullName : fullName.slice(0, at);
+		var lastName = -1 === at ? '' : fullName.slice(at + 1).trim();
 
 		var paypalUrl = 'https://www.paypal.com/donate/?business=' + encodeURIComponent(business) +
 			'&amount=' + encodeURIComponent(amount) +
 			'&currency_code=<?php echo esc_js( $currency ); ?>' +
 			'&item_name=' + encodeURIComponent('Donation');
+		// PayPal's auto-fill variables for its payment buttons, cut to the
+		// lengths PayPal lists.
+		if (email) {
+			paypalUrl += '&email=' + encodeURIComponent(email.slice(0, 127));
+		}
+		if (firstName) {
+			paypalUrl += '&first_name=' + encodeURIComponent(firstName.slice(0, 32));
+		}
+		if (lastName) {
+			paypalUrl += '&last_name=' + encodeURIComponent(lastName.slice(0, 32));
+		}
 
 		window.open(paypalUrl, '_blank');
 		return false;
@@ -451,7 +553,8 @@ function npmp_render_venmo_link_form() {
 		return '<div class="npmp-donation-form npmp-donation-form--inactive"><p>' . esc_html__( 'Venmo is not configured. Please contact the administrator.', 'nonprofit-manager' ) . '</p></div>';
 	}
 
-	$opts = npmp_get_donation_form_options();
+	$opts    = npmp_get_donation_form_options();
+	$prefill = npmp_donation_prefill();
 
 	ob_start();
 	?>
@@ -464,7 +567,7 @@ function npmp_render_venmo_link_form() {
 			<input type="number" step="0.01" min="1" name="amount" id="npmp-venmo-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
-			<input type="email" name="email" id="npmp-venmo-email" required style="width:100%;"></label></p>
+			<input type="email" name="email" id="npmp-venmo-email" autocomplete="email" value="<?php echo esc_attr( $prefill['email'] ); ?>" required style="width:100%;"></label></p>
 
 			<input type="hidden" id="npmp-venmo-handle" value="<?php echo esc_attr( $venmo_handle ); ?>">
 
@@ -592,6 +695,7 @@ function npmp_render_paypal_api_form() {
 	// amount as typed, as they always have.
 	$decimals = npmp_currency_decimals( $currency );
 	$input    = npmp_currency_input_attrs( $currency );
+	$prefill  = npmp_donation_prefill();
 
 	// Enqueue PayPal SDK
 	$sandbox_param = 'sandbox' === $mode ? '&buyer-country=US' : '';
@@ -614,7 +718,7 @@ function npmp_render_paypal_api_form() {
 			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-paypal-api-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
-			<input type="email" name="email" id="npmp-paypal-api-email" required style="width:100%;"></label></p>
+			<input type="email" name="email" id="npmp-paypal-api-email" autocomplete="email" value="<?php echo esc_attr( $prefill['email'] ); ?>" required style="width:100%;"></label></p>
 
 			<?php if ( npmp_has_multiple_frequencies( 'paypal_api' ) ) : ?>
 				<p><label><?php esc_html_e( 'Frequency', 'nonprofit-manager' ); ?><br>
@@ -732,6 +836,7 @@ function npmp_render_stripe_form() {
 	$opts     = npmp_get_donation_form_options();
 	$currency = npmp_currency();
 	$input    = npmp_currency_input_attrs( $currency );
+	$prefill  = npmp_donation_prefill();
 
 	// No Stripe.js needed: the server creates the Checkout Session and the
 	// browser follows the session's own URL. redirectToCheckout() is
@@ -748,7 +853,7 @@ function npmp_render_stripe_form() {
 			<input type="number" step="<?php echo esc_attr( $input['step'] ); ?>" min="<?php echo esc_attr( $input['min'] ); ?>" name="amount" id="npmp-stripe-amount" required style="width:100%;"></label></p>
 
 			<p><label><?php echo esc_html( $opts['email_lbl'] ); ?><br>
-			<input type="email" name="email" id="npmp-stripe-email" required style="width:100%;"></label></p>
+			<input type="email" name="email" id="npmp-stripe-email" autocomplete="email" value="<?php echo esc_attr( $prefill['email'] ); ?>" required style="width:100%;"></label></p>
 
 			<?php if ( npmp_has_multiple_frequencies( 'stripe' ) ) : ?>
 				<p><label><?php esc_html_e( 'Frequency', 'nonprofit-manager' ); ?><br>

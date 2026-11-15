@@ -339,6 +339,13 @@ class NPMP_Newsletter_Manager {
 
 		// Apply newsletter template if configured
 		$selected_template = get_post_meta( $newsletter_id, '_npmp_newsletter_template', true );
+		// A saved template someone deleted or trashed counts as no choice: the
+		// picker reopens on "Use Default Template", so the email gets the
+		// default too, the way an event's email does
+		// (npmp_scheduled_emails_pick_template()).
+		if ( is_numeric( $selected_template ) && function_exists( 'npmp_newsletter_template_exists' ) && ! npmp_newsletter_template_exists( (int) $selected_template ) ) {
+			$selected_template = '';
+		}
 		if ( function_exists( 'npmp_apply_newsletter_template' ) && $selected_template !== 'none' ) {
 			if ( empty( $selected_template ) || '' === $selected_template ) {
 				// Use default template

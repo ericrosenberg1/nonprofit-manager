@@ -85,8 +85,11 @@ function disabled( $a, $b, $echo = true ) {
 function current_user_can( $cap, ...$args ) {
 	return false;
 }
-function get_preview_post_link( $post ) {
-	return '';
+function esc_url( $url ) {
+	return $url;
+}
+function npmp_newsletter_preview_url( $id ) {
+	return 'preview-' . (int) $id;
 }
 function npmp_label( $key ) {
 	return array( 'members' => 'Members', 'members_lc' => 'members', 'levels_lc' => 'membership levels' )[ $key ] ?? $key;

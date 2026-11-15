@@ -1468,12 +1468,14 @@ function npmp_scheduled_emails_get_body( $body_id ) {
  * isn't a template, while the picker reopens on "Use Default Template", so
  * the email would go out unwrapped with the screen saying otherwise.
  *
- * @param int   $event_id Event ID.
- * @param array $body     Body from npmp_scheduled_emails_get_body().
+ * @param int         $event_id Event ID.
+ * @param array       $body     Body from npmp_scheduled_emails_get_body().
+ * @param string|null $picked   The choice currently in the event editor's picker, unsaved, or null to use the saved one.
  * @return string '' for the default, 'none' for none, or a template ID.
  */
-function npmp_scheduled_emails_pick_template( $event_id, $body ) {
-	foreach ( array( (string) get_post_meta( (int) $event_id, '_npmp_event_email_template', true ), (string) $body['template'] ) as $choice ) {
+function npmp_scheduled_emails_pick_template( $event_id, $body, $picked = null ) {
+	$own = null === $picked ? (string) get_post_meta( (int) $event_id, '_npmp_event_email_template', true ) : (string) $picked;
+	foreach ( array( $own, (string) $body['template'] ) as $choice ) {
 		if ( '' === $choice ) {
 			continue;
 		}
@@ -1486,6 +1488,31 @@ function npmp_scheduled_emails_pick_template( $event_id, $body ) {
 		}
 	}
 	return '';
+}
+
+/**
+ * A template choice posted from the event editor, checked: '' for the
+ * default, 'none' for no template, or the ID of a template the current user
+ * can read. Anything else (a post of another type, a trashed template, one
+ * the user can't read, a made-up ID) comes back null, so the test uses the
+ * saved choice.
+ *
+ * @param string $choice Posted value.
+ * @return string|null
+ */
+function npmp_scheduled_emails_readable_template_choice( $choice ) {
+	$choice = (string) $choice;
+	if ( '' === $choice || 'none' === $choice ) {
+		return $choice;
+	}
+	if ( ! ctype_digit( $choice ) || (int) $choice < 1 ) {
+		return null;
+	}
+	$template = get_post( (int) $choice );
+	if ( $template && 'npmp_nl_template' === $template->post_type && 'trash' !== $template->post_status && current_user_can( 'read_post', $template->ID ) ) {
+		return (string) (int) $choice;
+	}
+	return null;
 }
 
 /**
@@ -1624,9 +1651,11 @@ function npmp_scheduled_emails_build_newsletter( $row, $event_id, $prefix = '' )
  *                              current user's.
  * @param object|null $row      Scheduled email row (or one with a rule_key)
  *                              the test stands in for.
+ * @param string|null $picked   The template picked in the event editor and not
+ *                              saved yet, or null for the saved choice.
  * @return array{subject:string,html:string}
  */
-function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $email = '', $row = null ) {
+function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $email = '', $row = null, $picked = null ) {
 	if ( '' === (string) $email && function_exists( 'wp_get_current_user' ) ) {
 		$email = (string) wp_get_current_user()->user_email;
 	}
@@ -1634,7 +1663,7 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $emai
 	$map  = npmp_scheduled_emails_placeholders( $event_id, is_object( $row ) ? $row : null );
 	$html = npmp_email_the_content( npmp_scheduled_emails_fill( $body['content'], $map, true ) );
 	// The template a real send would use, so the test shows the same wrapper.
-	$template = npmp_scheduled_emails_pick_template( $event_id, $body );
+	$template = npmp_scheduled_emails_pick_template( $event_id, $body, $picked );
 	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $template ) {
 		$html = is_numeric( $template ) ? npmp_apply_newsletter_template( $html, absint( $template ) ) : npmp_apply_newsletter_template( $html );
 	}
@@ -2600,7 +2629,8 @@ function npmp_scheduled_emails_ajax_event() {
 		$subject  = isset( $_POST['subject'] ) ? sanitize_text_field( wp_unslash( $_POST['subject'] ) ) : '';
 		$subject  = '' !== $subject ? $subject : ( '' !== $own['subject'] ? $own['subject'] : $defaults['subject'] );
 		$user     = wp_get_current_user();
-		$email    = npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, (string) $user->user_email, npmp_scheduled_emails_event_default_row( $event_id ) );
+		$picked   = isset( $_POST['template'] ) ? npmp_scheduled_emails_readable_template_choice( sanitize_text_field( wp_unslash( $_POST['template'] ) ) ) : null;
+		$email    = npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, (string) $user->user_email, npmp_scheduled_emails_event_default_row( $event_id ), $picked );
 		/* translators: %s: email subject. */
 		$sent = NPMP_Newsletter_Manager::send_email( $user->user_email, sprintf( __( '[Test] %s', 'nonprofit-manager' ), $email['subject'] ), $email['html'] );
 		if ( ! $sent ) {
