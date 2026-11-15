@@ -99,9 +99,21 @@ function npmp_event_import_old_path( $slug, $post_name ) {
  */
 function npmp_event_import_table( $short ) {
 	global $wpdb;
+	// Event Organiser and My Calendar ask for a table on every imported date.
+	// A table that exists stays for the request (none of these sources can be
+	// deleted from the hub), so remember the ones found. A missing table is
+	// asked again, in case the old plugin makes it later in the request.
+	static $found = array();
 	$name = $wpdb->prefix . $short;
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Table check.
-	return $name === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $name ) ) ) ? $name : '';
+	if ( isset( $found[ $name ] ) ) {
+		return $name;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Table check, cached above once found.
+	if ( $name !== $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $name ) ) ) ) {
+		return '';
+	}
+	$found[ $name ] = true;
+	return $name;
 }
 
 /**
