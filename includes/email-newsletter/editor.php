@@ -366,8 +366,10 @@ function npmp_newsletter_send_controls_html($post) {
     echo '<legend><strong>' . esc_html__('Audience', 'nonprofit-manager') . '</strong></legend>';
     echo '<p>' . esc_html__('Select who should receive this newsletter.', 'nonprofit-manager') . '</p>';
 
-    // All Members option
-    $all_checked  = empty($selected_levels);
+    // All Members option. Picked groups narrow the audience, so the box
+    // stays unticked for a group newsletter, as the author left it. It came
+    // back ticked on every reload, which read as "the group was ignored".
+    $all_checked  = empty($selected_levels) && !npmp_newsletter_has_groups($post->ID);
     /* translators: %s: plural word for members, such as Members. */
     $all_label    = sprintf(__('All %s', 'nonprofit-manager'), npmp_label('members'));
     /* translators: %s: plural word for members, such as Members. */
@@ -440,7 +442,11 @@ function npmp_newsletter_send_controls_html($post) {
      */
     do_action('npmp_newsletter_recipient_options', $post->ID);
 
-    echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('All subscribed %s', 'nonprofit-manager'), npmp_label('members_lc'))) . '">' . esc_html($audience_label) . '</span></p>';
+    echo '<p><strong>' . esc_html__('Current selection:', 'nonprofit-manager') . '</strong> <span class="npmp-newsletter-audience-label" data-default="' . esc_attr(sprintf(/* translators: %s: lowercase plural word for members, such as members. */ __('All subscribed %s', 'nonprofit-manager'), npmp_label('members_lc')))
+        /* translators: %s: group names, such as "Art Club, Walking". */
+        . '" data-groups-only="' . esc_attr__('Members of %s', 'nonprofit-manager')
+        /* translators: 1: membership levels, 2: group names. */
+        . '" data-groups-within="' . esc_attr__('%1$s in %2$s', 'nonprofit-manager') . '">' . esc_html($audience_label) . '</span></p>';
 
     $preview_link = get_preview_post_link($post);
     if ($preview_link) {
@@ -585,8 +591,21 @@ function npmp_newsletter_get_audience_label($post_id) {
             return $stored;
         }
     }
-    $levels = get_post_meta($post_id, '_npmp_newsletter_levels', true);
-    return NPMP_Newsletter_Manager::describe_audience($levels);
+    // Through the label filter, so a group newsletter reads "Members of
+    // Art Club" with Pro on. It read "All subscribed members" here.
+    return NPMP_Newsletter_Manager::audience_label($post_id);
+}
+
+/**
+ * Whether a newsletter is aimed at groups (Pro's `_npmp_newsletter_groups`).
+ * Groups narrow the audience, so the editor leaves "All Members" unticked.
+ *
+ * @param int $post_id Newsletter ID.
+ * @return bool
+ */
+function npmp_newsletter_has_groups($post_id) {
+    $groups = get_post_meta($post_id, '_npmp_newsletter_groups', true);
+    return !empty($groups);
 }
 
 /**
@@ -628,7 +647,6 @@ function npmp_newsletter_store_meta($post_id, $levels = null, $preheader = null)
     if (null !== $levels) {
         $normalized = npmp_newsletter_normalize_levels($levels);
         update_post_meta($post_id, '_npmp_newsletter_levels', $normalized);
-        update_post_meta($post_id, '_npmp_newsletter_audience_label', NPMP_Newsletter_Manager::describe_audience($normalized));
 
         /**
          * Fires after a newsletter's audience saves: on post save, and on the
@@ -643,6 +661,9 @@ function npmp_newsletter_store_meta($post_id, $levels = null, $preheader = null)
          * @param array $request The whole unslashed POST. Sanitize what you read.
          */
         do_action('npmp_newsletter_audience_saved', (int) $post_id, $normalized, wp_unslash($_POST)); // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Every caller verifies its nonce first. Listeners sanitize what they read.
+
+        // After the listeners, so the label names the groups Pro just saved.
+        update_post_meta($post_id, '_npmp_newsletter_audience_label', NPMP_Newsletter_Manager::audience_label($post_id));
     }
 
     if (null !== $preheader) {
@@ -710,6 +731,16 @@ function npmp_newsletter_row_actions($actions, $post) {
 add_filter('post_row_actions', 'npmp_newsletter_row_actions', 10, 2);
 
 /**
+ * Meta a duplicated newsletter keeps. Groups come along with the levels, or
+ * a copy of a group newsletter would go to everyone.
+ *
+ * @return string[]
+ */
+function npmp_newsletter_duplicate_meta_keys() {
+    return ['_npmp_newsletter_preheader', '_npmp_newsletter_levels', '_npmp_newsletter_groups'];
+}
+
+/**
  * Handle duplication requests.
  *
  * @return void
@@ -747,7 +778,7 @@ function npmp_handle_duplicate_newsletter() {
         wp_die(esc_html($new_id->get_error_message()));
     }
 
-    $meta_to_copy = ['_npmp_newsletter_preheader', '_npmp_newsletter_levels'];
+    $meta_to_copy = npmp_newsletter_duplicate_meta_keys();
     foreach ($meta_to_copy as $meta_key) {
         $value = get_post_meta($newsletter_id, $meta_key, true);
         if (!empty($value)) {

@@ -369,7 +369,8 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed the newsletter editor and Newsletter Archive, where you saw "All subscribed members" and All Members ticked again after you picked a group.
+- Fixed Duplicate on a group newsletter, where you got a copy with no group.
 
 Pro (licence server changelog):
 - (none)
