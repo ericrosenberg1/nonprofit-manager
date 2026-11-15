@@ -372,6 +372,8 @@ Free (`readme.txt`):
 - Added a search box to the Newsletter Archive, so you can find a newsletter by its title or text.
 - Added sortable Title, Last Sent, Recipients, and Public columns to the Newsletter Archive.
 - Added Newsletter to the + New menu in the admin bar, for everyone who can write newsletters, Membership Managers included.
+- Fixed the newsletter editor and Newsletter Archive, where you saw "All subscribed members" and All Members ticked again after you picked a group.
+- Fixed Duplicate on a group newsletter, where you got a copy with no group.
 
 Pro (licence server changelog):
 - (none)

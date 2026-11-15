@@ -6,6 +6,26 @@ jQuery(function ($) {
     const $specificLevelsContainer = $('.npmp-newsletter-specific-levels');
     const $preheader = $('#npmp-newsletter-preheader');
     const $audienceLabel = $('.npmp-newsletter-audience-label');
+    // Pro's Groups picker. Groups narrow the audience: no level picked means
+    // members of those groups (Pro's npmp_pro_groups_filter_recipients()).
+    const $groupInputs = $('.npmp-newsletter-audience-extra input[name="npmp_newsletter_groups[]"]');
+
+    const groupNames = () => {
+        const names = [];
+        $groupInputs.filter(':checked').not(':disabled').each(function () {
+            let name = $(this).data('label');
+            if (!name) {
+                // Older Pro prints the name as the label's text, then a count.
+                const $label = $(this).closest('label').clone();
+                $label.find('.description').remove();
+                name = $.trim($label.text());
+            }
+            if (name) {
+                names.push(String(name));
+            }
+        });
+        return names;
+    };
 
     const gatherAudience = () => {
         return {
@@ -20,11 +40,8 @@ jQuery(function ($) {
         }
 
         const payload = gatherAudience();
-
-        if (!payload.levels.length || payload.levels.includes('__all__')) {
-            $audienceLabel.text($audienceLabel.data('default') || '');
-            return;
-        }
+        const groups = groupNames();
+        const everyone = !payload.levels.length || payload.levels.includes('__all__');
 
         const names = [];
         $levelInputs.filter(':checked').not('.npmp-newsletter-all').each(function () {
@@ -34,12 +51,26 @@ jQuery(function ($) {
             }
         });
 
+        if (groups.length) {
+            // The same words Pro saves after the save (npmp_pro_groups_audience_label()).
+            const template = everyone || !names.length
+                ? String($audienceLabel.data('groupsOnly') || '%s').replace('%s', groups.join(', '))
+                : String($audienceLabel.data('groupsWithin') || '%1$s in %2$s').replace('%1$s', names.join(', ')).replace('%2$s', groups.join(', '));
+            $audienceLabel.text(template);
+            return;
+        }
+
+        if (everyone) {
+            $audienceLabel.text($audienceLabel.data('default') || '');
+            return;
+        }
+
         $audienceLabel.text(names.join(', '));
     };
 
-    // Handle "All Members" checkbox interaction
-    $allCheckbox.on('change', function() {
-        if ($(this).is(':checked')) {
+    const setAllMembers = (checked) => {
+        $allCheckbox.prop('checked', checked);
+        if (checked) {
             // Disable and uncheck specific level checkboxes
             $specificCheckboxes.prop('checked', false).prop('disabled', true);
             $specificLevelsContainer.css({'opacity': '0.5', 'pointer-events': 'none'});
@@ -47,6 +78,21 @@ jQuery(function ($) {
             // Enable specific level checkboxes
             $specificCheckboxes.prop('disabled', false);
             $specificLevelsContainer.css({'opacity': '1', 'pointer-events': 'auto'});
+        }
+    };
+
+    // Handle "All Members" checkbox interaction
+    $allCheckbox.on('change', function() {
+        setAllMembers($(this).is(':checked'));
+        updateAudienceLabel();
+    });
+
+    // A picked group narrows the audience, so "All Members" comes off, the
+    // same as the editor shows after a reload (npmp_newsletter_has_groups()).
+    // Without a level, the send still goes to every member of the group.
+    $groupInputs.on('change', function () {
+        if ($(this).is(':checked') && $allCheckbox.is(':checked')) {
+            setAllMembers(false);
         }
         updateAudienceLabel();
     });
