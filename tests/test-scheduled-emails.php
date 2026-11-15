@@ -334,5 +334,66 @@ foreach ( array( 'npmp-sched-timing', 'npmp-sched-body', 'npmp-sched-default-tim
 }
 check( 'member words go through the label map', false, strpos( $src, "'Email members before" ) );
 
+echo "\nThe body select's default choice\n";
+// Pro's event box reuses this select and names the default after the
+// schedule (Pete at U3A, 2026-11-13: with Pro on there was no Body to pick).
+if ( ! function_exists( 'get_posts' ) ) {
+	function get_posts( $args ) {
+		return array();
+	}
+}
+$GLOBALS['t_posts'] = array();
+if ( ! function_exists( 'get_post' ) ) {
+	function get_post( $id ) {
+		return $GLOBALS['t_posts'][ (int) $id ] ?? null;
+	}
+}
+ob_start();
+npmp_scheduled_emails_body_select( 'npmp_sched_email[body_id]', '', true, 'npmp-sched-body' );
+check( 'free says Site default', true, false !== strpos( ob_get_clean(), '<option value="" selected="selected">Site default</option>' ) );
+ob_start();
+npmp_scheduled_emails_body_select( 'npmp_pro_sched_event_body', '', true, 'npmp-pro-sched-body', 'From the schedule' );
+$html = ob_get_clean();
+check( 'a caller can name the default', true, false !== strpos( $html, '<option value="" selected="selected">From the schedule</option>' ) );
+check( 'and only that one default', 1, substr_count( $html, '<option value=""' ) );
+
+echo "\nWhich template an event's email is wrapped in\n";
+// The event's own choice wins, then the body's, then the site default. Before
+// ROS-4473 only the body could carry one, and nothing on any screen set it.
+$body_default = array( 'template' => '' );
+$body_own     = array( 'template' => '31' );
+foreach ( array( 31, 32 ) as $t_id ) {
+	$GLOBALS['t_posts'][ $t_id ] = (object) array( 'ID' => $t_id, 'post_type' => 'npmp_nl_template', 'post_status' => 'publish' );
+}
+check( 'no choice anywhere: the site default', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+check( 'body with a template, event without: the body wins', '31', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 32;
+check( 'event choice beats the body', '32', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 'none';
+check( 'event can switch the wrapper off', 'none', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+// Saving "Use Default Template" writes '', which has to read as no choice
+// rather than as a choice of nothing, or the body could never be heard again.
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
+check( 'back to the default: the body is heard again', '31', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+check( 'an event with no meta at all', '', npmp_scheduled_emails_pick_template( 99, $body_default ) );
+// The picker reopens on "Use Default Template" when its saved template is
+// gone, so the send has to agree rather than go out unwrapped.
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 33;
+check( 'a deleted event template: the body is heard', '31', npmp_scheduled_emails_pick_template( 7, $body_own ) );
+check( 'a deleted event template, nothing on the body: the site default', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+$GLOBALS['t_posts'][34] = (object) array( 'ID' => 34, 'post_type' => 'npmp_nl_template', 'post_status' => 'trash' );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 34;
+check( 'a trashed template counts as gone', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+$GLOBALS['t_posts'][35] = (object) array( 'ID' => 35, 'post_type' => 'post', 'post_status' => 'publish' );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 35;
+check( 'an ID that isn\'t a template counts as gone', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 0;
+check( 'a saved 0 reads as the default', '', npmp_scheduled_emails_pick_template( 7, $body_default ) );
+$GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
+// Two call sites: the queued send in build_newsletter() and "Send a test to
+// me" in render_test(). A test that showed a different wrapper from the send
+// is the bug this guards.
+check( 'the test send reads the same picker as the real send', 2, substr_count( $src, '= npmp_scheduled_emails_pick_template( $event_id, $body );' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );
