@@ -240,7 +240,10 @@ function npmp_staff_declutter_dashboard() {
 add_action( 'wp_dashboard_setup', 'npmp_staff_declutter_dashboard', 999 );
 
 /**
- * Trim the admin bar to what a Membership Manager can use.
+ * Trim the admin bar to what a Membership Manager can use. The + New menu
+ * stays: WordPress lists in it only what they may create, which is a
+ * newsletter when the newsletters module is on and nothing otherwise, and
+ * it leaves the menu out when the list is empty.
  *
  * @param WP_Admin_Bar $admin_bar Admin bar.
  * @return void
@@ -249,7 +252,7 @@ function npmp_staff_declutter_admin_bar( $admin_bar ) {
 	if ( ! npmp_is_limited_staff() ) {
 		return;
 	}
-	foreach ( array( 'wp-logo', 'new-content', 'comments', 'updates', 'customize' ) as $node ) {
+	foreach ( array( 'wp-logo', 'comments', 'updates', 'customize' ) as $node ) {
 		$admin_bar->remove_node( $node );
 	}
 }

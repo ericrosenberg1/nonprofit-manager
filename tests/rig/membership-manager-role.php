@@ -407,7 +407,8 @@ rig_check( 'POST options.php refused', 403, $r['code'] );
 // What the screens show.
 $list = $bodies['admin.php?page=npmp_members'];
 rig_check( 'member list has no "Give a volunteer access" panel', false, false !== strpos( $list, 'npmp-staff-access' ) );
-rig_check( 'admin bar has no New menu', false, false !== strpos( $list, 'wp-admin-bar-new-content' ) );
+rig_check( 'admin bar + New lists Newsletter', true, false !== strpos( $list, 'wp-admin-bar-new-npmp_newsletter' ) );
+rig_check( 'admin bar + New has no Post, Page, Media, User, or Event', false, (bool) preg_match( '/wp-admin-bar-new-(post|page|media|user|npmp_event)"/', $list ) );
 rig_check( 'admin menu has no Posts', false, false !== strpos( $list, 'id="menu-posts"' ) );
 rig_check( 'admin menu has no Settings', false, false !== strpos( $list, 'id="menu-settings"' ) );
 rig_check( 'admin menu shows Membership', true, false !== strpos( $list, 'toplevel_page_npmp_membership' ) );

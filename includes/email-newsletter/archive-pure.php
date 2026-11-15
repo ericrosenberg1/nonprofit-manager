@@ -349,3 +349,61 @@ function npmp_newsletter_public_bulk_plan( array $rows, $action ) {
 	}
 	return $plan;
 }
+
+/**
+ * The columns on the Newsletter Archive screen that can sort, each with the
+ * direction its first click uses.
+ *
+ * @return array<string,string> Column key => 'asc' or 'desc'.
+ */
+function npmp_newsletter_archive_sort_columns() {
+	return array(
+		'title'      => 'asc',
+		'sent'       => 'desc',
+		'recipients' => 'desc',
+		'public'     => 'desc',
+	);
+}
+
+/**
+ * Turn the orderby and order query arguments into a sort that is safe to use.
+ * An unknown column gives the default (newest first, no column marked).
+ *
+ * @param mixed $orderby Raw orderby.
+ * @param mixed $order   Raw order.
+ * @return array{orderby:string,order:string} orderby is '' for the default. order is ASC or DESC.
+ */
+function npmp_newsletter_archive_sort( $orderby, $order ) {
+	$columns = npmp_newsletter_archive_sort_columns();
+	$orderby = is_string( $orderby ) ? strtolower( trim( $orderby ) ) : '';
+	if ( ! isset( $columns[ $orderby ] ) ) {
+		return array(
+			'orderby' => '',
+			'order'   => 'DESC',
+		);
+	}
+	$order = is_string( $order ) ? strtolower( trim( $order ) ) : '';
+	if ( 'asc' !== $order && 'desc' !== $order ) {
+		$order = $columns[ $orderby ];
+	}
+	return array(
+		'orderby' => $orderby,
+		'order'   => strtoupper( $order ),
+	);
+}
+
+/**
+ * The direction a column header's link asks for. The sorted column flips,
+ * any other column starts in its own first direction.
+ *
+ * @param array  $sort   From npmp_newsletter_archive_sort().
+ * @param string $column Column key.
+ * @return string 'asc' or 'desc'.
+ */
+function npmp_newsletter_archive_sort_next( array $sort, $column ) {
+	$columns = npmp_newsletter_archive_sort_columns();
+	if ( $sort['orderby'] === $column ) {
+		return 'ASC' === $sort['order'] ? 'desc' : 'asc';
+	}
+	return $columns[ $column ] ?? 'asc';
+}

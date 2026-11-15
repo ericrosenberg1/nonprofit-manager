@@ -177,10 +177,37 @@ function npmp_newsletter_public_bulk_key() {
  * Where the newsletter list lives.
  *
  * @param array $args Query arguments.
+ * @param array $view Search, sort and filters to keep (npmp_newsletter_archive_view_args()).
  * @return string
  */
-function npmp_newsletter_public_bulk_back( array $args = array() ) {
-	return add_query_arg( $args, admin_url( 'admin.php?page=npmp_newsletter_archive' ) );
+function npmp_newsletter_public_bulk_back( array $args = array(), array $view = array() ) {
+	return add_query_arg( array_merge( $view, $args ), admin_url( 'admin.php?page=npmp_newsletter_archive' ) );
+}
+
+/**
+ * The view the bulk forms post back, so a bulk action from a searched or
+ * sorted list returns to that list.
+ *
+ * @return array
+ */
+function npmp_newsletter_public_bulk_posted_view() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Called after check_admin_referer(), and every value is cleaned.
+	$posted = isset( $_POST['npmp_view'] ) && is_array( $_POST['npmp_view'] ) ? $_POST['npmp_view'] : array();
+	return function_exists( 'npmp_newsletter_archive_view_args' ) ? npmp_newsletter_archive_view_args( $posted ) : array();
+}
+
+/**
+ * Hidden fields that carry a view through a bulk form.
+ *
+ * @param array $view From npmp_newsletter_archive_view_args().
+ * @return string HTML.
+ */
+function npmp_newsletter_public_bulk_view_fields( array $view ) {
+	$html = '';
+	foreach ( $view as $key => $value ) {
+		$html .= '<input type="hidden" name="npmp_view[' . esc_attr( (string) $key ) . ']" value="' . esc_attr( (string) $value ) . '">';
+	}
+	return $html;
 }
 
 /**
@@ -188,20 +215,22 @@ function npmp_newsletter_public_bulk_back( array $args = array() ) {
  *
  * @param string $action 'show' or 'hide'.
  * @param int[]  $ids    Post IDs.
+ * @param array  $view   Search, sort and filters to come back to (npmp_newsletter_archive_view_args()).
  * @return string Redirect URL.
  */
-function npmp_newsletter_public_bulk_route( $action, array $ids ) {
+function npmp_newsletter_public_bulk_route( $action, array $ids, array $view = array() ) {
 	$plan = npmp_newsletter_public_bulk_plan( npmp_newsletter_public_bulk_rows( $ids ), $action );
 	if ( 'show' === $action ) {
 		set_transient( npmp_newsletter_public_bulk_key(), array_merge( $plan['change'], $plan['unsent'], $plan['already'] ), 15 * MINUTE_IN_SECONDS );
-		return npmp_newsletter_public_bulk_back( array( 'npmp_public_confirm' => 1 ) );
+		return npmp_newsletter_public_bulk_back( array( 'npmp_public_confirm' => 1 ), $view );
 	}
 	$done = npmp_newsletter_public_bulk_apply( $plan, 'hide' );
 	return npmp_newsletter_public_bulk_back(
 		array(
 			'npmp_public_done' => 'hide',
 			'npmp_public_n'    => $done,
-		)
+		),
+		$view
 	);
 }
 
@@ -230,6 +259,7 @@ function npmp_newsletter_public_bulk_post() {
 		wp_die( esc_html__( 'You don\'t have permission to change the public archive.', 'nonprofit-manager' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'npmp_newsletter_public_bulk', 'npmp_public_nonce' );
+	$view = npmp_newsletter_public_bulk_posted_view();
 
 	if ( ! empty( $_POST['npmp_public_confirmed'] ) ) {
 		$ids = get_transient( npmp_newsletter_public_bulk_key() );
@@ -241,7 +271,8 @@ function npmp_newsletter_public_bulk_post() {
 				array(
 					'npmp_public_done' => 'show',
 					'npmp_public_n'    => $done,
-				)
+				),
+				$view
 			)
 		);
 		exit;
@@ -250,10 +281,10 @@ function npmp_newsletter_public_bulk_post() {
 	$action = sanitize_key( wp_unslash( $_POST['npmp_public_action'] ?? '' ) );
 	$ids    = array_map( 'absint', (array) wp_unslash( $_POST['npmp_public_ids'] ?? array() ) );
 	if ( ! in_array( $action, array( 'npmp_public_show', 'npmp_public_hide' ), true ) || ! $ids ) {
-		wp_safe_redirect( npmp_newsletter_public_bulk_back( array( 'npmp_public_done' => 'none' ) ) );
+		wp_safe_redirect( npmp_newsletter_public_bulk_back( array( 'npmp_public_done' => 'none' ), $view ) );
 		exit;
 	}
-	wp_safe_redirect( npmp_newsletter_public_bulk_route( 'npmp_public_show' === $action ? 'show' : 'hide', $ids ) );
+	wp_safe_redirect( npmp_newsletter_public_bulk_route( 'npmp_public_show' === $action ? 'show' : 'hide', $ids, $view ) );
 	exit;
 }
 
@@ -268,6 +299,7 @@ function npmp_newsletter_public_bulk_notices() {
 	$done = isset( $_GET['npmp_public_done'] ) ? sanitize_key( wp_unslash( $_GET['npmp_public_done'] ) ) : '';
 	$n    = isset( $_GET['npmp_public_n'] ) ? absint( $_GET['npmp_public_n'] ) : 0;
 	$ask  = ! empty( $_GET['npmp_public_confirm'] );
+	$view = function_exists( 'npmp_newsletter_archive_view_args' ) ? npmp_newsletter_archive_view_args( $_GET ) : array();
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 	if ( 'show' === $done ) {
@@ -336,6 +368,7 @@ function npmp_newsletter_public_bulk_notices() {
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><p>';
 	echo '<input type="hidden" name="action" value="npmp_newsletter_public_bulk"><input type="hidden" name="npmp_public_confirmed" value="1">';
 	wp_nonce_field( 'npmp_newsletter_public_bulk', 'npmp_public_nonce' );
+	echo npmp_newsletter_public_bulk_view_fields( $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
 	if ( $change ) {
 		echo '<button type="submit" class="button button-primary">' . esc_html(
 			sprintf(
@@ -345,7 +378,7 @@ function npmp_newsletter_public_bulk_notices() {
 			)
 		) . '</button> ';
 	}
-	echo '<a class="button" href="' . esc_url( npmp_newsletter_public_bulk_back() ) . '">' . esc_html__( 'Cancel', 'nonprofit-manager' ) . '</a>';
+	echo '<a class="button" href="' . esc_url( npmp_newsletter_public_bulk_back( array(), $view ) ) . '">' . esc_html__( 'Cancel', 'nonprofit-manager' ) . '</a>';
 	echo '</p></form></div>';
 }
 
@@ -353,15 +386,17 @@ function npmp_newsletter_public_bulk_notices() {
  * The bulk action picker above the Newsletter Archive table. The table's
  * checkboxes belong to the form id it opens.
  *
+ * @param array $view Search, sort and filters on screen, posted back with the action.
  * @return bool Whether the user may use it, so the table prints checkboxes.
  */
-function npmp_newsletter_public_bulk_controls() {
+function npmp_newsletter_public_bulk_controls( array $view = array() ) {
 	if ( ! npmp_newsletter_public_bulk_allowed() ) {
 		return false;
 	}
 	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="npmp-public-bulk" class="tablenav top npmp-public-bulk">';
 	echo '<input type="hidden" name="action" value="npmp_newsletter_public_bulk">';
 	wp_nonce_field( 'npmp_newsletter_public_bulk', 'npmp_public_nonce' );
+	echo npmp_newsletter_public_bulk_view_fields( $view ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped where it's built.
 	echo '<div class="alignleft actions bulkactions">';
 	echo '<label class="screen-reader-text" for="npmp-public-action">' . esc_html__( 'Bulk actions', 'nonprofit-manager' ) . '</label>';
 	echo '<select name="npmp_public_action" id="npmp-public-action"><option value="">' . esc_html__( 'Bulk actions', 'nonprofit-manager' ) . '</option>';
