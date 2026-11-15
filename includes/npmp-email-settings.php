@@ -75,32 +75,33 @@ function npmp_render_email_settings_page() {
 			$new_settings['smtp']['password'] = $password_input;
 		}
 
-		// Handle Pro provider API keys
+		// Handle Pro provider API keys. Secrets and keys skip
+		// sanitize_text_field() too, the same as the SMTP password above.
 		if ( $is_pro ) {
 			// AWS SES credentials
 			$aws_access = isset( $_POST['npmp_aws_ses_access_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_aws_ses_access_key'] ) ) : '';
 			if ( '' !== $aws_access ) {
 				update_option( 'npmp_aws_ses_access_key', $aws_access );
 			}
-			$aws_secret = isset( $_POST['npmp_aws_ses_secret_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_aws_ses_secret_key'] ) ) : '';
+			$aws_secret = isset( $_POST['npmp_aws_ses_secret_key'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_aws_ses_secret_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A key must keep every other character.
 			if ( '' !== $aws_secret ) {
 				update_option( 'npmp_aws_ses_secret_key', $aws_secret );
 			}
 
 			// Brevo API key
-			$brevo_key = isset( $_POST['npmp_brevo_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_brevo_api_key'] ) ) : '';
+			$brevo_key = isset( $_POST['npmp_brevo_api_key'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_brevo_api_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A key must keep every other character.
 			if ( '' !== $brevo_key ) {
 				update_option( 'npmp_brevo_api_key', $brevo_key );
 			}
 
 			// SendGrid API key
-			$sendgrid_key = isset( $_POST['npmp_sendgrid_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_sendgrid_api_key'] ) ) : '';
+			$sendgrid_key = isset( $_POST['npmp_sendgrid_api_key'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_sendgrid_api_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A key must keep every other character.
 			if ( '' !== $sendgrid_key ) {
 				update_option( 'npmp_sendgrid_api_key', $sendgrid_key );
 			}
 
 			// Mailgun API key and domain
-			$mailgun_key = isset( $_POST['npmp_mailgun_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_mailgun_api_key'] ) ) : '';
+			$mailgun_key = isset( $_POST['npmp_mailgun_api_key'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_mailgun_api_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A key must keep every other character.
 			if ( '' !== $mailgun_key ) {
 				update_option( 'npmp_mailgun_api_key', $mailgun_key );
 			}
@@ -110,7 +111,7 @@ function npmp_render_email_settings_page() {
 			}
 
 			// Postmark API key
-			$postmark_key = isset( $_POST['npmp_postmark_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['npmp_postmark_api_key'] ) ) : '';
+			$postmark_key = isset( $_POST['npmp_postmark_api_key'] ) ? npmp_email_clean_secret( wp_unslash( $_POST['npmp_postmark_api_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- npmp_email_clean_secret() strips control characters. A key must keep every other character.
 			if ( '' !== $postmark_key ) {
 				update_option( 'npmp_postmark_api_key', $postmark_key );
 			}
