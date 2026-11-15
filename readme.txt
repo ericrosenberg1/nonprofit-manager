@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.15
+Stable tag: 2026.11.16
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,22 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.16 =
+* Fixed newsletters you send again, so readers who already got one don't get a second copy.
+* Fixed sends to readers who unsubscribe or turn off the digest after a send starts. They no longer get that send.
+* Fixed imported events sending a "New event" email for each one.
+* Fixed Email Settings saving SMTP passwords and API keys with %, <, or double spaces. They now save as typed.
+* Fixed duplicated newsletters losing their template.
+* Fixed the calendar list with past events on, so you see upcoming events first under the right title.
+* Fixed Excel join dates, blank CSV rows, past gifts with no date, and Constant Contact lists past the first page in imports.
+* Fixed donor names with parentheses on the Donations screen.
+* Fixed the "Copied" label and the Events settings screen on translated sites.
+* Changed the empty events message to "No upcoming events." or "No past events." where that fits.
+* Changed signup and resubscribe confirmation links to expire after 7 days, with a link to sign up again.
+* Changed Facebook sharing to Graph API v26.0.
+* Security: hardened past newsletter, FluentCRM, MailPoet, and XLSX imports, sealed Mailchimp and Constant Contact keys during imports, removed the email attribute from [npmp_can_spam], capped unsubscribe confirmations per address, and tightened reCAPTCHA checks.
+* Copy: plural forms, US spelling, and clearer admin notices.
 
 = 2026.11.15 =
 * Fixed `[npmp_events past="true"]`, so you see only past events. For past and upcoming together, use `past="all"`.
