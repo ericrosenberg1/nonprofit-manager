@@ -406,10 +406,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed the Mailchimp import's audience list, which stopped at the first 100 audiences.
 
 Pro (licence server changelog):
-- (none)
+- Fixed Reddit sharing so a post Reddit refuses shows as an error instead of success.
 
 ## Releasing: three systems, always in this order
 
