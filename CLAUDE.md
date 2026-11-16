@@ -219,6 +219,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   when mapped, else email, UTC date, amount, and currency. Uploads still expire three hours after the last step. Unit
   `tests/test-gift-csv.php` (fixtures in `tests/fixtures/gift-csv-*.csv`), rig `tests/rig/gift-csv.php` (and `big` for
   50,000 rows), run with Pro on and off.
+  Vendor-documented headers (`tests/fixtures/gift-csv-*-docs.csv`, built by `make-gift-csv-docs-fixtures.php`, which cites each
+  page) caught three breaks in 2026.11.19: a Givebutter lost dispute (`Dispute Status`) came in as a gift, a Givebutter
+  offline gift with a blank `Email` was skipped though `Contact Email` held the donor (now a fallback, with the contact's
+  name), and Donorbox's `Donation Type` never reached Frequency. Zeffy and Donorbox publish no export header list for the
+  date, name, or email columns, so those fixtures are guesses from their import templates.
 - **Events Manager and Sugar Calendar** (`includes/import/event-importer.php`, `events-manager-source.php`,
   `sugar-calendar-source.php`). One engine for event plugins other than TEC: sources register on
   `npmp_event_import_sources` and hand back one item per date, and the engine writes npmp_event posts with

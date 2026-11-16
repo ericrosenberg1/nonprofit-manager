@@ -384,6 +384,38 @@ foreach ( glob( $tmp . '*' ) as $f ) {
 }
 rmdir( $tmp );
 
+// Vendor-documented headers (fixtures/make-gift-csv-docs-fixtures.php cites each page).
+$read_docs = function ( $file, $preset ) use ( $fixtures ) {
+	$head = npmp_gift_csv_read_head( $fixtures . $file );
+	$map  = npmp_gift_csv_auto_map( $head['headers'], npmp_gift_csv_detect_preset( $head['headers'] ) );
+	$h    = npmp_gift_csv_open( $fixtures . $file );
+	$out  = array();
+	npmp_gift_csv_record( $h, ',' );
+	while ( ( $cells = npmp_gift_csv_record( $h, ',' ) ) ) {
+		$out[] = npmp_gift_csv_read_row( $cells, $map, array( 'timezone' => $preset, 'date_order' => 'auto', 'currency' => 'USD', 'accept' => array(), 'preset' => '' ) );
+	}
+	fclose( $h );
+	return array( $out, $head, $map );
+};
+list( $gbd, $gbd_head, $gbd_map ) = $read_docs( 'gift-csv-givebutter-docs.csv', 'utc' );
+check( 'Givebutter docs: preset found on the full header', 'givebutter', npmp_gift_csv_detect_preset( $gbd_head['headers'] ) );
+check( 'Givebutter docs: a lost dispute stays out', 'refunded', $gbd[6]['reason'] );
+check( 'Givebutter docs: a blank Email falls back to Contact Email', 'mo@example.org', $gbd[7]['email'] );
+check( 'Givebutter docs: and to the contact name', 'Mo Fakedoc', $gbd[7]['name'] );
+check( 'Givebutter docs: the offline check comes in', true, $gbd[5]['ok'] );
+check( 'Givebutter docs: refund date row stays out', 'refunded', $gbd[2]['reason'] );
+check( 'Givebutter docs: authorized and failed stay out', array( 'not_received', 'not_received' ), array( $gbd[3]['reason'], $gbd[4]['reason'] ) );
+check( 'Givebutter docs: both date shapes read', array( '2025-03-14 14:22:09', '2025-04-14 14:22:00' ), array( $gbd[0]['gift']['date_gmt'], $gbd[1]['gift']['date_gmt'] ) );
+list( $dbd, $dbd_head, $dbd_map ) = $read_docs( 'gift-csv-donorbox-docs.csv', 'utc' );
+check( 'Donorbox docs: Donation Type fills frequency', array( 'one_time', 'recurring' ), array( $dbd[0]['gift']['frequency'], $dbd[1]['gift']['frequency'] ) );
+check( 'Donorbox docs: Amount, not Converted Amount', array( '25.00', '30.00' ), array( $dbd[0]['gift']['amount'], $dbd[1]['gift']['amount'] ) );
+check( 'Donorbox docs: row currency kept', 'CAD', $dbd[1]['gift']['currency'] );
+list( $zfd, $zfd_head, $zfd_map ) = $read_docs( 'gift-csv-zeffy-docs.csv', 'site' );
+check( 'Zeffy docs: preset found on the documented columns', 'zeffy', npmp_gift_csv_detect_preset( $zfd_head['headers'] ) );
+check( 'Zeffy docs: Refunded, Processing, Stopped stay out', array( 'refunded', 'not_received', 'unknown_status' ), array( $zfd[1]['reason'], $zfd[2]['reason'], $zfd[3]['reason'] ) );
+check( 'Zeffy docs: $1,250.00 reads as 1250', '1250.00', $zfd[4]['gift']['amount'] );
+check( 'Zeffy docs: name and address come from buyer columns', array( 'Ned Fakedoc', 'Burlington' ), array( $zfd[0]['name'], $zfd[0]['extra']['city'] ) );
+
 // The source never reads a payment key and never logs a live donation.
 $src = file_get_contents( $root . '/includes/import/gift-csv-source.php' ) . file_get_contents( $root . '/includes/import/gift-csv-parse.php' );
 check( 'never calls log_donation()', 0, preg_match( '/->log_donation\s*\(/', $src ) );
