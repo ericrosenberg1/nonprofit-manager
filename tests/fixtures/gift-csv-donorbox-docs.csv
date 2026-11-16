@@ -1,0 +1,3 @@
+"First Name","Last Name",Email,Amount,Currency,"Converted Amount","Converted Currency","Donation Date","Donation Type",Campaign
+Sol,Fakedoc,sol@example.org,25.00,USD,,,2025-03-14,one_time,General
+Tam,Fakedoc,tam@example.org,30.00,CAD,22.10,USD,2025-03-15,recurring,General

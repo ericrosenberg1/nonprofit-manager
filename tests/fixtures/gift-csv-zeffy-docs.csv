@@ -1,0 +1,6 @@
+Amount,"Payment method","Payment status","Payout date",Donation,"Refunded amount",Discount,"First name","Last name",Email,Date,Address,"Postal code",City,Region,Country
+$100.00,Card,Succeeded,03/20/2025,$100.00,$0.00,$0.00,Ned,Fakedoc,ned@example.org,03/14/2025,"2 Test Road",05401,Burlington,VT,US
+$50.00,Card,Refunded,03/21/2025,$50.00,$50.00,$0.00,Oz,Fakedoc,oz@example.org,03/15/2025,,,,,
+$75.00,"Bank transfer",Processing,,$75.00,$0.00,$0.00,Pam,Fakedoc,pam@example.org,03/16/2025,,,,,
+$20.00,Card,Stopped,,$20.00,$0.00,$0.00,Quin,Fakedoc,quin@example.org,03/17/2025,,,,,
+"$1,250.00",Card,Succeeded,03/25/2025,"$1,250.00",$0.00,$0.00,Rue,Fakedoc,rue@example.org,03/18/2025,,,,,

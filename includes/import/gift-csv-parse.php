@@ -51,11 +51,15 @@ function npmp_gift_csv_fields() {
 		'status'          => array( 'label' => __( 'Payment status', 'nonprofit-manager' ), 'required' => false ),
 		'refunded_amount' => array( 'label' => __( 'Refunded amount', 'nonprofit-manager' ), 'required' => false ),
 		'refund_date'     => array( 'label' => __( 'Refund date', 'nonprofit-manager' ), 'required' => false ),
+		'dispute_status'  => array( 'label' => __( 'Dispute status (a lost dispute stays out)', 'nonprofit-manager' ), 'required' => false ),
 		'transaction_id'  => array( 'label' => __( 'Transaction ID', 'nonprofit-manager' ), 'required' => false ),
 		'gateway'         => array( 'label' => __( 'Payment method', 'nonprofit-manager' ), 'required' => false ),
 		'offline'         => array( 'label' => __( 'Offline gift (yes or no)', 'nonprofit-manager' ), 'required' => false ),
 		'frequency'       => array( 'label' => __( 'Frequency', 'nonprofit-manager' ), 'required' => false ),
 		'plan_id'         => array( 'label' => __( 'Recurring plan ID', 'nonprofit-manager' ), 'required' => false ),
+		'contact_email'   => array( 'label' => __( 'Contact email (used when the donor email is blank)', 'nonprofit-manager' ), 'required' => false ),
+		'contact_first_name' => array( 'label' => __( 'Contact first name (used when the donor name is blank)', 'nonprofit-manager' ), 'required' => false ),
+		'contact_last_name'  => array( 'label' => __( 'Contact last name (used when the donor name is blank)', 'nonprofit-manager' ), 'required' => false ),
 		'phone'           => array( 'label' => __( 'Phone', 'nonprofit-manager' ), 'required' => false ),
 		'address_line1'   => array( 'label' => __( 'Address line 1', 'nonprofit-manager' ), 'required' => false ),
 		'address_line2'   => array( 'label' => __( 'Address line 2', 'nonprofit-manager' ), 'required' => false ),
@@ -106,6 +110,10 @@ function npmp_gift_csv_presets() {
 				'date'           => 'Transaction Date (UTC)',
 				'status'         => 'Status Friendly',
 				'refund_date'    => 'Refund Date (UTC)',
+				'dispute_status' => 'Dispute Status',
+				'contact_email'  => 'Contact Email',
+				'contact_first_name' => 'Contact First Name',
+				'contact_last_name'  => 'Contact Last Name',
 				'transaction_id' => 'Reference Number',
 				'gateway'        => 'Method',
 				'offline'        => 'Offline',
@@ -143,7 +151,7 @@ function npmp_gift_csv_presets() {
  */
 function npmp_gift_csv_synonyms() {
 	return array(
-		'email'           => array( 'email', 'email address', 'e mail', 'donor email', 'donor email address', 'contact email', 'supporter email', 'buyer email', 'payer email', 'customer email' ),
+		'email'           => array( 'email', 'email address', 'e mail', 'donor email', 'donor email address', 'supporter email', 'buyer email', 'payer email', 'customer email' ),
 		'name'            => array( 'name', 'full name', 'donor name', 'donor full name', 'donor', 'supporter name', 'buyer name', 'payer name', 'customer name' ),
 		'first_name'      => array( 'first name', 'firstname', 'donor first name', 'given name', 'buyer first name', 'contact first name' ),
 		'last_name'       => array( 'last name', 'lastname', 'donor last name', 'surname', 'family name', 'buyer last name', 'contact last name' ),
@@ -152,11 +160,13 @@ function npmp_gift_csv_synonyms() {
 		'date'            => array( 'date', 'donation date', 'gift date', 'payment date', 'transaction date', 'transaction date utc', 'date utc', 'created at', 'created', 'date created', 'paid at', 'payment captured utc' ),
 		'status'          => array( 'status', 'payment status', 'transaction status', 'donation status', 'status friendly' ),
 		'refunded_amount' => array( 'refunded amount', 'refund amount', 'amount refunded' ),
+		'dispute_status'  => array( 'dispute status' ),
+		'contact_email'   => array( 'contact email' ),
 		'refund_date'     => array( 'refund date', 'refund date utc', 'refunded at', 'refunded on', 'date refunded' ),
 		'transaction_id'  => array( 'transaction id', 'reference number', 'reference', 'payment id', 'charge id', 'stripe charge id', 'donation id', 'gift id', 'transaction number' ),
 		'gateway'         => array( 'payment method', 'method', 'gateway', 'payment gateway', 'processor', 'payment processor', 'payment type' ),
 		'offline'         => array( 'offline' ),
-		'frequency'       => array( 'frequency', 'recurring frequency', 'interval', 'donation frequency', 'recurring interval', 'recurring', 'recurring donation', 'is recurring' ),
+		'frequency'       => array( 'frequency', 'recurring frequency', 'interval', 'donation frequency', 'recurring interval', 'recurring', 'recurring donation', 'is recurring', 'donation type' ),
 		'plan_id'         => array( 'plan id', 'recurring plan id', 'subscription id', 'recurring id' ),
 		'phone'           => array( 'phone', 'phone number', 'donor phone', 'telephone', 'mobile' ),
 		'address_line1'   => array( 'address', 'address line 1', 'address 1', 'street', 'street address', 'donor address' ),
@@ -780,7 +790,7 @@ function npmp_gift_csv_read_row( array $cells, array $map, array $settings ) {
 		$out['detail'] = npmp_gift_csv_status_key( $cell( 'status' ) );
 		return $out;
 	}
-	if ( '' !== $cell( 'refund_date' ) ) {
+	if ( '' !== $cell( 'refund_date' ) || 'lost' === strtolower( trim( $cell( 'dispute_status' ) ) ) ) {
 		$out['reason'] = 'refunded';
 		return $out;
 	}
@@ -822,6 +832,9 @@ function npmp_gift_csv_read_row( array $cells, array $map, array $settings ) {
 	}
 
 	$email = strtolower( $cell( 'email' ) );
+	if ( '' === $email ) {
+		$email = strtolower( $cell( 'contact_email' ) );
+	}
 	if ( '' === $email || false === filter_var( $email, FILTER_VALIDATE_EMAIL ) ) {
 		$out['reason'] = 'email';
 		return $out;
@@ -830,6 +843,9 @@ function npmp_gift_csv_read_row( array $cells, array $map, array $settings ) {
 	$name = $cell( 'name' );
 	if ( '' === $name ) {
 		$name = trim( $cell( 'first_name' ) . ' ' . $cell( 'last_name' ) );
+	}
+	if ( '' === $name ) {
+		$name = trim( $cell( 'contact_first_name' ) . ' ' . $cell( 'contact_last_name' ) );
 	}
 	if ( in_array( strtolower( $name ), array( 'anonymous', 'anonymous donor', 'anon' ), true ) ) {
 		$name = '';
