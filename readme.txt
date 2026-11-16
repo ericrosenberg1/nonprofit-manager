@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.18
+Stable tag: 2026.11.19
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.19 =
+* Fixed Givebutter imports bringing in a lost dispute as a gift.
+* Fixed Givebutter offline gifts with a blank Email. We use Contact Email and the contact's name.
+* Fixed Donorbox imports leaving Frequency blank. We fill it from Donation Type.
 
 = 2026.11.18 =
 * Fixed Mailchimp imports listing only your first 100 audiences.
