@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.17
+Stable tag: 2026.11.18
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.18 =
+* Fixed Mailchimp imports listing only your first 100 audiences.
 
 = 2026.11.17 =
 * Added Meeting ID and Passcode fields beside an event's link, and [meeting_id] and [passcode] email tags.
