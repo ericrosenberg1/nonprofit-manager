@@ -21,45 +21,60 @@ function npmp_mailchimp_get_lists( $api_key ) {
 		return $dc;
 	}
 
-	$url = sprintf( 'https://%s.api.mailchimp.com/3.0/lists?count=100&fields=lists.id,lists.name,lists.stats.member_count', $dc );
+	// Mailchimp returns at most `count` audiences a call (default 10), so walk
+	// the pages with offset until total_items is reached. The cap stops a
+	// misbehaving answer from looping forever.
+	$lists  = array();
+	$offset = 0;
+	$page   = 100;
+	for ( $calls = 0; $calls < 50; $calls++ ) {
+		$url = sprintf( 'https://%s.api.mailchimp.com/3.0/lists?count=%d&offset=%d&fields=total_items,lists.id,lists.name,lists.stats.member_count', $dc, $page, $offset );
 
-	$response = wp_remote_get(
-		$url,
-		array(
-			'timeout' => 30,
-			'headers' => array(
-				'Authorization' => 'Basic ' . base64_encode( 'anystring:' . $api_key ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
-			),
-		)
-	);
-
-	if ( is_wp_error( $response ) ) {
-		return new WP_Error( 'npmp_mc_request', __( 'Could not connect to Mailchimp. Check your API key and try again.', 'nonprofit-manager' ) );
-	}
-
-	$code = wp_remote_retrieve_response_code( $response );
-	$body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-	if ( 200 !== $code ) {
-		$detail = isset( $body['detail'] ) ? $body['detail'] : __( 'Unknown error', 'nonprofit-manager' );
-		return new WP_Error(
-			'npmp_mc_api',
-			sprintf(
-				/* translators: %s: API error detail */
-				__( 'Mailchimp API error: %s', 'nonprofit-manager' ),
-				$detail
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout' => 30,
+				'headers' => array(
+					'Authorization' => 'Basic ' . base64_encode( 'anystring:' . $api_key ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+				),
 			)
 		);
-	}
 
-	$lists = array();
-	if ( ! empty( $body['lists'] ) ) {
-		foreach ( $body['lists'] as $list ) {
-			$lists[] = array(
-				'id'           => $list['id'],
-				'name'         => $list['name'],
-				'member_count' => isset( $list['stats']['member_count'] ) ? (int) $list['stats']['member_count'] : 0,
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'npmp_mc_request', __( 'Could not connect to Mailchimp. Check your API key and try again.', 'nonprofit-manager' ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( 200 !== $code ) {
+			$detail = isset( $body['detail'] ) ? $body['detail'] : __( 'Unknown error', 'nonprofit-manager' );
+			return new WP_Error(
+				'npmp_mc_api',
+				sprintf(
+					/* translators: %s: API error detail */
+					__( 'Mailchimp API error: %s', 'nonprofit-manager' ),
+					$detail
+				)
 			);
+		}
+
+		$got = 0;
+		if ( ! empty( $body['lists'] ) && is_array( $body['lists'] ) ) {
+			foreach ( $body['lists'] as $list ) {
+				$lists[] = array(
+					'id'           => $list['id'],
+					'name'         => $list['name'],
+					'member_count' => isset( $list['stats']['member_count'] ) ? (int) $list['stats']['member_count'] : 0,
+				);
+				++$got;
+			}
+		}
+
+		$offset += $got;
+		$total   = isset( $body['total_items'] ) ? (int) $body['total_items'] : 0;
+		if ( 0 === $got || $offset >= $total ) {
+			break;
 		}
 	}
 
