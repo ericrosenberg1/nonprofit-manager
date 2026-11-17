@@ -111,7 +111,7 @@ function npmp_get_membership_setup_status() {
 			// The old setup picked any page that mentioned the shortcode, notes pages included.
 			$status = 'warning';
 			/* translators: %s: page title */
-			$message = sprintf( __( 'Unsubscribe links go to “%s”. That page mentions the unsubscribe form, but its title and address don\'t say Unsubscribe, so it may not be the page you meant. If it isn\'t, pick your unsubscribe page in the Unsubscribe Form section below.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
+			$message = sprintf( __( 'We send unsubscribe links to “%s”. You mention the unsubscribe form on that page, but you didn\'t name it Unsubscribe, so you may have meant a different page. If you did, pick it in the Unsubscribe Form section below.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
 		} elseif ( $has_form ) {
 			/* translators: %s: page title */
 			$message = sprintf( __( 'Unsubscribe links resolve to “%s”, and the form is on the page.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
