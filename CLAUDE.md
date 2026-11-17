@@ -390,9 +390,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **Meeting ID, passcode, and "Show the meeting link only in emails"** (`includes/npmp-event-meeting.php`, loaded on
   every request). Meta `_npmp_event_meeting_id`, `_npmp_event_passcode`, `_npmp_event_link_email_only` sit beside the
   unchanged `_npmp_event_url`. With the box ticked, we leave all three off the event page, and `npmp_get_event_details()`
-  returns them blank unless the caller passes `true`. We never printed the link on any other public surface (lists,
-  blocks, calendar views, iCal, REST, oEmbed, feeds, search), so print it on a new one only through
-  `npmp_event_meeting_public()`. Emails read `npmp_event_meeting_details()` (filter `npmp_event_meeting_details`, where
+  returns them blank unless the caller passes `true`. Until the release after 2026.11.19 we printed the link on no other
+  public surface (lists, blocks, calendar views, iCal, REST, oEmbed, feeds, search). The iCal feed now carries it for an
+  event that shows it, through `npmp_get_event_details()` without the flag. Print it on any new surface only through
+  `npmp_event_meeting_public()`, and never through `npmp_event_meeting_details()`, which adds Pro's group defaults. We fill emails from `npmp_event_meeting_details()` (filter `npmp_event_meeting_details`, where
   Pro adds group defaults), and we take out the whole line of a `[meeting_id]` or `[passcode]` with no value
   (`npmp_scheduled_emails_collapse_empty()`). We mark an event email from a private event with
   `_npmp_newsletter_meeting_private` and never give it a public newsletter page. We added the two lines to the built-in
@@ -400,6 +401,32 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `tests/test-event-meeting.php`, rig `tests/rig/meeting-links.php` (run its `before` phase on the released free, then
   the branch, and we compare an old event's page and email byte for byte). After you swap the plugin symlink under
   `php -S`, restart the server, or its workers keep serving the old real path.
+- **iCal text and the .ics on event emails** (`includes/npmp-ics.php`, pure, and `includes/npmp-event-ics.php`, both loaded
+  on every request). We build each VEVENT for the feed and the email file with `npmp_ics_vevent()`: TEXT escaping, a URI value
+  for http and https links alone, and folding at 75 octets without splitting a UTF-8 character (a first for
+  the feed). We put the join link in LOCATION after the place, in URL, and in DESCRIPTION with the meeting ID and passcode. For
+  the feed we pass only public details, so we keep an email-only event's details and Pro's group defaults out of the feed. We attach `<event-slug>.ics`
+  (`METHOD:PUBLISH`, the feed's UID, every detail) to event emails (`_npmp_newsletter_scheduled_event`) and to free's and Pro's
+  "Send a test to me" (`npmp_scheduled_emails_render_test()` sets `npmp_event_ics_test_event()`), through the
+  `npmp_newsletter_mail_attachments` filter in `NPMP_Newsletter_Manager::send_email()`. We attach it only where
+  `npmp_mail_attachments_supported()` answers yes: WordPress's mailer, SMTP, and SES. Pro's SendGrid, Brevo, Mailgun, and
+  Postmark senders hand any message with an attachment to WordPress's mailer (`npmp_pro_handle_email()`), and that would move
+  the email off the service the site picked, so on those four we send no file. Teach the four senders attachments before you
+  add them to the supported list. We write the file to a random folder under `get_temp_dir()` and delete it at shutdown. Unit
+  `tests/test-ics.php`, rig `tests/rig/event-ics.php` (SMTP sink, the feed over HTTP, SendGrid faked, and Pro on and off).
+- **Embeds in a newsletter's email** (`includes/email-newsletter/email-embeds.php`). Mail apps show no iframe, so in the email
+  we swap each `core/embed` block (a `render_block` filter while `npmp_email_is_rendering()`) and each leftover iframe
+  (`npmp_email_embed_swap_iframes()`) for a link: "Watch the video", "View the slides", or "View the embedded content". For a
+  YouTube video we add `i.ytimg.com/vi/<id>/hqdefault.jpg` as a linked image. We link the web version when the owner ticked
+  the newsletter public (`npmp_newsletter_web_version_url()`), else the source. We render the web version and the email with
+  the same `render_base_content()`, so we wrap `npmp_newsletter_archive_body()` in `npmp_newsletter_web_render()` and skip the
+  swap inside that wrapper. Unit `tests/test-email-embeds.php`, rig `tests/rig/email-embeds.php` (oEmbed faked, SMTP sink, the page over HTTP).
+- **We found no way in for us in Event Bridge for ActivityPub** (we read 2.0.0 on 2026-11-16). Its authors list the plugins
+  they support in the `private const EVENT_PLUGIN_INTEGRATIONS` in `Event_Bridge_For_ActivityPub\Setup`, with no filter, so
+  we can't add an `Integrations\Event_Plugin_Integration` subclass from outside. We could hand ActivityPub's own
+  `activitypub_transformer` filter an `npmp_event` transformer built on their internal `Transformer\Event\Event`, but their
+  scheduler, reminders, settings, and health check read only that list. Ask upstream for a filter on the list before you
+  build anything.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -411,10 +438,13 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added the meeting link, meeting ID, and passcode to the iCal feed, unless you keep an event's link for emails only.
+- Added a calendar file (.ics) with the meeting details to event emails sent through WordPress, SMTP, or Amazon SES.
+- Changed embedded videos, slides, and other embeds in newsletter emails to links, with a thumbnail for YouTube. Readers still see the player on your web version.
+- Fixed long iCal feed lines. We now fold them at 75 octets, per the iCal standard.
 
 Pro (licence server changelog):
-- (none)
+- Added Merge to the Groups screen. You move everyone and every event from one group into another, see the counts first, and we delete the old group.
 
 ## Releasing: three systems, always in this order
 

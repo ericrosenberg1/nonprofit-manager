@@ -433,6 +433,14 @@ class NPMP_Newsletter_Manager {
 			return null;
 		}
 
+		// The email gets a link in place of each embed, to the web version
+		// when there is one. The web version (npmp_newsletter_archive_body())
+		// keeps the players (includes/email-newsletter/email-embeds.php).
+		$for_email = function_exists( 'npmp_email_embed_target' ) && ! npmp_newsletter_web_render();
+		if ( $for_email ) {
+			npmp_email_embed_target( npmp_newsletter_web_version_url( $newsletter_id ) );
+		}
+
 		// the_content, so newsletter blocks and shortcodes render, minus what
 		// other plugins add for a browser only.
 		$content = npmp_email_the_content( $post->post_content );
@@ -454,6 +462,11 @@ class NPMP_Newsletter_Manager {
 				// Use specific template
 				$content = npmp_apply_newsletter_template( $content, absint( $selected_template ) );
 			}
+		}
+
+		if ( $for_email ) {
+			$content = npmp_email_embed_swap_iframes( $content, npmp_email_embed_target() );
+			npmp_email_embed_target( false );
 		}
 
 		// the_content leaves every image dressed for a browser (srcset, sizes,
@@ -707,7 +720,19 @@ class NPMP_Newsletter_Manager {
 			$headers = $filtered;
 		}
 
-		return npmp_send_mail( $to, $subject, $content, $headers );
+		/**
+		 * Filter the files on one newsletter message. Event emails get the
+		 * event's .ics here (includes/npmp-event-ics.php) when the site's
+		 * sending path carries attachments.
+		 *
+		 * @param string[] $attachments   File paths.
+		 * @param int      $newsletter_id Newsletter ID (0 for a one-off test).
+		 * @param string   $email         Recipient address.
+		 */
+		$attachments = apply_filters( 'npmp_newsletter_mail_attachments', array(), (int) $newsletter_id, (string) $to );
+		$attachments = is_array( $attachments ) ? array_values( array_filter( $attachments, 'is_string' ) ) : array();
+
+		return npmp_send_mail( $to, $subject, $content, $headers, $attachments );
 	}
 
 	/* ===================================================================

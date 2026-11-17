@@ -1828,11 +1828,19 @@ function npmp_scheduled_emails_render_test( $event_id, $body_id, $subject, $emai
 	}
 	$body = npmp_scheduled_emails_get_body( $body_id );
 	$map  = npmp_scheduled_emails_placeholders( $event_id, is_object( $row ) ? $row : null );
+	// The test send that follows carries the event's .ics, like a real send.
+	if ( function_exists( 'npmp_event_ics_test_event' ) ) {
+		npmp_event_ics_test_event( (int) $event_id );
+	}
 	$html = npmp_email_the_content( npmp_scheduled_emails_fill( $body['content'], $map, true ) );
 	// The template a real send would use, so the test shows the same wrapper.
 	$template = npmp_scheduled_emails_pick_template( $event_id, $body, $picked );
 	if ( function_exists( 'npmp_apply_newsletter_template' ) && 'none' !== $template ) {
 		$html = is_numeric( $template ) ? npmp_apply_newsletter_template( $html, absint( $template ) ) : npmp_apply_newsletter_template( $html );
+	}
+	// Embeds become links, as in the queue (includes/email-newsletter/email-embeds.php).
+	if ( function_exists( 'npmp_email_embed_swap_iframes' ) ) {
+		$html = npmp_email_embed_swap_iframes( $html );
 	}
 	// Same image handling the queue gets, so the test matches what sends
 	// (ROS-4261).

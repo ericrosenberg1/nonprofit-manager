@@ -1686,41 +1686,13 @@ function npmp_maybe_render_ical_feed() {
 	header( 'Content-Type: text/calendar; charset=utf-8' );
 	header( 'Content-Disposition: attachment; filename=events.ics' );
 
-	$output = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Nonprofit Manager//EN\r\n";
-
-	// The site's own host, not the request's: the feed is cached for everyone,
-	// so a Host header baked into the UIDs changed them between cache fills
-	// and calendar apps showed every event twice.
-	$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
-	$host = preg_replace( '/[^A-Za-z0-9\.\-]/', '', $host );
-
+	$vevents = '';
 	foreach ( $events as $event ) {
-		$details = npmp_get_event_details( $event->ID );
-		$start   = ! empty( $details['start'] ) ? npmp_event_datetime_to_timestamp( $details['start'] ) : false;
-		$end     = ! empty( $details['end'] ) ? npmp_event_datetime_to_timestamp( $details['end'] ) : $start;
-
-		if ( ! $start ) {
-			continue;
-		}
-
-		$output .= "BEGIN:VEVENT\r\n";
-		$output .= 'UID:' . absint( $event->ID ) . '@' . $host . "\r\n";
-		// DTSTAMP is when this entry last changed. Calendar apps compare it to
-		// spot an edited event, and the start date never moves on an edit.
-		$stamp   = 0 === strpos( (string) $event->post_modified_gmt, '0000' ) ? 0 : strtotime( $event->post_modified_gmt . ' UTC' );
-		$output .= 'DTSTAMP:' . gmdate( 'Ymd\THis\Z', $stamp ? $stamp : $start ) . "\r\n";
-		$output .= 'DTSTART:' . gmdate( 'Ymd\THis\Z', $start ) . "\r\n";
-		if ( $end ) {
-			$output .= 'DTEND:' . gmdate( 'Ymd\THis\Z', $end ) . "\r\n";
-		}
-		$output .= 'SUMMARY:' . npmp_ics_escape_text( get_the_title( $event ) ) . "\r\n";
-		if ( ! empty( $details['location'] ) ) {
-			$output .= 'LOCATION:' . npmp_ics_escape_text( $details['location'] ) . "\r\n";
-		}
-		$output .= "END:VEVENT\r\n";
+		// Public details only: an event that keeps its meeting link for emails
+		// gets it blank here (npmp_event_meeting_public()).
+		$vevents .= npmp_ics_vevent( npmp_event_ics_data( $event, npmp_get_event_details( $event->ID ) ) );
 	}
-
-	$output .= "END:VCALENDAR\r\n";
+	$output = npmp_ics_calendar( $vevents );
 
 	// Cache for 15 minutes. Saving any event clears it immediately.
 	set_transient( $cache_key, $output, 15 * MINUTE_IN_SECONDS );
@@ -2087,28 +2059,6 @@ function npmp_auto_inject_calendar_page( $content ) {
 	return $content . "\n\n" . do_shortcode( '[npmp_calendar]' );
 }
 add_filter( 'the_content', 'npmp_auto_inject_calendar_page', 12 );
-
-/**
- * Escape ICS text.
- *
- * @param string $text Raw text.
- * @return string
- */
-function npmp_ics_escape_text( $text ) {
-	$text = wp_strip_all_tags( (string) $text );
-	// Backslashes first. Escaping them after the newlines turned every
-	// line break into a literal "\\n" in calendar apps.
-	$text = strtr(
-		$text,
-		array(
-			'\\' => '\\\\',
-			','  => '\,',
-			';'  => '\;',
-		)
-	);
-
-	return str_replace( array( "\r\n", "\r", "\n" ), '\n', $text );
-}
 
 /**
  * Drop the cached iCal feed whenever an event changes so subscribers never

@@ -230,7 +230,17 @@ function npmp_newsletter_archive_body( $id ) {
 	if ( ! class_exists( 'NPMP_Newsletter_Manager' ) || ! method_exists( 'NPMP_Newsletter_Manager', 'render_base_content' ) ) {
 		return '';
 	}
-	$html = (string) NPMP_Newsletter_Manager::render_base_content( (int) $id );
+	// The web version keeps its embeds (includes/email-newsletter/email-embeds.php).
+	if ( function_exists( 'npmp_newsletter_web_render' ) ) {
+		npmp_newsletter_web_render( 1 );
+	}
+	try {
+		$html = (string) NPMP_Newsletter_Manager::render_base_content( (int) $id );
+	} finally {
+		if ( function_exists( 'npmp_newsletter_web_render' ) ) {
+			npmp_newsletter_web_render( -1 );
+		}
+	}
 	// The preheader is hidden inbox text, so it has no place on a page.
 	$html = (string) preg_replace( '#^<span style="display:none;[^"]*">.*?</span>#s', '', $html );
 	$html = npmp_newsletter_archive_fill_tags( $html, true );
