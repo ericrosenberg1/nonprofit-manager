@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.19
+Stable tag: 2026.11.20
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.20 =
+* Added the meeting link, meeting ID, and passcode to the iCal feed, unless you keep an event's link for emails only.
+* Added a calendar file (.ics) with the meeting details to event emails sent through WordPress, SMTP, or Amazon SES.
+* Changed embedded videos and slides in newsletter emails to links, with a thumbnail for YouTube. Your web version keeps the player.
+* Fixed long iCal feed lines, which we now fold at 75 octets.
 
 = 2026.11.19 =
 * Fixed Givebutter imports bringing in a lost dispute as a gift.
