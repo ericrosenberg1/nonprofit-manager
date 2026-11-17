@@ -427,6 +427,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `activitypub_transformer` filter an `npmp_event` transformer built on their internal `Transformer\Event\Event`, but their
   scheduler, reminders, settings, and health check read only that list. Ask upstream for a filter on the list before you
   build anything.
+- **Form pages are picked by name and form, never by text** (`includes/npmp-form-pages.php`, since the release after
+  2026.11.20). Setup, the preferences lookup, and the email Donate button used to take the first page whose text held
+  `[npmp_email_unsubscribe` and friends, so Pete's notes page "Thoughts on u3acommunities hosting" became his unsubscribe
+  page. A page counts when `npmp_form_page_is_clear()` says yes: published, its slug or title holds one of the kind's words,
+  and it holds the real shortcode (not `[[escaped]]`) or the block. The Donate button still falls back to the oldest page
+  holding the real form when no page is named for giving. A one-time repair (`npmp_maybe_repair_form_pages()`, option
+  `npmp_form_pages_repaired`) moves a saved unsubscribe or preferences page only when it isn't clear, it mentions the form
+  (the old search's only way in), and a clear page exists. Otherwise we create and change nothing, and setup status warns.
+  We send newsletters as HTML only, with no plain-text part, and the footer URL's `&#038;` decodes to `&` (checked with
+  macOS textutil and PHP's `html_entity_decode()`). Pete's `&#038;` likely came from elsewhere, unconfirmed. Unit `tests/test-form-pages.php`, rig `tests/rig/form-pages.php`.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -438,7 +448,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed the unsubscribe and preferences links going to any page that mentioned our shortcode. We pick only a page named for the job that holds the form, and on update we move a wrong pick to your Unsubscribe page when you have one.
 
 Pro (licence server changelog):
 - (none)
