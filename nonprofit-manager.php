@@ -52,6 +52,9 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/activation-hooks.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-captcha.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-content-types.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-event-meeting.php';
+// iCalendar text for the feed and the .ics file on event emails.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-ics.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-event-ics.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/email/helpers.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/email/smtp.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-dashboard-widgets.php';

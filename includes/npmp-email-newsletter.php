@@ -25,6 +25,7 @@ $npmp_newsletter_files = [
     'can-spam-shortcode.php',
     'archive-pure.php',
     'archive.php',
+    'email-embeds.php',
     'imported.php',
 ];
 
