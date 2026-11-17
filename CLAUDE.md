@@ -438,13 +438,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added the meeting link, meeting ID, and passcode to the iCal feed, unless you keep an event's link for emails only.
-- Added a calendar file (.ics) with the meeting details to event emails sent through WordPress, SMTP, or Amazon SES.
-- Changed embedded videos, slides, and other embeds in newsletter emails to links, with a thumbnail for YouTube. Readers still see the player on your web version.
-- Fixed long iCal feed lines. We now fold them at 75 octets, per the iCal standard.
+- (none)
 
 Pro (licence server changelog):
-- Added Merge to the Groups screen. You move everyone and every event from one group into another, see the counts first, and we delete the old group.
+- (none)
 
 ## Releasing: three systems, always in this order
 
