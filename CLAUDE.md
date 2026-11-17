@@ -451,6 +451,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   cuts text needs its limit there (Pro adds Threads). Reddit posts the title only, so it gets none. The visitor share bar's X
   button adds `&hashtags=` on an event's own page. Bluesky needs a tag facet per hashtag (Pro's `npmp_pro_bsky_tag_facets()`).
   Unit `tests/test-social-hashtags.php`, rig `tests/rig/social-hashtags.php` (every network faked, run with Pro on and off).
+- **Help links** (`includes/npmp-help-links.php`, since 2026.11.22). One map, `npmp_help_links()`, sends each admin
+  screen (a `page` value, `post_type:<type>`, or `taxonomy:<taxonomy>`) to an article at nonprofitmanager.app/help/<slug>/.
+  Screens whose title goes through `npmp_admin_page_title()` get a "Help" link beside the title, and every mapped screen gets
+  a Nonprofit Manager tab in WordPress's Help panel. Pro's screens sit in the same map. The articles live in the site repo
+  (`wordpress/help/articles/`), so rename an article there and change its slug here in the same pass.
+  `tests/test-help-links.php` fails on a slug with no article when the site repo is beside this one.
+- **PayPal gifts are one-time** (since 2026.11.22). The free PayPal buttons and Pro's PayPal API gateway take no
+  frequency: `npmp_get_enabled_frequencies()` maps only Stripe's options, `npmp_ajax_log_donation()` records
+  `one_time`, and Payment Settings has no PayPal frequency boxes. Recurring gifts are Stripe only
+  (`tests/test-paypal-one-time.php`).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

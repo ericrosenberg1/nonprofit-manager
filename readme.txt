@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.21
+Stable tag: 2026.11.22
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.22 =
+* Added a Help link beside each screen title and a Nonprofit Manager tab in the Help panel, with the help center article for that screen.
+* Removed the PayPal frequency boxes from Payment Settings, since every PayPal gift is one-time. Turn on recurring gifts in the Stripe section.
 
 = 2026.11.21 =
 * Added tags to events, and we add them as hashtags when you share an event.

@@ -606,11 +606,8 @@ function npmp_render_payment_settings_page() {
 
 		// Pro-only gateway-specific recurring frequencies
 		if ( $is_pro ) {
-			// PayPal API frequencies
-			update_option( 'npmp_paypal_enable_weekly',     ! empty( $_POST['npmp_paypal_enable_weekly'] ) ? 1 : 0 );
-			update_option( 'npmp_paypal_enable_monthly',    ! empty( $_POST['npmp_paypal_enable_monthly'] ) ? 1 : 0 );
-			update_option( 'npmp_paypal_enable_quarterly',  ! empty( $_POST['npmp_paypal_enable_quarterly'] ) ? 1 : 0 );
-			update_option( 'npmp_paypal_enable_annual',     ! empty( $_POST['npmp_paypal_enable_annual'] ) ? 1 : 0 );
+			// PayPal gifts are one-time only (npmp_get_enabled_frequencies()),
+			// so the old npmp_paypal_enable_* options are no longer saved.
 
 			// Stripe frequencies
 			update_option( 'npmp_stripe_enable_weekly',     ! empty( $_POST['npmp_stripe_enable_weekly'] ) ? 1 : 0 );
@@ -896,14 +893,7 @@ function npmp_render_payment_settings_page() {
 					do_action( 'npmp_paypal_api_settings_fields' );
 					?>
 
-					<h4><?php esc_html_e( 'PayPal Donation Frequencies', 'nonprofit-manager' ); ?></h4>
-					<p><?php esc_html_e( 'Pick the schedules donors can choose for PayPal gifts. One-time gifts are always on.', 'nonprofit-manager' ); ?></p>
-					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
-					<label><input type="checkbox" name="npmp_paypal_enable_weekly" value="1" <?php checked( get_option( 'npmp_paypal_enable_weekly', 0 ), 1 ); ?>> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_paypal_enable_monthly" value="1" <?php checked( get_option( 'npmp_paypal_enable_monthly', 0 ), 1 ); ?>> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_paypal_enable_quarterly" value="1" <?php checked( get_option( 'npmp_paypal_enable_quarterly', 0 ), 1 ); ?>> <?php esc_html_e( 'Quarterly', 'nonprofit-manager' ); ?></label><br>
-					<label><input type="checkbox" name="npmp_paypal_enable_annual" value="1" <?php checked( get_option( 'npmp_paypal_enable_annual', 0 ), 1 ); ?>> <?php esc_html_e( 'Yearly', 'nonprofit-manager' ); ?></label><br>
-					<p class="description"><?php esc_html_e( 'PayPal API supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Every PayPal gift is a one-time gift. For weekly, monthly, quarterly, or yearly gifts, turn them on in the Stripe section.', 'nonprofit-manager' ); ?></p>
 				</div>
 
 			<?php endif; ?>

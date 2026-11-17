@@ -961,7 +961,9 @@ function npmp_ajax_log_donation() {
 	$email          = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 	$name           = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
 	$amount         = floatval( wp_unslash( $_POST['amount'] ?? 0 ) );
-	$frequency      = sanitize_text_field( wp_unslash( $_POST['frequency'] ?? 'one_time' ) );
+	// A PayPal API gift is one captured order, so it's one-time whatever an
+	// old cached form sends.
+	$frequency      = 'one_time';
 	$gateway        = sanitize_text_field( wp_unslash( $_POST['gateway'] ?? 'paypal_api' ) );
 	$transaction_id = sanitize_text_field( wp_unslash( $_POST['transaction_id'] ?? '' ) );
 
@@ -1796,10 +1798,11 @@ function npmp_get_enabled_frequencies( $gateway = '' ) {
 	if ( npmp_is_pro() && ! empty( $gateway ) ) {
 		$prefix = '';
 
-		// Determine the option prefix based on gateway
-		if ( 'paypal_api' === $gateway ) {
-			$prefix = 'npmp_paypal_enable_';
-		} elseif ( 'stripe' === $gateway ) {
+		// Only Stripe bills again. The PayPal API form captures one PayPal
+		// order and nothing renews it, so a "Monthly" PayPal gift was charged
+		// once and saved as monthly. PayPal stays one-time whatever the old
+		// npmp_paypal_enable_* options hold (tests/test-paypal-one-time.php).
+		if ( 'stripe' === $gateway ) {
 			$prefix = 'npmp_stripe_enable_';
 		}
 

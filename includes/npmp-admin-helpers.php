@@ -32,6 +32,10 @@ function npmp_admin_page_title( $title, $actions = array(), $badge = '' ) {
 		}
 	}
 
+	if ( function_exists( 'npmp_help_title_link' ) ) {
+		echo npmp_help_title_link(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped in npmp_help_title_link().
+	}
+
 	echo '<hr class="wp-header-end">';
 }
 
