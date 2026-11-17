@@ -13,6 +13,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/social-sharing/hashtags.php';
+
 /* =========================================================================
  * New shortcode 1: [npmp_social_share] · share-this-page buttons
  * ====================================================================== */
@@ -65,6 +67,16 @@ function npmp_social_share_shortcode( $atts ) {
 		$title = is_singular() ? get_the_title() : get_bloginfo( 'name' );
 	}
 
+	// On an event's own page, the X button carries the event's tags as
+	// hashtags, the way our own shares to X do.
+	$hashtags = array();
+	if ( '' === trim( (string) $atts['url'] ) && is_singular( 'npmp_event' ) && taxonomy_exists( 'npmp_event_tag' ) ) {
+		$terms = get_the_terms( get_the_ID(), 'npmp_event_tag' );
+		if ( is_array( $terms ) ) {
+			$hashtags = npmp_social_hashtags( wp_list_pluck( $terms, 'name' ) );
+		}
+	}
+
 	$enc_url   = rawurlencode( $url );
 	$enc_title = rawurlencode( wp_strip_all_tags( $title ) );
 	$defs      = npmp_social_share_networks();
@@ -92,6 +104,10 @@ function npmp_social_share_shortcode( $atts ) {
 			continue;
 		}
 		$href   = str_replace( array( '{url}', '{title}' ), array( $enc_url, $enc_title ), $defs[ $key ]['intent'] );
+		if ( 'x' === $key && $hashtags ) {
+			// X's intent takes the names without the #, separated by commas.
+			$href .= '&hashtags=' . rawurlencode( implode( ',', array_map( static function ( $tag ) { return ltrim( $tag, '#' ); }, $hashtags ) ) );
+		}
 		$newtab = $defs[ $key ]['newtab'] ? ' target="_blank" rel="noopener nofollow"' : '';
 		$items .= '<li><a class="npmp-share-btn npmp-share-' . esc_attr( $key ) . '" href="' . esc_url( $href ) . '"' . $newtab . '>'
 			. esc_html( $defs[ $key ]['label'] ) . '</a></li>';

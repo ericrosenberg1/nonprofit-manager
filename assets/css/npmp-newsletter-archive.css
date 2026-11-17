@@ -39,6 +39,22 @@
 	background: transparent;
 }
 
+.npmp-newsletter-media {
+	display: block;
+	aspect-ratio: 16 / 9;
+	margin: 0 0 0.75rem;
+	overflow: hidden;
+	border-radius: calc(var(--npmp-nl-radius) - 2px);
+	text-decoration: none;
+}
+
+.npmp-newsletter-image {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
 .npmp-newsletter-title {
 	margin: 0 0 0.25rem;
 	font-size: 1.2em;

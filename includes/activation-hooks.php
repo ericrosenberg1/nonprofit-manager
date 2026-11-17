@@ -88,6 +88,9 @@ function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
 				npmp_register_event_taxonomy();
 			}
+			if ( function_exists( 'npmp_register_event_tag_taxonomy' ) ) {
+				npmp_register_event_tag_taxonomy();
+			}
 		}
 	}
 
@@ -792,8 +795,11 @@ function npmp_initialize_default_newsletter_settings() {
  *
  * Creates a published page containing [npmp_email_unsubscribe] on first
  * activation, then records its ID so CAN-SPAM unsubscribe links resolve out of
- * the box. Skips when an unsubscribe page is already configured and published,
- * and reuses an existing page that already hosts the shortcode.
+ * the box. Skips when an unsubscribe page is already configured and published.
+ * Reuses an existing page only when it is clearly the unsubscribe page (named
+ * for it and holding the form, npmp_form_page_is_clear()). Until the release
+ * 2026.11.21 any page whose text mentioned the shortcode won, notes
+ * pages included.
  *
  * @return void
  */
@@ -809,20 +815,10 @@ function npmp_maybe_create_unsubscribe_page() {
 		return; // Already set up.
 	}
 
-	// Reuse a published page that already hosts the shortcode, if one exists.
-	$found = get_posts(
-		array(
-			'post_type'      => 'page',
-			'post_status'    => 'publish',
-			'posts_per_page' => 1,
-			'fields'         => 'ids',
-			'no_found_rows'  => true,
-			's'              => '[npmp_email_unsubscribe]',
-		)
-	);
+	$found = function_exists( 'npmp_form_page_find' ) ? npmp_form_page_find( 'unsubscribe' ) : 0;
 
-	if ( ! empty( $found ) ) {
-		$page_id = (int) $found[0];
+	if ( $found ) {
+		$page_id = (int) $found;
 	} else {
 		$page_id = wp_insert_post(
 			array(
@@ -920,6 +916,9 @@ function npmp_handle_feature_toggle( $old_value, $value ) {
 			}
 			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
 				npmp_register_event_taxonomy();
+			}
+			if ( function_exists( 'npmp_register_event_tag_taxonomy' ) ) {
+				npmp_register_event_tag_taxonomy();
 			}
 		}
 		flush_rewrite_rules();

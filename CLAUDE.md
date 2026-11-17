@@ -359,6 +359,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   the_content once. That drops comments, share buttons, related posts, and the plugin's own page injections.
   When the theme's template never prints the content, `archive-theme-template.php` sends the standalone page
   (header `X-NPMP-Newsletter-View: standalone`), and the `npmp_newsletter_archive_use_theme` filter forces it.
+  A newsletter's featured image (since the release after 2026.11.20) goes in lists (`image`, on by default, events-list
+  markup) and on the page. Inside the theme we add nothing, since the fake page carries the newsletter's ID and the theme
+  prints its own featured image, as it does for an event. The standalone page prints a `<figure>` and Open Graph tags. The
+  email never carries it, as event emails carry an image only where the author puts `[event_image]`. Unit
+  `tests/test-newsletter-image.php`, rig `tests/rig/newsletter-image.php`.
   `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
   empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
   site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
@@ -427,6 +432,25 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `activitypub_transformer` filter an `npmp_event` transformer built on their internal `Transformer\Event\Event`, but their
   scheduler, reminders, settings, and health check read only that list. Ask upstream for a filter on the list before you
   build anything.
+- **Form pages are picked by name and form, never by text** (`includes/npmp-form-pages.php`, since the release after
+  2026.11.20). Setup, the preferences lookup, and the email Donate button used to take the first page whose text held
+  `[npmp_email_unsubscribe` and friends, so Pete's notes page "Thoughts on u3acommunities hosting" became his unsubscribe
+  page. A page counts when `npmp_form_page_is_clear()` says yes: published, its slug or title holds one of the kind's words,
+  and it holds the real shortcode (not `[[escaped]]`) or the block. The Donate button still falls back to the oldest page
+  holding the real form when no page is named for giving. A one-time repair (`npmp_maybe_repair_form_pages()`, option
+  `npmp_form_pages_repaired`) moves a saved unsubscribe or preferences page only when it isn't clear, it mentions the form
+  (the old search's only way in), and a clear page exists. Otherwise we create and change nothing, and setup status warns.
+  We send newsletters as HTML only, with no plain-text part, and the footer URL's `&#038;` decodes to `&` (checked with
+  macOS textutil and PHP's `html_entity_decode()`). Pete's `&#038;` likely came from elsewhere, unconfirmed. Unit `tests/test-form-pages.php`, rig `tests/rig/form-pages.php`.
+- **Event tags become hashtags** (taxonomy `npmp_event_tag`, flat, no public archive, since the release after 2026.11.20).
+  `NPMP_Social_Share_Manager::get_hashtags()` reads the tags (map on `npmp_social_hashtag_taxonomies`, filter
+  `npmp_social_hashtags`), and `format_for_network()` hands every network, free and Pro, the text from
+  `npmp_social_share_text()` (`includes/social-sharing/hashtags.php`, pure). Hashtags go where the template says
+  `{hashtags}`, else on their own line at the end. Within a network's limit the title and link stay, then as many hashtags
+  as fit, then the excerpt is cut. Only networks named on `npmp_social_char_limits` get fitted, so a network whose own file
+  cuts text needs its limit there (Pro adds Threads). Reddit posts the title only, so it gets none. The visitor share bar's X
+  button adds `&hashtags=` on an event's own page. Bluesky needs a tag facet per hashtag (Pro's `npmp_pro_bsky_tag_facets()`).
+  Unit `tests/test-social-hashtags.php`, rig `tests/rig/social-hashtags.php` (every network faked, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

@@ -67,6 +67,7 @@ function npmp_newsletter_archive_defaults() {
 		'readmore'       => 0,
 		'pagination'     => 1,
 		'event_emails'   => 0,
+		'image'          => 1,
 	);
 }
 
@@ -139,7 +140,7 @@ function npmp_newsletter_archive_settings( $atts ) {
 		$s['excerpt_length'] = max( 5, min( 200, (int) $atts['excerpt_length'] ) );
 	}
 
-	foreach ( array( 'date', 'excerpt', 'readmore', 'pagination', 'event_emails' ) as $key ) {
+	foreach ( array( 'date', 'excerpt', 'readmore', 'pagination', 'event_emails', 'image' ) as $key ) {
 		if ( array_key_exists( $key, $atts ) ) {
 			$flag = npmp_newsletter_archive_bool( $atts[ $key ] );
 			if ( null !== $flag ) {

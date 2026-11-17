@@ -291,31 +291,23 @@ function npmp_generate_preferences_token( $email ) {
  * The published page that holds [npmp_manage_preferences].
  *
  * Nothing in the plugin ever saved npmp_preferences_page_id, so every "Manage
- * your email preferences" link pointed at the home page. Find the page by its
- * shortcode once and remember it. A page that stops qualifying is looked up
- * again.
+ * your email preferences" link pointed at the home page. Find the page once
+ * and remember it. A page counts only when it is clearly the preferences page
+ * (named for it and holding the form, npmp_form_page_is_clear()), so a notes
+ * page that mentions the shortcode never wins. A saved page that stops
+ * holding the form is looked up again.
  *
  * @return int Page ID, or 0 when there is none.
  */
 function npmp_get_preferences_page_id() {
 	$page_id = absint( get_option( 'npmp_preferences_page_id', 0 ) );
-	if ( $page_id && 'publish' === get_post_status( $page_id ) && has_shortcode( (string) get_post_field( 'post_content', $page_id ), 'npmp_manage_preferences' ) ) {
+	if ( $page_id && 'publish' === get_post_status( $page_id ) && npmp_form_page_has_form( (string) get_post_field( 'post_content', $page_id ), 'preferences' ) ) {
 		return $page_id;
 	}
 	if ( false !== get_transient( 'npmp_prefs_page_lookup' ) ) {
 		return 0;
 	}
-	$found = get_posts(
-		array(
-			'post_type'      => 'page',
-			'post_status'    => 'publish',
-			'posts_per_page' => 1,
-			'fields'         => 'ids',
-			'no_found_rows'  => true,
-			's'              => '[npmp_manage_preferences',
-		)
-	);
-	$page_id = $found ? (int) $found[0] : 0;
+	$page_id = npmp_form_page_find( 'preferences' );
 	if ( $page_id ) {
 		update_option( 'npmp_preferences_page_id', $page_id );
 	} else {

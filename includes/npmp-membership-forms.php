@@ -103,8 +103,16 @@ function npmp_get_membership_setup_status() {
 			'message' => __( 'The unsubscribe page you picked is missing or unpublished, so the unsubscribe links in your emails go nowhere. Pick a published page below.', 'nonprofit-manager' ),
 		);
 	} else {
-		$has_form = false !== strpos( (string) get_post_field( 'post_content', $unsub_id ), '[npmp_email_unsubscribe]' );
-		if ( $has_form ) {
+		$unsub_post = get_post( $unsub_id );
+		$content    = (string) get_post_field( 'post_content', $unsub_id );
+		$has_form   = npmp_form_page_has_form( $content, 'unsubscribe' );
+		$status     = 'ok';
+		if ( ! npmp_form_page_named( $unsub_post ? $unsub_post->post_title : '', $unsub_post ? $unsub_post->post_name : '', 'unsubscribe' ) && npmp_form_page_mentions( $content, 'unsubscribe' ) ) {
+			// The old setup picked any page that mentioned the shortcode, notes pages included.
+			$status = 'warning';
+			/* translators: %s: page title */
+			$message = sprintf( __( 'We send unsubscribe links to “%s”. You mention the unsubscribe form on that page, but you didn\'t name it Unsubscribe, so you may have meant a different page. If you did, pick it in the Unsubscribe Form section below.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
+		} elseif ( $has_form ) {
 			/* translators: %s: page title */
 			$message = sprintf( __( 'Unsubscribe links resolve to “%s”, and the form is on the page.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
 		} else {
@@ -112,7 +120,7 @@ function npmp_get_membership_setup_status() {
 			$message = sprintf( __( 'Unsubscribe links resolve to “%s”. The form is added to the page automatically.', 'nonprofit-manager' ), get_the_title( $unsub_id ) );
 		}
 		$rows[] = array(
-			'status'  => 'ok',
+			'status'  => $status,
 			'label'   => __( 'Unsubscribe page', 'nonprofit-manager' ),
 			'message' => $message,
 		);
@@ -829,11 +837,14 @@ function npmp_inject_membership_forms_into_pages( $content ) {
 	$s       = npmp_get_membership_form_settings();
 	$post_id = get_the_ID();
 
-	$has_signup = ( false !== strpos( $content, '[npmp_email_signup]' ) );
+	// The real shortcode or block, or a block the_content already rendered,
+	// never a mention. An escaped [[npmp_email_signup]] prints as text, so the
+	// page still needs the form.
+	$has_signup = npmp_form_page_has_form( $content, 'signup' ) || false !== strpos( $content, 'class="npmp-email-signup' );
 	if ( ! empty( $s['signup_page_id'] ) && absint( $s['signup_page_id'] ) === $post_id && ! $has_signup ) {
 		$content .= "\n\n[npmp_email_signup]\n";
 	}
-	$has_unsubscribe = ( false !== strpos( $content, '[npmp_email_unsubscribe]' ) );
+	$has_unsubscribe = npmp_form_page_has_form( $content, 'unsubscribe' ) || false !== strpos( $content, 'class="npmp-email-unsubscribe' );
 	if ( ! empty( $s['unsubscribe_page_id'] ) && absint( $s['unsubscribe_page_id'] ) === $post_id && ! $has_unsubscribe ) {
 		$content .= "\n\n[npmp_email_unsubscribe]\n";
 	}

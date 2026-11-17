@@ -9,6 +9,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/social-sharing/hashtags.php';
 require_once __DIR__ . '/social-sharing/class-social-share-manager.php';
 require_once __DIR__ . '/social-sharing/networks/facebook.php';
 require_once __DIR__ . '/social-sharing/networks/x-twitter.php';

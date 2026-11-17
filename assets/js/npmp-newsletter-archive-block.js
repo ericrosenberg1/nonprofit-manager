@@ -49,7 +49,8 @@
 			excerptLength: { type: 'number', default: 0 },
 			readmore: { type: 'string', default: '' },
 			pagination: { type: 'string', default: '' },
-			eventEmails: { type: 'boolean', default: false }
+			eventEmails: { type: 'boolean', default: false },
+			image: { type: 'string', default: '' }
 		},
 		edit: function ( props ) {
 			var a = props.attributes;
@@ -133,6 +134,7 @@
 					el(
 						PanelBody,
 						{ title: __( 'Content', 'nonprofit-manager' ), initialOpen: false },
+						el( SelectControl, { label: __( 'Featured image', 'nonprofit-manager' ), value: a.image, options: shownByDefault, onChange: set( 'image' ) } ),
 						el( SelectControl, { label: __( 'Date sent', 'nonprofit-manager' ), value: a.date, options: shownByDefault, onChange: set( 'date' ) } ),
 						el( SelectControl, { label: __( 'Excerpt', 'nonprofit-manager' ), value: a.excerpt, options: shownByDefault, onChange: set( 'excerpt' ) } ),
 						el( RangeControl, {

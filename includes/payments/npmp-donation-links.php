@@ -341,7 +341,10 @@ function npmp_donation_prefill_reset() {
 /**
  * The page an email's Donate button opens: the donation page picked on the
  * Donation Settings screen, or else the first published page that holds the
- * donation form.
+ * donation form. A page named for giving (npmp_form_page_is_clear()) wins
+ * over one that only holds the form. A page that only mentions the shortcode
+ * in its text never counts. Until 2026.11.21 the first page
+ * whose text mentioned it won.
  *
  * @return string '' when the site has no such page.
  */
@@ -351,17 +354,17 @@ function npmp_donation_email_target_url() {
 		return (string) get_permalink( $page_id );
 	}
 
-	global $wpdb;
-	$like_code  = '%' . $wpdb->esc_like( '[npmp_donation_form' ) . '%';
-	$like_block = '%' . $wpdb->esc_like( 'wp:nonprofit-manager/donation-form' ) . '%';
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- One lookup per email render, only when no donation page is set.
-	$found = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type = 'page' AND ( post_content LIKE %s OR post_content LIKE %s ) ORDER BY ID ASC LIMIT 1",
-			$like_code,
-			$like_block
-		)
-	);
+	$candidates = npmp_form_page_candidates( 'donation' );
+	$found      = npmp_form_page_pick( $candidates, 'donation' );
+	if ( ! $found ) {
+		// No page named for giving: the first page that holds the real form.
+		foreach ( $candidates as $candidate ) {
+			if ( npmp_form_page_has_form( $candidate->post_content, 'donation' ) ) {
+				$found = (int) $candidate->ID;
+				break;
+			}
+		}
+	}
 	return $found ? (string) get_permalink( (int) $found ) : '';
 }
 
