@@ -798,7 +798,7 @@ function npmp_initialize_default_newsletter_settings() {
  * the box. Skips when an unsubscribe page is already configured and published.
  * Reuses an existing page only when it is clearly the unsubscribe page (named
  * for it and holding the form, npmp_form_page_is_clear()). Until the release
- * after 2026.11.20 any page whose text mentioned the shortcode won, notes
+ * 2026.11.21 any page whose text mentioned the shortcode won, notes
  * pages included.
  *
  * @return void

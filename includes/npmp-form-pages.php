@@ -3,7 +3,7 @@
  * Which page holds one of our forms: unsubscribe, email preferences, signup,
  * or donation.
  *
- * Until the release after 2026.11.20 we searched pages for the shortcode's
+ * Until 2026.11.21 we searched pages for the shortcode's
  * text and took the first hit, so a notes page that only mentioned
  * [npmp_email_unsubscribe] became the unsubscribe page and every email footer
  * linked to it (Pete, test.u3acommunities.org, "Thoughts on u3acommunities

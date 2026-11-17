@@ -462,12 +462,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Added tags to events. When you share an event to social networks, we add its tags as hashtags.
-- Added featured images to newsletters. You can see the image on the public web version and in newsletter lists, and we leave it out of the email.
-- Fixed the unsubscribe and preferences links going to any page that mentioned our shortcode. We pick only a page named for the job that holds the form, and on update we move a wrong pick to your Unsubscribe page when you have one.
+- (none)
 
 Pro (licence server changelog):
-- Added event tags as hashtags on Bluesky, Mastodon, Threads, and Nextdoor shares, and fixed long Threads shares losing the link.
+- (none)
 
 ## Releasing: three systems, always in this order
 

@@ -343,7 +343,7 @@ function npmp_donation_prefill_reset() {
  * Donation Settings screen, or else the first published page that holds the
  * donation form. A page named for giving (npmp_form_page_is_clear()) wins
  * over one that only holds the form. A page that only mentions the shortcode
- * in its text never counts. Until the release after 2026.11.20 the first page
+ * in its text never counts. Until 2026.11.21 the first page
  * whose text mentioned it won.
  *
  * @return string '' when the site has no such page.

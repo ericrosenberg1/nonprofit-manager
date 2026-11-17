@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.20
+Stable tag: 2026.11.21
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.21 =
+* Added tags to events, and we add them as hashtags when you share an event.
+* Added featured images to newsletters, on the web version and in newsletter lists.
+* Fixed unsubscribe and preferences links going to a page that only mentioned our shortcode.
 
 = 2026.11.20 =
 * Added the meeting link, meeting ID, and passcode to the iCal feed, unless you keep an event's link for emails only.
