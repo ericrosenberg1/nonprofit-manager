@@ -16,7 +16,9 @@ function npmp_register_newsletter_cpt() {
         // only to users who hold create_posts, which is edit_npmp_newsletters.
         'show_in_admin_bar' => true,
         'menu_position' => 56,
-        'supports' => ['title', 'editor'],
+        // A featured image shows on the public web version and in public
+        // lists, the way an event's does. The email itself leaves it out.
+        'supports' => ['title', 'editor', 'thumbnail'],
         'show_in_rest' => true, // enables Gutenberg
         // Own capability type so the Membership Manager role can write
         // newsletters without edit_posts. npmp_filter_staff_caps() grants

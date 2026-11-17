@@ -294,6 +294,7 @@ function npmp_newsletter_archive_page_html( $id, $admin_preview = false ) {
 	$out .= '<title>' . esc_html( $title . ' | ' . get_bloginfo( 'name' ) ) . '</title>';
 	if ( ! $admin_preview ) {
 		$out .= '<link rel="canonical" href="' . esc_url( $canonical ) . '">';
+		$out .= npmp_newsletter_archive_share_meta( $id );
 	}
 	$out .= '<style>' . npmp_newsletter_archive_page_css() . '</style>';
 	$out .= '</head><body class="npmp-newsletter-view">';
@@ -309,8 +310,51 @@ function npmp_newsletter_archive_page_html( $id, $admin_preview = false ) {
 			)
 		) . '</time></p>';
 	}
+	$out .= npmp_newsletter_archive_image_html( $id );
 	$out .= '<div class="npmp-nlv-body">' . npmp_newsletter_archive_body( $id ) . '</div>';
 	$out .= '</article></main></body></html>';
+	return $out;
+}
+
+/**
+ * The newsletter's featured image for the standalone page. Inside a theme,
+ * the page carries the newsletter's ID, so the theme prints the image the way
+ * it prints an event's, and we add nothing.
+ *
+ * @param int $id Newsletter ID.
+ * @return string '' when the newsletter has no featured image.
+ */
+function npmp_newsletter_archive_image_html( $id ) {
+	if ( ! has_post_thumbnail( $id ) ) {
+		return '';
+	}
+	$img = get_the_post_thumbnail( $id, 'large', array( 'class' => 'npmp-nlv-image-img', 'alt' => '' ) );
+	return '' === $img ? '' : '<figure class="npmp-nlv-image">' . $img . '</figure>';
+}
+
+/**
+ * Open Graph tags for the standalone page, which prints its own head, so a
+ * shared link shows the title and the featured image. Inside a theme, the
+ * theme or an SEO plugin prints these, as it does for events.
+ *
+ * @param int $id Newsletter ID.
+ * @return string
+ */
+function npmp_newsletter_archive_share_meta( $id ) {
+	$out  = '<meta property="og:type" content="article">';
+	$out .= '<meta property="og:title" content="' . esc_attr( npmp_newsletter_archive_title( $id ) ) . '">';
+	$out .= '<meta property="og:url" content="' . esc_url( npmp_newsletter_archive_url( $id ) ) . '">';
+	$out .= '<meta property="og:site_name" content="' . esc_attr( get_bloginfo( 'name' ) ) . '">';
+	$thumb = (int) get_post_thumbnail_id( $id );
+	$src   = $thumb ? wp_get_attachment_image_src( $thumb, 'large' ) : false;
+	if ( $src ) {
+		$out .= '<meta property="og:image" content="' . esc_url( $src[0] ) . '">';
+		if ( ! empty( $src[1] ) && ! empty( $src[2] ) ) {
+			$out .= '<meta property="og:image:width" content="' . (int) $src[1] . '">';
+			$out .= '<meta property="og:image:height" content="' . (int) $src[2] . '">';
+		}
+		$out .= '<meta name="twitter:card" content="summary_large_image">';
+	}
 	return $out;
 }
 
@@ -331,6 +375,8 @@ function npmp_newsletter_archive_page_css() {
 		. '.npmp-nlv-date{margin:0 0 20px;color:#0f766e;font-weight:600;white-space:nowrap}'
 		. '.npmp-nlv-body a{color:#0f766e}'
 		. '.npmp-nlv-body a:hover,.npmp-nlv-body a:focus{color:#115e59}'
+		. '.npmp-nlv-image{margin:0 0 20px}'
+		. '.npmp-nlv-image img{display:block;width:100%;height:auto;border-radius:8px}'
 		. '.npmp-nlv-body img{max-width:100%;height:auto}'
 		. '.npmp-nlv-body table{max-width:100%}'
 		. '@media (min-width:600px){.npmp-nlv-article{padding:32px}}';
@@ -702,6 +748,7 @@ function npmp_newsletters_shortcode_defaults() {
 		'readmore'       => '',
 		'pagination'     => '',
 		'event_emails'   => '',
+		'image'          => '',
 	);
 	/**
 	 * Filter the attributes [npmp_newsletters] and the Newsletters block accept.
@@ -880,7 +927,14 @@ function npmp_newsletter_archive_render( $atts, $for_block = false ) {
 		$url   = npmp_newsletter_archive_url( $post->ID, $from );
 		$sent  = npmp_newsletter_archive_sent_at( $post->ID );
 
-		$out .= '<article class="npmp-newsletter-item">';
+		$has_image = $settings['image'] && has_post_thumbnail( $post->ID );
+		$out      .= '<article class="npmp-newsletter-item' . ( $has_image ? ' npmp-newsletter-item--has-image' : '' ) . '">';
+		if ( $has_image ) {
+			// Same markup as an event's image in the events list.
+			$out .= '<a class="npmp-newsletter-media" href="' . esc_url( $url ) . '" tabindex="-1" aria-hidden="true">'
+				. get_the_post_thumbnail( $post->ID, 'medium_large', array( 'class' => 'npmp-newsletter-image', 'loading' => 'lazy', 'alt' => '' ) )
+				. '</a>';
+		}
 		$out .= '<h3 class="npmp-newsletter-title"><a href="' . esc_url( $url ) . '">' . esc_html( $title ) . '</a></h3>';
 		if ( $settings['date'] && '' !== $sent ) {
 			$out .= '<p class="npmp-newsletter-date"><time datetime="' . esc_attr( mysql2date( 'Y-m-d', $sent ) ) . '">' . esc_html( mysql2date( get_option( 'date_format' ), $sent ) ) . '</time></p>';
@@ -1034,6 +1088,10 @@ function npmp_newsletter_archive_register_block() {
 					'type'    => 'boolean',
 					'default' => false,
 				),
+				'image'         => array(
+					'type'    => 'string',
+					'default' => '',
+				),
 			),
 		)
 	);
@@ -1054,7 +1112,7 @@ function npmp_newsletter_archive_block_render( $attributes ) {
 		'topic'        => ! empty( $attributes['topic'] ) ? sanitize_text_field( (string) $attributes['topic'] ) : '',
 		'event_emails' => empty( $attributes['eventEmails'] ) ? 'no' : 'yes',
 	);
-	foreach ( array( 'order', 'layout', 'columns', 'date', 'excerpt', 'readmore', 'pagination' ) as $key ) {
+	foreach ( array( 'order', 'layout', 'columns', 'date', 'excerpt', 'readmore', 'pagination', 'image' ) as $key ) {
 		if ( isset( $attributes[ $key ] ) && '' !== $attributes[ $key ] && 0 !== $attributes[ $key ] ) {
 			$atts[ $key ] = $attributes[ $key ];
 		}

@@ -359,6 +359,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   the_content once. That drops comments, share buttons, related posts, and the plugin's own page injections.
   When the theme's template never prints the content, `archive-theme-template.php` sends the standalone page
   (header `X-NPMP-Newsletter-View: standalone`), and the `npmp_newsletter_archive_use_theme` filter forces it.
+  A newsletter's featured image (since the release after 2026.11.20) goes in lists (`image`, on by default, events-list
+  markup) and on the page. Inside the theme we add nothing, since the fake page carries the newsletter's ID and the theme
+  prints its own featured image, as it does for an event. The standalone page prints a `<figure>` and Open Graph tags. The
+  email never carries it, as event emails carry an image only where the author puts `[event_image]`. Unit
+  `tests/test-newsletter-image.php`, rig `tests/rig/newsletter-image.php`.
   `group="..."` needs Pro (`npmp_newsletter_archive_groups_supported`). Without it a list naming a group stays
   empty. Unit `tests/test-newsletter-archive.php`, rig `tests/rig/newsletter-archive.php` (pretty permalinks,
   site served at its home URL, Twenty Twenty-Five and Twenty Twenty-One installed, run with Pro on and off).
@@ -448,6 +453,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
+- Added featured images to newsletters. You can see the image on the public web version and in newsletter lists, and we leave it out of the email.
 - Fixed the unsubscribe and preferences links going to any page that mentioned our shortcode. We pick only a page named for the job that holds the form, and on update we move a wrong pick to your Unsubscribe page when you have one.
 
 Pro (licence server changelog):
