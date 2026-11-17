@@ -216,7 +216,7 @@ function npmp_render_social_sharing_page() {
 						<td>
 							<textarea name="npmp_share_template" id="npmp_share_template" rows="4" cols="60" class="large-text"><?php echo esc_textarea( $settings['share_template'] ); ?></textarea>
 							<p class="description">
-								<?php esc_html_e( 'Placeholders you can use: {title}, {excerpt}, and {url}.', 'nonprofit-manager' ); ?>
+								<?php esc_html_e( 'Placeholders you can use: {title}, {excerpt}, {url}, and {hashtags}. We turn an event\'s tags into hashtags and add them at the end, or where you put {hashtags}.', 'nonprofit-manager' ); ?>
 							</p>
 						</td>
 					</tr>

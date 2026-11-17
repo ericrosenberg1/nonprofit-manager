@@ -17,6 +17,7 @@ require_once __DIR__ . '/npmp-calendar-print.php';
 function npmp_register_events_module() {
 	npmp_register_event_post_type();
 	npmp_register_event_taxonomy();
+	npmp_register_event_tag_taxonomy();
 }
 add_action( 'init', 'npmp_register_events_module' );
 
@@ -72,6 +73,14 @@ function npmp_register_events_admin_menu() {
 		__( 'Categories', 'nonprofit-manager' ),
 		'manage_categories',
 		'edit-tags.php?taxonomy=npmp_event_category&post_type=npmp_event'
+	);
+
+	add_submenu_page(
+		'npmp-events',
+		__( 'Event Tags', 'nonprofit-manager' ),
+		__( 'Tags', 'nonprofit-manager' ),
+		'manage_categories',
+		'edit-tags.php?taxonomy=npmp_event_tag&post_type=npmp_event'
 	);
 
 	add_submenu_page(
@@ -152,6 +161,53 @@ function npmp_register_event_taxonomy() {
 	);
 
 	register_taxonomy( 'npmp_event_category', array( 'npmp_event' ), $args );
+}
+
+/**
+ * Register event tags: flat labels like "walking" or "history group". When
+ * we share an event to social networks, its tags go out as hashtags
+ * (includes/social-sharing/hashtags.php). No public archive, so no rewrite
+ * rules change.
+ *
+ * @return void
+ */
+function npmp_register_event_tag_taxonomy() {
+	if ( taxonomy_exists( 'npmp_event_tag' ) ) {
+		return;
+	}
+
+	register_taxonomy(
+		'npmp_event_tag',
+		array( 'npmp_event' ),
+		array(
+			'labels'            => array(
+				'name'                       => __( 'Event Tags', 'nonprofit-manager' ),
+				'singular_name'              => __( 'Event Tag', 'nonprofit-manager' ),
+				'search_items'               => __( 'Search Event Tags', 'nonprofit-manager' ),
+				'popular_items'              => __( 'Popular Event Tags', 'nonprofit-manager' ),
+				'all_items'                  => __( 'All Event Tags', 'nonprofit-manager' ),
+				'edit_item'                  => __( 'Edit Event Tag', 'nonprofit-manager' ),
+				'view_item'                  => __( 'View Event Tag', 'nonprofit-manager' ),
+				'update_item'                => __( 'Update Event Tag', 'nonprofit-manager' ),
+				'add_new_item'               => __( 'Add Event Tag', 'nonprofit-manager' ),
+				'new_item_name'              => __( 'New Event Tag Name', 'nonprofit-manager' ),
+				'separate_items_with_commas' => __( 'Separate tags with commas. We add them as hashtags when you share the event.', 'nonprofit-manager' ),
+				'add_or_remove_items'        => __( 'Add or remove tags', 'nonprofit-manager' ),
+				'choose_from_most_used'      => __( 'Choose from the most used tags', 'nonprofit-manager' ),
+				'not_found'                  => __( 'No tags found.', 'nonprofit-manager' ),
+				'no_terms'                   => __( 'No tags', 'nonprofit-manager' ),
+				'back_to_items'              => __( 'Go to Event Tags', 'nonprofit-manager' ),
+				'menu_name'                  => __( 'Tags', 'nonprofit-manager' ),
+			),
+			'public'            => false,
+			'show_ui'           => true,
+			'show_in_rest'      => true,
+			'show_admin_column' => true,
+			'show_tagcloud'     => false,
+			'hierarchical'      => false,
+			'rewrite'           => false,
+		)
+	);
 }
 
 /**
@@ -2013,6 +2069,10 @@ function npmp_events_submenu_highlight( $submenu_file ) {
 
 	if ( $screen && 'npmp_event_category' === $screen->taxonomy ) {
 		return 'edit-tags.php?taxonomy=npmp_event_category&post_type=npmp_event';
+	}
+
+	if ( $screen && 'npmp_event_tag' === $screen->taxonomy ) {
+		return 'edit-tags.php?taxonomy=npmp_event_tag&post_type=npmp_event';
 	}
 
 	if ( $screen && 'npmp_event' === $screen->post_type ) {

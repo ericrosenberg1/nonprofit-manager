@@ -88,6 +88,9 @@ function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
 				npmp_register_event_taxonomy();
 			}
+			if ( function_exists( 'npmp_register_event_tag_taxonomy' ) ) {
+				npmp_register_event_tag_taxonomy();
+			}
 		}
 	}
 
@@ -913,6 +916,9 @@ function npmp_handle_feature_toggle( $old_value, $value ) {
 			}
 			if ( function_exists( 'npmp_register_event_taxonomy' ) ) {
 				npmp_register_event_taxonomy();
+			}
+			if ( function_exists( 'npmp_register_event_tag_taxonomy' ) ) {
+				npmp_register_event_tag_taxonomy();
 			}
 		}
 		flush_rewrite_rules();

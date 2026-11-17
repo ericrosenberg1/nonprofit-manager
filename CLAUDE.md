@@ -442,6 +442,15 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   (the old search's only way in), and a clear page exists. Otherwise we create and change nothing, and setup status warns.
   We send newsletters as HTML only, with no plain-text part, and the footer URL's `&#038;` decodes to `&` (checked with
   macOS textutil and PHP's `html_entity_decode()`). Pete's `&#038;` likely came from elsewhere, unconfirmed. Unit `tests/test-form-pages.php`, rig `tests/rig/form-pages.php`.
+- **Event tags become hashtags** (taxonomy `npmp_event_tag`, flat, no public archive, since the release after 2026.11.20).
+  `NPMP_Social_Share_Manager::get_hashtags()` reads the tags (map on `npmp_social_hashtag_taxonomies`, filter
+  `npmp_social_hashtags`), and `format_for_network()` hands every network, free and Pro, the text from
+  `npmp_social_share_text()` (`includes/social-sharing/hashtags.php`, pure). Hashtags go where the template says
+  `{hashtags}`, else on their own line at the end. Within a network's limit the title and link stay, then as many hashtags
+  as fit, then the excerpt is cut. Only networks named on `npmp_social_char_limits` get fitted, so a network whose own file
+  cuts text needs its limit there (Pro adds Threads). Reddit posts the title only, so it gets none. The visitor share bar's X
+  button adds `&hashtags=` on an event's own page. Bluesky needs a tag facet per hashtag (Pro's `npmp_pro_bsky_tag_facets()`).
+  Unit `tests/test-social-hashtags.php`, rig `tests/rig/social-hashtags.php` (every network faked, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -453,11 +462,12 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
+- Added tags to events. When you share an event to social networks, we add its tags as hashtags.
 - Added featured images to newsletters. You can see the image on the public web version and in newsletter lists, and we leave it out of the email.
 - Fixed the unsubscribe and preferences links going to any page that mentioned our shortcode. We pick only a page named for the job that holds the form, and on update we move a wrong pick to your Unsubscribe page when you have one.
 
 Pro (licence server changelog):
-- (none)
+- Added event tags as hashtags on Bluesky, Mastodon, Threads, and Nextdoor shares, and fixed long Threads shares losing the link.
 
 ## Releasing: three systems, always in this order
 

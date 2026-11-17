@@ -190,7 +190,42 @@ class NPMP_Social_Share_Manager {
 			'excerpt'   => $excerpt,
 			'url'       => get_permalink( $post_id ),
 			'image_url' => $this->get_share_image( $post_id ),
+			'hashtags'  => $this->get_hashtags( $post_id ),
 		);
+	}
+
+	/**
+	 * The hashtags for a share: an event's tags (npmp_event_tag), in the
+	 * order WordPress returns them. Posts keep sharing without hashtags.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string[] Hashtags with their #.
+	 */
+	public function get_hashtags( $post_id ) {
+		/**
+		 * Filter which taxonomy turns into hashtags for each post type.
+		 *
+		 * @param array $map Post type => taxonomy.
+		 */
+		$map  = (array) apply_filters( 'npmp_social_hashtag_taxonomies', array( 'npmp_event' => 'npmp_event_tag' ) );
+		$type = get_post_type( $post_id );
+		$tax  = isset( $map[ $type ] ) ? (string) $map[ $type ] : '';
+		$tags = array();
+		if ( '' !== $tax && taxonomy_exists( $tax ) ) {
+			$terms = get_the_terms( $post_id, $tax );
+			if ( is_array( $terms ) ) {
+				$tags = wp_list_pluck( $terms, 'name' );
+			}
+		}
+
+		/**
+		 * Filter the hashtags a share carries.
+		 *
+		 * @param string[] $hashtags Hashtags with their #.
+		 * @param int      $post_id  Post ID.
+		 */
+		$hashtags = apply_filters( 'npmp_social_hashtags', npmp_social_hashtags( $tags ), $post_id );
+		return npmp_social_hashtags( array_map( 'strval', array_filter( (array) $hashtags, 'is_scalar' ) ) );
 	}
 
 	/**
@@ -232,15 +267,9 @@ class NPMP_Social_Share_Manager {
 	 */
 	public function format_for_network( $network, $post_data ) {
 		$settings = $this->get_settings();
-		$template = $settings['share_template'];
 
-		$text = str_replace(
-			array( '{title}', '{excerpt}', '{url}' ),
-			array( $post_data['title'], $post_data['excerpt'], $post_data['url'] ),
-			$template
-		);
-
-		// Apply character limits per network.
+		// Character limits per network. Each network's own file cuts to the
+		// same length, so fitting here keeps the link and the hashtags whole.
 		$limits = array(
 			'x_twitter' => 280,
 			'bluesky'   => 300,
@@ -254,20 +283,9 @@ class NPMP_Social_Share_Manager {
 		 */
 		$limits = apply_filters( 'npmp_social_char_limits', $limits );
 
-		if ( isset( $limits[ $network ] ) ) {
-			$limit = (int) $limits[ $network ];
-			// Reserve space for the URL which should always be included.
-			$url_length = strlen( $post_data['url'] );
-			if ( strlen( $text ) > $limit ) {
-				// Rebuild with truncated excerpt to fit within limit.
-				$available = $limit - $url_length - strlen( $post_data['title'] ) - 4; // 4 = newlines.
-				$short     = ( $available > 10 ) ? mb_substr( $post_data['excerpt'], 0, $available - 3 ) . '...' : '';
-				$text      = $post_data['title'] . "\n\n" . $short . "\n\n" . $post_data['url'];
-				$text      = mb_substr( $text, 0, $limit );
-			}
-		}
+		$limit = isset( $limits[ $network ] ) ? (int) $limits[ $network ] : null;
 
-		return $text;
+		return npmp_social_share_text( (string) $settings['share_template'], $post_data, $limit );
 	}
 
 	/* ------------------------------------------------------------------
