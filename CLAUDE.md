@@ -426,6 +426,17 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   the newsletter public (`npmp_newsletter_web_version_url()`), else the source. We render the web version and the email with
   the same `render_base_content()`, so we wrap `npmp_newsletter_archive_body()` in `npmp_newsletter_web_render()` and skip the
   swap inside that wrapper. Unit `tests/test-email-embeds.php`, rig `tests/rig/email-embeds.php` (oEmbed faked, SMTP sink, the page over HTTP).
+- **Other plugins' blocks in a newsletter's email** (`includes/email-newsletter/email-plugin-blocks.php`, since 2026.11.23, Pete's "more-plugins" topic). In an email render only, we swap an embedded ONLYOFFICE block, and every
+  bare `[onlyoffice]` shortcode, for ONLYOFFICE's own link view through its registered shortcode handler, or print nothing
+  when ONLYOFFICE is gone. ONLYOFFICE 2.3.0 reads `documentView` in camelCase and WordPress lowercases shortcode names, so
+  a bare shortcode always embeds. We cut a TablePress table (block and `[table]`) to its first page of rows
+  (`datatables_paginate_entries` from the block's `parameters` or the shortcode, else the table's saved options, else
+  TablePress's default of 10, no cut when `use_datatables` or `datatables_paginate` is off) and add "Showing the first X of
+  Y rows." with a web-version link. We turn off TablePress's Edit link in the email with `tablepress_edit_link_below_table`.
+  We checked against TablePress 3.4.1. Unit `tests/test-email-plugin-blocks.php`, rig `tests/rig/email-plugin-blocks.php`.
+- **Footer `[preferences_url]`** (alias `[subscribe_url]`, Pete's name for it, same release). We fill both with
+  `npmp_can_spam_get_preferences_url()`: the preferences page with the reader's signed link, where Pro lists the groups to
+  tick. With no preferences page we drop any `<a>` whose href is the tag, and we never fall back to the unsubscribe page.
 - **We found no way in for us in Event Bridge for ActivityPub** (we read 2.0.0 on 2026-11-16). Its authors list the plugins
   they support in the `private const EVENT_PLUGIN_INTEGRATIONS` in `Event_Bridge_For_ActivityPub\Setup`, with no filter, so
   we can't add an `Integrations\Event_Plugin_Integration` subclass from outside. We could hand ActivityPub's own

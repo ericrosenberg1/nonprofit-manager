@@ -15,16 +15,24 @@ if ( ! function_exists( 'npmp_can_spam_shortcode' ) ) {
 		$email         = isset( $atts['email'] ) ? sanitize_email( (string) $atts['email'] ) : '';
 		$footer        = get_option( 'npmp_newsletter_can_spam_footer' );
 
+		$prefs_url    = npmp_can_spam_get_preferences_url( $email );
 		$replacements = array(
 			'[organization]'    => esc_html( get_bloginfo( 'name' ) ),
 			'[address]'         => npmp_can_spam_get_address(),
 			'[unsubscribe_url]' => esc_url( npmp_can_spam_get_unsubscribe_url( $email ) ),
+			'[preferences_url]' => esc_url( $prefs_url ),
+			'[subscribe_url]'   => esc_url( $prefs_url ),
 		);
 
+		$footer_html = wp_kses_post( $footer );
+		if ( '' === $prefs_url ) {
+			// No preferences page: drop the link rather than print one that goes nowhere.
+			$footer_html = (string) preg_replace( '#<a\b[^>]*href=(["\'])\[(?:preferences|subscribe)_url\]\1[^>]*>.*?</a>#is', '', $footer_html );
+		}
 		$footer_html = str_replace(
 			array_keys( $replacements ),
 			array_values( $replacements ),
-			wp_kses_post( $footer )
+			$footer_html
 		);
 
 		/**
@@ -147,6 +155,31 @@ if ( ! function_exists( 'npmp_can_spam_get_address' ) ) {
 		}
 
 		return nl2br( esc_html( $address ) );
+	}
+}
+
+if ( ! function_exists( 'npmp_can_spam_get_preferences_url' ) ) {
+	/**
+	 * Resolve the [preferences_url] token (and [subscribe_url], Pete's name for
+	 * it) to the page that holds [npmp_manage_preferences]. There a reader picks
+	 * which emails they get, and with Pro ticks the groups to join or leave.
+	 *
+	 * With a recipient's address the link carries that address and its signed
+	 * token, so the reader types nothing.
+	 *
+	 * @param string $email Recipient address. Blank for the bare page.
+	 * @return string Unescaped URL, or '' when the site has no preferences page.
+	 */
+	function npmp_can_spam_get_preferences_url( $email = '' ) {
+		$page_id = function_exists( 'npmp_get_preferences_page_id' ) ? npmp_get_preferences_page_id() : 0;
+		if ( ! $page_id ) {
+			return '';
+		}
+		$email = sanitize_email( (string) $email );
+		if ( $email && is_email( $email ) && function_exists( 'npmp_get_preferences_url' ) ) {
+			return (string) npmp_get_preferences_url( $email );
+		}
+		return (string) get_permalink( $page_id );
 	}
 }
 
