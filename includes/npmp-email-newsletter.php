@@ -26,6 +26,7 @@ $npmp_newsletter_files = [
     'archive-pure.php',
     'archive.php',
     'email-embeds.php',
+    'email-plugin-blocks.php',
     'imported.php',
 ];
 

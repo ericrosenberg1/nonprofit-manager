@@ -159,7 +159,7 @@ function npmp_register_newsletter_settings() {
         function () {
             $value = get_option('npmp_newsletter_can_spam_footer');
             echo '<textarea id="npmp_newsletter_can_spam_footer" name="npmp_newsletter_can_spam_footer" rows="4" cols="60" aria-describedby="npmp_newsletter_can_spam_footer_help">' . esc_textarea($value) . '</textarea>';
-            echo '<p class="description" id="npmp_newsletter_can_spam_footer_help">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>. ' . esc_html__('[address] comes from the Mailing address field above, or your organization address when that field is blank. [unsubscribe_url] points to the unsubscribe page you picked in Membership Settings.', 'nonprofit-manager') . '</p>';
+            echo '<p class="description" id="npmp_newsletter_can_spam_footer_help">' . esc_html__('You can use placeholders:', 'nonprofit-manager') . ' <code>[organization]</code>, <code>[address]</code>, <code>[unsubscribe_url]</code>, <code>[preferences_url]</code>. ' . esc_html__('[address] comes from the Mailing address field above, or your organization address when that field is blank. [unsubscribe_url] points to the unsubscribe page you picked in Membership Settings. [preferences_url] points to the page with your preferences form, where each reader picks the emails they get. If you have no such page, the plugin leaves that link out.', 'nonprofit-manager') . '</p>';
         },
         'npmp_newsletter_settings',
         'npmp_newsletter_main',

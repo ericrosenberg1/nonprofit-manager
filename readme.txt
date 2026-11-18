@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.22
+Stable tag: 2026.11.23
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.23 =
+* Changed embedded ONLYOFFICE documents to a link in emails.
+* Changed TablePress tables in emails to show their first page of rows, with the row count.
+* Added the [preferences_url] footer tag (or [subscribe_url]) for each reader's preferences page.
 
 = 2026.11.22 =
 * Added a Help link beside each screen title and a Nonprofit Manager tab in the Help panel, with the help center article for that screen.
