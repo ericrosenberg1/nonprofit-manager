@@ -818,10 +818,13 @@ function npmp_tnp_render_page() {
 	if ( ! $plan ) {
 		echo '<p>' . esc_html__( 'The Newsletter Plugin has no sender or signup settings saved.', 'nonprofit-manager' ) . '</p>';
 	}
+	$intro = npmp_import_setting_choice_intro( 'The Newsletter Plugin', $plan );
+	if ( '' !== $intro ) {
+		echo '<p>' . esc_html( $intro ) . '</p>';
+	}
 	echo '<ul class="npmp-hub-checklist">';
 	foreach ( $plan as $key => $row ) {
-		$value = 'double_optin' === $key ? ( $row['mailpoet'] ? __( 'On', 'nonprofit-manager' ) : __( 'Off', 'nonprofit-manager' ) ) : (string) $row['mailpoet'];
-		$label = $names[ $key ] . ': ' . $value;
+		$label = npmp_import_setting_choice_label( $names[ $key ], $key, $row );
 		if ( 'change' === $row['state'] ) {
 			printf(
 				'<li><label><input type="checkbox" name="settings[]" value="%1$s"%2$s> %3$s</label></li>',

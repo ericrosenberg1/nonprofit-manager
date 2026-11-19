@@ -357,7 +357,14 @@ function npmp_import_hub_data_returned( array $state, $has_data ) {
  */
 function npmp_import_hub_finished( array $states ) {
 	foreach ( npmp_import_hub_step_ids() as $id ) {
-		if ( ! isset( $states[ $id ] ) || 'done' !== $states[ $id ] ) {
+		$state = $states[ $id ] ?? '';
+		// A source with no safe data removal is finished once its files are
+		// gone. Until the release after 2026.11.23 those eleven sources sat at
+		// step 5 of 5 for good, with nothing left anyone could run.
+		if ( 'remove_data' === $id && 'unavailable' === $state ) {
+			continue;
+		}
+		if ( 'done' !== $state ) {
 			return false;
 		}
 	}
@@ -384,6 +391,22 @@ function npmp_import_hub_partition( array $facts ) {
 		$out[ $here ? 'here' : 'other' ][] = (string) $slug;
 	}
 	return $out;
+}
+
+/**
+ * Step 4's line for a plugin whose uninstall deletes nothing.
+ *
+ * Only a source with a data removal step can promise the last step. Until the
+ * release after 2026.11.23 every source said "until the last step", and on
+ * the eleven sources where step 5 is unavailable the data never goes.
+ *
+ * @param bool $removal_available Step 5 can run for this source.
+ * @return string
+ */
+function npmp_import_hub_remove_plugin_text( $removal_available ) {
+	return $removal_available
+		? __( 'You delete the plugin\'s files from your server. Its data stays in your database until the last step.', 'nonprofit-manager' )
+		: __( 'You delete the plugin\'s files from your server. You keep its data in your database, and you can leave the data there safely.', 'nonprofit-manager' );
 }
 
 /**
@@ -1420,7 +1443,7 @@ function npmp_import_hub_render_step_remove_plugin( array $source, array $facts,
 			)
 		) . '</p>';
 	} else {
-		echo '<p>' . esc_html__( 'You delete the plugin\'s files from your server. Its data stays in your database until the last step.', 'nonprofit-manager' ) . '</p>';
+		echo '<p>' . esc_html( npmp_import_hub_remove_plugin_text( $source['data_removal']['available'] ) ) . '</p>';
 	}
 	if ( is_multisite() ) {
 		echo '<p><strong>' . esc_html__( 'This deletes the plugin for every site in your network.', 'nonprofit-manager' ) . '</strong></p>';

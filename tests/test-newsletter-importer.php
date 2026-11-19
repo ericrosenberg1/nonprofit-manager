@@ -123,5 +123,15 @@ check( 'writer takes a source', 1, preg_match( "/function npmp_mailpoet_import_s
 check( 'newsletter importer passes its source', 1, substr_count( $code, "npmp_mailpoet_import_subscriber( \$row, \$known, \$row->lists, 'newsletter' )" ) );
 check( 'loaded after the MailPoet importer', true, strpos( file_get_contents( $root . '/nonprofit-manager.php' ), 'newsletter-importer.php' ) > strpos( file_get_contents( $root . '/nonprofit-manager.php' ), 'mailpoet-importer.php' ) );
 
+echo "Settings lines show what a tick replaces\n";
+$row = array( 'mailpoet' => 'UI Club', 'current' => 'My Own Name', 'state' => 'change', 'checked' => false );
+check( 'a setting that would change names your value too', 'Sender name: UI Club (yours now: My Own Name)', npmp_import_setting_choice_label( 'Sender name', 'from_name', $row ) );
+check( 'an empty value of yours reads Not set', 'Sender email: a@b.org (yours now: Not set)', npmp_import_setting_choice_label( 'Sender email', 'from_email', array( 'mailpoet' => 'a@b.org', 'current' => '', 'state' => 'change' ) ) );
+check( 'double opt-in reads On and Off', 'Signup confirmation email: On (yours now: Off)', npmp_import_setting_choice_label( 'Signup confirmation email', 'double_optin', array( 'mailpoet' => true, 'current' => false, 'state' => 'change' ) ) );
+check( 'a matching setting shows one value', 'Sender name: UI Club', npmp_import_setting_choice_label( 'Sender name', 'from_name', array( 'mailpoet' => 'UI Club', 'current' => 'UI Club', 'state' => 'same' ) ) );
+check( 'the intro shows when a tick can change something', true, false !== strpos( npmp_import_setting_choice_intro( 'FluentCRM', array( 'from_name' => $row ) ), 'We leave every unticked setting alone' ) );
+check( 'no intro when nothing can change', '', npmp_import_setting_choice_intro( 'FluentCRM', array( 'from_name' => array( 'state' => 'same' ) ) ) );
+check( 'both screens print the label helper', 2, substr_count( file_get_contents( $root . '/includes/import/newsletter-importer.php' ) . file_get_contents( $root . '/includes/import/fluentcrm-importer.php' ), 'npmp_import_setting_choice_label(' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

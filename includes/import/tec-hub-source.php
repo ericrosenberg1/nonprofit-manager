@@ -243,8 +243,30 @@ function npmp_tec_hub_can_import() {
 	if ( npmp_tec_is_active() ) {
 		return true;
 	}
-	if ( npmp_tec_plugin_file() ) {
+	$installed = (bool) npmp_tec_plugin_file();
+	return npmp_tec_hub_can_import_text( false, $installed, $installed && npmp_tec_hub_has_data() );
+}
+
+/**
+ * Step 1's answer for TEC, from the facts alone (tests/test-import-hub.php).
+ *
+ * Until the release after 2026.11.23 an installed TEC that nobody had turned
+ * on read "Its events are still in your database" with nothing there.
+ *
+ * @param bool $active    TEC is on.
+ * @param bool $installed TEC's files are on the site.
+ * @param bool $has_data  TEC left anything in the database.
+ * @return true|string True, or why not.
+ */
+function npmp_tec_hub_can_import_text( $active, $installed, $has_data ) {
+	if ( $active ) {
+		return true;
+	}
+	if ( $installed && $has_data ) {
 		return __( 'Turn The Events Calendar back on from Plugins to import. Its events are still in your database.', 'nonprofit-manager' );
+	}
+	if ( $installed ) {
+		return __( 'Turn The Events Calendar on from Plugins to import its events, and come back to this screen.', 'nonprofit-manager' );
 	}
 	return __( 'You need The Events Calendar installed and on to import its events, so install it again, import, and come back to this screen.', 'nonprofit-manager' );
 }
