@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.24
+Stable tag: 2026.11.25
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.25 =
+* Fixed sending on a site that switched Newsletters on after installing the plugin. We queued every newsletter there and sent none.
+* Changed Scheduled Emails to read "Sending to 2 members" until we empty the queue.
+* Added a Site Health warning for an email queue we stop emptying.
 
 = 2026.11.24 =
 * Fixed Switch Plugins: you see an old plugin as switched once you delete its files, when we can't delete its data safely.
