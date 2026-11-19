@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.23
+Stable tag: 2026.11.24
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -169,6 +169,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.24 =
+* Fixed Switch Plugins: you see an old plugin as switched once you delete its files, when we can't delete its data safely.
+* Fixed the wording of step 4, and of step 1 for The Events Calendar, on Switch Plugins.
+* Added your current sender setting beside each checkbox on the Newsletter Plugin and FluentCRM import screens.
 
 = 2026.11.23 =
 * Changed embedded ONLYOFFICE documents to a link in emails.

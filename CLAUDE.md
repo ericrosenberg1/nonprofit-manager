@@ -485,13 +485,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fixed Switch Plugins: you now see an old plugin as switched once you delete its files when we can't safely delete its data, instead of waiting at step 5 for good.
-- Fixed step 4 on Switch Plugins: we no longer promise you a last step to delete the data for plugins where we can't offer one.
-- Fixed step 1 for The Events Calendar: we no longer tell you your events are still in the database on a site where nobody ever activated The Events Calendar.
-- On the Newsletter Plugin and FluentCRM import screens you now see your own sender setting beside each checkbox, so you know what a tick replaces.
+- (none)
 
 Pro (licence server changelog):
-- Fixed a delay of up to 12 hours between the Nonprofit Manager update and the Pro update. Pro now updates in the same run, or 10 minutes later when it needs the new Nonprofit Manager first. (Pro #50, W24)
+- (none)
 
 ## Releasing: three systems, always in this order
 
