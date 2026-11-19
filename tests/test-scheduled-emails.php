@@ -43,6 +43,9 @@ function esc_url( $url ) {
 function _n( $single, $plural, $n, $domain = null ) {
 	return 1 === (int) $n ? $single : $plural;
 }
+function number_format_i18n( $number, $decimals = 0 ) {
+	return number_format( (float) $number, (int) $decimals );
+}
 function sanitize_key( $key ) {
 	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) );
 }
@@ -401,6 +404,35 @@ $GLOBALS['t_meta'][7]['_npmp_event_email_template'] = 35;
 check( 'a pick of none beats the saved template', 'none', npmp_scheduled_emails_pick_template( 7, $body_default, 'none' ) );
 check( 'a pick of nothing reads as the default, not the saved template', '', npmp_scheduled_emails_pick_template( 7, $body_default, '' ) );
 $GLOBALS['t_meta'][7]['_npmp_event_email_template'] = '';
+
+echo "A waiting queue counts as stalled only when nothing is going out\n";
+// Length alone proves nothing: at ten a minute a big list waits hours.
+check( 'an empty queue is fine', false, npmp_newsletter_queue_is_stalled( 0, 0, null ) );
+check( 'a queue waiting ten minutes is fine', false, npmp_newsletter_queue_is_stalled( 500, 10, 1 ) );
+check( 'a long queue still mailing is fine', false, npmp_newsletter_queue_is_stalled( 5000, 480, 2 ) );
+check( 'waiting two hours with the last send two hours ago is stalled', true, npmp_newsletter_queue_is_stalled( 2, 120, 120 ) );
+check( 'waiting two hours with nothing ever sent is stalled', true, npmp_newsletter_queue_is_stalled( 2, 120, null ) );
+check( 'an hour waiting, a send minutes ago, is fine', false, npmp_newsletter_queue_is_stalled( 2, 61, 5 ) );
+
+echo "A sent row says Sending while its newsletter is still queued\n";
+// The row reaches 'sent' when the newsletter is queued, before anyone has it.
+// Reading "Sent to 2 members" with an empty mail log is what sent plord12 to
+// the forum (wordpress.org, 2026-11-19).
+$queued_row = (object) array( 'status' => 'sent', 'recipient_count' => 2, 'newsletter_id' => 41 );
+$GLOBALS['t_meta'][41]['_npmp_newsletter_status'] = 'queued';
+check( 'queued newsletter: Sending', 'Sending to 2 members', npmp_scheduled_emails_status_label( $queued_row ) );
+check( 'still_sending is true', true, npmp_scheduled_emails_still_sending( $queued_row ) );
+$GLOBALS['t_meta'][41]['_npmp_newsletter_status'] = 'sent';
+check( 'drained newsletter: Sent', 'Sent to 2 members', npmp_scheduled_emails_status_label( $queued_row ) );
+check( 'one reader reads as singular', 'Sent to 1 member', npmp_scheduled_emails_status_label( (object) array( 'status' => 'sent', 'recipient_count' => 1, 'newsletter_id' => 41 ) ) );
+check( 'no newsletter on the row: Sent', 'Sent to 0 members', npmp_scheduled_emails_status_label( (object) array( 'status' => 'sent', 'recipient_count' => 0, 'newsletter_id' => 0 ) ) );
+
+echo "The queue drain re-arms itself on init\n";
+// Activation and the Features toggle both miss it: npmp_enabled_features
+// doesn't exist on a new install, so the first write is an add_option() and
+// update_option_npmp_enabled_features never fires.
+$hooks_src = file_get_contents( dirname( __DIR__ ) . '/includes/activation-hooks.php' );
+check( 'npmp_schedule_newsletter_cron runs on init', 1, substr_count( $hooks_src, "add_action( 'init', 'npmp_schedule_newsletter_cron' );" ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );

@@ -96,6 +96,15 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - PayPal orders on a site with no API secret saved can't be verified, and
   `npmp_paypal_verify_order()` accepts them on purpose (failing closed would drop paid gifts). An
   admin notice asks for the secret.
+- **`update_option()` on an option with no row never fires `update_option_<name>`.** WordPress hands it to
+  `add_option()` and fires `add_option_<name>` instead. `npmp_enabled_features` has no row on a new install, so
+  the first save of the Features screen and the setup wizard both took that path, and the newsletter queue
+  drain (`npmp_process_queued_newsletters`), scheduled only from activation and `update_option_npmp_enabled_features`,
+  was never scheduled: every newsletter queued, none sent, and the Scheduled Emails screen read "Sent to 2
+  members" with an empty mail log (plord12 on wordpress.org, 2026-11-19, ROS-4612). Every per-minute job now
+  re-arms itself on `init`, the way the weekly digest and the scheduled-email sweep always did. Hook a cron
+  schedule to `init`, never to a settings write alone. Unit `tests/test-scheduled-emails.php`, rig
+  `tests/rig/newsletter-queue-cron.php`.
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
   `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and
@@ -485,7 +494,8 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fix: a site that turned newsletters on after activating queued every newsletter and sent none.
+- Scheduled Emails reads "Sending to 2 members" until the queue empties, and Site Health flags a queue that stops moving.
 
 Pro (licence server changelog):
 - (none)
