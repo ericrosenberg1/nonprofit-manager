@@ -859,6 +859,19 @@ function npmp_newsletters_enabled() {
 /**
  * Schedule the newsletter processing cron (if enabled).
  *
+ * Hooked to init as well as activation, because neither of those alone puts
+ * the queue on a schedule. A new install has no npmp_enabled_features row, so
+ * the first save of the Features screen, and the setup wizard, reach
+ * update_option() while the option is still missing. WordPress then writes it
+ * with add_option() and fires add_option_npmp_enabled_features, never the
+ * update_option_ hook npmp_handle_feature_toggle() listens on. Newsletters
+ * came on and the queue drain was never scheduled, so every newsletter queued
+ * and none sent: the Scheduled Emails tab read "Sent to 2 members" while
+ * nothing reached the mail server (plord12 on wordpress.org, 2026-11-19).
+ * Re-arming here also brings the drain back on a site that lost the event some
+ * other way. The weekly digest and the scheduled-email sweep already do this,
+ * and it costs what they cost: one wp_next_scheduled() read per request.
+ *
  * @return void
  */
 function npmp_schedule_newsletter_cron() {
@@ -870,6 +883,7 @@ function npmp_schedule_newsletter_cron() {
 		wp_schedule_event( time(), 'every_minute', 'npmp_process_queued_newsletters' );
 	}
 }
+add_action( 'init', 'npmp_schedule_newsletter_cron' );
 
 /**
  * Clear the newsletter processing cron hook.

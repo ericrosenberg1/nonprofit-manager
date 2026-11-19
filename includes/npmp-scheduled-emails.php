@@ -2226,6 +2226,10 @@ function npmp_scheduled_emails_health_tests( $tests ) {
 		'label' => __( 'Nonprofit Manager scheduled emails go out on time', 'nonprofit-manager' ),
 		'test'  => 'npmp_scheduled_emails_health_test',
 	);
+	$tests['direct']['npmp_newsletter_queue'] = array(
+		'label' => __( 'Nonprofit Manager empties its email queue', 'nonprofit-manager' ),
+		'test'  => 'npmp_newsletter_queue_health_test',
+	);
 	return $tests;
 }
 add_filter( 'site_status_tests', 'npmp_scheduled_emails_health_tests' );
@@ -2259,6 +2263,114 @@ function npmp_scheduled_emails_health_test() {
 		) . '</p><p>' . esc_html( npmp_scheduled_emails_cron_fix_text() ) . '</p>';
 	}
 	return $result;
+}
+
+/**
+ * Whether readers waiting in the mail queue mean email has stopped going out.
+ *
+ * Length alone proves nothing: the queue goes out ten a minute by default, so
+ * a few thousand readers legitimately leaves rows waiting for hours. What
+ * matters is turnover. A queue that waited an hour with nothing mailed in that
+ * hour isn't draining, whatever the reason: the per-minute job isn't running,
+ * WordPress's scheduler isn't being reached, or a run is dying partway.
+ *
+ * @param int      $waiting    Rows still pending.
+ * @param int      $oldest     Minutes the oldest pending row has waited.
+ * @param int|null $since_send Minutes since the last row went out, null if none ever did.
+ * @return bool
+ */
+function npmp_newsletter_queue_is_stalled( $waiting, $oldest, $since_send ) {
+	if ( (int) $waiting < 1 || (int) $oldest < 60 ) {
+		return false;
+	}
+	return null === $since_send || (int) $since_send >= 60;
+}
+
+/**
+ * The mail queue right now: readers waiting, how long the oldest has waited,
+ * and how long since anything went out.
+ *
+ * queued_at and sent_at are written with current_time( 'mysql' ), so they hold
+ * site-local time and go back through the site timezone, never gmdate().
+ *
+ * @return array{waiting:int,oldest:int,since_send:int|null}
+ */
+function npmp_newsletter_queue_state() {
+	global $wpdb;
+	$table = $wpdb->prefix . 'npmp_newsletter_queue';
+	$now   = npmp_scheduled_emails_now();
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dedicated queue table, fixed name, read for one Site Health test.
+	$row = $wpdb->get_row( "SELECT COUNT(*) AS waiting, MIN(queued_at) AS oldest FROM {$table} WHERE status = 'pending'" );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Same table and test.
+	$last = (string) $wpdb->get_var( "SELECT MAX(sent_at) FROM {$table}" );
+
+	$oldest_ts = $row && $row->oldest ? npmp_scheduled_emails_local_to_ts( $row->oldest ) : 0;
+	$last_ts   = '' !== $last ? npmp_scheduled_emails_local_to_ts( $last ) : 0;
+
+	return array(
+		'waiting'    => $row ? (int) $row->waiting : 0,
+		'oldest'     => $oldest_ts ? (int) max( 0, round( ( $now - $oldest_ts ) / 60 ) ) : 0,
+		'since_send' => $last_ts ? (int) max( 0, round( ( $now - $last_ts ) / 60 ) ) : null,
+	);
+}
+
+/**
+ * Site Health test body for the mail queue.
+ *
+ * @return array
+ */
+function npmp_newsletter_queue_health_test() {
+	$result = array(
+		'label'       => __( 'Email leaves the queue', 'nonprofit-manager' ),
+		'status'      => 'good',
+		'badge'       => array(
+			'label' => __( 'Nonprofit Manager', 'nonprofit-manager' ),
+			'color' => 'blue',
+		),
+		'description' => '<p>' . esc_html__( 'Nothing is stuck in the email queue.', 'nonprofit-manager' ) . '</p>',
+		'test'        => 'npmp_newsletter_queue',
+	);
+
+	$state = npmp_newsletter_queue_state();
+	if ( ! npmp_newsletter_queue_is_stalled( $state['waiting'], $state['oldest'], $state['since_send'] ) ) {
+		return $result;
+	}
+
+	$result['status'] = 'critical';
+	$result['label']  = __( 'Email is waiting in the queue and not going out', 'nonprofit-manager' );
+	$result['description'] = '<p>' . esc_html(
+		sprintf(
+			/* translators: 1: number of readers waiting, 2: hours the oldest has waited. */
+			_n(
+				'%1$d reader has been waiting %2$d hours for an email that hasn\'t gone out. A newsletter the Scheduled Emails screen counts as sent is still in the queue.',
+				'%1$d readers have been waiting %2$d hours for an email that hasn\'t gone out. A newsletter the Scheduled Emails screen counts as sent is still in the queue.',
+				(int) $state['waiting'],
+				'nonprofit-manager'
+			),
+			(int) $state['waiting'],
+			(int) floor( $state['oldest'] / 60 )
+		)
+	) . '</p><p>' . esc_html( npmp_newsletter_queue_fix_text() ) . '</p>';
+	return $result;
+}
+
+/**
+ * What to check when the queue isn't emptying. A site already running the
+ * scheduler from a system cron job needs the other half of the advice: the
+ * standard "set up a real cron job" line is no help to someone who has one.
+ *
+ * @return string
+ */
+function npmp_newsletter_queue_fix_text() {
+	if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
+		return sprintf(
+			/* translators: %s: the wp-cron.php URL. */
+			__( 'You switched WordPress\'s own scheduler off in wp-config.php. Check the cron job you set up to load %s every minute, and whether anything is blocking it from reaching the site.', 'nonprofit-manager' ),
+			site_url( 'wp-cron.php' )
+		);
+	}
+	return npmp_scheduled_emails_cron_fix_text();
 }
 
 /**
@@ -2367,6 +2479,25 @@ function npmp_scheduled_emails_format_utc( $utc ) {
 }
 
 /**
+ * Whether the mail queue still has this row's newsletter waiting.
+ *
+ * A row reaches 'sent' as soon as its newsletter is queued, which is before
+ * anyone has it: the queue goes out ten a minute by default. The newsletter
+ * carries 'queued' until the last reader is mailed, so a screen that says
+ * "Sent" while this is true is claiming more than happened.
+ *
+ * @param object $row Row.
+ * @return bool
+ */
+function npmp_scheduled_emails_still_sending( $row ) {
+	$newsletter_id = isset( $row->newsletter_id ) ? (int) $row->newsletter_id : 0;
+	if ( ! $newsletter_id ) {
+		return false;
+	}
+	return 'queued' === (string) get_post_meta( $newsletter_id, '_npmp_newsletter_status', true );
+}
+
+/**
  * Words for a row's status.
  *
  * @param object $row Row.
@@ -2379,6 +2510,10 @@ function npmp_scheduled_emails_status_label( $row ) {
 		case 'sending':
 			return __( 'Sending', 'nonprofit-manager' );
 		case 'sent':
+			if ( npmp_scheduled_emails_still_sending( $row ) ) {
+				/* translators: %s: number of recipients. */
+				return sprintf( _n( 'Sending to %s member', 'Sending to %s members', (int) $row->recipient_count, 'nonprofit-manager' ), number_format_i18n( (int) $row->recipient_count ) );
+			}
 			/* translators: %s: number of recipients. */
 			return sprintf( _n( 'Sent to %s member', 'Sent to %s members', (int) $row->recipient_count, 'nonprofit-manager' ), number_format_i18n( (int) $row->recipient_count ) );
 		case 'skipped':
@@ -3072,7 +3207,26 @@ function npmp_scheduled_emails_table_rows( $recent = 50 ) {
 	$upcoming = $wpdb->get_results( "SELECT * FROM {$table} WHERE status IN ('pending','sending') ORDER BY send_at ASC, id ASC LIMIT 200" );
 	$done     = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE status IN ('sent','skipped','cancelled') ORDER BY updated_at DESC, id DESC LIMIT %d", $recent ) );
 	// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	return array_merge( (array) $upcoming, (array) $done );
+	$rows = array_merge( (array) $upcoming, (array) $done );
+
+	// One query for the newsletters on screen, so the Status column's
+	// "Sending" check (npmp_scheduled_emails_still_sending()) doesn't cost a
+	// meta query per row.
+	$newsletter_ids = array_unique(
+		array_filter(
+			array_map(
+				static function ( $row ) {
+					return isset( $row->newsletter_id ) ? (int) $row->newsletter_id : 0;
+				},
+				$rows
+			)
+		)
+	);
+	if ( $newsletter_ids ) {
+		update_meta_cache( 'post', array_values( $newsletter_ids ) );
+	}
+
+	return $rows;
 }
 
 /**
