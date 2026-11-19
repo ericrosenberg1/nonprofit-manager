@@ -171,6 +171,8 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   A gift keeps the contact's status (`NPMP_Member_Manager::status_after_gift()`), only a contact with none becomes Donor.
   When a source's data comes back after step 5 finished, the hub forgets the old check and removal
   (`npmp_import_hub_data_returned()`), so a new delete needs a new check and the typed word.
+  A source with step 5 unavailable counts as finished once step 4 is done (`npmp_import_hub_finished()`), and step 4's
+  line promises a last step only when the source has a `batch` (`npmp_import_hub_remove_plugin_text()`).
   A source's `import_running` callback puts step 1 at In progress while the importer screen is partway
   through, and every importer screen prints `npmp_import_hub_back_link( $slug )` with the hub's current step.
 - **Never look contacts up by email one row at a time in an import.** `npmp_email` meta has no index, so
@@ -483,7 +485,10 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Fixed Switch Plugins: you now see an old plugin as switched once you delete its files when we can't safely delete its data, instead of waiting at step 5 for good.
+- Fixed step 4 on Switch Plugins: we no longer promise you a last step to delete the data for plugins where we can't offer one.
+- Fixed step 1 for The Events Calendar: we no longer tell you your events are still in the database on a site where nobody ever activated The Events Calendar.
+- On the Newsletter Plugin and FluentCRM import screens you now see your own sender setting beside each checkbox, so you know what a tick replaces.
 
 Pro (licence server changelog):
 - Fixed a delay of up to 12 hours between the Nonprofit Manager update and the Pro update. Pro now updates in the same run, or 10 minutes later when it needs the new Nonprofit Manager first. (Pro #50, W24)

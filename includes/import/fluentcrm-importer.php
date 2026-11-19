@@ -1000,12 +1000,16 @@ function npmp_fcrm_render_page() {
 	if ( ! $plan ) {
 		echo '<p>' . esc_html__( 'FluentCRM has no sender settings saved.', 'nonprofit-manager' ) . '</p>';
 	}
+	$intro = npmp_import_setting_choice_intro( 'FluentCRM', array_intersect_key( $plan, $names ) );
+	if ( '' !== $intro ) {
+		echo '<p>' . esc_html( $intro ) . '</p>';
+	}
 	echo '<ul class="npmp-hub-checklist">';
 	foreach ( $plan as $key => $row ) {
 		if ( ! isset( $names[ $key ] ) ) {
 			continue;
 		}
-		$label = $names[ $key ] . ': ' . (string) $row['mailpoet'];
+		$label = npmp_import_setting_choice_label( $names[ $key ], $key, $row );
 		if ( 'change' === $row['state'] ) {
 			printf(
 				'<li><label><input type="checkbox" name="settings[]" value="%1$s"%2$s> %3$s</label></li>',

@@ -105,6 +105,10 @@ check( 'current falls on the last step', 'remove_data', npmp_import_hub_current_
 $s = npmp_import_hub_step_states( array( 'imported' => true, 'verified' => true ) );
 check( 'no batch: remove data unavailable', 'unavailable', $s['remove_data'] );
 check( 'unavailable never runs', false, npmp_import_hub_can_run( 'remove_data', $s ) );
+check( 'no batch: finished once the files are gone', true, npmp_import_hub_finished( $s ) );
+check( 'no batch: the where line says finished', 'You finished switching from Events Manager.', npmp_import_hub_where_text( 'Events Manager', $s, npmp_import_hub_step_labels() ) );
+$s = npmp_import_hub_step_states( array( 'imported' => true, 'verified' => true, 'installed' => true ) );
+check( 'no batch, files still there: not finished', false, npmp_import_hub_finished( $s ) );
 
 $s = npmp_import_hub_step_states( array( 'has_data' => true, 'can_import' => 'Turn it back on.' ) );
 check( 'importer needs the plugin on: blocked', 'blocked', $s['import'] );
@@ -337,6 +341,20 @@ check( 'data to read: step 1 runs', true, npmp_import_hub_can_import_when( true,
 $why = npmp_import_hub_can_import_when( false, 'Events Manager' );
 check( 'no data: step 1 says why, naming the plugin', true, is_string( $why ) && false !== strpos( $why, 'nothing from Events Manager to import yet' ) );
 check( 'no data: the step waits instead of opening', 'blocked', npmp_import_hub_step_states( array( 'can_import' => $why ) )['import'] );
+
+echo "TEC step 1 with TEC off\n";
+check( 'TEC on: step 1 runs', true, npmp_tec_hub_can_import_text( true, true, false ) );
+$why = npmp_tec_hub_can_import_text( false, true, true );
+check( 'off with events left: says they are still there', true, false !== strpos( $why, 'still in your database' ) );
+$why = npmp_tec_hub_can_import_text( false, true, false );
+check( 'installed, never turned on: no claim about events in the database', false, strpos( $why, 'still in your database' ) );
+check( 'installed, never turned on: says to turn it on', true, false !== strpos( $why, 'Turn The Events Calendar on from Plugins' ) );
+check( 'not installed: says to install it', true, false !== strpos( npmp_tec_hub_can_import_text( false, false, true ), 'install it again' ) );
+
+echo "Step 4 promises step 5 only where step 5 runs\n";
+check( 'with a removal step: until the last step', true, false !== strpos( npmp_import_hub_remove_plugin_text( true ), 'until the last step' ) );
+check( 'without one: no promise of a last step', false, strpos( npmp_import_hub_remove_plugin_text( false ), 'last step' ) );
+check( 'without one: says the data stays', true, false !== strpos( npmp_import_hub_remove_plugin_text( false ), 'keep its data in your database' ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

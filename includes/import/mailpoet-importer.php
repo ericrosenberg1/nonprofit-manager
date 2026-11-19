@@ -2195,6 +2195,51 @@ function npmp_mailpoet_setting_display( $key, $value ) {
 }
 
 /**
+ * One setting's line on an importer screen that lists settings as checkboxes
+ * (The Newsletter Plugin, FluentCRM): the old plugin's value, and for a
+ * setting a tick would change, the value you have now, so you see what the
+ * tick replaces before anything changes. Until the release after 2026.11.23
+ * those screens showed only the old plugin's value.
+ *
+ * @param string $name Setting name, such as Sender name.
+ * @param string $key  Plan key (from_name, from_email, reply_to, double_optin).
+ * @param array  $row  Plan row from npmp_mailpoet_settings_plan().
+ * @return string
+ */
+function npmp_import_setting_choice_label( $name, $key, array $row ) {
+	$label = $name . ': ' . npmp_mailpoet_setting_display( $key, $row['mailpoet'] ?? '' );
+	if ( 'change' !== ( $row['state'] ?? '' ) ) {
+		return $label;
+	}
+	return sprintf(
+		/* translators: 1: setting name and the old plugin's value, 2: the value you have now. */
+		__( '%1$s (yours now: %2$s)', 'nonprofit-manager' ),
+		$label,
+		npmp_mailpoet_setting_display( $key, $row['current'] ?? '' )
+	);
+}
+
+/**
+ * The line above a settings checkbox list.
+ *
+ * @param string $plugin Old plugin name.
+ * @param array  $plan   Plan rows.
+ * @return string '' when no row can change.
+ */
+function npmp_import_setting_choice_intro( $plugin, array $plan ) {
+	foreach ( $plan as $row ) {
+		if ( 'change' === ( $row['state'] ?? '' ) ) {
+			return sprintf(
+				/* translators: %s: old plugin name. */
+				__( 'Tick a setting to copy the value from %s over yours. We leave every unticked setting alone.', 'nonprofit-manager' ),
+				$plugin
+			);
+		}
+	}
+	return '';
+}
+
+/**
  * Step 3: approve, with a checkbox per setting. This form starts the migration.
  *
  * @param array $stage Stage.
