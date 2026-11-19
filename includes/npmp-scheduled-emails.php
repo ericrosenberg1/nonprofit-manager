@@ -3207,7 +3207,26 @@ function npmp_scheduled_emails_table_rows( $recent = 50 ) {
 	$upcoming = $wpdb->get_results( "SELECT * FROM {$table} WHERE status IN ('pending','sending') ORDER BY send_at ASC, id ASC LIMIT 200" );
 	$done     = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE status IN ('sent','skipped','cancelled') ORDER BY updated_at DESC, id DESC LIMIT %d", $recent ) );
 	// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	return array_merge( (array) $upcoming, (array) $done );
+	$rows = array_merge( (array) $upcoming, (array) $done );
+
+	// One query for the newsletters on screen, so the Status column's
+	// "Sending" check (npmp_scheduled_emails_still_sending()) doesn't cost a
+	// meta query per row.
+	$newsletter_ids = array_unique(
+		array_filter(
+			array_map(
+				static function ( $row ) {
+					return isset( $row->newsletter_id ) ? (int) $row->newsletter_id : 0;
+				},
+				$rows
+			)
+		)
+	);
+	if ( $newsletter_ids ) {
+		update_meta_cache( 'post', array_values( $newsletter_ids ) );
+	}
+
+	return $rows;
 }
 
 /**
