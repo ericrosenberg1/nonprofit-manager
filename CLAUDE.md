@@ -494,8 +494,8 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- Fix: a site that turned newsletters on after activating queued every newsletter and sent none.
-- Scheduled Emails reads "Sending to 2 members" until the queue empties, and Site Health flags a queue that stops moving.
+- Fix: on a site that switched Newsletters on after installing the plugin, we queued every newsletter and sent none.
+- Scheduled Emails reads "Sending to 2 members" until we empty the queue, and Site Health warns you when we stop emptying the email queue.
 
 Pro (licence server changelog):
 - (none)
