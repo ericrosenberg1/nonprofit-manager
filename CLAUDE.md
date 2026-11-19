@@ -486,7 +486,7 @@ Free (`readme.txt`):
 - (none)
 
 Pro (licence server changelog):
-- (none)
+- Fixed a delay of up to 12 hours between the Nonprofit Manager update and the Pro update. Pro now updates in the same run, or 10 minutes later when it needs the new Nonprofit Manager first. (Pro #50, W24)
 
 ## Releasing: three systems, always in this order
 
