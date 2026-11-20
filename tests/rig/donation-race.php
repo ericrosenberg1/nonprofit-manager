@@ -8,8 +8,8 @@
 // same session id. Only the network is faked: a pre_http_request filter
 // answers api.stripe.com with a paid Checkout Session after 150 ms.
 //
-// Until the release after 2026.11.25, six returns wrote five or six donation
-// rows for the one payment. The transient at the top of the handler is a read
+// Until the release after 2026.11.25, six returns wrote three to six donation
+// rows for the one payment on SQLite, and six every time on MySQL 8.0.35. The transient at the top of the handler is a read
 // and then a write, so returns inside about a millisecond of each other all
 // passed it, and every later "already recorded?" read in the same request came
 // from WordPress's query cache.
@@ -24,7 +24,8 @@
 // lock row left in the options table, one row and one verification row for a
 // PayPal order posted twice 300 ms apart, and a second look in the same
 // request that sees a row another request wrote. Leaves no donations, members
-// or options behind. Not run by the pre-push gate (it needs WordPress).
+// or options behind. Not run by the pre-push gate (it needs WordPress). Run it
+// on MySQL as well as SQLite, with Pro on and off.
 $wp_root = getenv( 'NPMP_RIG_WP' ) ?: '/tmp/npmp-rig/wp';
 $_SERVER['HTTP_HOST']       = '127.0.0.1';
 $_SERVER['REQUEST_URI']     = '/';

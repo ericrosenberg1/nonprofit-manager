@@ -491,7 +491,7 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   for another one's row gets `false`, so each caller checks `find_by_transaction_id()` before it reports a failure
   and never thanks the donor again. When the lock never frees and no row shows up, we write without the lock, since
   the gateway already has the money. Unit `tests/test-donation-txn-lock.php`, rig `tests/rig/donation-race.php`
-  (real processes, run with Pro on and off).
+  (real processes, run on MySQL and SQLite with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
