@@ -259,24 +259,40 @@ function npmp_lockstep_health_test() {
  * The pricing page, tagged with the screen that sent the visitor.
  *
  * Every "Upgrade to Pro" link in the plugin goes through here so GA4 can say
- * which screen sells: utm_source and utm_medium are fixed, utm_campaign names
- * the screen (payment_gateways, membership_dues, automations, ...). Callers
- * that pass nothing land in the "general" campaign, so older call sites keep
- * working.
+ * which screen sells: utm_source is always plugin, utm_campaign names the
+ * screen (payment_gateways, membership_dues, automations, ...), and
+ * utm_medium names the kind of link. A link inside a screen is an upsell,
+ * which is the default. An admin notice passes admin-notice, so a notice can
+ * be read apart from the in-screen gates (ROS-4454). Callers that pass
+ * nothing land in the "general" campaign, so older call sites keep working.
  *
  * @param string $campaign Screen or gate the link sits on, lowercase letters,
  *                         digits, underscores and hyphens. Anything else is
  *                         stripped, and an empty result falls back to general.
+ * @param string $medium   Kind of link, cleaned the same way. An empty result
+ *                         falls back to upsell.
  * @return string URL to the pricing page.
  */
-function npmp_get_upgrade_url( $campaign = 'general' ) {
-	$campaign = strtolower( trim( (string) $campaign ) );
-	$campaign = (string) preg_replace( '/[^a-z0-9_-]/', '', $campaign );
-	if ( '' === $campaign ) {
-		$campaign = 'general';
-	}
+function npmp_get_upgrade_url( $campaign = 'general', $medium = 'upsell' ) {
+	$campaign = npmp_clean_utm_value( $campaign, 'general' );
+	$medium   = npmp_clean_utm_value( $medium, 'upsell' );
 
-	return 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=upsell&utm_campaign=' . rawurlencode( $campaign );
+	return 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=' . rawurlencode( $medium )
+		. '&utm_campaign=' . rawurlencode( $campaign );
+}
+
+/**
+ * One UTM value, lowercased and stripped to what a tag may carry.
+ *
+ * @param mixed  $value    Raw value.
+ * @param string $fallback Value to use when nothing is left.
+ * @return string
+ */
+function npmp_clean_utm_value( $value, $fallback ) {
+	$value = strtolower( trim( (string) $value ) );
+	$value = (string) preg_replace( '/[^a-z0-9_-]/', '', $value );
+
+	return '' === $value ? $fallback : $value;
 }
 
 /**

@@ -4,12 +4,13 @@
  * includes/npmp-version.php) and the Pro menu previews that use it
  * (includes/npmp-pro-feature-pages.php).
  *
- * Every "Upgrade to Pro" link in the plugin carries utm_source=plugin,
- * utm_medium=upsell and a utm_campaign naming the screen, so GA4 can say
- * which screen sells. Pinned here: the default for callers that pass
- * nothing, how a campaign is cleaned, that the preview pages are the
- * Pro screens by slug, and a source scan proving no call site in the plugin
- * still asks for the untagged link or hard-codes the pricing URL.
+ * Every "Upgrade to Pro" link in the plugin carries utm_source=plugin, a
+ * utm_campaign naming the screen, and a utm_medium naming the kind of link,
+ * so GA4 can say which screen sells. Pinned here: the default for callers
+ * that pass nothing, how a campaign and a medium are cleaned, that the
+ * preview pages are the Pro screens by slug, and a source scan proving no
+ * call site in the plugin still asks for the untagged link or hard-codes the
+ * pricing URL.
  *
  * Run: php tests/test-upgrade-url.php
  */
@@ -43,6 +44,16 @@ check( 'null falls back to general', $base . 'general', npmp_get_upgrade_url( nu
 check( 'nothing but punctuation falls back to general', $base . 'general', npmp_get_upgrade_url( '???' ) );
 check( 'a number works', $base . '42', npmp_get_upgrade_url( 42 ) );
 
+echo "\nThe medium names the kind of link\n";
+$notice = 'https://nonprofitmanager.app/pricing?utm_source=plugin&utm_medium=admin-notice&utm_campaign=';
+check( 'a second argument sets the medium', $notice . 'post_setup', npmp_get_upgrade_url( 'post_setup', 'admin-notice' ) );
+check( 'one argument still means upsell', $base . 'overview', npmp_get_upgrade_url( 'overview' ) );
+check( 'an empty medium falls back to upsell', $base . 'overview', npmp_get_upgrade_url( 'overview', '' ) );
+check( 'a medium is cleaned too', $notice . 'overview', npmp_get_upgrade_url( 'overview', ' Admin-Notice! ' ) );
+check( 'a space inside a medium goes, like a campaign', $base . 'overview', npmp_get_upgrade_url( 'overview', 'up sell' ) );
+check( 'nothing but punctuation falls back to upsell', $base . 'overview', npmp_get_upgrade_url( 'overview', '???' ) );
+check( 'the notice link still has three parameters', 3, count( explode( '&', (string) parse_url( npmp_get_upgrade_url( 'post_setup', 'admin-notice' ), PHP_URL_QUERY ) ) ) );
+
 echo "\nThe URL itself\n";
 $parts = wp_parse_url_lite( npmp_get_upgrade_url( 'segments' ) );
 check( 'https', 'https', $parts['scheme'] );
@@ -72,18 +83,22 @@ check( 'each preview has its own campaign', count( $campaigns ), count( array_un
 echo "\nSource scan: every call site names its screen\n";
 $root  = dirname( __DIR__ );
 $files = array_merge( array( $root . '/nonprofit-manager.php' ), php_files( $root . '/includes' ) );
-$bare  = array();
-$named = array();
-$hard  = array();
+$bare    = array();
+$named   = array();
+$mediums = array();
+$hard    = array();
 foreach ( $files as $f ) {
 	$src = file_get_contents( $f );
 	$rel = substr( $f, strlen( $root ) + 1 );
 	if ( preg_match_all( '/npmp_get_upgrade_url\(\s*\)/', $src, $m ) ) {
 		$bare[] = $rel . ' x' . count( $m[0] );
 	}
-	if ( preg_match_all( "/npmp_get_upgrade_url\(\s*'([a-z0-9_-]+)'\s*\)/", $src, $m ) ) {
-		foreach ( $m[1] as $c ) {
+	if ( preg_match_all( "/npmp_get_upgrade_url\(\s*'([a-z0-9_-]+)'\s*(?:,\s*'([a-z0-9_-]+)'\s*)?\)/", $src, $m ) ) {
+		foreach ( $m[1] as $i => $c ) {
 			$named[ $c ] = true;
+			if ( '' !== $m[2][ $i ] ) {
+				$mediums[ $m[2][ $i ] ] = true;
+			}
 		}
 	}
 	// The pricing URL belongs in the helper and nowhere else.
@@ -101,12 +116,15 @@ check( 'no screen hard-codes the pricing URL', array(), $hard );
 $expected = array(
 	'plugins_list', 'overview', 'setup_wizard', 'thank_you_email', 'payment_gateways', 'stripe_recurring',
 	'recurring_donations', 'membership_dues', 'email_provider', 'captcha', 'social_sharing', 'import_cap', 'scheduled_emails',
-	'groups', 'admin_print', 'import_hub', 'import_custom_fields',
+	'groups', 'admin_print', 'import_hub', 'import_custom_fields', 'post_setup',
 );
 sort( $expected );
 $found = array_keys( $named );
 sort( $found );
 check( 'the gates each carry their campaign', $expected, $found );
+// Only the post-setup notice (includes/npmp-pro-notice.php) asks for a
+// medium of its own. Anything else sits inside a screen and is an upsell.
+check( 'admin-notice is the only medium a screen names', array( 'admin-notice' ), array_keys( $mediums ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
