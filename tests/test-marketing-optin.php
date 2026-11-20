@@ -125,10 +125,26 @@ foreach ( array( 'sent', 'failed', 'invalid' ) as $state ) {
 	check( "welcome screen handles $state", 1, preg_match( "/'$state' === \\\$optin_result/", $settings ) );
 }
 
-foreach ( glob( dirname( __DIR__ ) . '/{includes,readme.txt,nonprofit-manager.php}', GLOB_BRACE ) as $root ) {
+// The three roots by name, not through glob with GLOB_BRACE: that constant is
+// absent on some PHP builds (this plugin's own caching code says so in
+// class-perdita-caching-pro-fonts.php), and the whole file fatals without it.
+// $scanned is the control: this is an absence check, so an empty scan would
+// otherwise pass it with nothing read.
+$roots   = array(
+	dirname( __DIR__ ) . '/includes',
+	dirname( __DIR__ ) . '/readme.txt',
+	dirname( __DIR__ ) . '/nonprofit-manager.php',
+);
+$scanned = 0;
+foreach ( $roots as $root ) {
+	check( 'root exists: ' . basename( $root ), true, file_exists( $root ) );
 	$files = is_dir( $root ) ? new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) : array( new SplFileInfo( $root ) );
 	foreach ( $files as $f ) {
-		if ( preg_match( '/\.(php|txt)$/', $f->getFilename() ) && false !== strpos( (string) file_get_contents( $f->getPathname() ), 'listmonk.ericrosenberg.com' ) ) {
+		if ( ! preg_match( '/\.(php|txt)$/', $f->getFilename() ) ) {
+			continue;
+		}
+		++$scanned;
+		if ( false !== strpos( (string) file_get_contents( $f->getPathname() ), 'listmonk.ericrosenberg.com' ) ) {
 			$code = file_get_contents( $f->getPathname() );
 			// The comment recording the old host is allowed, a live URL is not.
 			if ( preg_match( '#https?://listmonk\.ericrosenberg\.com|at listmonk\.ericrosenberg\.com#', $code ) ) {
@@ -137,6 +153,7 @@ foreach ( glob( dirname( __DIR__ ) . '/{includes,readme.txt,nonprofit-manager.ph
 		}
 	}
 }
+check( 'the dead-host scan read some files', true, $scanned > 0 );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail ? 1 : 0 );
