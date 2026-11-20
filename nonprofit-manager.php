@@ -35,6 +35,9 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-powered-by.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-marketing-optin.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-review-nudge.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-credit-ask.php';
+// The post-setup Pro notice, after those two asks (npmp-pro-notice.php
+// takes its turn behind them).
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-pro-notice.php';
 // Menu previews of the Pro screens (Automations, Custom Fields, Segments)
 // for sites without Pro. Its hooks step aside when Pro is active.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-pro-feature-pages.php';

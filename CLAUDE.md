@@ -494,7 +494,8 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 `version.ts` entry, then empty both lists.
 
 Free (`readme.txt`):
-- (none)
+- Added a dismissible notice after setup, with the Pro plans for recurring gifts and dues billing.
+- Added a Free vs Pro section and a recurring gifts question to the WordPress.org listing.
 
 Pro (licence server changelog):
 - (none)

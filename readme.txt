@@ -18,7 +18,7 @@ Most tools do one job. Donation plugins only take donations. Membership plugins 
 
 = Features =
 
-Everything without an asterisk is free. Features marked with an asterisk (*) come with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing) when you're ready for more.
+Everything without an asterisk is free. Features marked with an asterisk (*) come with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing/?utm_source=wporg&utm_medium=readme) when you're ready for more.
 
 **Members and donors**
 
@@ -76,6 +76,14 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * Auto-share to Reddit, Bluesky, Mastodon, Threads, and Nextdoor*
 * Add share buttons and a contact form to any page, as blocks or shortcodes
 
+= Free vs Pro =
+
+The free plugin is the whole product for a group that takes one-time gifts. You get contacts and members, one-time donations through Stripe, PayPal and Venmo, newsletters with open and click tracking, and an events calendar with an iCal feed. There is no trial and no time limit.
+
+With [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing/?utm_source=wporg&utm_medium=readme), you also get automatic billing for membership dues, recurring donations through Stripe and the PayPal API, custom member fields, segmentation, and email automation. You can buy Pro from $47 a year, and you have 30 days to ask for your money back.
+
+You can spot every Pro feature by the asterisk in the list above, and you see its controls greyed out in the free plugin, each with one line on what you get.
+
 == External Services ==
 
 Nonprofit Manager talks to outside services only where a feature needs it. Nothing below runs unless you turn that feature on or enter your own credentials.
@@ -115,11 +123,15 @@ Auto-sharing posts sends the title, link, and excerpt you configure to the netwo
 
 = Is Nonprofit Manager free? =
 
-Yes. You get membership management, donations, newsletters, scheduled emails, and events in the free plugin, with no trial period. With [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing), you also get groups, recurring donations, email automation, and unlimited imports. You'll see the Pro controls greyed out in the free plugin, each with one line about what it does.
+Yes. You get membership management, donations, newsletters, scheduled emails, and events in the free plugin, with no trial period. With [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing/?utm_source=wporg&utm_medium=readme), you also get groups, recurring donations, email automation, and unlimited imports. You'll see the Pro controls greyed out in the free plugin, each with one line about what it does.
 
 = Which payment services can I use? =
 
 PayPal, Venmo, and Stripe for one-time donations, all in the free plugin. You'll see Stripe gifts in your Donations list. PayPal and Venmo send donors to those sites, so you'll see those gifts in your PayPal or Venmo account. Recording PayPal gifts, recurring donations, and membership dues auto-billing come with Nonprofit Manager Pro.
+
+= Can I take recurring gifts? =
+
+One-time gifts are free, through Stripe, PayPal, and Venmo. Weekly, monthly, quarterly, and annual giving comes with [Nonprofit Manager Pro](https://nonprofitmanager.app/pricing/?utm_source=wporg&utm_medium=readme), along with automatic billing for membership dues. You see the recurring options greyed out in the free plugin, so you know what they do before you decide.
 
 = Can I send email newsletters? =
 
