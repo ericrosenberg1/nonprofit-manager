@@ -126,7 +126,7 @@ foreach ( array( 'sent', 'failed', 'invalid' ) as $state ) {
 }
 
 // The three roots by name, not through glob with GLOB_BRACE: that constant is
-// absent on some PHP builds (this plugin's own caching code says so in
+// absent on some PHP builds (Perdita Pro, a separate product, says so in its
 // class-perdita-caching-pro-fonts.php), and the whole file fatals without it.
 // $scanned is the control: this is an absence check, so an empty scan would
 // otherwise pass it with nothing read.
