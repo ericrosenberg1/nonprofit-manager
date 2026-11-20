@@ -30,7 +30,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // =====================================================================
-// Pure helpers, covered by tests/test-givewp-source.php
+// Pure helpers, covered by tests/test-gift-sources.php
 // =====================================================================
 
 /**
