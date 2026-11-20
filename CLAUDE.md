@@ -483,6 +483,15 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   frequency: `npmp_get_enabled_frequencies()` maps only Stripe's options, `npmp_ajax_log_donation()` records
   `one_time`, and Payment Settings has no PayPal frequency boxes. Recurring gifts are Stripe only
   (`tests/test-paypal-one-time.php`).
+- **One donation row per gateway transaction** (since the release after 2026.11.25). `log_donation()` reads "is this
+  transaction on file?" and writes under `npmp_mail_queue_lock( 'donation_txn_<md5>' )`, and `find_by_transaction_id()`
+  asks with `cache_results` off. WordPress keeps a query's result for the rest of a request, so before that a second
+  look never saw a row another request wrote in between: six Stripe returns in the same millisecond wrote up to six
+  rows, and one PayPal order posted twice 300 ms apart wrote two, each with its own thank-you. A request that waited
+  for another one's row gets `false`, so each caller checks `find_by_transaction_id()` before it reports a failure
+  and never thanks the donor again. When the lock never frees and no row shows up, we write without the lock, since
+  the gateway already has the money. Unit `tests/test-donation-txn-lock.php`, rig `tests/rig/donation-race.php`
+  (real processes, run with Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
@@ -496,6 +505,7 @@ free lines into that version's `readme.txt` entry and the Pro lines into the lic
 Free (`readme.txt`):
 - Added a dismissible notice after setup, with the Pro plans for recurring gifts and dues billing.
 - Added a Free vs Pro section and a recurring gifts question to the WordPress.org listing.
+- Fixed a gift recorded twice when two requests for the same payment arrived together.
 
 Pro (licence server changelog):
 - (none)

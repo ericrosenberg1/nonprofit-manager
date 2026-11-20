@@ -1050,6 +1050,13 @@ function npmp_ajax_log_donation() {
 		);
 
 		if ( is_wp_error( $donation_id ) || false === $donation_id ) {
+			// A second request for this same order recorded it while this one
+			// waited. Answer as any other replay gets answered, with no
+			// second thank-you.
+			$recorded_id = $transaction_id ? (int) $donation_manager->find_by_transaction_id( $transaction_id ) : 0;
+			if ( $recorded_id ) {
+				wp_send_json_success( array( 'donation_id' => $recorded_id ) );
+			}
 			npmp_payment_debug_log( 'donation insert failed' );
 			wp_send_json_error( array( 'message' => __( 'Failed to record donation. Please contact support.', 'nonprofit-manager' ) ) );
 		}
@@ -1439,6 +1446,11 @@ function npmp_maybe_finalize_stripe_donation() {
 		// donor and then holding the 30-day lock below lost it for good.
 		// Release the lock and stop, so the donor's refresh tries again.
 		if ( ! $recorded ) {
+			// A second return for this same session recorded the gift while
+			// this one waited, and it thanks the donor.
+			if ( NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
+				return;
+			}
 			delete_transient( $lock_key );
 			npmp_payment_debug_log( 'stripe return: donation insert failed, lock released for retry' );
 			return;
