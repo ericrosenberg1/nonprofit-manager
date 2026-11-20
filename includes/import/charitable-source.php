@@ -33,7 +33,7 @@
 defined( 'ABSPATH' ) || exit;
 
 // =====================================================================
-// Pure helpers, covered by tests/test-charitable-source.php
+// Pure helpers, covered by tests/test-gift-sources.php
 // =====================================================================
 
 /**
