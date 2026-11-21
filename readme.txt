@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.25
+Stable tag: 2026.11.26
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -181,6 +181,11 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.26 =
+* Fixed a gift recorded twice when two requests for the same payment arrived together.
+* Added a dismissible notice after setup, with the Pro plans for recurring gifts and dues billing.
+* Added a Free vs Pro section and a recurring gifts question to the WordPress.org listing.
 
 = 2026.11.25 =
 * Fixed sending on a site that switched Newsletters on after installing the plugin. We queued every newsletter there and sent none.
