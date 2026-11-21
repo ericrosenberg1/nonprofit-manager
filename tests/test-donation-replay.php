@@ -96,8 +96,14 @@ class NPMP_Donation_Manager {
 		return $this->by_txn[ $txn ] ?? 0;
 	}
 	public $amounts = array();
+	/** When true, log_donation() answers as it does for a request that waited while another one wrote the row. */
+	public $lost_race = false;
 	public function log_donation( $data ) {
 		$this->amounts[ $data['transaction_id'] ] = $data['amount'];
+		if ( $this->lost_race ) {
+			$this->by_txn[ $data['transaction_id'] ] = 777;
+			return false;
+		}
 		if ( isset( $this->by_txn[ $data['transaction_id'] ] ) ) {
 			return $this->by_txn[ $data['transaction_id'] ];
 		}
@@ -200,6 +206,26 @@ check( 'unverified order keeps the reported amount', 25.5, npmp_paypal_recorded_
 check( 'order without amounts keeps the reported amount', 25.5, npmp_paypal_recorded_amount( 25.5, array( 'status' => 'COMPLETED' ) ) );
 check( 'purchase unit amount is used when no capture is listed', 40.0, npmp_paypal_recorded_amount( 25.0, array( 'purchase_units' => array( array( 'amount' => array( 'value' => '40.00' ) ) ) ) ) );
 check( 'a zero capture keeps the reported amount', 25.0, npmp_paypal_recorded_amount( 25.0, array( 'purchase_units' => array( array( 'payments' => array( 'captures' => array( array( 'amount' => array( 'value' => '0' ) ) ) ) ) ) ) ) );
+
+echo "\n== 4. Another request records the same payment while this one waits ==\n";
+// log_donation() answers false to the request that waited, and the row is on
+// file. That request must not thank the donor, and must not report a failure.
+$dm                  = NPMP_Donation_Manager::get_instance();
+$dm->lost_race       = true;
+$GLOBALS['t_emails'] = 0;
+$GLOBALS['t_members'] = 0;
+stripe_return( 'cs_test_lost' );
+check( 'Stripe return: no second thank-you', 0, $GLOBALS['t_emails'] );
+check( 'Stripe return: no second membership add', 0, $GLOBALS['t_members'] );
+check( 'Stripe return: the lock stays, since the gift is on file', true, (bool) get_transient( 'npmp_stripe_fin_' . md5( 'cs_test_lost' ) ) );
+
+$audit_before = $GLOBALS['t_audit_rows'];
+$lost         = paypal_post( 'PAYPAL-ORDER-LOST' );
+check( 'PayPal: answers success, as a replay does', true, $lost->success );
+check( 'PayPal: with the row the other request wrote', 777, $lost->data['donation_id'] ?? 0 );
+check( 'PayPal: no second thank-you', 0, $GLOBALS['t_emails'] );
+check( 'PayPal: no second audit row', $audit_before, $GLOBALS['t_audit_rows'] );
+$dm->lost_race = false;
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
