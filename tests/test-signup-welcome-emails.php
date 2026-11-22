@@ -59,7 +59,7 @@ check( 'Lines go after the thank-you paragraph', 1, substr_count( $confirm, "exp
 
 echo "Tag help\n";
 $editor = file_get_contents( $root . '/includes/email-newsletter/editor.php' );
-check( 'Newsletter editor appends add-on tag help', 1, substr_count( $editor, '[last_name] and [name] work too.\', \'nonprofit-manager\') . npmp_email_recipient_tag_help_suffix()' ) );
+check( 'Newsletter editor appends add-on tag help', 1, substr_count( $editor, 'You can also use the [last_name] and [name] tags.\', \'nonprofit-manager\') . npmp_email_recipient_tag_help_suffix()' ) );
 if ( ! function_exists( 'esc_html' ) ) {
 	function esc_html( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 }
