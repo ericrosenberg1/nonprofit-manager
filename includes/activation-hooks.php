@@ -670,23 +670,46 @@ function npmp_upgrade_newsletter_queue_table() {
 }
 
 /**
- * Create or upgrade the newsletter queue table on the first load after an
- * install or an update. Activation runs only on a fresh activation, never on
- * an update, so this is how an existing site gets the new schema.
+ * Create or upgrade the newsletter queue table once after an install or an
+ * update. Activation runs only on a fresh activation, never on an update, so
+ * this is how an existing site gets the new schema.
  *
  * Until 2026.11.26 a flag (npmp_newsletter_queue_table_created) ran this
  * once, so no later change could reach an existing table. The schema version
  * option decides now.
  *
- * @return void
+ * We call it from the queue drain (NPMP_Newsletter_Manager::process_queue())
+ * and from an admin's screen load, never from a visitor's page: on a table
+ * with millions of sent rows the new index takes a while to build, and a
+ * visitor's request could time out waiting for it.
+ *
+ * @return bool True when the table is on the current schema.
  */
 function npmp_maybe_create_newsletter_queue_table() {
-	if ( npmp_newsletter_queue_has_retries() || get_transient( 'npmp_newsletter_queue_db_retry_later' ) ) {
+	if ( npmp_newsletter_queue_has_retries() ) {
+		return true;
+	}
+	if ( get_transient( 'npmp_newsletter_queue_db_retry_later' ) ) {
+		return false;
+	}
+	return npmp_upgrade_newsletter_queue_table();
+}
+
+/**
+ * Upgrade the queue table when an admin opens a wp-admin screen, so a site
+ * whose cron rarely runs still gets the new schema. Visitors' forms post to
+ * admin-ajax.php and admin-post.php, which fire admin_init too, so we skip
+ * Ajax and anyone who can't manage options.
+ *
+ * @return void
+ */
+function npmp_maybe_upgrade_newsletter_queue_in_admin() {
+	if ( wp_doing_ajax() || ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	npmp_upgrade_newsletter_queue_table();
+	npmp_maybe_create_newsletter_queue_table();
 }
-add_action( 'plugins_loaded', 'npmp_maybe_create_newsletter_queue_table', 40 );
+add_action( 'admin_init', 'npmp_maybe_upgrade_newsletter_queue_in_admin' );
 
 /**
  * Create (or update) the newsletter opens table.

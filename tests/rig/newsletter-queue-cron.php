@@ -15,8 +15,9 @@
  * It also covers the queue's retries and its table upgrade (the release after
  * 2026.11.26). A send that fails waits and goes again, and only the last try
  * marks it failed. A 2026.11.26 table with live rows gets attempts, retry_at,
- * and the status_queued index once, even with two requests at it, and keeps
- * every row as it was. A slow batch stops before its run lock goes stale and
+ * and the status_queued index once, from the drain or an admin screen and
+ * never a visitor's page, even with two requests at it, and keeps every row
+ * as it was. A slow batch stops before its run lock goes stale and
  * keeps the lock fresh, so a second run can't mail the same readers.
  *
  * Run inside a throwaway WordPress with members, newsletters and the calendar
@@ -226,6 +227,11 @@ $request = static function ( $hold, $then = '' ) {
 	$proc  = proc_open( array( PHP_BINARY, '-d', 'display_errors=stderr', '-r', $code ), array( 1 => array( 'pipe', 'w' ), 2 => array( 'pipe', 'w' ) ), $pipes );
 	return array( $proc, $pipes );
 };
+// What a cron runner does: the drain, with no time to send, so the rows stay
+// as they were and only the upgrade shows.
+$upgrade_by_cron = 'add_filter( "npmp_mail_queue_batch_seconds", "__return_zero" ); do_action( "npmp_process_queued_newsletters" );';
+// What an admin's screen load does.
+$upgrade_by_admin = 'wp_set_current_user( ' . (int) $admin[0]->ID . ' ); npmp_maybe_upgrade_newsletter_queue_in_admin();';
 $finish = static function ( $started ) {
 	list( $proc, $pipes ) = $started;
 	$out = stream_get_contents( $pipes[1] );
@@ -262,31 +268,40 @@ update_option( 'npmp_newsletter_queue_table_created', 1 );
 delete_transient( 'npmp_newsletter_queue_db_retry_later' );
 $before = $snapshot();
 $ok( 'a 2026.11.26 site has the old flag and no schema version', ! npmp_newsletter_queue_has_retries() && ! npmp_newsletter_queue_schema_complete() );
+$ok( 'admin screens upgrade, and plugins_loaded no longer does', false !== has_action( 'admin_init', 'npmp_maybe_upgrade_newsletter_queue_in_admin' ) && false === has_action( 'plugins_loaded', 'npmp_maybe_create_newsletter_queue_table' ) );
+
+$visitor = $finish( $request( false ) );
+wp_cache_flush();
+$ok( "a visitor's page load leaves the table alone", array() === $visitor['alters'] && false === $visitor['current'] && ! npmp_newsletter_queue_schema_complete() );
 
 $gate = $sink_file . '.gate';
 wp_delete_file( $gate );
-$first = $request( $gate );
-// Start the second request once the first holds the upgrade lock, and let the
-// first go on only after the second has finished.
+$first = $request( $gate, $upgrade_by_cron );
+// Start the others once the first holds the upgrade lock, and let the first
+// go on only after they finish.
 for ( $rig_i = 0; $rig_i < 200 && null === $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'npmp_queue_lock_newsletter_queue_schema'" ); $rig_i++ ) {
 	usleep( 50000 );
 }
-$second = $finish( $request( false ) );
+$second = $finish( $request( false, $upgrade_by_cron ) );
+$third  = $finish( $request( false, $upgrade_by_admin ) );
 touch( $gate );
 $first = $finish( $first );
 wp_delete_file( $gate );
 wp_cache_flush();
-$alters = array_merge( $first['alters'], $second['alters'] );
-$ok( 'the first request altered the table', count( $first['alters'] ) >= 1 && true === $first['current'] );
-$ok( 'the second, arriving mid-upgrade, left it alone and ran the old way', array() === $second['alters'] && false === $second['current'] );
+$alters = array_merge( $first['alters'], $second['alters'], $third['alters'] );
+$ok( 'the first cron runner altered the table', count( $first['alters'] ) >= 1 && true === $first['current'] );
+$ok( 'a second cron runner, mid-upgrade, left it alone', array() === $second['alters'] && false === $second['current'] );
+$ok( 'an admin screen, mid-upgrade, left it alone', array() === $third['alters'] && false === $third['current'] );
 $ok( 'no ALTER changed or dropped a column that was there', array() === array_filter( $alters, static fn( $q ) => preg_match( '/\b(CHANGE|MODIFY|DROP)\b/i', $q ) ) );
 $ok( 'the table has attempts, retry_at, and status_queued', npmp_newsletter_queue_schema_complete() );
 $ok( 'the version is recorded', npmp_newsletter_queue_has_retries() );
 $ok( 'the schema lock is free', null === $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'npmp_queue_lock_newsletter_queue_schema'" ) );
 $ok( 'every row kept its values', $before === $snapshot() );
 $ok( 'and starts with no tries and no wait', 0 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$queue} WHERE attempts <> 0 OR retry_at IS NOT NULL" ) );
-$third = $finish( $request( false ) );
-$ok( 'a later request has nothing to do', array() === $third['alters'] && true === $third['current'] );
+$later = $finish( $request( false, $upgrade_by_cron ) );
+$ok( 'a later drain has nothing to do', array() === $later['alters'] && true === $later['current'] );
+$later = $finish( $request( false, $upgrade_by_admin ) );
+$ok( 'nor does a later admin screen', array() === $later['alters'] && true === $later['current'] );
 $columns = wp_list_pluck( $wpdb->get_results( "SHOW COLUMNS FROM {$queue}" ), 'Type', 'Field' );
 $ok( 'attempts is a small number that starts at 0', 0 === strpos( strtolower( $columns['attempts'] ?? '' ), 'tinyint' ) );
 $ok( 'retry_at is a date', 'datetime' === strtolower( $columns['retry_at'] ?? '' ) );
@@ -305,13 +320,18 @@ $ok( 'the reader 2026.11.26 already mailed gets nothing', 0 === $sink_sends( 'up
 $ok( 'the old failure stays failed and untried', 'failed' === $queue_row( 'up-dee@example.org' )->status && 0 === $sink_sends( 'up-dee@example.org' ) );
 $ok( 'the newsletter reads sent', 'sent' === get_post_meta( $old_nl, '_npmp_newsletter_status', true ) );
 
-echo "A new install gets the whole table on its first load\n";
+echo "A site with no queue table gets the whole table from its first drain\n";
 $wpdb->query( "DROP TABLE IF EXISTS {$queue}" );
 delete_option( 'npmp_newsletter_queue_db_version' );
 delete_option( 'npmp_newsletter_queue_table_created' );
 $fresh = $finish( $request( false ) );
 wp_cache_flush();
-$ok( 'the first load made it', true === $fresh['current'] && npmp_newsletter_queue_schema_complete() );
+$wpdb->suppress_errors( true );
+$ok( "a visitor's page load makes nothing", false === $fresh['current'] && ! npmp_newsletter_queue_schema_complete() );
+$wpdb->suppress_errors( false );
+$fresh = $finish( $request( false, $upgrade_by_cron ) );
+wp_cache_flush();
+$ok( 'the first drain made it', true === $fresh['current'] && npmp_newsletter_queue_schema_complete() );
 $ok( 'and set the flag the setup wizard reads', '1' === (string) get_option( 'npmp_newsletter_queue_table_created' ) );
 $wpdb->query( "DROP TABLE IF EXISTS {$queue}" );
 delete_option( 'npmp_newsletter_queue_db_version' );

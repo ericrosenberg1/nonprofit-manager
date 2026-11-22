@@ -49,8 +49,19 @@ $GLOBALS['t_mail_log']   = array();  // addresses, one per try.
 $GLOBALS['t_on_mail']    = null;     // Called after each try.
 $GLOBALS['t_dbdelta']    = array();  // SQL handed to dbDelta().
 $GLOBALS['t_alter_ok']   = true;     // Whether dbDelta() can change the table.
+$GLOBALS['t_actions']    = array();  // hook => callbacks added at load.
+$GLOBALS['t_ajax']       = false;    // wp_doing_ajax().
+$GLOBALS['t_can']        = true;     // current_user_can().
 
-function add_action( $hook, $cb, $priority = 10, $args = 1 ) {}
+function add_action( $hook, $cb, $priority = 10, $args = 1 ) {
+	$GLOBALS['t_actions'][ $hook ][] = $cb;
+}
+function wp_doing_ajax() {
+	return $GLOBALS['t_ajax'];
+}
+function current_user_can( $cap ) {
+	return $GLOBALS['t_can'];
+}
 function register_activation_hook( $file, $cb ) {}
 function register_deactivation_hook( $file, $cb ) {}
 function plugin_dir_path( $file ) {
@@ -471,14 +482,29 @@ NPMP_Newsletter_Manager::process_queue();
 check( 'a success between failures starts the count over', 6, count( $GLOBALS['t_mail_log'] ) );
 check( 'so the seventh waits for the next run', 0, (int) $wpdb->row( 'b7@example.org' )->attempts );
 
-echo "Before the table upgrade, the drain runs the 2026.11.26 way\n";
+echo "The drain upgrades the table before it sends\n";
 fresh( false );
+$wpdb->seed( 16, array( 'up@example.org' ) );
+$GLOBALS['t_mail_plan']['up@example.org'] = array( false );
+NPMP_Newsletter_Manager::process_queue();
+check( 'it ran the upgrade once', 1, count( $GLOBALS['t_dbdelta'] ) );
+check( 'and recorded the version', NPMP_NEWSLETTER_QUEUE_DB_VERSION, get_option( 'npmp_newsletter_queue_db_version' ) );
+check( 'then drained with retries', true, false !== strpos( end( $wpdb->selects ), 'retry_at' ) );
+check( 'so the failed send waits for another try', 'pending', $wpdb->row( 'up@example.org' )->status );
+check( 'and both locks are free', array(), $wpdb->opts );
+NPMP_Newsletter_Manager::process_queue();
+check( 'the next drain leaves the table alone', 1, count( $GLOBALS['t_dbdelta'] ) );
+
+echo "While another request upgrades the table, the drain runs the 2026.11.26 way\n";
+fresh( false );
+$wpdb->opts['npmp_queue_lock_newsletter_queue_schema'] = (string) time();
 $wpdb->seed( 11, array( 'old@example.org', 'ok@example.org' ) );
 $GLOBALS['t_mail_plan']['old@example.org'] = array( false );
 NPMP_Newsletter_Manager::process_queue();
 check( 'the query names no new column', false, strpos( end( $wpdb->selects ), 'retry_at' ) );
 check( 'the failure is final at once', 'failed', $wpdb->row( 'old@example.org' )->status );
 check( 'and the other reader still goes out', 'sent', $wpdb->row( 'ok@example.org' )->status );
+check( 'with no ALTER of its own', 0, count( $GLOBALS['t_dbdelta'] ) );
 
 echo "A slow batch stops before its lock goes stale\n";
 fresh();
@@ -581,6 +607,26 @@ check( 'and newsletters keep going out', 'sent', $wpdb->row( 'still@example.org'
 fresh( false );
 npmp_upgrade_newsletter_queue_table();
 check( 'activation upgrades even when the version option is missing', NPMP_NEWSLETTER_QUEUE_DB_VERSION, get_option( 'npmp_newsletter_queue_db_version' ) );
+
+echo "Never on a visitor's page load\n";
+$loaded = static function ( $hook ) {
+	return array_filter( $GLOBALS['t_actions'][ $hook ] ?? array(), 'is_string' );
+};
+check( 'nothing upgrades on plugins_loaded', false, in_array( 'npmp_maybe_create_newsletter_queue_table', $loaded( 'plugins_loaded' ), true ) );
+check( 'nor on init', false, in_array( 'npmp_maybe_create_newsletter_queue_table', $loaded( 'init' ), true ) );
+check( 'admin screens do', true, in_array( 'npmp_maybe_upgrade_newsletter_queue_in_admin', $loaded( 'admin_init' ), true ) );
+fresh( false );
+npmp_maybe_upgrade_newsletter_queue_in_admin();
+check( 'an admin opening a screen runs it', 1, count( $GLOBALS['t_dbdelta'] ) );
+fresh( false );
+$GLOBALS['t_ajax'] = true;
+npmp_maybe_upgrade_newsletter_queue_in_admin();
+check( 'an Ajax request from a visitor\'s form does not', 0, count( $GLOBALS['t_dbdelta'] ) );
+$GLOBALS['t_ajax'] = false;
+$GLOBALS['t_can']  = false;
+npmp_maybe_upgrade_newsletter_queue_in_admin();
+check( 'nor does an admin-post form from someone who can\'t manage options', 0, count( $GLOBALS['t_dbdelta'] ) );
+$GLOBALS['t_can'] = true;
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

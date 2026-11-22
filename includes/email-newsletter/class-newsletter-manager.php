@@ -261,6 +261,12 @@ class NPMP_Newsletter_Manager {
 			return;
 		}
 		try {
+			// The schema upgrade runs here and on admin screens, never on a
+			// visitor's page load. Inside the lock, so a second cron runner
+			// that starts meanwhile leaves the table alone.
+			if ( function_exists( 'npmp_maybe_create_newsletter_queue_table' ) ) {
+				npmp_maybe_create_newsletter_queue_table();
+			}
 			self::drain_queue_batch();
 		} finally {
 			npmp_mail_queue_unlock( 'newsletter' );

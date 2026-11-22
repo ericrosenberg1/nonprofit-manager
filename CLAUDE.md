@@ -107,7 +107,9 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `tests/rig/newsletter-queue-cron.php`.
 - **The newsletter queue table has a schema version** (option `npmp_newsletter_queue_db_version`, constant
   `NPMP_NEWSLETTER_QUEUE_DB_VERSION`, since the release after 2026.11.26). The old `npmp_newsletter_queue_table_created`
-  flag ran dbDelta once, so an existing table never got a new column. `npmp_upgrade_newsletter_queue_table()` runs dbDelta
+  flag ran dbDelta once, so an existing table never got a new column. We upgrade from the drain (inside its lock) and
+  from an admin's screen load, never a visitor's page, since a new index on millions of rows can outlast the request.
+  `npmp_upgrade_newsletter_queue_table()` runs dbDelta
   under `npmp_mail_queue_lock( 'newsletter_queue_schema', 600 )`, checks the result with
   `npmp_newsletter_queue_schema_missing()`, and after a refused ALTER waits an hour (transient
   `npmp_newsletter_queue_db_retry_later`). Until the version matches, we drain the 2026.11.26 way. Change the table, the
@@ -116,7 +118,7 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   batch after 3 failures in a row or 240 seconds (`npmp_mail_queue_batch_seconds`), and refresh the lock every 30 seconds
   with a compare-and-swap (`npmp_mail_queue_batch_continues()`). On 2026.11.26, with an SMTP sink at 1 second a message and
   330 readers, a run outlived the 300-second lock and a second run mailed 29 readers twice. Unit
-  `tests/test-newsletter-queue-retry.php`, rig `tests/rig/newsletter-queue-cron.php` (MySQL, `tests/rig/smtp-sink.py`).
+  `tests/test-newsletter-queue-retry.php`, rig `tests/rig/newsletter-queue-cron.php` (MySQL and SQLite, `tests/rig/smtp-sink.py`).
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
   `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and
