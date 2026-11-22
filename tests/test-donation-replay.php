@@ -227,5 +227,45 @@ check( 'PayPal: no second thank-you', 0, $GLOBALS['t_emails'] );
 check( 'PayPal: no second audit row', $audit_before, $GLOBALS['t_audit_rows'] );
 $dm->lost_race = false;
 
+echo "\n== 5. A claim with no PayPal order (sweep 2026-11-21, F7) ==\n";
+// Both buttons post the order PayPal just captured. A claim with no order
+// can't be a real gift, and on a site with no API secret it used to record.
+$before = array( $GLOBALS['t_verified'], count( $dm->by_txn ), $GLOBALS['t_emails'], $GLOBALS['t_members'] );
+foreach ( array( 'empty' => '', 'spaces' => '   ' ) as $label => $order ) {
+	$refused = paypal_post( $order );
+	check( "$label order id: refused", false, $refused->success );
+	check( "$label order id: the donor sees the verify message", true, false !== strpos( (string) ( $refused->data['message'] ?? '' ), 'could not verify' ) );
+}
+$_POST = array( 'nonce' => 'good', 'email' => 'donor@example.com', 'name' => 'Dana', 'amount' => '25', 'gateway' => 'paypal_api' );
+try {
+	npmp_ajax_log_donation();
+	$missing = null;
+} catch ( Npmp_Test_Json_Exit $e ) {
+	$missing = $e;
+}
+check( 'missing order id: refused', false, $missing->success );
+check( 'no claim asked PayPal', $before[0], $GLOBALS['t_verified'] );
+check( 'no claim recorded a gift', $before[1], count( $dm->by_txn ) );
+check( 'no claim sent a thank-you', $before[2], $GLOBALS['t_emails'] );
+check( 'no claim added a member', $before[3], $GLOBALS['t_members'] );
+
+echo "\n== 6. No cap ever drops a verified, paid order ==\n";
+// The buttons post each paid order once and ignore our answer, so a refused
+// post is a lost gift. 60 orders from one address in one go (a church
+// office, a campus, a carrier's shared address) all record.
+$recorded = 0;
+$thanked  = $GLOBALS['t_emails'];
+for ( $i = 1; $i <= 60; $i++ ) {
+	$r = paypal_post( 'PAYPAL-BURST-' . $i );
+	if ( $r && $r->success && ! empty( $r->data['donation_id'] ) ) {
+		$recorded++;
+	}
+}
+check( 'all 60 orders record', 60, $recorded );
+check( 'all 60 donors get their thank-you', $thanked + 60, $GLOBALS['t_emails'] );
+$handler = substr( $src, strpos( $src, 'function npmp_ajax_log_donation(' ) );
+$handler = substr( $handler, 0, strpos( $handler, "\n}" ) );
+check( 'the PayPal logger calls no rate limit', false, strpos( $handler, 'npmp_rate_limit_allows' ) );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
