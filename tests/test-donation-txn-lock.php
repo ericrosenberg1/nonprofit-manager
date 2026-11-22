@@ -82,8 +82,10 @@ function fresh( $lock_plan = array(), $on_try = null ) {
 	$GLOBALS['t_recorded']   = 0;
 }
 function gift( $txn ) {
+	$GLOBALS['t_created'] = 'unset';
 	return NPMP_Donation_Manager::get_instance()->log_donation(
-		array( 'email' => 'donor@example.com', 'name' => 'Dana Donor', 'amount' => 25, 'gateway' => 'stripe', 'transaction_id' => $txn, 'currency' => 'USD' )
+		array( 'email' => 'donor@example.com', 'name' => 'Dana Donor', 'amount' => 25, 'gateway' => 'stripe', 'transaction_id' => $txn, 'currency' => 'USD' ),
+		$GLOBALS['t_created']
 	);
 }
 
@@ -96,7 +98,12 @@ check( 'the gift is written', 500, $id );
 check( 'under one lock named for the transaction', array( $lock_name ), $GLOBALS['t_lock_tries'] );
 check( 'released after the write', array( $lock_name ), $GLOBALS['t_unlocked'] );
 check( 'the dedupe read skips the query cache', false, $GLOBALS['t_query_args']['cache_results'] ?? null );
+// A gift the owner trashed still counts as on file. Looking at published
+// donations only let a late Stripe resend record it again and thank the
+// donor a second time. WordPress's 'any' leaves out trash.
+check( 'the dedupe read looks at every status, trash included', array( 'any', 'trash' ), $GLOBALS['t_query_args']['post_status'] ?? null );
 check( 'the recorded hook fires once', 1, $GLOBALS['t_recorded'] );
+check( '$created says this call wrote the row', true, $GLOBALS['t_created'] );
 
 echo "\n== 2. A later replay, nobody else writing ==\n";
 $GLOBALS['t_lock_tries'] = array();
@@ -104,6 +111,7 @@ $GLOBALS['t_unlocked']   = array();
 check( 'the replay gets the first row back', 500, gift( 'cs_test_one' ) );
 check( 'nothing new written', 1, $GLOBALS['t_inserts'] );
 check( 'the hook does not fire again', 1, $GLOBALS['t_recorded'] );
+check( '$created says another call wrote the row', false, $GLOBALS['t_created'] );
 check( 'the lock is released', array( $lock_name ), $GLOBALS['t_unlocked'] );
 
 echo "\n== 3. Another request holds the lock and writes the row ==\n";
@@ -118,6 +126,7 @@ fresh(
 check( 'this request answers false', false, gift( 'cs_test_one' ) );
 check( 'and writes nothing', 0, $GLOBALS['t_inserts'] );
 check( 'and fires no hook', 0, $GLOBALS['t_recorded'] );
+check( 'and $created is false', false, $GLOBALS['t_created'] );
 check( 'and releases nothing, since it never held the lock', array(), $GLOBALS['t_unlocked'] );
 
 echo "\n== 4. The other request finishes just as this one gets the lock ==\n";
@@ -133,11 +142,27 @@ check( 'a row that appeared while we waited still answers false', false, gift( '
 check( 'nothing written', 0, $GLOBALS['t_inserts'] );
 check( 'the lock we took is released', array( $lock_name ), $GLOBALS['t_unlocked'] );
 
+echo "\n== 4b. Another request wrote the row just before this one took a free lock ==\n";
+// No wait, so log_donation() hands back the other request's row. The caller
+// must not read that as its own write and thank the donor again.
+fresh(
+	array(),
+	function ( $try ) {
+		if ( 0 === $try ) {
+			$GLOBALS['t_posts'][902] = 'cs_test_one';
+		}
+	}
+);
+check( 'the other request\'s row comes back', 902, gift( 'cs_test_one' ) );
+check( 'with $created false', false, $GLOBALS['t_created'] );
+check( 'nothing written', 0, $GLOBALS['t_inserts'] );
+
 echo "\n== 5. The lock never frees and no row ever shows up ==\n";
 fresh( array_fill( 0, 20, false ) );
 $started = microtime( true );
 $id      = gift( 'cs_test_one' );
 check( 'the gift is written anyway, since the gateway has the money', 500, $id );
+check( 'and $created says this call wrote it', true, $GLOBALS['t_created'] );
 check( 'after 20 tries', 20, count( $GLOBALS['t_lock_tries'] ) );
 check( 'spread over about two seconds', true, microtime( true ) - $started >= 1.9 );
 check( 'and the lock it never held is left alone', array(), $GLOBALS['t_unlocked'] );
@@ -146,6 +171,7 @@ echo "\n== 6. The write fails ==\n";
 fresh();
 $GLOBALS['t_insert_ok'] = false;
 check( 'a failed insert answers false', false, gift( 'cs_test_one' ) );
+check( 'with $created false', false, $GLOBALS['t_created'] );
 check( 'and still releases the lock', array( $lock_name ), $GLOBALS['t_unlocked'] );
 
 echo "\n== 7. No transaction id ==\n";

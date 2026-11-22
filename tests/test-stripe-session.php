@@ -4,13 +4,14 @@
  * includes/payments/npmp-payment-gateways.php), and its round trip into the
  * success-page return that records the gift.
  *
- * The free plugin has no webhook for one-time gifts. The donor's return to
- * success_url is the only place a gift is recorded, and that return trusts
- * three things the creation request has to put on the session: the literal
+ * On a site with no webhook, the donor's return to success_url is the only
+ * place a gift is recorded, and that return (and the webhook) trusts four
+ * things the creation request has to put on the session: the literal
  * {CHECKOUT_SESSION_ID} placeholder in success_url, metadata[gateway]=stripe,
- * and an amount in the currency's minor unit. Drop any one of them and every
- * donor is charged with nothing on file, while test-stripe-return.php (which
- * feeds the return hand-written session JSON) stays green.
+ * metadata[npmp_site] with this site's tag, and an amount in the currency's
+ * minor unit. Drop any one of them and every donor is charged with nothing
+ * on file, while test-stripe-return.php (which feeds the return hand-written
+ * session JSON) stays green.
  *
  * The outgoing body is decoded here with parse_str(), the same
  * application/x-www-form-urlencoded decoding Stripe applies. The round-trip
@@ -169,14 +170,16 @@ class NPMP_Donation_Manager {
 		}
 		return null;
 	}
-	public function log_donation( $data ) {
+	public function log_donation( $data, &$created = null ) {
 		$this->logged[] = $data;
+		$created        = true;
 		return count( $this->logged );
 	}
 }
 
 require_once __DIR__ . '/../includes/npmp-currency.php';
 require_once __DIR__ . '/../includes/payments/npmp-payment-gateways.php';
+require_once __DIR__ . '/../includes/payments/npmp-stripe-webhook.php';
 
 /** A Checkout Session create reply, as the raw JSON text Stripe returns. */
 function created_session_json( $id ) {
@@ -209,7 +212,7 @@ function create_session( array $post ) {
 	return array( $exit, $sent );
 }
 
-$GLOBALS['npmp_test_options']    = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options']    = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 $GLOBALS['npmp_test_post_reply'] = stripe_reply( 200, created_session_json( 'cs_test_new' ) );
 
 echo "\n== 1. A one-time USD gift asks Stripe for what the return will check ==\n";
@@ -225,6 +228,8 @@ check( '19.99 is sent as 1999 cents', '1999', $sent['line_items'][0]['price_data
 check( 'currency lower-cased', 'usd', $sent['line_items'][0]['price_data']['currency'] ?? '' );
 check( 'metadata gateway is stripe (the return ignores anything else)', 'stripe', $sent['metadata']['gateway'] ?? '' );
 check( 'metadata frequency', 'one_time', $sent['metadata']['frequency'] ?? '' );
+check( 'metadata npmp_site is this site\'s tag (another site on the account skips it)', npmp_stripe_site_tag(), $sent['metadata']['npmp_site'] ?? '' );
+check( 'the tag is 16 hex characters', 1, preg_match( '/^[0-9a-f]{16}$/', $sent['metadata']['npmp_site'] ?? '' ) );
 check( 'card only', array( 'card' ), $sent['payment_method_types'] ?? array() );
 check( 'customer_email prefilled', 'donor@example.com', $sent['customer_email'] ?? '' );
 check(
@@ -285,6 +290,7 @@ check( 'mode is subscription', 'subscription', $sent['mode'] ?? '' );
 check( 'every 3 months', array( 'interval' => 'month', 'interval_count' => '3' ), $sent['line_items'][0]['price_data']['recurring'] ?? array() );
 check( 'subscription stamped for Pro\'s webhook', 'donation', $sent['subscription_data']['metadata']['npmp_source'] ?? '' );
 check( 'subscription frequency', 'quarterly', $sent['subscription_data']['metadata']['frequency'] ?? '' );
+check( 'subscription carries this site\'s tag (Pro\'s backfill checks it)', npmp_stripe_site_tag(), $sent['subscription_data']['metadata']['npmp_site'] ?? '' );
 $GLOBALS['npmp_test_is_pro'] = false;
 
 echo "\n== 6. Refusals never reach Stripe ==\n";
@@ -303,10 +309,10 @@ $GLOBALS['npmp_test_rate_ok'] = false;
 list( $exit, $sent )          = create_session( array( 'amount' => '10', 'email' => 'donor@example.com' ) );
 check( 'rate limited: no Stripe call', 0, count( $GLOBALS['npmp_test_posts'] ) );
 $GLOBALS['npmp_test_rate_ok'] = true;
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 list( $exit, $sent )          = create_session( array( 'amount' => '10', 'email' => 'donor@example.com' ) );
 check( 'no live key: refused without a Stripe call', array( false, 0 ), array( $exit ? $exit->success : null, count( $GLOBALS['npmp_test_posts'] ) ) );
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 
 echo "\n== 7. Stripe's documented error answer reaches the donor ==\n";
 $GLOBALS['npmp_test_post_reply'] = stripe_reply( 400, '{"error": {"code": "amount_too_small", "message": "Amount must be at least $0.50 usd", "param": "line_items[0][price_data][unit_amount]", "type": "invalid_request_error"}}' );

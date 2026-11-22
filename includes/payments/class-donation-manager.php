@@ -49,13 +49,19 @@ class NPMP_Donation_Manager {
 	 *                             the site currency. Gateway handlers pass the
 	 *                             currency the gateway reports, never the setting.
 	 * }
+	 * @param bool  $created Output. True only when this call wrote the row.
+	 *                       A caller that thanks the donor checks it, since
+	 *                       a request that took the lock just after another
+	 *                       one wrote the row gets that row's ID back with
+	 *                       $created false.
 	 * @return int|false Insert ID on success (the existing ID when this
 	 *                   transaction is already on file), false on failure.
 	 *                   Also false when another request recorded this same
 	 *                   transaction while this one waited for it, so the
 	 *                   caller thanks the donor once.
 	 */
-	public function log_donation( $data ) {
+	public function log_donation( $data, &$created = null ) {
+		$created   = false;
 		$email     = sanitize_email( $data['email'] ?? '' );
 		$name      = sanitize_text_field( $data['name'] ?? '' );
 		$amount    = floatval( $data['amount'] ?? 0 );
@@ -133,9 +139,10 @@ class NPMP_Donation_Manager {
 			}
 		}
 
-		if ( is_wp_error( $post_id ) ) {
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
 			return false;
 		}
+		$created = true;
 
 		// The dashboards read the list of currencies in use from a cache. A
 		// currency it hasn't seen yet means the list changed.
@@ -230,7 +237,11 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Find a donation by its gateway transaction id.
+	 * Find a donation by its gateway transaction id, in any status.
+	 *
+	 * Trashed and draft donations count. Looking at published ones only let
+	 * a late Stripe resend or a revisited success URL record a gift again
+	 * after the owner trashed it, and thank the donor a second time.
 	 *
 	 * @param string $txn_id Gateway transaction/session/order id.
 	 * @return int Donation post ID, or 0 when none exists.
@@ -244,7 +255,8 @@ class NPMP_Donation_Manager {
 		$found = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
+				// 'any' leaves out trash, so name it as well.
+				'post_status'    => array( 'any', 'trash' ),
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
 				'no_found_rows'  => true,
