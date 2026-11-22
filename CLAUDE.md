@@ -105,6 +105,20 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   re-arms itself on `init`, the way the weekly digest and the scheduled-email sweep always did. Hook a cron
   schedule to `init`, never to a settings write alone. Unit `tests/test-scheduled-emails.php`, rig
   `tests/rig/newsletter-queue-cron.php`.
+- **The newsletter queue table has a schema version** (option `npmp_newsletter_queue_db_version`, constant
+  `NPMP_NEWSLETTER_QUEUE_DB_VERSION`, since the release after 2026.11.26). The old `npmp_newsletter_queue_table_created`
+  flag ran dbDelta once, so an existing table never got a new column. We upgrade from the drain (inside its lock) and
+  from an admin's screen load, never a visitor's page, since a new index on millions of rows can outlast the request.
+  `npmp_upgrade_newsletter_queue_table()` runs dbDelta
+  under `npmp_mail_queue_lock( 'newsletter_queue_schema', 600 )`, checks the result with
+  `npmp_newsletter_queue_schema_missing()`, and after a refused ALTER waits an hour (transient
+  `npmp_newsletter_queue_db_retry_later`). Until the version matches, we drain the 2026.11.26 way. Change the table, the
+  constant, and that column list in the same pass. We put a failed send back to pending with `retry_at` (UTC) 5, 15, and
+  45 minutes out (`npmp_newsletter_retry_delays`) and mark it failed on the fourth failure. We end a newsletter or digest
+  batch after 3 failures in a row or 240 seconds (`npmp_mail_queue_batch_seconds`), and refresh the lock every 30 seconds
+  with a compare-and-swap (`npmp_mail_queue_batch_continues()`). On 2026.11.26, with an SMTP sink at 1 second a message and
+  330 readers, a run outlived the 300-second lock and a second run mailed 29 readers twice. Unit
+  `tests/test-newsletter-queue-retry.php`, rig `tests/rig/newsletter-queue-cron.php` (MySQL and SQLite, `tests/rig/smtp-sink.py`).
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
   `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and

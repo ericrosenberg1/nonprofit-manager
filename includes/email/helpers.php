@@ -246,6 +246,9 @@ function npmp_mail_header_from_name( $headers ) {
  * next tick and both runs read the same pending rows and mailed them twice.
  * INSERT IGNORE on the options table is atomic, so only one run gets the row.
  * A lock older than $ttl seconds belongs to a run that died and is taken over.
+ * The row holds the time this run last wrote it, and the run remembers that
+ * stamp, so it can keep the lock fresh (npmp_mail_queue_lock_refresh()) and
+ * release only its own lock.
  *
  * @param string $name Queue name, e.g. 'newsletter'.
  * @param int    $ttl  Seconds before a held lock counts as stale.
@@ -254,10 +257,12 @@ function npmp_mail_header_from_name( $headers ) {
 function npmp_mail_queue_lock( $name, $ttl = 300 ) {
 	global $wpdb;
 	$option = 'npmp_queue_lock_' . sanitize_key( $name );
+	$stamp  = (string) time();
 
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic lock, must skip the options cache.
-	$got = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} ( option_name, option_value, autoload ) VALUES ( %s, %s, 'no' )", $option, (string) time() ) );
+	$got = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} ( option_name, option_value, autoload ) VALUES ( %s, %s, 'no' )", $option, $stamp ) );
 	if ( $got ) {
+		npmp_mail_queue_lock_stamp( $name, $stamp );
 		return true;
 	}
 
@@ -269,20 +274,114 @@ function npmp_mail_queue_lock( $name, $ttl = 300 ) {
 
 	// Stale. Take it over only if nobody else did in the meantime.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap on the lock row.
-	return (bool) $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", (string) time(), $option, (string) $since ) );
+	$got = (bool) $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", $stamp, $option, (string) $since ) );
+	if ( $got ) {
+		npmp_mail_queue_lock_stamp( $name, $stamp );
+	}
+	return $got;
+}
+
+/**
+ * The stamp this request last wrote into a lock it holds.
+ *
+ * '' means this request never took the lock, and 'lost' means another run
+ * took it over as stale.
+ *
+ * @param string      $name  Queue name.
+ * @param string|null $stamp A stamp to remember, '' to forget, null to read.
+ * @return string
+ */
+function npmp_mail_queue_lock_stamp( $name, $stamp = null ) {
+	static $stamps = array();
+	$key = sanitize_key( $name );
+	if ( '' === $stamp ) {
+		unset( $stamps[ $key ] );
+	} elseif ( null !== $stamp ) {
+		$stamps[ $key ] = (string) $stamp;
+	}
+	return $stamps[ $key ] ?? '';
+}
+
+/**
+ * Write the time into a lock this request holds, so it stays fresh through a
+ * long run, or learn that another run took it over.
+ *
+ * A run that outlives the lock's $ttl looks dead to the next cron tick, which
+ * takes the lock and reads the same pending rows. Refreshing the lock while
+ * the run still works stops that.
+ *
+ * @param string $name Queue name.
+ * @return bool True while this run still holds the lock.
+ */
+function npmp_mail_queue_lock_refresh( $name ) {
+	global $wpdb;
+	$held = npmp_mail_queue_lock_stamp( $name );
+	if ( '' === $held || 'lost' === $held ) {
+		return false;
+	}
+	$stamp = (string) time();
+	if ( $stamp === $held ) {
+		return true;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap on the lock row.
+	$changed = $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s", $stamp, 'npmp_queue_lock_' . sanitize_key( $name ), $held ) );
+	npmp_mail_queue_lock_stamp( $name, $changed ? $stamp : 'lost' );
+	return (bool) $changed;
+}
+
+/**
+ * Whether a queue batch may send one more message.
+ *
+ * The run lock goes stale after 300 seconds. A batch stops once it has worked
+ * $budget seconds, so it ends well inside that, and it refreshes its lock
+ * every 30 seconds in case one slow send carries it past the budget. It stops
+ * as soon as another run holds the lock.
+ *
+ * @param string $name    Queue name, as passed to npmp_mail_queue_lock().
+ * @param float  $started microtime( true ) when the batch began.
+ * @param float  $budget  Seconds of work the batch may use.
+ * @return bool
+ */
+function npmp_mail_queue_batch_continues( $name, $started, $budget ) {
+	if ( microtime( true ) - (float) $started >= (float) $budget ) {
+		return false;
+	}
+	$held = npmp_mail_queue_lock_stamp( $name );
+	if ( 'lost' === $held ) {
+		return false;
+	}
+	if ( '' !== $held && time() - (int) $held >= 30 ) {
+		return npmp_mail_queue_lock_refresh( $name );
+	}
+	return true;
 }
 
 /**
  * Release a lock taken with npmp_mail_queue_lock().
+ *
+ * Deletes the lock only while it still holds this run's stamp, so a run that
+ * lost its lock to another can't free that other run's lock.
  *
  * @param string $name Queue name.
  * @return void
  */
 function npmp_mail_queue_unlock( $name ) {
 	global $wpdb;
+	$option = 'npmp_queue_lock_' . sanitize_key( $name );
+	$held   = npmp_mail_queue_lock_stamp( $name );
+	npmp_mail_queue_lock_stamp( $name, '' );
+	if ( 'lost' === $held ) {
+		return;
+	}
+	$where   = array( 'option_name' => $option );
+	$formats = array( '%s' );
+	if ( '' !== $held ) {
+		$where['option_value'] = $held;
+		$formats[]             = '%s';
+	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Pairs with the direct insert above.
-	$wpdb->delete( $wpdb->options, array( 'option_name' => 'npmp_queue_lock_' . sanitize_key( $name ) ), array( '%s' ) );
-	wp_cache_delete( 'npmp_queue_lock_' . sanitize_key( $name ), 'options' );
+	$wpdb->delete( $wpdb->options, $where, $formats );
+	wp_cache_delete( $option, 'options' );
 }
 
 /**
