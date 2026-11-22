@@ -169,8 +169,9 @@ class NPMP_Donation_Manager {
 		}
 		return null;
 	}
-	public function log_donation( $data ) {
+	public function log_donation( $data, &$created = null ) {
 		$this->logged[] = $data;
+		$created        = true;
 		return count( $this->logged );
 	}
 }

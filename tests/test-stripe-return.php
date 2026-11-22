@@ -108,12 +108,14 @@ class NPMP_Donation_Manager {
 		}
 		return null;
 	}
-	public function log_donation( $data ) {
+	public function log_donation( $data, &$created = null ) {
+		$created = false;
 		// The real method returns false when wp_insert_post() hands back a WP_Error.
 		if ( $this->fail_insert ) {
 			return false;
 		}
 		$this->logged[] = $data;
+		$created        = true;
 		return count( $this->logged );
 	}
 }

@@ -596,10 +596,10 @@ function npmp_render_payment_settings_page() {
 			update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
 		}
 
-		// Stripe webhook signing secret (whsec_...). Used by the Pro
-		// recurring/dues webhook to verify Stripe signatures. This option
-		// was consumed by the webhook handler but had no admin field
-		// anywhere, so it could only be set with update_option() by hand.
+		// Stripe webhook signing secret (whsec_...). Both webhook addresses
+		// check Stripe's signature with it: free's one-time gift endpoint
+		// (npmp-stripe-webhook.php) and Pro's recurring and dues endpoint.
+		// Saved on every site, since one-time gifts are free.
 		if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
 			update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
 		}
@@ -961,21 +961,69 @@ function npmp_render_payment_settings_page() {
 						</tr>
 					</table>
 
-					<?php if ( $is_pro ) : ?>
-					<h4><?php esc_html_e( 'Webhook Signing Secret', 'nonprofit-manager' ); ?></h4>
+					<?php
+					// One address on every site. With Pro, the free endpoint hands
+					// Pro every event, and Pro's older address keeps working.
+					$stripe_events = $is_pro
+						? array( 'checkout.session.completed', 'invoice.payment_succeeded', 'invoice.payment_failed', 'customer.subscription.updated', 'customer.subscription.deleted' )
+						: array( 'checkout.session.completed' );
+					?>
+					<h4><?php esc_html_e( 'Webhook', 'nonprofit-manager' ); ?></h4>
+					<p>
+						<?php
+						if ( $is_pro ) {
+							esc_html_e( 'Stripe reports recurring gifts and membership dues to your site through a webhook. With the webhook, you also get a record of every one-time gift, including gifts from donors who close the page before they return to your site.', 'nonprofit-manager' );
+						} else {
+							esc_html_e( 'Without a webhook, you get a record of a Stripe gift only when the donor comes back to your page after paying. Add a webhook in Stripe to record every gift, including gifts from donors who close the page before they return to your site.', 'nonprofit-manager' );
+						}
+						?>
+					</p>
+					<ol>
+						<li>
+							<?php
+							printf(
+								/* translators: %s: link to the Webhooks screen in the Stripe Dashboard. */
+								esc_html__( 'In your Stripe Dashboard, open %s and add an endpoint with the address below.', 'nonprofit-manager' ),
+								'<a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener">' . esc_html__( 'Webhooks', 'nonprofit-manager' ) . '</a>'
+							);
+							?>
+						</li>
+						<li>
+							<?php
+							echo esc_html( _n( 'Send it this event:', 'Send it these events:', count( $stripe_events ), 'nonprofit-manager' ) );
+							echo ' <code>' . implode( '</code>, <code>', array_map( 'esc_html', $stripe_events ) ) . '</code>';
+							?>
+						</li>
+						<li><?php esc_html_e( 'Copy the endpoint\'s signing secret into Signing Secret below, then save.', 'nonprofit-manager' ); ?></li>
+					</ol>
 					<table class="form-table">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Webhook Address', 'nonprofit-manager' ); ?></th>
+							<td>
+								<code><?php echo esc_html( npmp_stripe_webhook_url() ); ?></code>
+								<?php if ( $is_pro ) : ?>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %s: the end of the older webhook address, in code tags. */
+										esc_html__( 'If your Stripe endpoint uses the older address that ends in %s, keep that endpoint and don\'t add a second one. You can use either address, but you can save only one signing secret.', 'nonprofit-manager' ),
+										'<code>action=npmp_stripe_recurring_webhook</code>'
+									);
+									?>
+								</p>
+								<?php endif; ?>
+							</td>
+						</tr>
 						<tr>
 							<th><label for="npmp_stripe_webhook_secret"><?php esc_html_e( 'Signing Secret', 'nonprofit-manager' ); ?></label></th>
 							<td>
 								<input type="password" id="npmp_stripe_webhook_secret" name="npmp_stripe_webhook_secret" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_stripe_webhook_secret', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : 'whsec_...'; ?>">
-								<p class="description">
-									<?php esc_html_e( 'Required for recurring donations and membership dues. In the Stripe Dashboard, add a webhook endpoint pointing to the URL below, then paste its signing secret here. Leave blank to keep the saved secret.', 'nonprofit-manager' ); ?><br>
-									<code><?php echo esc_html( admin_url( 'admin-ajax.php?action=npmp_stripe_recurring_webhook' ) ); ?></code>
-								</p>
+								<p class="description"><?php esc_html_e( 'Stripe shows the secret when you open the endpoint in Webhooks. Leave the box blank to keep the saved secret.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>
 
+					<?php if ( $is_pro ) : ?>
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
 					<p><?php esc_html_e( 'Pick the schedules donors can choose for Stripe gifts. One-time gifts are always on.', 'nonprofit-manager' ); ?></p>
 					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
@@ -986,7 +1034,7 @@ function npmp_render_payment_settings_page() {
 					<p class="description"><?php esc_html_e( 'Stripe supports recurring subscriptions for all frequency types.', 'nonprofit-manager' ); ?></p>
 					<?php else : ?>
 					<h4><?php esc_html_e( 'Stripe Donation Frequencies', 'nonprofit-manager' ); ?></h4>
-					<p><?php esc_html_e( 'One-time gifts are always on and need no webhook.', 'nonprofit-manager' ); ?></p>
+					<p><?php esc_html_e( 'Donors can always make a one-time gift.', 'nonprofit-manager' ); ?></p>
 					<p><strong><?php esc_html_e( 'Recurring Donation Options:', 'nonprofit-manager' ); ?></strong></p>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Weekly', 'nonprofit-manager' ); ?></label><br>
 					<label style="opacity:.6;"><input type="checkbox" disabled> <?php esc_html_e( 'Monthly', 'nonprofit-manager' ); ?></label><br>

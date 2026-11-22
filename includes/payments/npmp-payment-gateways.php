@@ -1037,6 +1037,7 @@ function npmp_ajax_log_donation() {
 		$amount = npmp_paypal_recorded_amount( $amount, $paypal_order_data );
 
 		// Log donation
+		$created           = false;
 		$donation_id       = $donation_manager->log_donation(
 			array(
 				'email'          => $email,
@@ -1046,7 +1047,8 @@ function npmp_ajax_log_donation() {
 				'gateway'        => $gateway,
 				'transaction_id' => $transaction_id,
 				'currency'       => $currency,
-			)
+			),
+			$created
 		);
 
 		if ( is_wp_error( $donation_id ) || false === $donation_id ) {
@@ -1059,6 +1061,13 @@ function npmp_ajax_log_donation() {
 			}
 			npmp_payment_debug_log( 'donation insert failed' );
 			wp_send_json_error( array( 'message' => __( 'Failed to record donation. Please contact support.', 'nonprofit-manager' ) ) );
+		}
+
+		// Another post of this same order wrote the row between the look
+		// above and the lock in log_donation(). That request logs the
+		// verification and thanks the donor.
+		if ( ! $created ) {
+			wp_send_json_success( array( 'donation_id' => (int) $donation_id ) );
 		}
 
 		// Persist the gateway verification result: an audit trail for
@@ -1319,6 +1328,11 @@ function npmp_ajax_create_stripe_session() {
  * webhook records each invoice payment, and double-logging the first cycle
  * would inflate totals.
  *
+ * The checkout.session.completed webhook (npmp-stripe-webhook.php) records
+ * the same one-time gift whether or not the donor comes back. Both go
+ * through npmp_stripe_record_checkout_session(), so the donor gets one row
+ * and one thank-you whichever lands first, or both at once.
+ *
  * @return void
  */
 function npmp_maybe_finalize_stripe_donation() {
@@ -1340,10 +1354,11 @@ function npmp_maybe_finalize_stripe_donation() {
 	set_transient( $lock_key, 1, 15 * MINUTE_IN_SECONDS );
 
 	// Durable guard. A recorded donation for this session means it was
-	// already finalized and the donor already thanked. Without this, a visit
-	// to the same success URL after the 15-minute lock expired (browser
-	// history, a bookmark, a flushed object cache) sent the thank-you email
-	// again, because log_donation() dedupes the record but not the email.
+	// already finalized and the donor already thanked, by an earlier return
+	// or by the webhook. Without this, a visit to the same success URL after
+	// the 15-minute lock expired (browser history, a bookmark, a flushed
+	// object cache) sent the thank-you email again, because log_donation()
+	// dedupes the record but not the email.
 	if ( class_exists( 'NPMP_Donation_Manager' ) && NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
 		return;
 	}
@@ -1369,10 +1384,11 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
-	// A Stripe 5xx or 429 is no answer at all. This return is the only place a
-	// one-time gift gets recorded (there is no webhook for them), so holding
-	// the lock here dropped the donation for anyone whose refresh came inside
-	// the 15-minute window. Only a 200 is a definitive answer worth locking on.
+	// A Stripe 5xx or 429 is no answer at all. On a site with no webhook set
+	// up, this return is the only place a one-time gift gets recorded, so
+	// holding the lock here dropped the donation for anyone whose refresh
+	// came inside the 15-minute window. Only a 200 is a definitive answer
+	// worth locking on.
 	if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
 		delete_transient( $lock_key );
 		return;
@@ -1400,81 +1416,199 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
-	// Already recorded (a refresh after the 15-minute guard, or a replayed
-	// link): don't send the thank-you again.
-	if ( class_exists( 'NPMP_Donation_Manager' ) && NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
+	if ( 'subscription' === ( $session['mode'] ?? '' ) ) {
+		// Subscription sessions leave no donation record here (Pro's webhook
+		// records each invoice), so the return only thanks the donor, and the
+		// lock is held long enough to cover a revisit.
+		$gift = npmp_stripe_session_gift( $session );
+		if ( ! $gift ) {
+			return;
+		}
+		npmp_send_thank_you_email(
+			array(
+				'email'     => $gift['email'],
+				'name'      => $gift['name'],
+				'amount'    => $gift['amount'],
+				'currency'  => $gift['currency'],
+				'frequency' => $gift['frequency'],
+				'date'      => date_i18n( get_option( 'date_format' ) ),
+			)
+		);
+		npmp_add_donor_to_membership( $gift['email'], $gift['name'] );
+		set_transient( $lock_key, 1, 30 * DAY_IN_SECONDS );
 		return;
 	}
 
+	// Stripe answered for the id in the URL, so that id is the transaction.
+	$session['id'] = $session_id;
+	$result        = npmp_stripe_record_checkout_session( $session );
+
+	// The write failed (wp_insert_post() returned an error, say the database
+	// went away mid-request). Stripe has the money, so thanking the donor and
+	// then holding the 30-day lock below lost the gift for good on a site
+	// with no webhook. Release the lock and stop, so the donor's refresh
+	// tries again.
+	if ( 'failed' === $result ) {
+		delete_transient( $lock_key );
+		npmp_payment_debug_log( 'stripe return: donation insert failed, lock released for retry' );
+		return;
+	}
+
+	if ( 'recorded' === $result ) {
+		set_transient( $lock_key, 1, 30 * DAY_IN_SECONDS );
+	}
+}
+add_action( 'template_redirect', 'npmp_maybe_finalize_stripe_donation' );
+
+/**
+ * The donor and the money from a Stripe Checkout Session.
+ *
+ * Every value comes from the session Stripe sent or returned, never from
+ * the browser: the email Stripe collected, the amount Stripe charged
+ * (amount_total, in the currency's smallest unit), and the currency Stripe
+ * charged in.
+ *
+ * @param array $session Checkout Session, decoded from Stripe's JSON.
+ * @return array{email:string,name:string,amount:float,currency:string,frequency:string}|null
+ *         Null when the session carries no usable email.
+ */
+function npmp_stripe_session_gift( $session ) {
 	$email = '';
-	if ( ! empty( $session['customer_details']['email'] ) ) {
+	if ( ! empty( $session['customer_details']['email'] ) && is_string( $session['customer_details']['email'] ) ) {
 		$email = sanitize_email( $session['customer_details']['email'] );
-	} elseif ( ! empty( $session['customer_email'] ) ) {
+	} elseif ( ! empty( $session['customer_email'] ) && is_string( $session['customer_email'] ) ) {
 		$email = sanitize_email( $session['customer_email'] );
 	}
 
 	if ( ! $email || ! is_email( $email ) ) {
-		return;
+		return null;
 	}
 
-	// The currency Stripe charged in, from the session itself. The setting may
-	// have changed since the donor started checkout.
-	$currency  = npmp_normalize_currency_code( $session['currency'] ?? '' );
+	// The currency Stripe charged in, from the session itself. The setting
+	// may have changed since the donor started checkout.
+	$currency = npmp_normalize_currency_code( $session['currency'] ?? '' );
 	if ( '' === $currency ) {
 		$currency = npmp_currency();
 	}
+
 	$amount    = isset( $session['amount_total'] ) && is_numeric( $session['amount_total'] ) ? npmp_currency_from_minor( $session['amount_total'], $currency ) : 0;
-	$frequency = isset( $session['metadata']['frequency'] ) ? sanitize_text_field( $session['metadata']['frequency'] ) : 'one_time';
-	$name      = isset( $session['customer_details']['name'] ) ? sanitize_text_field( $session['customer_details']['name'] ) : '';
+	$frequency = isset( $session['metadata']['frequency'] ) && is_string( $session['metadata']['frequency'] ) ? sanitize_text_field( $session['metadata']['frequency'] ) : 'one_time';
+	$name      = isset( $session['customer_details']['name'] ) && is_string( $session['customer_details']['name'] ) ? sanitize_text_field( $session['customer_details']['name'] ) : '';
 
-	if ( 'subscription' !== ( $session['mode'] ?? '' ) && $amount > 0 && class_exists( 'NPMP_Donation_Manager' ) ) {
-		$recorded = NPMP_Donation_Manager::get_instance()->log_donation(
-			array(
-				'email'          => $email,
-				'name'           => $name,
-				'amount'         => $amount,
-				'frequency'      => $frequency,
-				'gateway'        => 'stripe',
-				'transaction_id' => $session_id,
-				'currency'       => $currency,
-			)
-		);
+	return array(
+		'email'     => $email,
+		'name'      => $name,
+		'amount'    => (float) $amount,
+		'currency'  => $currency,
+		'frequency' => '' === $frequency ? 'one_time' : $frequency,
+	);
+}
 
-		// The write failed (wp_insert_post() returned an error, say the
-		// database went away mid-request). Stripe has the money and this
-		// return is the only place the gift is ever recorded, so thanking the
-		// donor and then holding the 30-day lock below lost it for good.
-		// Release the lock and stop, so the donor's refresh tries again.
-		if ( ! $recorded ) {
-			// A second return for this same session recorded the gift while
-			// this one waited, and it thanks the donor.
-			if ( NPMP_Donation_Manager::get_instance()->find_by_transaction_id( $session_id ) ) {
-				return;
-			}
-			delete_transient( $lock_key );
-			npmp_payment_debug_log( 'stripe return: donation insert failed, lock released for retry' );
-			return;
-		}
+/**
+ * Record a paid one-time Stripe gift from this site's donation form, and
+ * thank the donor once.
+ *
+ * Three callers reach this, in any order and at the same moment: the
+ * donor's return (npmp_maybe_finalize_stripe_donation()), the
+ * checkout.session.completed webhook (npmp_stripe_webhook_dispatch()), and
+ * Pro's older webhook address. log_donation() keeps one row per session id
+ * under a lock, and only the call that wrote the row sends the thank-you
+ * and adds the contact. A call that finds the row, waits for another
+ * request's row, or takes the lock just after another request wrote the
+ * row answers 'duplicate' and sends nothing. So the donor gets one row,
+ * one receipt, and one run of Pro's donation automations however many of
+ * those requests arrive.
+ *
+ * @param array $session Checkout Session, decoded from Stripe's JSON. The
+ *                       caller vouches for it: a signed webhook event, or
+ *                       Stripe's own API answer.
+ * @return string 'recorded' when this call wrote the row and thanked the
+ *                donor. 'duplicate' when the gift was already on file or
+ *                another request wrote it just now. 'skipped' when the
+ *                session isn't a paid one-time gift from this form, so
+ *                there's nothing to record. 'failed' when the write failed
+ *                and the caller should try again.
+ */
+function npmp_stripe_record_checkout_session( $session ) {
+	if ( ! is_array( $session ) || ! class_exists( 'NPMP_Donation_Manager' ) ) {
+		return 'skipped';
+	}
+
+	$session_id = isset( $session['id'] ) && is_string( $session['id'] ) ? $session['id'] : '';
+	if ( ! preg_match( '/^cs_[A-Za-z0-9_]+$/', $session_id ) ) {
+		return 'skipped';
+	}
+
+	// Only money Stripe actually took. A session can complete unpaid (a
+	// delayed payment method) or with nothing to pay.
+	if ( 'paid' !== ( $session['payment_status'] ?? '' ) ) {
+		return 'skipped';
+	}
+
+	// Only sessions this form created. A Stripe account shared with a store
+	// (WooCommerce and the like), or Pro's dues join form, has other paid
+	// sessions, and those aren't one-time gifts from this form.
+	if ( 'stripe' !== ( $session['metadata']['gateway'] ?? '' ) ) {
+		return 'skipped';
+	}
+
+	// A one-time charge. Pro's webhook records each invoice of a
+	// subscription.
+	if ( 'payment' !== ( $session['mode'] ?? '' ) ) {
+		return 'skipped';
+	}
+
+	$donations = NPMP_Donation_Manager::get_instance();
+	if ( $donations->find_by_transaction_id( $session_id ) ) {
+		return 'duplicate';
+	}
+
+	$gift = npmp_stripe_session_gift( $session );
+	if ( ! $gift || $gift['amount'] <= 0 ) {
+		return 'skipped';
+	}
+
+	$created  = false;
+	$recorded = $donations->log_donation(
+		array(
+			'email'          => $gift['email'],
+			'name'           => $gift['name'],
+			'amount'         => $gift['amount'],
+			'frequency'      => $gift['frequency'],
+			'gateway'        => 'stripe',
+			'transaction_id' => $session_id,
+			'currency'       => $gift['currency'],
+		),
+		$created
+	);
+
+	if ( ! $recorded ) {
+		// Another request for this same session recorded the gift while
+		// this one waited, and that request thanks the donor.
+		return $donations->find_by_transaction_id( $session_id ) ? 'duplicate' : 'failed';
+	}
+
+	// Another request wrote the row between this call's first look and the
+	// lock. That request thanks the donor.
+	if ( ! $created ) {
+		return 'duplicate';
 	}
 
 	npmp_send_thank_you_email(
 		array(
-			'email'     => $email,
-			'name'      => $name,
-			'amount'    => $amount,
-			'currency'  => $currency,
-			'frequency' => $frequency,
+			'email'     => $gift['email'],
+			'name'      => $gift['name'],
+			'amount'    => $gift['amount'],
+			'currency'  => $gift['currency'],
+			'frequency' => $gift['frequency'],
 			'date'      => date_i18n( get_option( 'date_format' ) ),
 		)
 	);
 
-	npmp_add_donor_to_membership( $email, $name );
+	npmp_add_donor_to_membership( $gift['email'], $gift['name'] );
 
-	// Subscription sessions leave no donation record here (Pro's webhook
-	// records them), so hold the lock long enough to cover a revisit.
-	set_transient( $lock_key, 1, 30 * DAY_IN_SECONDS );
+	return 'recorded';
 }
-add_action( 'template_redirect', 'npmp_maybe_finalize_stripe_donation' );
 
 /* ==============================================================
  * Helper Functions
