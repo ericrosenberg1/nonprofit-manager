@@ -178,6 +178,7 @@ function npmp_contact_form_shortcode( $atts ) {
 				'email'   => __( 'Please enter a valid email address and try again.', 'nonprofit-manager' ),
 				'fields'  => __( 'Please fill in your name, email, and message, then try again.', 'nonprofit-manager' ),
 				'send'    => __( 'We couldn\'t send your message. Please try again in a few minutes or email us directly.', 'nonprofit-manager' ),
+				'busy'    => __( 'We got too many messages in a short time. Please try again in an hour.', 'nonprofit-manager' ),
 			);
 			$text   = isset( $messages[ $reason ] ) ? $messages[ $reason ] : __( 'We couldn\'t send your message. Please check the fields and try again.', 'nonprofit-manager' );
 			$banner = '<div class="npmp-form-banner npmp-status-error" role="alert"><p>' . esc_html( $text ) . '</p></div>';
@@ -267,6 +268,16 @@ function npmp_contact_form_handle() {
 
 	if ( '' === $name || ! is_email( $email ) || '' === $message ) {
 		wp_safe_redirect( add_query_arg( array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'fields' ), $redirect ) );
+		exit;
+	}
+
+	// Every message mails the site's inbox, and anyone holding the page's
+	// nonce can post the form. We cap messages per visitor and site-wide,
+	// the same way the signup form does, so a script can't flood the inbox.
+	// Both caps take the npmp_rate_limit_max filter ('contact_form' and
+	// 'contact_form_site'). Only a message we'd send counts.
+	if ( ! npmp_rate_limit_allows( 'contact_form', 10, HOUR_IN_SECONDS ) || ! npmp_rate_limit_allows( 'contact_form_site', 100, HOUR_IN_SECONDS, 'site' ) ) {
+		wp_safe_redirect( add_query_arg( array( 'npmp_contact' => 'error', 'npmp_contact_reason' => 'busy' ), $redirect ) );
 		exit;
 	}
 
