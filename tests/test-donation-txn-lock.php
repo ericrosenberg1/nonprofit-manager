@@ -98,6 +98,10 @@ check( 'the gift is written', 500, $id );
 check( 'under one lock named for the transaction', array( $lock_name ), $GLOBALS['t_lock_tries'] );
 check( 'released after the write', array( $lock_name ), $GLOBALS['t_unlocked'] );
 check( 'the dedupe read skips the query cache', false, $GLOBALS['t_query_args']['cache_results'] ?? null );
+// A gift the owner trashed still counts as on file. Looking at published
+// donations only let a late Stripe resend record it again and thank the
+// donor a second time. WordPress's 'any' leaves out trash.
+check( 'the dedupe read looks at every status, trash included', array( 'any', 'trash' ), $GLOBALS['t_query_args']['post_status'] ?? null );
 check( 'the recorded hook fires once', 1, $GLOBALS['t_recorded'] );
 check( '$created says this call wrote the row', true, $GLOBALS['t_created'] );
 

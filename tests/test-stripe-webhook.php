@@ -14,8 +14,10 @@
  * secret means 503 and nothing recorded, event filtering (paid, payment mode,
  * this form's metadata, the session's own amount and currency), one row and
  * one thank-you across repeats and a late writer, a failed write that answers
- * 500 for Stripe's retry, and the hand-off to Pro's dispatcher. Real
- * processes on a real database: tests/rig/donation-race.php.
+ * 500 for Stripe's retry, the hand-off to Pro's dispatcher, two sites on one
+ * Stripe account (the npmp_site tag, success_url for sessions made before
+ * it, the donor's return), and one signing secret per Stripe endpoint. Real
+ * WordPress over HTTP: tests/rig/stripe-webhook.php.
  *
  * Run: php tests/test-stripe-webhook.php
  */
@@ -30,8 +32,9 @@ if ( ! defined( 'DAY_IN_SECONDS' ) ) {
 }
 
 const T_SECRET = 'whsec_test_unit_secret';
+const T_HOME   = 'https://give.example.org';
 
-$GLOBALS['t_options'] = array( 'npmp_stripe_webhook_secret' => T_SECRET );
+$GLOBALS['t_options'] = array( 'npmp_stripe_webhook_secret' => T_SECRET, 'home' => T_HOME );
 $GLOBALS['t_mail']    = array();
 $GLOBALS['t_pro']     = array();
 $GLOBALS['t_http']    = 0;
@@ -48,6 +51,12 @@ function is_admin() {
 }
 function wp_unslash( $v ) {
 	return $v;
+}
+function wp_parse_url( $url, $component = -1 ) {
+	return parse_url( $url, $component );
+}
+function wp_json_encode( $data ) {
+	return json_encode( $data );
 }
 function sanitize_text_field( $v ) {
 	return trim( (string) $v );
@@ -167,7 +176,7 @@ function gift_event( $session_id, $changes = array() ) {
 			'customer_details' => array( 'email' => 'Donor@Example.com', 'name' => 'Dana Donor' ),
 			'customer_email'   => null,
 			'livemode'         => false,
-			'metadata'         => array( 'frequency' => 'one_time', 'gateway' => 'stripe' ),
+			'metadata'         => array( 'frequency' => 'one_time', 'gateway' => 'stripe', 'npmp_site' => npmp_stripe_site_tag() ),
 			'mode'             => 'payment',
 			'payment_intent'   => 'pi_test_1',
 			'payment_status'   => 'paid',
@@ -192,11 +201,11 @@ function gift_event( $session_id, $changes = array() ) {
 	);
 }
 
-/** Stripe's API answer on the donor's return: the session for the id asked about. */
+/** Stripe's API answer on the donor's return: the session for the id asked about, with any changes a case sets. */
 function wp_remote_get( $url, $args = array() ) {
 	$GLOBALS['t_http']++;
 	$id = basename( (string) wp_parse_url_path( $url ) );
-	return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( json_decode( gift_event( $id ), true )['data']['object'] ) );
+	return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( json_decode( gift_event( $id, $GLOBALS['t_session_changes'] ?? array() ), true )['data']['object'] ) );
 }
 function wp_parse_url_path( $url ) {
 	return parse_url( $url, PHP_URL_PATH );
@@ -253,11 +262,11 @@ check( 'signed junk is 400', 400, deliver( 'not json' )[0] );
 check( 'a signed event with no object is 400', 400, deliver( '{"id":"evt_x","type":"checkout.session.completed","data":{}}' )[0] );
 check( 'nothing recorded by any refusal', 0, count( $dm->rows ) );
 
-$GLOBALS['t_options'] = array();
+$GLOBALS['t_options'] = array( 'home' => T_HOME );
 $no_secret            = deliver( $event, sign( $event, 'whsec_anything' ) );
 check( 'no secret saved: 503, so Stripe keeps the event', 503, $no_secret[0] );
 check( 'no secret saved: nothing recorded', 0, count( $dm->rows ) );
-$GLOBALS['t_options'] = array( 'npmp_stripe_webhook_secret' => T_SECRET );
+$GLOBALS['t_options'] = array( 'npmp_stripe_webhook_secret' => T_SECRET, 'home' => T_HOME );
 
 echo "\n== 3. A paid one-time gift is recorded once ==\n";
 $GLOBALS['t_mail'] = array();
@@ -393,6 +402,95 @@ $dm->fail_insert  = true;
 check( 'a gift whose write fails: 500', 500, deliver( gift_event( 'cs_test_pro_fail' ) )[0] );
 check( 'and Pro never sees it, so Pro\'s claim stays free for the retry', 0, count( $GLOBALS['t_pro'] ) );
 $dm->fail_insert = false;
+
+echo "\n== 11. Two sites on one Stripe account ==\n";
+// Stripe sends every event on the account to every endpoint, so this site
+// gets the other site's gifts too. Before the site tag, it recorded them,
+// added the other site's donors, and thanked them in its own name.
+$GLOBALS['t_pro'] = array();
+$before           = count( $dm->rows );
+$mails            = count( $GLOBALS['t_mail'] );
+$theirs           = deliver( gift_event( 'cs_test_theirs', array( 'metadata' => array( 'npmp_site' => 'ffff0000ffff0000' ) ) ) );
+check( 'another site\'s gift: 200, so Stripe stops sending it here', 200, $theirs[0] );
+check( 'and says why', 'Another site\'s gift. Nothing to record.', $theirs[1] );
+check( 'no row', false, isset( $dm->rows['cs_test_theirs'] ) );
+check( 'nobody thanked', $mails, count( $GLOBALS['t_mail'] ) );
+check( 'Pro still sees the event, for its own checks', 1, count( $GLOBALS['t_pro'] ) );
+
+// Sessions made before the tag carry none. They count as this site's when
+// the donor's success_url comes back here.
+$untagged = array( 'metadata' => array( 'npmp_site' => null ) );
+$returns  = array(
+	'this site'                    => array( T_HOME . '/donate/?npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}', true ),
+	'this site, www.'              => array( 'https://www.give.example.org/?npmp_donation=success', true ),
+	'this site, http'              => array( 'http://give.example.org/give/', true ),
+	'another site'                 => array( 'https://other.example.org/donate/?npmp_donation=success', false ),
+	'a host that starts like ours' => array( 'https://give.example.org.evil.test/donate/', false ),
+	'a different port'             => array( 'https://give.example.org:8443/donate/', false ),
+	'no success_url'               => array( null, false ),
+);
+foreach ( $returns as $label => $case ) {
+	$sid   = 'cs_test_old_' . md5( $label );
+	$reply = deliver( gift_event( $sid, $untagged + array( 'success_url' => $case[0] ) ) );
+	check( "made before the tag, back to $label: 200", 200, $reply[0] );
+	check( "made before the tag, back to $label: " . ( $case[1] ? 'recorded' : 'not recorded' ), $case[1], isset( $dm->rows[ $sid ] ) );
+}
+
+echo "\n== 12. The donor's return checks the site too ==\n";
+$mails                         = count( $GLOBALS['t_mail'] );
+$GLOBALS['t_session_changes']  = array( 'metadata' => array( 'npmp_site' => 'ffff0000ffff0000' ) );
+stripe_return( 'cs_test_return_theirs' );
+check( 'another site\'s session id in a hand-made URL: no row', false, isset( $dm->rows['cs_test_return_theirs'] ) );
+check( 'and no thank-you', $mails, count( $GLOBALS['t_mail'] ) );
+$GLOBALS['t_session_changes'] = array( 'mode' => 'subscription', 'metadata' => array( 'npmp_site' => 'ffff0000ffff0000' ) );
+stripe_return( 'cs_test_return_their_sub' );
+check( 'another site\'s recurring gift: no thank-you', $mails, count( $GLOBALS['t_mail'] ) );
+$GLOBALS['t_session_changes'] = $untagged + array( 'success_url' => T_HOME . '/donate/?npmp_donation=success' );
+stripe_return( 'cs_test_return_old' );
+check( 'a session from before the tag still records on return', true, isset( $dm->rows['cs_test_return_old'] ) );
+check( 'and thanks the donor', $mails + 1, count( $GLOBALS['t_mail'] ) );
+$GLOBALS['t_session_changes'] = array();
+
+echo "\n== 13. The site tag ==\n";
+check( 'scheme, www., case, and a trailing slash drop out', 'give.example.org', npmp_stripe_site_address( 'HTTPS://WWW.Give.Example.org/' ) );
+check( 'a port and a path stay', '127.0.0.1:10461/club', npmp_stripe_site_address( 'http://127.0.0.1:10461/club/' ) );
+check( 'no host, no address', '', npmp_stripe_site_address( 'not a url' ) );
+// A tag already on an open session or a live subscription must keep
+// matching after an update, so the value is pinned.
+check( 'the tag for give.example.org stays the same', '999cb837fa48ae1d', npmp_stripe_site_tag() );
+$GLOBALS['t_options']['home'] = 'http://www.give.example.org/';
+check( 'the same site over http and www. gets the same tag', '999cb837fa48ae1d', npmp_stripe_site_tag() );
+$GLOBALS['t_options']['home'] = 'https://other.example.org';
+check( 'another site gets another tag', true, '999cb837fa48ae1d' !== npmp_stripe_site_tag() );
+$GLOBALS['t_options']['home'] = 'https://example.org/club';
+check( 'a site in a folder: a page in the folder is this site', true, npmp_stripe_url_is_this_site( 'https://example.org/club/donate/' ) );
+check( 'a site in a folder: the folder itself is this site', true, npmp_stripe_url_is_this_site( 'https://example.org/club?npmp_donation=success' ) );
+check( 'a site in a folder: a folder that starts the same is not', false, npmp_stripe_url_is_this_site( 'https://example.org/clubhouse/donate/' ) );
+check( 'a site in a folder: the root is not', false, npmp_stripe_url_is_this_site( 'https://example.org/' ) );
+$GLOBALS['t_options']['home'] = T_HOME;
+
+echo "\n== 14. One signing secret per Stripe endpoint ==\n";
+check( 'spaces separate secrets', array( 'whsec_a1', 'whsec_b2' ), npmp_stripe_webhook_secrets( 'whsec_a1 whsec_b2' ) );
+check( 'commas separate secrets', array( 'whsec_a1', 'whsec_b2' ), npmp_stripe_webhook_secrets( 'whsec_a1, whsec_b2' ) );
+check( 'new lines separate secrets', array( 'whsec_a1', 'whsec_b2' ), npmp_stripe_webhook_secrets( "whsec_a1\nwhsec_b2" ) );
+check( 'two secrets run together (a browser drops the new line) split at whsec_', array( 'whsec_a1', 'whsec_b2' ), npmp_stripe_webhook_secrets( 'whsec_a1whsec_b2' ) );
+check( 'the same secret twice counts once', array( 'whsec_a1' ), npmp_stripe_webhook_secrets( 'whsec_a1 whsec_a1' ) );
+check( 'anything without whsec_ drops out', array( 'whsec_a1' ), npmp_stripe_webhook_secrets( 'sk_live_x whsec_a1 hello' ) );
+check( 'whsec_ alone is no secret', array(), npmp_stripe_webhook_secrets( 'whsec_' ) );
+check( 'an old single secret reads as one', array( T_SECRET ), npmp_stripe_webhook_secrets() );
+
+$GLOBALS['t_options']['npmp_stripe_webhook_secret'] = 'whsec_older_endpoint ' . T_SECRET;
+$two = gift_event( 'cs_test_two_secrets' );
+check( 'signed by the first endpoint\'s secret: 200', 200, deliver( $two, sign( $two, 'whsec_older_endpoint' ) )[0] );
+check( 'signed by the second endpoint\'s secret: 200', 200, deliver( $two, sign( $two, T_SECRET ) )[0] );
+check( 'signed by neither: 403', 403, deliver( $two, sign( $two, 'whsec_third' ) )[0] );
+check( 'recorded once', 1, count( array_keys( array_keys( $dm->rows ), 'cs_test_two_secrets', true ) ) );
+check( 'a list of secrets: any one passes', true, npmp_stripe_webhook_signature_valid( $pay, 't=' . $now . ',v1=' . $sig( $now, 'whsec_second' ), array( 'whsec_first', 'whsec_second' ), $now ) );
+check( 'a list of secrets: none of them, fails', false, npmp_stripe_webhook_signature_valid( $pay, 't=' . $now . ',v1=' . $sig( $now, 'whsec_third' ), array( 'whsec_first', 'whsec_second' ), $now ) );
+check( 'an empty list fails', false, npmp_stripe_webhook_signature_valid( $pay, 't=' . $now . ',v1=' . $sig( $now ), array(), $now ) );
+$GLOBALS['t_options']['npmp_stripe_webhook_secret'] = 'not-a-stripe-secret';
+check( 'a box with no whsec_ secret counts as none: 503', 503, deliver( $two )[0] );
+$GLOBALS['t_options']['npmp_stripe_webhook_secret'] = T_SECRET;
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

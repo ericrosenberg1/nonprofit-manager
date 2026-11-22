@@ -596,12 +596,20 @@ function npmp_render_payment_settings_page() {
 			update_option( 'npmp_stripe_test_secret_key', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_test_secret_key'] ) ) );
 		}
 
-		// Stripe webhook signing secret (whsec_...). Both webhook addresses
-		// check Stripe's signature with it: free's one-time gift endpoint
-		// (npmp-stripe-webhook.php) and Pro's recurring and dues endpoint.
-		// Saved on every site, since one-time gifts are free.
+		// Stripe webhook signing secrets (whsec_...). Both webhook addresses
+		// check Stripe's signature against them: free's one-time gift
+		// endpoint (npmp-stripe-webhook.php) and Pro's recurring and dues
+		// endpoint. Each Stripe endpoint has its own secret, so an owner with
+		// both addresses in Stripe saves two. Saved on every site, since
+		// one-time gifts are free. A box with no whsec_ secret in it saves
+		// nothing and says so, and the saved secrets stay.
 		if ( ! empty( $_POST['npmp_stripe_webhook_secret'] ) ) {
-			update_option( 'npmp_stripe_webhook_secret', sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
+			$webhook_secrets = npmp_stripe_webhook_secrets( sanitize_text_field( wp_unslash( $_POST['npmp_stripe_webhook_secret'] ) ) );
+			if ( $webhook_secrets ) {
+				update_option( 'npmp_stripe_webhook_secret', implode( ' ', $webhook_secrets ) );
+			} else {
+				$webhook_secret_error = true;
+			}
 		}
 
 		// Pro-only gateway-specific recurring frequencies
@@ -642,6 +650,9 @@ function npmp_render_payment_settings_page() {
 		<?php npmp_admin_page_title( __( 'Payment Settings', 'nonprofit-manager' ) ); ?>
 		<?php if ( ! empty( $saved ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Payment settings saved.', 'nonprofit-manager' ); ?></p></div>
+		<?php endif; ?>
+		<?php if ( ! empty( $webhook_secret_error ) ) : ?>
+			<div class="notice notice-error"><p><?php esc_html_e( 'We didn\'t save the signing secret. Copy the whole secret from the endpoint in Stripe, starting at whsec_.', 'nonprofit-manager' ); ?></p></div>
 		<?php endif; ?>
 		<?php if ( ! empty( $link_errors ) ) : ?>
 			<div class="notice notice-error"><p><?php esc_html_e( 'We didn\'t save your payment links. Fix the link below and save again.', 'nonprofit-manager' ); ?></p>
@@ -1006,7 +1017,7 @@ function npmp_render_payment_settings_page() {
 									<?php
 									printf(
 										/* translators: %s: the end of the older webhook address, in code tags. */
-										esc_html__( 'If your Stripe endpoint uses the older address that ends in %s, keep that endpoint and don\'t add a second one. You can use either address, but you can save only one signing secret.', 'nonprofit-manager' ),
+										esc_html__( 'If you gave Stripe our older address, with %s at the end, you can keep that endpoint. If you also add this address, paste both endpoints\' signing secrets into Signing Secret.', 'nonprofit-manager' ),
 										'<code>action=npmp_stripe_recurring_webhook</code>'
 									);
 									?>
@@ -1018,7 +1029,7 @@ function npmp_render_payment_settings_page() {
 							<th><label for="npmp_stripe_webhook_secret"><?php esc_html_e( 'Signing Secret', 'nonprofit-manager' ); ?></label></th>
 							<td>
 								<input type="password" id="npmp_stripe_webhook_secret" name="npmp_stripe_webhook_secret" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo get_option( 'npmp_stripe_webhook_secret', '' ) ? esc_attr( '••••••••' . __( ' (saved)', 'nonprofit-manager' ) ) : 'whsec_...'; ?>">
-								<p class="description"><?php esc_html_e( 'Stripe shows the secret when you open the endpoint in Webhooks. Leave the box blank to keep the saved secret.', 'nonprofit-manager' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Stripe shows the secret when you open the endpoint in Webhooks. For two endpoints, paste one secret, a space, and the other secret. Leave the box blank to keep the saved secrets, or paste new ones to replace every saved secret.', 'nonprofit-manager' ); ?></p>
 							</td>
 						</tr>
 					</table>

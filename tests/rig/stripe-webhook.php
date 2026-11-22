@@ -33,13 +33,19 @@
 // at both addresses writes one row, a return after the webhook makes no Stripe
 // call, a webhook after the return answers "already recorded", no saved secret
 // answers 503 and records nothing while the return still records, a wrong
-// secret or a stale or future timestamp answers 403, and unpaid or foreign
-// sessions record nothing. With NPMP_RIG_URL set (the site served by
-// PHP_CLI_SERVER_WORKERS=4 php -S at its home URL), the same over HTTP through
-// admin-ajax, four deliveries at once included. Leaves no donations, members,
-// claims, cron events, automations, options or files behind. Not run by the
-// pre-push gate (it needs WordPress). Run it on MySQL and SQLite, with Pro on
-// and off.
+// secret or a stale or future timestamp answers 403, unpaid or foreign
+// sessions record nothing, another Nonprofit Manager site's session on the
+// same Stripe account records nothing here (gifts, and with Pro dues joins),
+// a gift the owner trashed stays trashed when Stripe sends it again, and two
+// saved secrets (one per Stripe endpoint) each pass. With NPMP_RIG_URL set
+// (the site served by PHP_CLI_SERVER_WORKERS=4 php -S at its home URL), the
+// same over HTTP through admin-ajax, four deliveries at once included. With
+// NPMP_RIG_OTHER_WP and NPMP_RIG_OTHER_URL set to a second served site, two
+// sites on one Stripe account over HTTP: each event goes to both sites, and
+// only the site that made the session records it. Leaves no donations,
+// members, claims, cron events, automations, options or files behind, on
+// either site. Not run by the pre-push gate (it needs WordPress). Run it on
+// MySQL and SQLite, with Pro on and off.
 $wp_root = getenv( 'NPMP_RIG_WP' ) ?: '/tmp/npmp-rig/wp';
 $_SERVER['HTTP_HOST']       = '127.0.0.1';
 $_SERVER['REQUEST_URI']     = '/';
@@ -86,16 +92,32 @@ function rig_watch( $log ) {
 }
 
 /**
+ * A mu-plugin for a served site: logs every email (and sends none), recorded
+ * gift, and queued automation email to $log, as rig_watch() does in-process.
+ */
+function rig_mu_source( $log ) {
+	return '<?php' . "\n// Written by tests/rig/stripe-webhook.php and deleted at the end of its run.\n" .
+		'$rig_wh_log = ' . var_export( $log, true ) . ";\n" .
+		'add_filter( "pre_wp_mail", function ( $n, $a ) use ( $rig_wh_log ) { foreach ( ( is_array( $a["to"] ) ? $a["to"] : explode( ",", (string) $a["to"] ) ) as $t ) { file_put_contents( $rig_wh_log, "mail " . strtolower( trim( $t ) ) . "\n", FILE_APPEND | LOCK_EX ); } return true; }, 10, 2 );' . "\n" .
+		'add_action( "npmp_donation_recorded", function ( $id, $d ) use ( $rig_wh_log ) { file_put_contents( $rig_wh_log, "recorded " . strtolower( (string) ( $d["email"] ?? "" ) ) . "\n", FILE_APPEND | LOCK_EX ); }, 1, 2 );' . "\n" .
+		'add_filter( "pre_schedule_event", function ( $p, $e ) use ( $rig_wh_log ) { if ( isset( $e->hook ) && "npmp_send_automation_email" === $e->hook ) { file_put_contents( $rig_wh_log, "queue " . strtolower( (string) ( $e->args[1] ?? "" ) ) . "\n", FILE_APPEND | LOCK_EX ); } return $p; }, 10, 2 );' . "\n";
+}
+
+/**
  * Pro's address in-process: npmp_handle_stripe_recurring_webhook() past
  * reading php://input and before wp_send_json_*. The HTTP section runs the
  * real handler.
  */
 function rig_pro_address( $payload, $sig ) {
-	$secret = get_option( 'npmp_stripe_webhook_secret', '' );
-	if ( empty( $secret ) ) {
+	$secrets = npmp_stripe_webhook_secret_list();
+	if ( ! $secrets ) {
 		return array( 503, 'Webhook secret not configured.' );
 	}
-	if ( ! npmp_verify_stripe_signature( $payload, $sig, $secret ) ) {
+	$verified = false;
+	foreach ( $secrets as $secret ) {
+		$verified = $verified || npmp_verify_stripe_signature( $payload, $sig, $secret );
+	}
+	if ( ! $verified ) {
 		return array( 403, 'Invalid signature.' );
 	}
 	$result = npmp_stripe_process_event( json_decode( $payload, false ) );
@@ -157,6 +179,70 @@ if ( isset( $argv[1] ) && 'hook' === $argv[1] ) {
 		list( $status, $message ) = npmp_stripe_webhook_receive( $payload, $sig );
 	}
 	echo $status . ' ' . $message;
+	exit( 0 );
+}
+
+// --- The second site (child process, NPMP_RIG_WP set to that site) ----------
+if ( isset( $argv[1] ) && 'other' === $argv[1] ) {
+	$what = $argv[2] ?? '';
+	$arg  = $argv[3] ?? '';
+	require $wp_root . '/wp-load.php';
+	global $wpdb;
+	$other_mu = WP_CONTENT_DIR . '/mu-plugins/rig-stripe-webhook-other.php';
+	if ( 'setup' === $what ) {
+		if ( ! is_dir( WP_CONTENT_DIR . '/mu-plugins' ) ) {
+			mkdir( WP_CONTENT_DIR . '/mu-plugins', 0755, true );
+		}
+		file_put_contents( $other_mu, rig_mu_source( $argv[4] ) );
+		$prev = array();
+		foreach ( array( 'npmp_stripe_mode', 'npmp_stripe_test_secret_key', 'npmp_stripe_webhook_secret' ) as $opt ) {
+			$prev[ $opt ] = get_option( $opt, null );
+		}
+		update_option( 'npmp_stripe_mode', 'test' );
+		update_option( 'npmp_stripe_test_secret_key', 'sk_test_rigdummy' );
+		update_option( 'npmp_stripe_webhook_secret', $arg );
+		$pro = function_exists( 'npmp_is_pro' ) && npmp_is_pro() && function_exists( 'npmp_stripe_process_event' );
+		echo wp_json_encode( array( 'tag' => npmp_stripe_site_tag(), 'home' => get_option( 'home' ), 'pro' => $pro, 'prev' => $prev ) );
+	} elseif ( 'rows' === $what ) {
+		echo (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s", NPMP_Donation_Manager::META_TXN_ID, $arg ) );
+	} elseif ( 'member' === $what ) {
+		$member = NPMP_Member_Manager::get_instance()->get_member_by_email( $arg );
+		echo ( $member && ! empty( $member->id ) ) ? 'yes' : 'no';
+	} elseif ( 'cleanup' === $what ) {
+		$plan = json_decode( (string) file_get_contents( $arg ), true );
+		foreach ( $plan['sids'] as $sid ) {
+			foreach ( $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s", NPMP_Donation_Manager::META_TXN_ID, $sid ) ) as $post_id ) {
+				wp_delete_post( (int) $post_id, true );
+			}
+		}
+		$want = array();
+		foreach ( $plan['emails'] as $email ) {
+			$want[ strtolower( $email ) ] = true;
+			$member = NPMP_Member_Manager::get_instance()->get_member_by_email( $email );
+			if ( $member && ! empty( $member->id ) ) {
+				NPMP_Member_Manager::get_instance()->delete_member( (int) $member->id );
+			}
+		}
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . 'npmp_stripe_events' ) ) ) {
+			foreach ( $plan['events'] as $evt ) {
+				$wpdb->delete( $wpdb->prefix . 'npmp_stripe_events', array( 'event_id' => $evt ), array( '%s' ) );
+			}
+		}
+		foreach ( (array) _get_cron_array() as $ts => $hooks ) {
+			foreach ( $hooks['npmp_send_automation_email'] ?? array() as $ev ) {
+				if ( isset( $want[ strtolower( (string) ( $ev['args'][1] ?? '' ) ) ] ) ) {
+					wp_unschedule_event( $ts, 'npmp_send_automation_email', $ev['args'] );
+				}
+			}
+		}
+		foreach ( $plan['prev'] as $opt => $value ) {
+			null === $value ? delete_option( $opt ) : update_option( $opt, $value );
+		}
+		if ( file_exists( $other_mu ) ) {
+			unlink( $other_mu );
+		}
+		echo 'clean';
+	}
 	exit( 0 );
 }
 
@@ -237,10 +323,11 @@ function rig_session( $sid, $email, $extra = array() ) {
 			'customer_details' => array( 'email' => $email, 'name' => 'Webhook Donor' ),
 			'customer_email'   => $email,
 			'livemode'         => false,
-			'metadata'         => array( 'gateway' => 'stripe', 'frequency' => 'one_time' ),
+			'metadata'         => array( 'gateway' => 'stripe', 'frequency' => 'one_time', 'npmp_site' => npmp_stripe_site_tag() ),
 			'mode'             => 'payment',
 			'payment_status'   => 'paid',
 			'status'           => 'complete',
+			'success_url'      => home_url( '/donate/?npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}' ),
 		),
 		$extra
 	);
@@ -279,16 +366,22 @@ function rig_gift( $tag, $extra = array() ) {
 	);
 }
 
-function rig_spawn( array $args ) {
+function rig_spawn( array $args, $site = null ) {
 	global $rig_php, $rig_self, $wp_root;
 	$proc = proc_open(
 		array_merge( array( $rig_php, $rig_self ), $args ),
 		array( 1 => array( 'pipe', 'w' ), 2 => array( 'file', $GLOBALS['rig_dir'] . '/stderr.txt', 'a' ) ),
 		$pipes,
 		null,
-		array( 'NPMP_RIG_WP' => $wp_root ) + getenv()
+		array( 'NPMP_RIG_WP' => null === $site ? $wp_root : $site ) + getenv()
 	);
 	return array( $proc, $pipes[1] );
+}
+
+/** Run one command on the second site and return what it printed. */
+function rig_other( $what, $arg = '' ) {
+	$out = rig_wait( array( rig_spawn( array( 'other', $what, $arg, $GLOBALS['rig_log'] ), $GLOBALS['rig_other_wp'] ) ) );
+	return $out[0];
 }
 
 function rig_wait( array $children ) {
@@ -448,6 +541,81 @@ rig_check( "another product's session → 200, nothing to record", '200 Nothing 
 rig_check( 'no donation row', 0, rig_rows( $gift['sid'] ) );
 rig_check( 'no contact made', false, rig_member( $gift['email'] ) );
 
+// --- 5b. Another site on the same Stripe account --------------------------
+echo "\n== 5b. Another Nonprofit Manager site's session on the same Stripe account records nothing here ==\n";
+$their_tag = substr( hash( 'sha256', 'npmp_site:other.example.org' ), 0, 16 );
+$theirs    = array(
+	'metadata'    => array( 'gateway' => 'stripe', 'frequency' => 'one_time', 'npmp_site' => $their_tag ),
+	'success_url' => 'https://other.example.org/donate/?npmp_donation=success',
+);
+$gift = rig_gift( 'theirs', $theirs );
+rig_check( "free address: 200, another site's gift", "200 Another site's gift. Nothing to record.", rig_hook( $gift ) );
+if ( $pro_on ) {
+	rig_check( "Pro's address: 200", $pro_ok, rig_hook( rig_gift( 'theirspro', $theirs ), 'pro' ) );
+	rig_check( "Pro's address: no donation row", 0, rig_rows( "cs_test_rigwh{$run}theirspro" ) );
+}
+rig_return( $gift );
+rig_check( 'a hand-made return with their session id: Stripe asked once', 1, rig_count( 'stripe', $gift['sid'] ) );
+rig_check( 'no donation row', 0, rig_rows( $gift['sid'] ) );
+rig_check( 'no contact made', false, rig_member( $gift['email'] ) );
+rig_check( 'nobody thanked', 0, rig_count( 'mail', $gift['email'] ) );
+$sub = rig_gift( 'theirsub', $theirs + array( 'mode' => 'subscription' ) );
+rig_return( $sub );
+rig_check( "their recurring gift's return: nobody thanked", 0, rig_count( 'mail', $sub['email'] ) );
+rig_check( "their recurring gift's return: no contact made", false, rig_member( $sub['email'] ) );
+
+$old_mine = rig_gift( 'oldmine', array( 'metadata' => array( 'gateway' => 'stripe', 'frequency' => 'one_time' ) ) );
+rig_check( 'made before the tag, success_url here: recorded', $free_ok, rig_hook( $old_mine ) );
+rig_check( 'one donation row', 1, rig_rows( $old_mine['sid'] ) );
+$old_theirs = rig_gift( 'oldtheirs', array( 'metadata' => array( 'gateway' => 'stripe', 'frequency' => 'one_time' ), 'success_url' => 'https://other.example.org/donate/' ) );
+rig_check( "made before the tag, success_url on another site: another site's gift", "200 Another site's gift. Nothing to record.", rig_hook( $old_theirs ) );
+rig_check( 'no donation row', 0, rig_rows( $old_theirs['sid'] ) );
+
+if ( $pro_on ) {
+	$dues = rig_gift(
+		'theirdues',
+		array(
+			'metadata'       => array( 'npmp_source' => 'dues', 'npmp_level' => 'Rig Gold', 'npmp_name' => 'Rig Joiner', 'npmp_frequency' => 'one_time', 'npmp_amount' => 2500, 'npmp_site' => $their_tag ),
+			'payment_intent' => "pi_rigwh{$run}theirdues",
+			'success_url'    => 'https://other.example.org/join/?npmp_join=success',
+		)
+	);
+	rig_check( "their dues join at Pro's address: 200", $pro_ok, rig_hook( $dues, 'pro' ) );
+	rig_check( 'their dues join: no member made here', false, rig_member( $dues['email'] ) );
+	rig_check( 'their dues join: no dues row here', null, NPMP_Recurring_Manager::get_instance()->get_by_external_id( "pi_rigwh{$run}theirdues" ) );
+	rig_check( 'their dues join: no welcome email', 0, rig_count( 'mail', $dues['email'] ) );
+}
+
+// --- 5c. A trashed gift stays trashed -------------------------------------
+echo "\n== 5c. The owner trashed the gift, then Stripe sent it again ==\n";
+$gift = rig_gift( 'trashed' );
+rig_check( 'webhook records the gift', $free_ok, rig_hook( $gift ) );
+$post_id = (int) $dm->find_by_transaction_id( $gift['sid'] );
+wp_trash_post( $post_id );
+rig_check( 'the owner trashed the gift', 'trash', get_post_status( $post_id ) );
+$mails = rig_count( 'mail', $gift['email'] );
+rig_check( "Stripe's late resend: 200", '200 ', substr( rig_hook( $gift ), 0, 4 ) );
+rig_return( $gift );
+rig_check( 'still one donation row', 1, rig_rows( $gift['sid'] ) );
+rig_check( 'still in the trash', 'trash', get_post_status( $post_id ) );
+rig_check( 'no second thank-you', $mails, rig_count( 'mail', $gift['email'] ) );
+rig_check( 'npmp_donation_recorded once', 1, rig_count( 'recorded', $gift['email'] ) );
+
+// --- 5d. One signing secret per Stripe endpoint ----------------------------
+echo "\n== 5d. Two saved secrets, one per Stripe endpoint ==\n";
+$older = "whsec_rig{$run}olderendpoint";
+update_option( 'npmp_stripe_webhook_secret', "$older $secret" );
+$gift = rig_gift( 'twosecrets' );
+rig_check( "free address, the older endpoint's secret: recorded", $free_ok, rig_hook( $gift, 'free', $older ) );
+rig_check( "free address, the newer endpoint's secret: 200", '200 ', substr( rig_hook( $gift, 'free', $secret ), 0, 4 ) );
+if ( $pro_on ) {
+	rig_check( "Pro's address, the older endpoint's secret: 200", $pro_ok, rig_hook( rig_gift( 'twosecretspro' ), 'pro', $older ) );
+	rig_check( "Pro's address, the newer endpoint's secret: 200", $pro_ok, rig_hook( rig_gift( 'twosecretspro2' ), 'pro', $secret ) );
+}
+rig_check( 'a third secret: 403', '403 Invalid signature.', rig_hook( $gift, 'free', "whsec_rig{$run}third" ) );
+rig_check( 'one donation row', 1, rig_rows( $gift['sid'] ) );
+update_option( 'npmp_stripe_webhook_secret', $secret );
+
 // --- 6. Over HTTP ----------------------------------------------------------
 $rig_url = rtrim( (string) getenv( 'NPMP_RIG_URL' ), '/' );
 $rig_mu  = WP_CONTENT_DIR . '/mu-plugins/rig-stripe-webhook.php';
@@ -458,14 +626,7 @@ if ( '' !== $rig_url ) {
 	}
 	// The served site logs to the same file. rig_watch() lives in this file,
 	// so the mu-plugin carries its own copy.
-	file_put_contents(
-		$rig_mu,
-		'<?php' . "\n// Written by tests/rig/stripe-webhook.php and deleted at the end of its run.\n" .
-		'$rig_wh_log = ' . var_export( $rig_log, true ) . ";\n" .
-		'add_filter( "pre_wp_mail", function ( $n, $a ) use ( $rig_wh_log ) { foreach ( ( is_array( $a["to"] ) ? $a["to"] : explode( ",", (string) $a["to"] ) ) as $t ) { file_put_contents( $rig_wh_log, "mail " . strtolower( trim( $t ) ) . "\n", FILE_APPEND | LOCK_EX ); } return true; }, 10, 2 );' . "\n" .
-		'add_action( "npmp_donation_recorded", function ( $id, $d ) use ( $rig_wh_log ) { file_put_contents( $rig_wh_log, "recorded " . strtolower( (string) ( $d["email"] ?? "" ) ) . "\n", FILE_APPEND | LOCK_EX ); }, 1, 2 );' . "\n" .
-		'add_filter( "pre_schedule_event", function ( $p, $e ) use ( $rig_wh_log ) { if ( isset( $e->hook ) && "npmp_send_automation_email" === $e->hook ) { file_put_contents( $rig_wh_log, "queue " . strtolower( (string) ( $e->args[1] ?? "" ) ) . "\n", FILE_APPEND | LOCK_EX ); } return $p; }, 10, 2 );' . "\n"
-	);
+	file_put_contents( $rig_mu, rig_mu_source( $rig_log ) );
 
 	/** POST a body with headers, return array( status, decoded body ). */
 	$rig_post = function ( $action, $body, $headers ) use ( $rig_url ) {
@@ -538,9 +699,107 @@ if ( '' !== $rig_url ) {
 	rig_check( 'four deliveries at once: npmp_donation_recorded once', 1, rig_count( 'recorded', $gift['email'] ) );
 	rig_check( 'four deliveries at once: thanked ' . ( $pro_on ? 'once' : 'by Pro only' ), $thanks, rig_count( 'mail', $gift['email'] ) );
 	rig_check( 'four deliveries at once: automation queued ' . ( $autos_on ? 'once' : 'never' ), $queued, rig_count( 'queue', $gift['email'] ) );
-	unlink( $rig_mu );
 } else {
 	echo "\n== 6. Over HTTP: skipped (set NPMP_RIG_URL to the served site) ==\n";
+}
+
+// --- 7. Two sites, one Stripe account, over HTTP ----------------------------
+$rig_other_wp  = (string) getenv( 'NPMP_RIG_OTHER_WP' );
+$rig_other_url = rtrim( (string) getenv( 'NPMP_RIG_OTHER_URL' ), '/' );
+if ( '' !== $rig_url && '' !== $rig_other_wp && '' !== $rig_other_url ) {
+	echo "\n== 7. Two sites on one Stripe account: every event goes to both ($rig_url and $rig_other_url) ==\n";
+	// Stripe sends every event on the account to every endpoint, so each
+	// site gets the other's sessions. Both sites save the same secret here,
+	// so the signature passes at both, and only the site tag decides.
+	$other = json_decode( rig_other( 'setup', $secret ), true );
+	rig_check( 'the second site has its own tag', true, is_array( $other ) && '' !== $other['tag'] && npmp_stripe_site_tag() !== $other['tag'] );
+	$other_plan = array( 'sids' => array(), 'emails' => array(), 'events' => array(), 'prev' => $other['prev'] ?? array() );
+
+	$post_to = function ( $base, $action, $payload ) use ( $secret ) {
+		$ch = curl_init( "$base/wp-admin/admin-ajax.php?action=$action" );
+		curl_setopt_array( $ch, array( CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload, CURLOPT_HTTPHEADER => array( 'Content-Type: application/json', 'Stripe-Signature: ' . rig_sign( $payload, $secret, time() ) ), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60 ) );
+		$resp = (string) curl_exec( $ch );
+		$data = json_decode( $resp, true );
+		return (int) curl_getinfo( $ch, CURLINFO_RESPONSE_CODE ) . ' ' . ( $data['data']['message'] ?? $resp );
+	};
+	$foreign = "200 Another site's gift. Nothing to record.";
+
+	// A gift from each site's form.
+	$mine   = rig_gift( 'twosite_a' );
+	$theirs = rig_gift(
+		'twosite_b',
+		array(
+			'metadata'    => array( 'gateway' => 'stripe', 'frequency' => 'one_time', 'npmp_site' => $other['tag'] ),
+			'success_url' => $other['home'] . '/?npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}',
+		)
+	);
+	$other_plan['sids']   = array( $mine['sid'], $theirs['sid'] );
+	$other_plan['emails'] = array( $mine['email'], $theirs['email'] );
+	$other_plan['events'] = array( $mine['evt'], $theirs['evt'] );
+	foreach ( array( $mine, $theirs ) as $gift ) {
+		$payload = file_get_contents( $gift['payload'] );
+		$here    = $post_to( $rig_url, 'npmp_stripe_webhook', $payload );
+		$there   = $post_to( $rig_other_url, 'npmp_stripe_webhook', $payload );
+		if ( $gift === $mine ) {
+			rig_check( 'this site\'s gift, at this site: recorded', $free_ok, $here );
+			rig_check( 'this site\'s gift, at the second site: another site\'s gift', $foreign, $there );
+		} else {
+			rig_check( 'the second site\'s gift, at this site: another site\'s gift', $foreign, $here );
+			rig_check( 'the second site\'s gift, at the second site: recorded', $free_ok, $there );
+		}
+	}
+	rig_check( 'this site: one row for its own gift', 1, rig_rows( $mine['sid'] ) );
+	rig_check( 'this site: no row for the second site\'s gift', 0, rig_rows( $theirs['sid'] ) );
+	rig_check( 'the second site: one row for its own gift', '1', rig_other( 'rows', $theirs['sid'] ) );
+	rig_check( 'the second site: no row for this site\'s gift', '0', rig_other( 'rows', $mine['sid'] ) );
+	rig_check( 'this site: the second site\'s donor is not a contact here', false, rig_member( $theirs['email'] ) );
+	rig_check( 'the second site: this site\'s donor is not a contact there', 'no', rig_other( 'member', $mine['email'] ) );
+	// Both sites log to the same file, so each donor's count covers both.
+	rig_check( 'this site\'s donor thanked ' . ( $pro_on ? 'once, from one site' : 'by Pro only, so not here' ), $thanks, rig_count( 'mail', $mine['email'] ) );
+	rig_check( 'the second site\'s donor thanked ' . ( ! empty( $other['pro'] ) ? 'once, from one site' : 'by Pro only, so not here' ), ! empty( $other['pro'] ) ? 1 : 0, rig_count( 'mail', $theirs['email'] ) );
+	rig_check( 'each gift recorded once across both sites', array( 1, 1 ), array( rig_count( 'recorded', $mine['email'] ), rig_count( 'recorded', $theirs['email'] ) ) );
+
+	if ( $pro_on && ! empty( $other['pro'] ) ) {
+		// Pro's older address on both sites, and a dues join.
+		$mine2  = rig_gift( 'twosite_a2' );
+		$dues_b = rig_gift(
+			'twosite_bdues',
+			array(
+				'metadata'       => array( 'npmp_source' => 'dues', 'npmp_level' => 'Rig Gold', 'npmp_name' => 'Rig Joiner', 'npmp_frequency' => 'one_time', 'npmp_amount' => 2500, 'npmp_site' => $other['tag'] ),
+				'payment_intent' => "pi_rigwh{$run}twosite_bdues",
+				'success_url'    => $other['home'] . '/join/?npmp_join=success',
+			)
+		);
+		$other_plan['sids'][]   = $mine2['sid'];
+		$other_plan['emails'][] = $mine2['email'];
+		$other_plan['emails'][] = $dues_b['email'];
+		$other_plan['events'][] = $mine2['evt'];
+		$other_plan['events'][] = $dues_b['evt'];
+		$payload                = file_get_contents( $mine2['payload'] );
+		rig_check( "this site's gift at the second site's older address: 200", $pro_ok, $post_to( $rig_other_url, 'npmp_stripe_recurring_webhook', $payload ) );
+		rig_check( 'the second site: no row for it', '0', rig_other( 'rows', $mine2['sid'] ) );
+		rig_check( "this site's gift at this site's older address: 200", $pro_ok, $post_to( $rig_url, 'npmp_stripe_recurring_webhook', $payload ) );
+		rig_check( 'this site: one row for it', 1, rig_rows( $mine2['sid'] ) );
+		$payload = file_get_contents( $dues_b['payload'] );
+		rig_check( "the second site's dues join at this site's older address: 200", $pro_ok, $post_to( $rig_url, 'npmp_stripe_recurring_webhook', $payload ) );
+		rig_check( "the second site's dues join: no member made here", false, rig_member( $dues_b['email'] ) );
+		rig_check( "the second site's dues join: no welcome email from here", 0, rig_count( 'mail', $dues_b['email'] ) );
+	}
+
+	$plan_file = "$rig_dir/other-cleanup.json";
+	file_put_contents( $plan_file, wp_json_encode( $other_plan ) );
+	rig_check( 'the second site: cleaned up', 'clean', rig_other( 'cleanup', $plan_file ) );
+	foreach ( $other_plan['sids'] as $sid ) {
+		rig_check( "the second site: no rig row left for $sid", '0', rig_other( 'rows', $sid ) );
+	}
+	foreach ( $other_plan['emails'] as $email ) {
+		rig_check( "the second site: no rig contact left for $email", 'no', rig_other( 'member', $email ) );
+	}
+} else {
+	echo "\n== 7. Two sites over HTTP: skipped (set NPMP_RIG_URL, NPMP_RIG_OTHER_WP, and NPMP_RIG_OTHER_URL) ==\n";
+}
+if ( file_exists( $rig_mu ) ) {
+	unlink( $rig_mu );
 }
 rig_check( 'no lock row left in the options table', 0, rig_locks() );
 

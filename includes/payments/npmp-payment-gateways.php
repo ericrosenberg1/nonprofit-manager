@@ -1246,6 +1246,10 @@ function npmp_ajax_create_stripe_session() {
 		'cancel_url'             => $cancel_url,
 		'metadata[frequency]'    => $frequency,
 		'metadata[gateway]'      => 'stripe',
+		// Which site made the session. Stripe sends every event on the
+		// account to every endpoint, so a second site on the same account
+		// gets this session's events too, and skips them by this tag.
+		'metadata[npmp_site]'    => npmp_stripe_site_tag(),
 	);
 
 	// A donor who picks a recurring frequency gets a real Stripe subscription.
@@ -1269,6 +1273,7 @@ function npmp_ajax_create_stripe_session() {
 		// recurring gift made through this form.
 		$body['subscription_data[metadata][npmp_source]'] = 'donation';
 		$body['subscription_data[metadata][frequency]']   = $frequency;
+		$body['subscription_data[metadata][npmp_site]']   = npmp_stripe_site_tag();
 	} else {
 		$body['mode'] = 'payment';
 		$body['line_items[0][price_data][product_data][name]'] = npmp_label( 'donation' );
@@ -1416,6 +1421,13 @@ function npmp_maybe_finalize_stripe_donation() {
 		return;
 	}
 
+	// Only sessions this site created. Another site on the same Stripe
+	// account uses the same form, and a hand-made success URL with that
+	// site's session id would otherwise record and thank its donor here.
+	if ( ! npmp_stripe_session_is_this_site( $session ) ) {
+		return;
+	}
+
 	if ( 'subscription' === ( $session['mode'] ?? '' ) ) {
 		// Subscription sessions leave no donation record here (Pro's webhook
 		// records each invoice), so the return only thanks the donor, and the
@@ -1526,7 +1538,9 @@ function npmp_stripe_session_gift( $session ) {
  *                donor. 'duplicate' when the gift was already on file or
  *                another request wrote it just now. 'skipped' when the
  *                session isn't a paid one-time gift from this form, so
- *                there's nothing to record. 'failed' when the write failed
+ *                there's nothing to record. 'foreign' when another site
+ *                on the same Stripe account created the session, so that
+ *                site records the gift. 'failed' when the write failed
  *                and the caller should try again.
  */
 function npmp_stripe_record_checkout_session( $session ) {
@@ -1550,6 +1564,14 @@ function npmp_stripe_record_checkout_session( $session ) {
 	// sessions, and those aren't one-time gifts from this form.
 	if ( 'stripe' !== ( $session['metadata']['gateway'] ?? '' ) ) {
 		return 'skipped';
+	}
+
+	// Only sessions this site created. Stripe sends every event on the
+	// account to every endpoint, so two sites on one Stripe account each
+	// get the other's gifts. Before this check, each recorded the other's
+	// gifts, added the other's donors, and thanked them in its own name.
+	if ( ! npmp_stripe_session_is_this_site( $session ) ) {
+		return 'foreign';
 	}
 
 	// A one-time charge. Pro's webhook records each invoice of a

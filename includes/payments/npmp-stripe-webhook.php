@@ -50,6 +50,125 @@ function npmp_stripe_webhook_url() {
 }
 
 /**
+ * A site address reduced to host and path, for telling this site's Stripe
+ * sessions from another site's.
+ *
+ * Reads the saved Site Address (the home option), not home_url(), so the
+ * scheme a request came in on and a translation plugin's language prefix
+ * leave the answer alone. Drops the scheme, a leading www., and a trailing
+ * slash, and lowercases the rest.
+ *
+ * @param string|null $url Any URL. Null means this site's address.
+ * @return string host[:port][/path], or '' for a URL with no host.
+ */
+function npmp_stripe_site_address( $url = null ) {
+	$url   = null === $url ? get_option( 'home', '' ) : $url;
+	$parts = is_string( $url ) ? wp_parse_url( $url ) : false;
+	if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+		return '';
+	}
+
+	$host = strtolower( $parts['host'] );
+	if ( 0 === strpos( $host, 'www.' ) ) {
+		$host = substr( $host, 4 );
+	}
+	if ( ! empty( $parts['port'] ) ) {
+		$host .= ':' . (int) $parts['port'];
+	}
+
+	return $host . strtolower( rtrim( (string) ( $parts['path'] ?? '' ), '/' ) );
+}
+
+/**
+ * The tag this site stamps on each Stripe Checkout Session and subscription
+ * it creates, as metadata npmp_site.
+ *
+ * Stripe sends every event on an account to every endpoint on the account.
+ * Two sites on one Stripe account each got the other's
+ * checkout.session.completed, and without the tag each recorded the other's
+ * gifts and dues joins, added the other's donors, and thanked them in its
+ * own name. A hash keeps the address out of the metadata.
+ *
+ * @return string 16 hex characters, or '' when the site has no address.
+ */
+function npmp_stripe_site_tag() {
+	$address = npmp_stripe_site_address();
+	return '' === $address ? '' : substr( hash( 'sha256', 'npmp_site:' . $address ), 0, 16 );
+}
+
+/**
+ * Whether a URL points into this site: the same host, under this site's
+ * path.
+ *
+ * @param string $url URL to check.
+ * @return bool
+ */
+function npmp_stripe_url_is_this_site( $url ) {
+	$home    = npmp_stripe_site_address();
+	$address = npmp_stripe_site_address( $url );
+	return '' !== $home && '' !== $address && ( $address === $home || 0 === strpos( $address, $home . '/' ) );
+}
+
+/**
+ * Whether this site created a Stripe Checkout Session.
+ *
+ * A session stamped with npmp_site must carry this site's tag. A session
+ * from before the tag carries none, and counts as this site's when its
+ * success_url comes back here: every session free and Pro create sends the
+ * donor back to the site that made it.
+ *
+ * @param array|object $session Checkout Session from Stripe.
+ * @return bool
+ */
+function npmp_stripe_session_is_this_site( $session ) {
+	if ( is_object( $session ) ) {
+		$session = json_decode( wp_json_encode( $session ), true );
+	}
+	if ( ! is_array( $session ) ) {
+		return false;
+	}
+
+	$tag = $session['metadata']['npmp_site'] ?? '';
+	if ( is_string( $tag ) && '' !== $tag ) {
+		$mine = npmp_stripe_site_tag();
+		return '' !== $mine && hash_equals( $mine, $tag );
+	}
+
+	$success_url = $session['success_url'] ?? '';
+	return is_string( $success_url ) && npmp_stripe_url_is_this_site( $success_url );
+}
+
+/**
+ * The signing secrets saved in Payment Settings.
+ *
+ * Each Stripe endpoint has its own signing secret, and a Pro site can point
+ * two endpoints here (this address and Pro's older one), so the box takes
+ * more than one. Spaces, commas, and new lines separate them. A browser
+ * drops the new lines from a one-line box, so two secrets pasted on two
+ * lines arrive run together, and a new secret starts at each whsec_.
+ * Anything that doesn't start with whsec_ isn't a Stripe signing secret,
+ * and gets dropped.
+ *
+ * @param string|null $raw The box's text. Null reads the saved option.
+ * @return string[] Each secret once, in the order given.
+ */
+function npmp_stripe_webhook_secrets( $raw = null ) {
+	$raw = null === $raw ? get_option( 'npmp_stripe_webhook_secret', '' ) : $raw;
+	if ( ! is_string( $raw ) || '' === $raw ) {
+		return array();
+	}
+
+	$secrets = array();
+	foreach ( preg_split( '/[\s,;]+/', str_replace( 'whsec_', ' whsec_', $raw ), -1, PREG_SPLIT_NO_EMPTY ) as $token ) {
+		if ( 0 === strpos( $token, 'whsec_' ) && strlen( $token ) > 6 && ! in_array( $token, $secrets, true ) ) {
+			$secrets[] = $token;
+		}
+	}
+
+	return $secrets;
+}
+
+/**
  * Check a Stripe-Signature header against the raw request body.
  *
  * Stripe signs "<timestamp>.<raw body>" with HMAC-SHA256 under the
@@ -59,16 +178,23 @@ function npmp_stripe_webhook_url() {
  * must sit within the tolerance of the server clock either way, which stops
  * a captured request from being replayed later.
  *
- * @param string   $payload    Raw request body, byte for byte.
- * @param string   $sig_header Stripe-Signature header value.
- * @param string   $secret     Endpoint signing secret (whsec_...).
- * @param int|null $now        Unix time to check against. Null means time().
- * @param int      $tolerance  Seconds of allowed clock difference. Stripe's
- *                             own libraries use 300.
+ * With more than one secret saved (one per endpoint), a match under any of
+ * them passes. Every comparison runs through hash_equals().
+ *
+ * @param string          $payload    Raw request body, byte for byte.
+ * @param string          $sig_header Stripe-Signature header value.
+ * @param string|string[] $secret     Endpoint signing secret (whsec_...), or
+ *                                    a list of them.
+ * @param int|null        $now        Unix time to check against. Null means time().
+ * @param int             $tolerance  Seconds of allowed clock difference.
+ *                                    Stripe's own libraries use 300.
  * @return bool
  */
 function npmp_stripe_webhook_signature_valid( $payload, $sig_header, $secret, $now = null, $tolerance = 300 ) {
-	if ( ! is_string( $payload ) || ! is_string( $sig_header ) || ! is_string( $secret ) || '' === $secret ) {
+	$secrets = array_values( array_filter( (array) $secret, static function ( $s ) {
+		return is_string( $s ) && '' !== $s;
+	} ) );
+	if ( ! is_string( $payload ) || ! is_string( $sig_header ) || ! $secrets ) {
 		return false;
 	}
 
@@ -97,10 +223,12 @@ function npmp_stripe_webhook_signature_valid( $payload, $sig_header, $secret, $n
 		return false;
 	}
 
-	$expected = hash_hmac( 'sha256', $timestamp . '.' . $payload, $secret );
-	foreach ( $signatures as $signature ) {
-		if ( hash_equals( $expected, $signature ) ) {
-			return true;
+	foreach ( $secrets as $one_secret ) {
+		$expected = hash_hmac( 'sha256', $timestamp . '.' . $payload, $one_secret );
+		foreach ( $signatures as $signature ) {
+			if ( hash_equals( $expected, $signature ) ) {
+				return true;
+			}
 		}
 	}
 
@@ -125,8 +253,8 @@ function npmp_stripe_webhook_receive( $payload, $sig_header ) {
 	// No secret, no trust. Answering 503 keeps the event in Stripe's retry
 	// queue, so a gift sent before the owner pasted the secret still gets
 	// recorded once the secret is saved.
-	$secret = (string) get_option( 'npmp_stripe_webhook_secret', '' );
-	if ( '' === $secret ) {
+	$secrets = npmp_stripe_webhook_secrets();
+	if ( ! $secrets ) {
 		return array( 503, 'Webhook secret not configured.' );
 	}
 
@@ -134,7 +262,7 @@ function npmp_stripe_webhook_receive( $payload, $sig_header ) {
 		return array( 400, 'Missing Stripe signature.' );
 	}
 
-	if ( ! npmp_stripe_webhook_signature_valid( $payload, $sig_header, $secret ) ) {
+	if ( ! npmp_stripe_webhook_signature_valid( $payload, $sig_header, $secrets ) ) {
 		return array( 403, 'Invalid signature.' );
 	}
 
@@ -175,10 +303,13 @@ function npmp_stripe_webhook_dispatch( $event, $payload ) {
 			return array( 500, 'Could not record the gift. Retry.' );
 		}
 
+		// A 200 for another site's session too, so Stripe stops sending it
+		// here. That site records the gift from its own endpoint.
 		$messages = array(
 			'recorded'  => 'Gift recorded.',
 			'duplicate' => 'Gift already recorded.',
 			'skipped'   => 'Nothing to record.',
+			'foreign'   => 'Another site\'s gift. Nothing to record.',
 		);
 		$message  = $messages[ $result ] ?? $message;
 	}

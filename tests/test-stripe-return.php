@@ -27,7 +27,7 @@ if ( ! defined( 'DAY_IN_SECONDS' ) ) {
 	define( 'DAY_IN_SECONDS', 86400 );
 }
 
-$GLOBALS['npmp_test_options']    = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options']    = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 $GLOBALS['npmp_test_transients'] = array();
 $GLOBALS['npmp_test_http']       = null;
 $GLOBALS['npmp_test_http_calls'] = 0;
@@ -44,6 +44,9 @@ function is_admin() {
 }
 function wp_unslash( $v ) {
 	return $v;
+}
+function wp_parse_url( $url, $component = -1 ) {
+	return parse_url( $url, $component );
 }
 function sanitize_text_field( $v ) {
 	return trim( (string) $v );
@@ -141,8 +144,12 @@ class NPMP_Member_Manager {
 
 require_once __DIR__ . '/../includes/npmp-currency.php';
 require_once __DIR__ . '/../includes/payments/npmp-payment-gateways.php';
+require_once __DIR__ . '/../includes/payments/npmp-stripe-webhook.php';
 
-/** A paid one-time Checkout Session, as the raw JSON text Stripe returns. */
+/**
+ * A paid one-time Checkout Session, as the raw JSON text Stripe returns.
+ * Made before the site tag, so its success_url says whose it is.
+ */
 function paid_session_json( $id ) {
 	return '{
   "id": "' . $id . '",
@@ -156,7 +163,8 @@ function paid_session_json( $id ) {
   "metadata": {"gateway": "stripe", "frequency": "one_time"},
   "mode": "payment",
   "payment_status": "paid",
-  "status": "complete"
+  "status": "complete",
+  "success_url": "https://give.example.org/donate/?npmp_donation=success&npmp_session_id={CHECKOUT_SESSION_ID}"
 }';
 }
 
@@ -226,11 +234,11 @@ land( 'cs_test_req' );
 $req = $GLOBALS['npmp_test_http_last'];
 check( 'GET the session by id', 'https://api.stripe.com/v1/checkout/sessions/cs_test_req', $req['url'] );
 check( 'test mode sends the test secret', 'Bearer sk_test_fake', $req['args']['headers']['Authorization'] ?? '' );
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_live_secret_key' => 'sk_live_fake', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_live_secret_key' => 'sk_live_fake', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 $GLOBALS['npmp_test_http']    = stripe_reply( 200, paid_session_json( 'cs_live_req' ) );
 land( 'cs_live_req' );
 check( 'live mode sends the live secret', 'Bearer sk_live_fake', $GLOBALS['npmp_test_http_last']['args']['headers']['Authorization'] ?? '' );
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 
 echo "\n== 7. Ids that are not Checkout Session ids never reach Stripe ==\n";
 $calls = $GLOBALS['npmp_test_http_calls'];
@@ -308,13 +316,32 @@ check( 'no Stripe call for a recorded session', $calls, $GLOBALS['npmp_test_http
 check( 'no second donation row', 1, count( $donations->logged ) );
 
 echo "\n== 14. No secret key for the mode means no Stripe call and nothing logged ==\n";
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'live', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
 $donations->logged            = array();
 $calls                        = $GLOBALS['npmp_test_http_calls'];
 land( 'cs_live_nokey' );
 check( 'no Stripe call without a live key', $calls, $GLOBALS['npmp_test_http_calls'] );
 check( 'nothing logged', 0, count( $donations->logged ) );
-$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake' );
+$GLOBALS['npmp_test_options'] = array( 'npmp_stripe_mode' => 'test', 'npmp_stripe_test_secret_key' => 'sk_test_fake', 'home' => 'https://give.example.org' );
+
+echo "\n== 15. Another site's session on the same Stripe account records nothing here ==\n";
+// A hand-made success URL can carry another site's session id, and this
+// site's key reads that session from the shared Stripe account.
+$mine   = npmp_stripe_site_tag();
+$tagged = function ( $id, $tag ) {
+	return str_replace( '"gateway": "stripe",', '"gateway": "stripe", "npmp_site": "' . $tag . '",', paid_session_json( $id ) );
+};
+$donations->logged         = array();
+$GLOBALS['npmp_test_http'] = stripe_reply( 200, $tagged( 'cs_test_theirs', 'ffff0000ffff0000' ) );
+land( 'cs_test_theirs' );
+check( 'another site\'s tag: nothing logged', 0, count( $donations->logged ) );
+check( 'another site\'s tag: lock kept (a definitive answer)', true, lock_held( 'cs_test_theirs' ) );
+$GLOBALS['npmp_test_http'] = stripe_reply( 200, str_replace( 'https://give.example.org/', 'https://other.example.org/', paid_session_json( 'cs_test_their_old' ) ) );
+land( 'cs_test_their_old' );
+check( 'no tag, another site\'s success_url: nothing logged', 0, count( $donations->logged ) );
+$GLOBALS['npmp_test_http'] = stripe_reply( 200, $tagged( 'cs_test_mine', $mine ) );
+land( 'cs_test_mine' );
+check( 'this site\'s tag: logged once', 1, count( $donations->logged ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

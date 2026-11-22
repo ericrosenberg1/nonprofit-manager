@@ -73,6 +73,8 @@ function npmp_stripe_secret_key() { return 'sk_test_x'; }
 function npmp_payment_debug_log( $msg ) {}
 function npmp_send_thank_you_email( $args ) { $GLOBALS['t_emails']++; return true; }
 function npmp_add_donor_to_membership( $email, $name ) { $GLOBALS['t_members']++; }
+// Every session here is this site's. test-stripe-webhook.php covers the check.
+function npmp_stripe_session_is_this_site( $session ) { return true; }
 function npmp_paypal_verify_order( $order_id, $amount, &$order_data = null ) {
 	$GLOBALS['t_verified']++;
 	$order_data = array( 'status' => 'COMPLETED' );

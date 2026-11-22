@@ -237,7 +237,11 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Find a donation by its gateway transaction id.
+	 * Find a donation by its gateway transaction id, in any status.
+	 *
+	 * Trashed and draft donations count. Looking at published ones only let
+	 * a late Stripe resend or a revisited success URL record a gift again
+	 * after the owner trashed it, and thank the donor a second time.
 	 *
 	 * @param string $txn_id Gateway transaction/session/order id.
 	 * @return int Donation post ID, or 0 when none exists.
@@ -251,7 +255,8 @@ class NPMP_Donation_Manager {
 		$found = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
+				// 'any' leaves out trash, so name it as well.
+				'post_status'    => array( 'any', 'trash' ),
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
 				'no_found_rows'  => true,

@@ -500,10 +500,23 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   caller that got the lock after another request wrote the row sends nothing (the PayPal logger checks it too). We load
   the webhook on every request, outside the Donations module, and with Pro we hand every verified event to
   `npmp_stripe_process_event()`. Pro claims each event id once, so we process an event once even when a site has both
-  addresses in Stripe. We check both addresses against the one secret in `npmp_stripe_webhook_secret`, so the owner
-  needs one Stripe endpoint. With no secret saved, we answer 503 at the webhook, record nothing there, and still record
-  the gift on the donor's return. Unit `tests/test-stripe-webhook.php`, rig `tests/rig/stripe-webhook.php` (MySQL and
-  SQLite, Pro on and off, `NPMP_RIG_URL` for the HTTP checks).
+  addresses in Stripe. Each Stripe endpoint has its own signing secret, so the Signing Secret box takes several
+  (`npmp_stripe_webhook_secrets()`: spaces, commas, or new lines, each starting `whsec_`, and two pasted run together split
+  at `whsec_`), and both addresses pass a signature made with any of them. With no secret saved, we answer 503 at the
+  webhook, record nothing there, and still record the gift on the donor's return. The dedupe looks at every post status,
+  so a gift the owner trashed stays trashed when Stripe sends it again. Unit `tests/test-stripe-webhook.php`, rig
+  `tests/rig/stripe-webhook.php` (MySQL and SQLite, Pro on and off, `NPMP_RIG_URL` for the HTTP checks).
+- **Two sites on one Stripe account each get the other's events** (fixed the release after 2026.11.26). Stripe sends
+  every event on an account to every endpoint, so a second Nonprofit Manager site recorded the first site's gifts,
+  added its donors, and thanked them in its own name, and with Pro made members and dues rows from its joins. Every
+  session and subscription free and Pro create carries `metadata[npmp_site]`, `npmp_stripe_site_tag()`: 16 hex of
+  sha256 of the saved Site Address (option `home`) with the scheme, a leading `www.`, and a trailing slash dropped.
+  Never change the formula, or open sessions and live subscriptions stop matching. `npmp_stripe_session_is_this_site()`
+  requires a matching tag, and a session from before the tag counts when its `success_url` comes back here. The
+  recorder answers `'foreign'` (200, so Stripe stops), the donor's return skips it, Pro's dues handler skips it, and
+  Pro's invoice backfill (`npmp_stripe_subscription_is_ours()`) refuses another site's tag. A subscription from before
+  the tag carries none, so two sites can still both adopt it there. Rig `tests/rig/stripe-webhook.php` with
+  `NPMP_RIG_OTHER_WP` and `NPMP_RIG_OTHER_URL` sends each event to two served sites.
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
