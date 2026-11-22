@@ -74,6 +74,7 @@ install`, symlink this repo into `wp-content/plugins/`, then `NPMP_RIG_WP=<wp di
 - You start a new site on plain permalinks. Before you request a pretty URL from a rig, switch the site to post-name links in the rig and put the old structure back at the end (see `tests/rig/event-sources.php`).
 - When you narrow the free total with `NPMP_IMPORT_FREE_MAX_ROWS`, you also narrow one job's row limit. Widen `npmp_import_max_rows` in the import phase, or on a site with no contacts you get only the first few rows.
 - To see which options you left behind, diff `SELECT option_name, MD5(option_value) FROM wp_options` before and after the run.
+- With Pro's `tests/rig/stripe-fake.php` in `mu-plugins/`, we record every message in option `rig_mail` through `pre_wp_mail` and send none, so take the fake out before you run a rig that reads mail (`event-ics.php`, `contact-form.php`, `newsletter-queue-cron.php`).
 - You can run the licence server locally for a licence test: `npm run build`, a dummy `dist/server/.dev.vars`, each `migrations/*.sql` through `wrangler d1 execute --local --persist-to <dir>`, then `wrangler dev --local --persist-to <dir>`. Send Pro's `nonprofitmanager.app/api/license/` calls to the local server with a `pre_http_request` mu-plugin, and play several public sites from one rig with a `home_url` filter.
 
 For SQL, run the exact statements against cloudpanel MySQL through `wp db query` with a throwaway
@@ -105,6 +106,20 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   re-arms itself on `init`, the way the weekly digest and the scheduled-email sweep always did. Hook a cron
   schedule to `init`, never to a settings write alone. Unit `tests/test-scheduled-emails.php`, rig
   `tests/rig/newsletter-queue-cron.php`.
+- **The newsletter queue table has a schema version** (option `npmp_newsletter_queue_db_version`, constant
+  `NPMP_NEWSLETTER_QUEUE_DB_VERSION`, since the release after 2026.11.26). The old `npmp_newsletter_queue_table_created`
+  flag ran dbDelta once, so an existing table never got a new column. We upgrade from the drain (inside its lock) and
+  from an admin's screen load, never a visitor's page, since a new index on millions of rows can outlast the request.
+  `npmp_upgrade_newsletter_queue_table()` runs dbDelta
+  under `npmp_mail_queue_lock( 'newsletter_queue_schema', 600 )`, checks the result with
+  `npmp_newsletter_queue_schema_missing()`, and after a refused ALTER waits an hour (transient
+  `npmp_newsletter_queue_db_retry_later`). Until the version matches, we drain the 2026.11.26 way. Change the table, the
+  constant, and that column list in the same pass. We put a failed send back to pending with `retry_at` (UTC) 5, 15, and
+  45 minutes out (`npmp_newsletter_retry_delays`) and mark it failed on the fourth failure. We end a newsletter or digest
+  batch after 3 failures in a row or 240 seconds (`npmp_mail_queue_batch_seconds`), and refresh the lock every 30 seconds
+  with a compare-and-swap (`npmp_mail_queue_batch_continues()`). On 2026.11.26, with an SMTP sink at 1 second a message and
+  330 readers, a run outlived the 300-second lock and a second run mailed 29 readers twice. Unit
+  `tests/test-newsletter-queue-retry.php`, rig `tests/rig/newsletter-queue-cron.php` (MySQL and SQLite, `tests/rig/smtp-sink.py`).
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
   `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and
@@ -428,7 +443,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   `npmp_mail_attachments_supported()` answers yes: WordPress's mailer, SMTP, and SES. Pro's SendGrid, Brevo, Mailgun, and
   Postmark senders hand any message with an attachment to WordPress's mailer (`npmp_pro_handle_email()`), and that would move
   the email off the service the site picked, so on those four we send no file. Teach the four senders attachments before you
-  add them to the supported list. We write the file to a random folder under `get_temp_dir()` and delete it at shutdown. Unit
+  add them to the supported list. We write the file to a random folder under `get_temp_dir()` and delete it at shutdown. We give an
+  event with no end, or an end not after its start, one hour. A 00:00 start with no end or a 23:59 end is all day
+  (`npmp_ics_all_day_span()`, the same rule as the emails' "All day"), and we write it as DATE values with DTEND the day after the
+  last day (RFC 5545 3.6.1). Unit
   `tests/test-ics.php`, rig `tests/rig/event-ics.php` (SMTP sink, the feed over HTTP, SendGrid faked, and Pro on and off).
 - **Embeds in a newsletter's email** (`includes/email-newsletter/email-embeds.php`). Mail apps show no iframe, so in the email
   we swap each `core/embed` block (a `render_block` filter while `npmp_email_is_rendering()`) and each leftover iframe
@@ -483,6 +501,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   frequency: `npmp_get_enabled_frequencies()` maps only Stripe's options, `npmp_ajax_log_donation()` records
   `one_time`, and Payment Settings has no PayPal frequency boxes. Recurring gifts are Stripe only
   (`tests/test-paypal-one-time.php`).
+- **We never rate-limit the PayPal logger** (`npmp_ajax_log_donation()`). We post each captured PayPal order from the
+  browser once and ignore the answer, so if we refused a post we'd lose a paid gift, and with a per-site cap one abuser could
+  block every gift. We refuse only a claim with no order ID. We cap the contact form (`contact_form`, 10 an hour per visitor,
+  `contact_form_site`, 100) and Pro's join checkout (`join_checkout`, 10, `join_checkout_site`, 200) with
+  `npmp_rate_limit_allows()`, and you can change or turn off each cap with the `npmp_rate_limit_max` filter. Unit `tests/test-donation-replay.php` (sections 5 and 6),
+  `tests/test-contact-form-limits.php`, Pro's `tests/test-join-checkout.php`, rigs `tests/rig/contact-form.php` and Pro's
+  `tests/rig/join-limits.php`.
+- **We cache the Dashboard's two donation queries for 10 minutes** (`npmp_dashboard_donations_cache_get()` in
+  `includes/npmp-dashboard-widgets.php`). We store the rows with the token from option `npmp_dashboard_donations_token`, and
+  we change the token at shutdown after any save, status change, or delete of a donation, or any write to its amount,
+  currency, frequency, or email meta. If you write donations with raw SQL, you skip those hooks, so call
+  `npmp_dashboard_donations_changed()` after the write. Unit `tests/test-dashboard-donation-cache.php`, rig `tests/rig/dashboard-donation-cache.php`.
 - **One donation row per gateway transaction** (since the release after 2026.11.25). `log_donation()` reads "is this
   transaction on file?" and writes under `npmp_mail_queue_lock( 'donation_txn_<md5>' )`, and `find_by_transaction_id()`
   asks with `cache_results` off. WordPress keeps a query's result for the rest of a request, so before that a second

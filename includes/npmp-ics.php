@@ -136,13 +136,59 @@ function npmp_ics_meeting_text( $url, $meeting_id, $passcode, $labels = array() 
 }
 
 /**
+ * The first and last calendar day of an all-day event, or null for an event
+ * with times.
+ *
+ * Events have no all-day box. The event editor saves an empty start time as
+ * 00:00 and an empty end time as 23:59, an event from the old date-only field
+ * reads as 00:00, and every importer writes an all-day event as 00:00 to
+ * 23:59. The emails' [event_time] already says "All day" for a 00:00 start. So
+ * a start at 00:00 with no end, or with an end at 23:59, is all day.
+ *
+ * @param string $start Local start, "Y-m-d H:i:s" or "Y-m-d".
+ * @param string $end   Local end in the same forms, or ''.
+ * @return string[]|null Array( first Y-m-d, last Y-m-d ), or null.
+ */
+function npmp_ics_all_day_span( $start, $end ) {
+	if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2})(?:[ T]00:00(?::00)?)?$/', trim( (string) $start ), $s ) ) {
+		return null;
+	}
+	$end = trim( (string) $end );
+	if ( '' === $end ) {
+		return array( $s[1], $s[1] );
+	}
+	if ( ! preg_match( '/^(\d{4}-\d{2}-\d{2})(?:[ T]23:59(?::\d{2})?)?$/', $end, $e ) ) {
+		return null;
+	}
+	// An end day before the start day is a typo. The event keeps its one day.
+	return array( $s[1], max( $s[1], $e[1] ) );
+}
+
+/**
+ * A Y-m-d day as an iCalendar DATE, moved by whole days.
+ *
+ * @param string $day    Y-m-d.
+ * @param int    $offset Days to add.
+ * @return string Ymd, or '' for a day that doesn't exist.
+ */
+function npmp_ics_date( $day, $offset = 0 ) {
+	if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', (string) $day, $m ) || ! checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) {
+		return '';
+	}
+	return gmdate( 'Ymd', gmmktime( 0, 0, 0, (int) $m[2], (int) $m[3] + (int) $offset, (int) $m[1] ) );
+}
+
+/**
  * One VEVENT.
  *
  * @param array $event {
  *     @type string $uid        Unique ID (ID@host).
  *     @type int    $stamp      DTSTAMP, Unix time.
  *     @type int    $start      Start, Unix time.
- *     @type int    $end        End, Unix time (0 for none).
+ *     @type int    $end        End, Unix time. With none, or one that isn't
+ *                              after the start, the event runs one hour.
+ *     @type array  $all_day    First and last day (Y-m-d) of an all-day
+ *                              event, from npmp_ics_all_day_span(), else empty.
  *     @type string $summary    Title.
  *     @type string $location   Physical place.
  *     @type string $url        Join link.
@@ -159,6 +205,7 @@ function npmp_ics_vevent( $event ) {
 			'stamp'      => 0,
 			'start'      => 0,
 			'end'        => 0,
+			'all_day'    => null,
 			'summary'    => '',
 			'location'   => '',
 			'url'        => '',
@@ -172,8 +219,18 @@ function npmp_ics_vevent( $event ) {
 	if ( $start <= 0 ) {
 		return '';
 	}
-	$end   = (int) $e['end'] > 0 ? (int) $e['end'] : $start;
+	// An end equal to the start showed in calendar apps as a zero-minute
+	// entry. With no end, or one that isn't after the start, we give the
+	// event an hour.
+	$end   = (int) $e['end'] > $start ? (int) $e['end'] : $start + 3600;
 	$stamp = (int) $e['stamp'] > 0 ? (int) $e['stamp'] : $start;
+	// An all-day event gets DATE values, with DTEND the day after its last
+	// day (RFC 5545 3.6.1), so every calendar shows it on those days in any
+	// time zone.
+	$days     = is_array( $e['all_day'] ) ? array_values( $e['all_day'] ) : array();
+	$first    = isset( $days[0] ) ? npmp_ics_date( $days[0] ) : '';
+	$last     = isset( $days[1] ) ? npmp_ics_date( $days[1], 1 ) : '';
+	$is_all_day = '' !== $first && '' !== $last && $last > $first;
 	$url   = npmp_ics_uri( $e['url'] );
 	$place = trim( (string) $e['location'] );
 	$where = implode( ', ', array_filter( array( $place, $url ), 'strlen' ) );
@@ -184,8 +241,13 @@ function npmp_ics_vevent( $event ) {
 	// DTSTAMP is when this entry last changed. Calendar apps compare it to
 	// spot an edited event, and the start date never moves on an edit.
 	$out .= npmp_ics_line( 'DTSTAMP', gmdate( 'Ymd\THis\Z', $stamp ) );
-	$out .= npmp_ics_line( 'DTSTART', gmdate( 'Ymd\THis\Z', $start ) );
-	$out .= npmp_ics_line( 'DTEND', gmdate( 'Ymd\THis\Z', $end ) );
+	if ( $is_all_day ) {
+		$out .= npmp_ics_line( 'DTSTART;VALUE=DATE', $first );
+		$out .= npmp_ics_line( 'DTEND;VALUE=DATE', $last );
+	} else {
+		$out .= npmp_ics_line( 'DTSTART', gmdate( 'Ymd\THis\Z', $start ) );
+		$out .= npmp_ics_line( 'DTEND', gmdate( 'Ymd\THis\Z', $end ) );
+	}
 	$out .= npmp_ics_line( 'SUMMARY', npmp_ics_escape_text( $e['summary'] ) );
 	if ( '' !== $where ) {
 		$out .= npmp_ics_line( 'LOCATION', npmp_ics_escape_text( $where ) );

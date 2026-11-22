@@ -10,6 +10,8 @@
  *   NPMP_RIG_SINK=/tmp/npmp-ics-sink.jsonl NPMP_RIG_SINK_PORT=10426 wp eval-file tests/rig/event-ics.php
  *
  * Checks:
+ * - An event with no end runs one hour, and an all-day event spans its days
+ *   as DATE values, in the feed and the email file.
  * - The feed over HTTP: a public event's link in LOCATION, URL, and
  *   DESCRIPTION. An email-only event keeps its link, ID, and passcode out.
  *   With Pro, a group's default link stays out too. Lines fold at 75 octets.
@@ -103,6 +105,31 @@ if ( $pro && taxonomy_exists( 'npmp_group' ) ) {
 	$grouped = $event( 'Group night', array( '_npmp_event_start' => $start, '_npmp_event_location' => 'Room 3' ), array( $group_id ) );
 }
 
+// Sweep 2026-11-21, F12: an event with no end ran zero minutes, and an
+// all-day event (no times in the editor) ran 00:00 to 23:59 in the site's
+// time zone, so it spilled into the next day elsewhere.
+$no_end  = $event( 'Rig no end', array( '_npmp_event_start' => $start ) );
+$day     = wp_date( 'Y-m-d', time() + 12 * DAY_IN_SECONDS );
+$day_end = wp_date( 'Y-m-d', time() + 14 * DAY_IN_SECONDS );
+$all_day = $event( 'Rig all day', array( '_npmp_event_start' => $day . ' 00:00:00', '_npmp_event_end' => $day_end . ' 23:59:00' ) );
+$one_day = $event( 'Rig one day', array( '_npmp_event_start' => $day . ' 00:00:00' ) );
+$vevent  = function ( $text, $id ) {
+	$text = str_replace( "\r\n ", '', (string) $text );
+	$at   = strpos( $text, 'UID:' . $id . '@' );
+	if ( false === $at ) {
+		return '';
+	}
+	$from = strrpos( substr( $text, 0, $at ), "BEGIN:VEVENT\r\n" );
+	return substr( $text, $from, strpos( $text, "END:VEVENT\r\n", $at ) - $from );
+};
+$no_end_ts  = npmp_event_ics_time( $start );
+$day_ymd    = str_replace( '-', '', $day );
+$after_last = gmdate( 'Ymd', strtotime( $day_end . ' 00:00:00 UTC' ) + DAY_IN_SECONDS );
+$after_one  = gmdate( 'Ymd', strtotime( $day . ' 00:00:00 UTC' ) + DAY_IN_SECONDS );
+$times_ok   = function ( $block ) use ( $no_end_ts ) {
+	return false !== strpos( $block, 'DTSTART:' . gmdate( 'Ymd\THis\Z', $no_end_ts ) . "\r\nDTEND:" . gmdate( 'Ymd\THis\Z', $no_end_ts + HOUR_IN_SECONDS ) . "\r\n" );
+};
+
 echo "The feed over HTTP\n";
 delete_transient( 'npmp_ical_feed' );
 update_option( 'npmp_ical_feed_gen', absint( get_option( 'npmp_ical_feed_gen', 0 ) ) + 1, false );
@@ -126,6 +153,9 @@ if ( is_wp_error( $r ) ) {
 		$long = max( $long, strlen( $line ) );
 	}
 	$ok( 'no feed line passes 75 octets', $long <= 75 );
+	$ok( 'an event with no end runs one hour', $times_ok( $vevent( $feed, $no_end ) ) );
+	$ok( 'an all-day event spans its days as DATE values', false !== strpos( $vevent( $feed, $all_day ), "DTSTART;VALUE=DATE:{$day_ymd}\r\nDTEND;VALUE=DATE:{$after_last}\r\n" ) );
+	$ok( 'an event with only a date is one all-day day', false !== strpos( $vevent( $feed, $one_day ), "DTSTART;VALUE=DATE:{$day_ymd}\r\nDTEND;VALUE=DATE:{$after_one}\r\n" ) );
 	$ok( 'the long title folded and unfolds whole', false !== strpos( $feed, "\r\n " ) && false !== strpos( $unfold, 'SUMMARY:Computing\\, monthly meeting with a long title that folds past seventy-five octets' ) );
 }
 
@@ -137,6 +167,8 @@ if ( $grouped ) {
 	$gics = str_replace( "\r\n ", '', npmp_event_ics_for_email( $grouped ) );
 	$ok( 'a group event\'s email file has the group\'s link', false !== strpos( $gics, 'URL:https://zoom.example/j/3333333?pwd=group' ) && false !== strpos( $gics, "LOCATION:Room 3\\, https://zoom.example/j/3333333?pwd=group\r\n" ) );
 }
+$ok( 'the email file gives an event with no end one hour', $times_ok( $vevent( npmp_event_ics_for_email( $no_end ), $no_end ) ) );
+$ok( 'the email file gives an all-day event DATE values', false !== strpos( $vevent( npmp_event_ics_for_email( $all_day ), $all_day ), "DTSTART;VALUE=DATE:{$day_ymd}\r\nDTEND;VALUE=DATE:{$after_last}\r\n" ) );
 $ok( 'a post that isn\'t an event has no file', '' === npmp_event_ics_for_email( 1 ) );
 
 // Sends, recorded by the SMTP sink.

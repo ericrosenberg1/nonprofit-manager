@@ -988,6 +988,17 @@ function npmp_ajax_log_donation() {
 		wp_send_json_error( array( 'message' => sprintf( /* translators: %s: lowercase singular word for a donation, such as donation or contribution. */ __( 'Please provide a valid %s amount.', 'nonprofit-manager' ), npmp_label( 'donation_lc' ) ) ) );
 	}
 
+	// Both PayPal buttons post the id of the order PayPal just captured, so a
+	// claim with no order can't be a real gift. Without an API secret it would
+	// record with nothing to dedupe on. We refuse only claims like this one
+	// and never add a per-visitor or per-site cap here: the buttons post each
+	// paid order once and ignore our answer, so a cap would lose a real gift
+	// from a donor who shares an address with someone abusing the form.
+	if ( '' === $transaction_id ) {
+		npmp_payment_debug_log( 'donation log rejected: no order id' );
+		wp_send_json_error( array( 'message' => __( 'We could not verify this payment with PayPal. If you completed the donation, please contact us.', 'nonprofit-manager' ) ) );
+	}
+
 	// A PayPal order already recorded is a replay (a double-fired onApprove,
 	// or someone re-posting a real order id). Answer as the first call did
 	// without re-verifying, re-logging the verification row, or emailing the

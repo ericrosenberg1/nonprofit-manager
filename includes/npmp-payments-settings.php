@@ -771,7 +771,7 @@ function npmp_render_payment_settings_page() {
 			<div class="npmp-gateway-settings npmp-gateway-paypal_link" style="<?php echo ! in_array( 'paypal_link', $enabled_gateways, true ) ? 'display:none;' : ''; ?>">
 				<hr>
 				<h3><?php esc_html_e( 'PayPal Link Configuration', 'nonprofit-manager' ); ?></h3>
-				<p><?php esc_html_e( 'Donors pick the PayPal button, see PayPal in a new tab with the amount filled in, and finish the gift on PayPal. We pass the donor\'s name and email to PayPal too. You\'ll see these gifts in your PayPal account, not in your Donations list here, and we send no thank-you email for PayPal gifts.', 'nonprofit-manager' ); ?></p>
+				<p><?php esc_html_e( 'Donors pick the PayPal button, see PayPal in a new tab with the amount filled in, and finish the gift on PayPal. We also pass the donor\'s name and email to PayPal. You\'ll see these gifts in your PayPal account, not in your Donations list here, and we send no thank-you email for PayPal gifts.', 'nonprofit-manager' ); ?></p>
 				<table class="form-table">
 					<tr>
 						<th><label for="npmp_paypal_email"><?php esc_html_e( 'PayPal Email Address', 'nonprofit-manager' ); ?></label></th>
