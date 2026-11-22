@@ -492,6 +492,187 @@ function npmp_count_total_members() {
 	return isset( $counts->publish ) ? (int) $counts->publish : 0;
 }
 
+/*
+ * Cache for the Dashboard's donation figures.
+ *
+ * The year-to-date and recurring figures each run a grouped query over every
+ * donation, and the wp-admin Dashboard ran both on every load. We keep each
+ * query's rows for 10 minutes, marked with a token we change whenever a
+ * donation is added, edited, trashed, or deleted. A reader uses cached rows
+ * only when their token matches the current one, so a new gift never shows
+ * stale figures.
+ *
+ * We change the token once per request, at shutdown, after every write in
+ * that request. A Dashboard load that read the rows between a write and that
+ * shutdown stored them under the old token, so the next load reads afresh. A
+ * request that changed a donation reads afresh for the rest of the request.
+ * Only the SQL rows are cached: the run rate's "still due to renew" check and
+ * the npmp_annual_recurring_totals filter run on every load.
+ */
+
+/**
+ * Whether this request changed a donation, and mark that it did.
+ *
+ * @param bool $set True to mark the request.
+ * @return bool
+ */
+function npmp_dashboard_donations_dirty( $set = false ) {
+	static $dirty = false;
+	if ( $set ) {
+		$dirty = true;
+	}
+	return $dirty;
+}
+
+/**
+ * The token cached rows must match.
+ *
+ * @return string
+ */
+function npmp_dashboard_donations_token() {
+	return (string) get_option( 'npmp_dashboard_donations_token', '' );
+}
+
+/**
+ * Cached rows for one Dashboard donation query.
+ *
+ * @param string $name  Query name.
+ * @param string $scope What else the rows depend on (the year for YTD).
+ * @param string $token Token read before the query would run.
+ * @return array|null Rows, or null to run the query.
+ */
+function npmp_dashboard_donations_cache_get( $name, $scope, $token ) {
+	if ( npmp_dashboard_donations_dirty() ) {
+		return null;
+	}
+	$hit = get_transient( 'npmp_dash_' . $name );
+	if ( ! is_array( $hit ) || ! isset( $hit['token'], $hit['scope'], $hit['rows'] ) || ! is_array( $hit['rows'] ) ) {
+		return null;
+	}
+	if ( (string) $hit['token'] !== (string) $token || (string) $hit['scope'] !== (string) $scope ) {
+		return null;
+	}
+	return $hit['rows'];
+}
+
+/**
+ * Keep one Dashboard donation query's rows for 10 minutes.
+ *
+ * @param string $name  Query name.
+ * @param string $scope What else the rows depend on.
+ * @param string $token Token read before the query ran.
+ * @param array  $rows  Rows.
+ * @return void
+ */
+function npmp_dashboard_donations_cache_set( $name, $scope, $token, $rows ) {
+	if ( npmp_dashboard_donations_dirty() ) {
+		return;
+	}
+	set_transient(
+		'npmp_dash_' . $name,
+		array(
+			'token' => (string) $token,
+			'scope' => (string) $scope,
+			'rows'  => (array) $rows,
+		),
+		10 * MINUTE_IN_SECONDS
+	);
+}
+
+/**
+ * Note that this request changed a donation. We change the token at shutdown.
+ *
+ * @return void
+ */
+function npmp_dashboard_donations_changed() {
+	if ( npmp_dashboard_donations_dirty() ) {
+		return;
+	}
+	npmp_dashboard_donations_dirty( true );
+	add_action( 'shutdown', 'npmp_dashboard_donations_new_token' );
+}
+
+/**
+ * Change the token, so every cached row set misses.
+ *
+ * @return void
+ */
+function npmp_dashboard_donations_new_token() {
+	update_option( 'npmp_dashboard_donations_token', uniqid( '', true ), false );
+}
+
+/**
+ * Whether a post ID or object is a donation.
+ *
+ * @param int|WP_Post|null $post Post ID or object.
+ * @return bool
+ */
+function npmp_dashboard_is_donation( $post ) {
+	$type = is_object( $post ) && isset( $post->post_type ) ? (string) $post->post_type : (string) get_post_type( $post );
+	return 'npmp_donation' === $type;
+}
+
+/**
+ * save_post_npmp_donation: a donation was added or edited (trash and
+ * restore go through wp_update_post() too).
+ *
+ * @return void
+ */
+function npmp_dashboard_donations_on_save() {
+	npmp_dashboard_donations_changed();
+}
+
+/**
+ * transition_post_status: a donation changed status.
+ *
+ * @param string  $new_status New status.
+ * @param string  $old_status Old status.
+ * @param WP_Post $post       Post.
+ * @return void
+ */
+function npmp_dashboard_donations_on_status( $new_status, $old_status, $post ) {
+	if ( $new_status !== $old_status && npmp_dashboard_is_donation( $post ) ) {
+		npmp_dashboard_donations_changed();
+	}
+}
+
+/**
+ * before_delete_post and deleted_post: a donation went away.
+ *
+ * @param int          $post_id Post ID.
+ * @param WP_Post|null $post    Post, when WordPress passes one.
+ * @return void
+ */
+function npmp_dashboard_donations_on_delete( $post_id, $post = null ) {
+	if ( npmp_dashboard_is_donation( $post ? $post : $post_id ) ) {
+		npmp_dashboard_donations_changed();
+	}
+}
+
+/**
+ * added_, updated_, and deleted_post_meta: a donation's amount, currency,
+ * frequency, or email changed.
+ *
+ * @param int|int[] $meta_id   Meta ID or IDs.
+ * @param int       $object_id Post ID.
+ * @param string    $meta_key  Meta key.
+ * @return void
+ */
+function npmp_dashboard_donations_on_meta( $meta_id, $object_id, $meta_key ) {
+	if ( in_array( $meta_key, array( '_npmp_donation_amount', '_npmp_donation_currency', '_npmp_donation_frequency', '_npmp_donation_email' ), true )
+		&& npmp_dashboard_is_donation( (int) $object_id ) ) {
+		npmp_dashboard_donations_changed();
+	}
+}
+
+add_action( 'save_post_npmp_donation', 'npmp_dashboard_donations_on_save' );
+add_action( 'transition_post_status', 'npmp_dashboard_donations_on_status', 10, 3 );
+add_action( 'before_delete_post', 'npmp_dashboard_donations_on_delete', 10, 2 );
+add_action( 'deleted_post', 'npmp_dashboard_donations_on_delete', 10, 2 );
+add_action( 'added_post_meta', 'npmp_dashboard_donations_on_meta', 10, 3 );
+add_action( 'updated_post_meta', 'npmp_dashboard_donations_on_meta', 10, 3 );
+add_action( 'deleted_post_meta', 'npmp_dashboard_donations_on_meta', 10, 3 );
+
 /**
  * Helper: Get year-to-date donation total in the site currency.
  *
@@ -528,7 +709,14 @@ function npmp_get_ytd_donation_totals_by_currency() {
 	// no stored amount contributed 0 before and is excluded by the join now.
 	// Grouped by currency so a site that changed currency never adds pounds
 	// to dollars. A donation with no currency stored is USD.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, no row set to cache.
+	// The rows stay cached for 10 minutes until a donation changes (see
+	// npmp_dashboard_donations_cache_get()).
+	$token = npmp_dashboard_donations_token();
+	$rows  = npmp_dashboard_donations_cache_get( 'ytd', (string) $current_year, $token );
+	if ( null !== $rows ) {
+		return npmp_group_totals_by_currency( $rows );
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Grouped aggregate, cached above in a transient keyed to donation changes.
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT COALESCE( c.meta_value, '' ) AS currency, SUM(m.meta_value + 0) AS total
@@ -544,8 +732,13 @@ function npmp_get_ytd_donation_totals_by_currency() {
 		),
 		ARRAY_A
 	);
+	if ( is_array( $rows ) ) {
+		// A failed query returns null. We never cache that as "no gifts".
+		npmp_dashboard_donations_cache_set( 'ytd', (string) $current_year, $token, $rows );
+	}
+	$rows = is_array( $rows ) ? $rows : array();
 
-	return npmp_group_totals_by_currency( is_array( $rows ) ? $rows : array() );
+	return npmp_group_totals_by_currency( $rows );
 }
 
 /**
@@ -589,8 +782,13 @@ function npmp_get_annual_recurring_totals_by_currency() {
 	// which picks the same gift ORDER BY date DESC, ID DESC would. The amount
 	// is the text after the first "|". This replaced GROUP_CONCAT ...
 	// SEPARATOR, which SQLite can't run, and needs no sort inside each group.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Small grouped aggregate, nothing worth caching.
-	$rows = $wpdb->get_results(
+	//
+	// The rows stay cached for 10 minutes until a donation changes. Which
+	// gifts are still due to renew is worked out below on every load.
+	$token  = npmp_dashboard_donations_token();
+	$cached = npmp_dashboard_donations_cache_get( 'recurring', '', $token );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Grouped aggregate, cached in a transient keyed to donation changes.
+	$rows = null !== $cached ? $cached : $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT f.meta_value AS frequency, COALESCE( c.meta_value, '' ) AS currency,
 				MAX( CONCAT( p.post_date_gmt, ' ', ( p.ID + 1000000000000 ), '|', a.meta_value ) ) AS latest,
@@ -611,8 +809,13 @@ function npmp_get_annual_recurring_totals_by_currency() {
 		),
 		ARRAY_A
 	);
+	if ( null === $cached && is_array( $rows ) ) {
+		// A failed query returns null. We never cache that as "no gifts".
+		npmp_dashboard_donations_cache_set( 'recurring', '', $token, $rows );
+	}
+	$rows = is_array( $rows ) ? $rows : array();
 
-	$rows   = npmp_recurring_latest_rows( is_array( $rows ) ? $rows : array() );
+	$rows   = npmp_recurring_latest_rows( $rows );
 	$totals = npmp_recurring_run_rate_totals( $rows, time() );
 
 	/**
