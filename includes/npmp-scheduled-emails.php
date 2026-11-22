@@ -2288,20 +2288,23 @@ function npmp_newsletter_queue_is_stalled( $waiting, $oldest, $since_send ) {
 
 /**
  * The mail queue right now: readers waiting, how long the oldest has waited,
- * and how long since anything went out.
+ * how long since anything went out, and how many waiting readers we already
+ * tried and couldn't send to.
  *
  * queued_at and sent_at are written with current_time( 'mysql' ), so they hold
  * site-local time and go back through the site timezone, never gmdate().
  *
- * @return array{waiting:int,oldest:int,since_send:int|null}
+ * @return array{waiting:int,oldest:int,since_send:int|null,retrying:int}
  */
 function npmp_newsletter_queue_state() {
 	global $wpdb;
 	$table = $wpdb->prefix . 'npmp_newsletter_queue';
 	$now   = npmp_scheduled_emails_now();
 
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dedicated queue table, fixed name, read for one Site Health test.
-	$row = $wpdb->get_row( "SELECT COUNT(*) AS waiting, MIN(queued_at) AS oldest FROM {$table} WHERE status = 'pending'" );
+	// A table from before the retry columns has no attempts to count.
+	$tried = function_exists( 'npmp_newsletter_queue_has_retries' ) && npmp_newsletter_queue_has_retries() ? 'SUM( attempts > 0 )' : '0';
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Dedicated queue table, fixed name and a fixed expression, read for one Site Health test.
+	$row = $wpdb->get_row( "SELECT COUNT(*) AS waiting, MIN(queued_at) AS oldest, {$tried} AS retrying FROM {$table} WHERE status = 'pending'" );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Same table and test.
 	$last = (string) $wpdb->get_var( "SELECT MAX(sent_at) FROM {$table}" );
 
@@ -2312,6 +2315,7 @@ function npmp_newsletter_queue_state() {
 		'waiting'    => $row ? (int) $row->waiting : 0,
 		'oldest'     => $oldest_ts ? (int) max( 0, round( ( $now - $oldest_ts ) / 60 ) ) : 0,
 		'since_send' => $last_ts ? (int) max( 0, round( ( $now - $last_ts ) / 60 ) ) : null,
+		'retrying'   => $row ? (int) $row->retrying : 0,
 	);
 }
 
@@ -2351,7 +2355,7 @@ function npmp_newsletter_queue_health_test() {
 			(int) $state['waiting'],
 			(int) floor( $state['oldest'] / 60 )
 		)
-	) . '</p><p>' . esc_html( npmp_newsletter_queue_fix_text() ) . '</p>';
+	) . '</p><p>' . esc_html( npmp_newsletter_queue_fix_text( (int) ( $state['retrying'] ?? 0 ) ) ) . '</p>';
 	return $result;
 }
 
@@ -2359,10 +2363,27 @@ function npmp_newsletter_queue_health_test() {
  * What to check when the queue isn't emptying. A site already running the
  * scheduler from a system cron job needs the other half of the advice: the
  * standard "set up a real cron job" line is no help to someone who has one.
+ * When we tried waiting readers and the sends failed, the scheduler runs and
+ * the mail settings need a look instead.
  *
+ * @param int $retrying Waiting readers we already tried and couldn't send to.
  * @return string
  */
-function npmp_newsletter_queue_fix_text() {
+function npmp_newsletter_queue_fix_text( $retrying = 0 ) {
+	if ( (int) $retrying > 0 ) {
+		$tries = class_exists( 'NPMP_Newsletter_Manager' ) ? count( NPMP_Newsletter_Manager::retry_delays() ) + 1 : 4;
+		return sprintf(
+			/* translators: 1: number of readers, 2: how many times Nonprofit Manager tries each send. */
+			_n(
+				'Nonprofit Manager tried to send to %1$d of them and couldn\'t get the email to your mail server. Nonprofit Manager tries each send %2$d times, then marks it failed. Open Email Settings and send yourself a test email.',
+				'Nonprofit Manager tried to send to %1$d of them and couldn\'t get the emails to your mail server. Nonprofit Manager tries each send %2$d times, then marks it failed. Open Email Settings and send yourself a test email.',
+				(int) $retrying,
+				'nonprofit-manager'
+			),
+			(int) $retrying,
+			$tries
+		);
+	}
 	if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
 		return sprintf(
 			/* translators: %s: the wp-cron.php URL. */

@@ -57,7 +57,7 @@ function npmp_run_plugin_activation_tasks( $network_wide = false ) {
 	npmp_create_members_table();
 	npmp_create_donations_table();
 	npmp_create_contacts_table();
-	npmp_create_newsletter_queue_table();
+	npmp_upgrade_newsletter_queue_table();
 	npmp_create_newsletter_opens_table();
 	npmp_create_newsletter_clicks_table();
 	npmp_create_payment_log_table();
@@ -549,7 +549,27 @@ function npmp_create_contacts_table() {
 }
 
 /**
+ * The newsletter queue table's schema version. Raise it with every change to
+ * npmp_create_newsletter_queue_table(), and teach
+ * npmp_newsletter_queue_schema_complete() the new pieces.
+ *
+ * 2 (the release after 2026.11.26): attempts and retry_at, so a failed send
+ * waits and tries again, and the status_queued index the per-minute drain
+ * reads.
+ */
+const NPMP_NEWSLETTER_QUEUE_DB_VERSION = '2';
+
+/**
  * Create (or update) the newsletter queue table.
+ *
+ * dbDelta() adds what an existing table lacks, so this upgrades a table from
+ * an older release too. It only adds: it never drops a column or touches a
+ * row.
+ *
+ * attempts counts the sends tried for a row, and retry_at (UTC) holds a row
+ * that failed back until its next try. status_queued serves the drain's
+ * query (status = 'pending', ordered by queued_at and id), and its last
+ * column lets MySQL skip rows waiting for a retry without reading them.
  *
  * @return void
  */
@@ -567,8 +587,11 @@ function npmp_create_newsletter_queue_table() {
 		status ENUM('pending','sent','failed') DEFAULT 'pending',
 		queued_at DATETIME,
 		sent_at DATETIME NULL,
+		attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+		retry_at DATETIME NULL,
 		PRIMARY KEY (id),
-		KEY newsletter_status (newsletter_id,status)
+		KEY newsletter_status (newsletter_id,status),
+		KEY status_queued (status,queued_at,id,retry_at)
 	) {$charset};";
 
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -576,22 +599,92 @@ function npmp_create_newsletter_queue_table() {
 }
 
 /**
- * Ensure the newsletter queue table exists on sites that activated the plugin
- * before the send queue moved off the npmp_nl_queue post type and into this
- * dedicated table (activation hooks only run on a fresh activation, not on
- * every already-active install). Belt-and-braces alongside the activation-time
- * creation above, same reasoning as the other npmp_maybe_create_*_table()
- * functions in this file.
+ * Whether the queue table has everything schema version
+ * NPMP_NEWSLETTER_QUEUE_DB_VERSION adds, read from the live table.
+ *
+ * @return bool
+ */
+function npmp_newsletter_queue_schema_complete() {
+	global $wpdb;
+	$table = $wpdb->prefix . 'npmp_newsletter_queue';
+
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Schema check on a fixed table name, the same reads dbDelta() makes.
+	$columns = (array) $wpdb->get_results( "SHOW COLUMNS FROM {$table}" );
+	$indexes = (array) $wpdb->get_results( "SHOW INDEX FROM {$table}" );
+	// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+	return npmp_newsletter_queue_schema_missing( wp_list_pluck( $columns, 'Field' ), wp_list_pluck( $indexes, 'Key_name' ) ) === array();
+}
+
+/**
+ * What the queue table still lacks, by name.
+ *
+ * @param string[] $columns Column names the table has.
+ * @param string[] $indexes Index names the table has.
+ * @return string[] Missing column and index names, empty when it's complete.
+ */
+function npmp_newsletter_queue_schema_missing( $columns, $indexes ) {
+	$have = array_map( 'strtolower', array_merge( (array) $columns, (array) $indexes ) );
+	return array_values( array_diff( array( 'attempts', 'retry_at', 'status_queued' ), $have ) );
+}
+
+/**
+ * Whether the queue table is on the current schema, so the drain may use
+ * attempts and retry_at. Until it is, the drain runs the way 2026.11.26 did.
+ *
+ * @return bool
+ */
+function npmp_newsletter_queue_has_retries() {
+	return NPMP_NEWSLETTER_QUEUE_DB_VERSION === (string) get_option( 'npmp_newsletter_queue_db_version', '' );
+}
+
+/**
+ * Bring the queue table up to the current schema and record the version.
+ *
+ * One request at a time: a second request that arrives while the first one
+ * alters the table skips the upgrade, and its drain runs the old way. If the
+ * database refuses the change (a user without ALTER, say), we record nothing
+ * and wait an hour before we try again, and the queue keeps sending the old
+ * way meanwhile.
+ *
+ * @return bool True when the table is on the current schema.
+ */
+function npmp_upgrade_newsletter_queue_table() {
+	if ( ! npmp_mail_queue_lock( 'newsletter_queue_schema', 600 ) ) {
+		return false;
+	}
+	try {
+		npmp_create_newsletter_queue_table();
+		if ( ! npmp_newsletter_queue_schema_complete() ) {
+			set_transient( 'npmp_newsletter_queue_db_retry_later', 1, HOUR_IN_SECONDS );
+			return false;
+		}
+		update_option( 'npmp_newsletter_queue_db_version', NPMP_NEWSLETTER_QUEUE_DB_VERSION );
+		// The setup wizard reads this flag as a sign of an earlier install.
+		update_option( 'npmp_newsletter_queue_table_created', 1 );
+		delete_transient( 'npmp_newsletter_queue_db_retry_later' );
+		return true;
+	} finally {
+		npmp_mail_queue_unlock( 'newsletter_queue_schema' );
+	}
+}
+
+/**
+ * Create or upgrade the newsletter queue table on the first load after an
+ * install or an update. Activation runs only on a fresh activation, never on
+ * an update, so this is how an existing site gets the new schema.
+ *
+ * Until 2026.11.26 a flag (npmp_newsletter_queue_table_created) ran this
+ * once, so no later change could reach an existing table. The schema version
+ * option decides now.
  *
  * @return void
  */
 function npmp_maybe_create_newsletter_queue_table() {
-	if ( get_option( 'npmp_newsletter_queue_table_created', false ) ) {
+	if ( npmp_newsletter_queue_has_retries() || get_transient( 'npmp_newsletter_queue_db_retry_later' ) ) {
 		return;
 	}
-
-	npmp_create_newsletter_queue_table();
-	update_option( 'npmp_newsletter_queue_table_created', 1 );
+	npmp_upgrade_newsletter_queue_table();
 }
 add_action( 'plugins_loaded', 'npmp_maybe_create_newsletter_queue_table', 40 );
 

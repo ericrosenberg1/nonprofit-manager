@@ -808,7 +808,8 @@ function npmp_process_digest_queue() {
  */
 function npmp_drain_digest_batch() {
 	global $wpdb;
-	$table = $wpdb->prefix . 'npmp_digest_queue';
+	$table   = $wpdb->prefix . 'npmp_digest_queue';
+	$started = microtime( true );
 
 	$limit = intval( get_option( 'npmp_digest_rate_limit', 10 ) );
 	if ( $limit <= 0 ) {
@@ -843,7 +844,16 @@ function npmp_drain_digest_batch() {
 	// queue was built. Look the batch up once and mail only who still wants it.
 	$contacts = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance()->lookup_emails( wp_list_pluck( $batch, 'email' ) ) : null;
 
+	/** This filter is documented in includes/email-newsletter/class-newsletter-manager.php. */
+	$budget = (float) apply_filters( 'npmp_mail_queue_batch_seconds', 240, 'digest' );
+
 	foreach ( $batch as $row ) {
+		// A slow batch stops before its run lock goes stale, and the rows it
+		// didn't reach wait for the next run.
+		if ( ! npmp_mail_queue_batch_continues( 'digest', $started, $budget ) ) {
+			break;
+		}
+
 		$email = sanitize_email( $row->email );
 
 		if ( null !== $contacts && ! npmp_digest_still_wanted( $contacts, $email ) ) {
