@@ -42,7 +42,7 @@ if ( ! function_exists( 'npmp_pro_feature_pages' ) ) {
 			'npmp_automations'   => array(
 				'menu'     => __( 'Automations', 'nonprofit-manager' ),
 				'title'    => __( 'Email Automations', 'nonprofit-manager' ),
-				'line'     => __( 'Send a welcome email on signup, a thank-you on each donation, a membership expiry reminder, a note when a recurring payment fails, and an email when you add a tag, with no one pressing Send. Email automations come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
+				'line'     => __( 'Send a welcome email on signup, a thank-you on each donation, a note when a recurring payment fails, and an email when you add a tag, with no one pressing Send. Email automations come with Nonprofit Manager Pro.', 'nonprofit-manager' ),
 				'campaign' => 'automations',
 			),
 			'npmp_custom_fields' => array(

@@ -2027,7 +2027,7 @@ function npmp_render_event_settings_page() {
 
 	echo '<tr>';
 	echo '<td><code>[npmp_calendar print="no"]</code></td>';
-	echo '<td>' . esc_html__( 'Hides the Print or save as PDF button on this calendar. It works on [npmp_events] too.', 'nonprofit-manager' ) . '</td>';
+	echo '<td>' . esc_html__( 'Hides the Print or save as PDF button on this calendar. You can set it in the [npmp_events] shortcode.', 'nonprofit-manager' ) . '</td>';
 	echo '</tr>';
 
 	echo '</tbody></table>';

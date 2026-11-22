@@ -1259,7 +1259,7 @@ function npmp_import_hub_render_step_import( array $source, array $facts, $state
 	echo '<p>' . esc_html(
 		sprintf(
 			/* translators: %s: old plugin name. */
-			__( 'Bring over what you keep in %s. You review everything before you move anything, and you keep the old plugin\'s copy too.', 'nonprofit-manager' ),
+			__( 'Bring over what you keep in %s. You review everything before you move anything, and you also keep the old plugin\'s copy.', 'nonprofit-manager' ),
 			$source['name']
 		)
 	) . '</p>';

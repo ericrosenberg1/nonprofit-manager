@@ -608,7 +608,7 @@ function npmp_render_setup_wizard() {
 								<input type="checkbox" name="npmp_feature_newsletters" id="npmp_feature_newsletters" <?php checked( ! empty( $features['newsletters'] ) ); ?> onchange="npmpToggleFeatureCard(this)">
 								<?php echo esc_html( $npmp_feature_names['newsletters'] ); ?>
 							</span>
-							<p><?php esc_html_e( 'Send newsletters and one scheduled email per event to your members. Needs Member Tracking, so ticking this ticks it too.', 'nonprofit-manager' ); ?></p>
+							<p><?php esc_html_e( 'Send newsletters and one scheduled email per event to your members. Tick this box and you turn on Member Tracking, which these emails require.', 'nonprofit-manager' ); ?></p>
 						</label>
 					</div>
 

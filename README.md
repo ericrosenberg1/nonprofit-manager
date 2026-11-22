@@ -76,7 +76,7 @@ To build the zip from this repo, run `./build.sh`. The script packages committed
 
 - Recurring donations.
 - Automatic membership dues billing.
-- Email automations such as welcome emails, donation receipts and expiry reminders.
+- Email automations such as welcome emails and donation receipts.
 - Custom member fields and segments built with AND/OR conditions.
 - PayPal Smart Buttons with a verification record for every capture.
 - Sending through Amazon SES (port 2587 for hosts that block 587), SendGrid, Mailgun, Postmark, Brevo or any SMTP server.
