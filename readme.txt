@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.26
+Stable tag: 2026.11.27
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -181,6 +181,20 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.27 =
+* Added a Stripe webhook to record every gift.
+* Allowed a signing secret for each Stripe endpoint.
+* Fixed gifts crossing between sites sharing Stripe.
+* Added three retries for failed newsletter sends.
+* Fixed slow newsletter batches sending readers two copies.
+* Sped up the newsletter queue with an index.
+* Capped contact form messages per visitor and site.
+* Refused PayPal gift claims with no order ID.
+* Gave iCal events with no end one hour.
+* Wrote all-day iCal events as dates.
+* Cached Dashboard donation totals until a gift changes.
+* Removed the expiry reminder claim from the listing.
 
 = 2026.11.26 =
 * Fixed a gift recording twice on simultaneous payment requests.
@@ -684,11 +698,14 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 
 == Upgrade Notice ==
 
+= 2026.11.27 =
+Update to record Stripe gifts from donors who close the tab and to retry failed newsletter sends.
+
 = 2026.11.26 =
 Update so a gift never records twice when two requests for the same payment arrive together.
 
 = 2026.11.25 =
-Update if newsletters stopped sending after you enabled Newsletters.
+Update to send the newsletters your site queued and never sent.
 
 = 2026.11.16 =
 Update for security hardening of imports, saved SMTP and API keys, unsubscribe confirmations, and reCAPTCHA checks.

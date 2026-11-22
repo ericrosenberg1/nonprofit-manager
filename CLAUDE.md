@@ -504,7 +504,7 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **We never rate-limit the PayPal logger** (`npmp_ajax_log_donation()`). We post each captured PayPal order from the
   browser once and ignore the answer, so if we refused a post we'd lose a paid gift, and with a per-site cap one abuser could
   block every gift. We refuse only a claim with no order ID. We cap the contact form (`contact_form`, 10 an hour per visitor,
-  `contact_form_site`, 100) and Pro's join checkout (`join_checkout`, 10, `join_checkout_site`, 200) with
+  `contact_form_site`, 100) and Pro's join checkout (`join_checkout`, 10 in 10 minutes per visitor, no site cap) with
   `npmp_rate_limit_allows()`, and you can change or turn off each cap with the `npmp_rate_limit_max` filter. Unit `tests/test-donation-replay.php` (sections 5 and 6),
   `tests/test-contact-form-limits.php`, Pro's `tests/test-join-checkout.php`, rigs `tests/rig/contact-form.php` and Pro's
   `tests/rig/join-limits.php`.
