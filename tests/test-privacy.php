@@ -54,6 +54,15 @@ function wp_strip_all_tags( $text ) {
 function wp_json_encode( $v ) {
 	return json_encode( $v );
 }
+function admin_url( $path = '' ) {
+	return 'https://site.test/wp-admin/' . $path;
+}
+function esc_url( $url ) {
+	return str_replace( '&', '&#038;', (string) $url );
+}
+function esc_attr( $t ) {
+	return htmlspecialchars( (string) $t, ENT_QUOTES, 'UTF-8' );
+}
 
 /** In-memory stand-in for NPMP_Privacy_Store, same methods and answers. */
 class T_Store {
@@ -332,6 +341,7 @@ function t_erase_all( $email ) {
 		'shape'    => true,
 	);
 	$page = 1;
+	npmp_privacy_pro_eraser_present( true );
 	do {
 		$r = npmp_privacy_erase( $email, $page );
 		$out['shape'] = $out['shape'] && is_bool( $r['items_removed'] ) && is_bool( $r['items_retained'] ) && is_array( $r['messages'] ) && is_bool( $r['done'] );
@@ -494,7 +504,7 @@ $cases = array(
 	'active'    => 'an active recurring plan',
 	'failed'    => 'a failed payment that Stripe may still retry',
 	'lapsed'    => 'a lapsed plan that Stripe may still retry',
-	'paused'    => '',
+	'paused'    => 'a paused plan that Stripe bills again if anyone resumes the plan',
 	'cancelled' => '',
 );
 foreach ( $cases as $status => $words ) {
@@ -505,7 +515,8 @@ foreach ( $cases as $status => $words ) {
 		check( "$status plan holds: contact kept whole", 'Dee Donor', $s->contacts[20]['title'] ?? '' );
 		check( "$status plan holds: gifts untouched", 'donor@example.org', $s->gifts[101]['email'] );
 		check( "$status plan: message words the status", true, false !== strpos( implode( ' ', $r['messages'] ), $words ) );
-		check( "$status plan: message says to activate Pro (Pro off)", true, false !== strpos( implode( ' ', $r['messages'] ), 'Activate Nonprofit Manager Pro, cancel the plan' ) );
+		check( "$status plan: Pro off sends the admin to Stripe and the card", true, false !== strpos( implode( ' ', $r['messages'] ), 'Nonprofit Manager Pro is off, so you have no Cancel button here. Cancel the plan in your Stripe dashboard' ) );
+		check( "$status plan: Pro off links the card", true, false !== strpos( implode( ' ', $r['messages'] ), '<a href="https://site.test/wp-admin/admin.php?page=npmp_general_settings#npmp-privacy-requests">Personal data requests</a>' ) );
 	} else {
 		check( "$status plan does not hold: contact deleted", false, isset( $s->contacts[20] ) );
 		check( "$status plan does not hold: gifts stripped", '', $s->gifts[101]['email'] );
@@ -528,11 +539,19 @@ $before      = json_encode( array( $s->contacts, $s->gifts ) );
 $r           = t_erase_all( 'donor@example.org' );
 check( 'Pro data with no Pro eraser holds', $before, json_encode( array( $s->contacts, $s->gifts ) ) );
 check( 'message says to activate or update Pro', true, false !== strpos( implode( ' ', $r['messages'] ), 'Activate or update Nonprofit Manager Pro' ) );
+check( 'message says no licence is needed', true, false !== strpos( implode( ' ', $r['messages'] ), 'this step needs no licence' ) );
 $s                       = t_seed();
 $s->leftover             = 3;
 $GLOBALS['t_pro_eraser'] = true;
+$before                  = json_encode( array( $s->contacts, $s->gifts ) );
+$r                       = t_erase_all( 'donor@example.org' );
+check( 'Pro data left after Pro\'s eraser ran still holds', $before, json_encode( array( $s->contacts, $s->gifts ) ) );
+check( 'and says Pro left data', true, false !== strpos( implode( ' ', $r['messages'] ), 'Nonprofit Manager Pro left data about this person' ) );
+check( 'Pro\'s own question skips leftovers', array(), npmp_privacy_erase_holds_for( 'donor@example.org', 'pro' ) );
+$s->leftover = 0;
 t_erase_all( 'donor@example.org' );
-check( 'Pro data with Pro\'s eraser on the list: contact deleted', false, isset( $s->contacts[20] ) );
+check( 'Pro data gone, Pro\'s eraser on the list: contact deleted', false, isset( $s->contacts[20] ) );
+$GLOBALS['t_pro_eraser'] = false;
 $s = t_seed();
 t_erase_all( 'donor@example.org' );
 check( 'no Pro data, no Pro eraser: contact deleted', false, isset( $s->contacts[20] ) );
@@ -578,16 +597,59 @@ foreach ( array( 'plain@example.org', 'donor@example.org', 'gone@example.org' ) 
 	check( $email . ': second run removes nothing', false, $r['removed'] );
 }
 
-echo "\nPolicy text\n";
-if ( ! function_exists( 'esc_attr' ) ) {
-	function esc_attr( $t ) {
-		return htmlspecialchars( (string) $t, ENT_QUOTES, 'UTF-8' );
+echo "\nHolds: one answer for both erasers\n";
+$s                  = t_seed();
+$GLOBALS['t_holds'] = array( 'Legal hold <b>until</b> 2027' );
+check( 'a filter-only hold reaches Pro\'s question', array( 'Legal hold &lt;b&gt;until&lt;/b&gt; 2027' ), npmp_privacy_erase_holds_for( 'donor@example.org', 'pro' ) );
+$r = t_erase_all( 'donor@example.org' );
+check( 'a filter hold prints as text', array( 'Legal hold &lt;b&gt;until&lt;/b&gt; 2027' ), $r['messages'] );
+$s->leftover = 2;
+$r           = t_erase_all( 'donor@example.org' );
+check( 'a filter hold with Pro rows left: one message, no leftovers note', array( 'Legal hold &lt;b&gt;until&lt;/b&gt; 2027' ), $r['messages'] );
+$GLOBALS['t_holds'] = array();
+$s                  = t_seed();
+$s->plans[]         = array( 'member_id' => 20, 'status' => 'active', 'frequency' => 'monthly' );
+check( 'a plan hold reaches Pro\'s question', 1, count( npmp_privacy_erase_holds_for( 'DONOR@example.org', 'pro' ) ) );
+check( 'billing statuses', array( 'active', 'failed', 'lapsed', 'paused' ), npmp_privacy_billing_statuses() );
+
+echo "\nHolds: words for each way to cancel\n";
+$s          = t_seed();
+$s->plans[] = array( 'member_id' => 20, 'status' => 'active', 'frequency' => 'monthly' );
+check( 'Pro not running reads off', 'off', npmp_privacy_cancel_reach() );
+define( 'NPMP_PRO_VERSION', '2026.11.28' );
+check( 'Pro with no answer reads old', 'old', npmp_privacy_cancel_reach() );
+$r = t_erase_all( 'donor@example.org' );
+check( 'old Pro: card link', true, false !== strpos( implode( ' ', $r['messages'] ), 'may not reach Stripe from its Cancel button' ) && false !== strpos( implode( ' ', $r['messages'] ), '#npmp-privacy-requests' ) );
+$GLOBALS['t_cancel_state'] = 'ready';
+if ( ! function_exists( 'npmp_pro_privacy_cancel_state' ) ) {
+	// Defined here, at run time, so the checks above see no function.
+	function npmp_pro_privacy_cancel_state() {
+		return $GLOBALS['t_cancel_state'];
 	}
 }
+$words = array(
+	'ready'      => 'Cancel the plan on the Recurring Donations or Membership Dues screen, then run this request a second time.',
+	'unlicensed' => 'Cancel button needs an active licence. Cancel the plan in your Stripe dashboard',
+	'no_keys'    => 'needs your Stripe secret key for the current mode, and Payment Settings has none. Cancel the plan in your Stripe dashboard',
+);
+foreach ( $words as $state => $text ) {
+	$GLOBALS['t_cancel_state'] = $state;
+	$s                         = t_seed();
+	$s->plans[]                = array( 'member_id' => 20, 'status' => 'lapsed', 'frequency' => 'monthly' );
+	$r                         = t_erase_all( 'donor@example.org' );
+	$all                       = implode( ' ', $r['messages'] );
+	check( "$state: the words fit", true, false !== strpos( $all, $text ) );
+	check( "$state: " . ( 'ready' === $state ? 'no card link' : 'card link' ), 'ready' !== $state, false !== strpos( $all, '#npmp-privacy-requests' ) );
+}
+
+echo "\nPolicy text\n";
 $text = npmp_privacy_policy_text();
 check( 'names Stripe, PayPal, and Venmo', true, false !== strpos( $text, 'Stripe, PayPal, or Venmo' ) );
 check( 'names the captcha services', true, false !== strpos( $text, 'Cloudflare Turnstile or Google reCAPTCHA' ) );
 check( 'marks the guidance for core', true, false !== strpos( $text, 'privacy-policy-tutorial' ) );
+check( 'open tracking reads as on unless turned off', true, false !== strpos( $text, 'Unless we turn it off, we record when you open a newsletter.' ) );
+check( 'link tracking reads as off unless turned on', true, false !== strpos( $text, 'If we turn on link tracking, we also record which links' ) );
+check( 'a paused plan keeps the record', true, false !== strpos( $text, 'including a paused plan we could resume' ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
