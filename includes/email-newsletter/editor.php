@@ -511,7 +511,7 @@ function npmp_newsletter_send_controls_html($post) {
 
     echo '<p><label for="npmp-newsletter-preheader"><strong>' . esc_html__('Preheader', 'nonprofit-manager') . '</strong></label>';
     echo '<input type="text" id="npmp-newsletter-preheader" name="npmp_newsletter_preheader" class="widefat" value="' . esc_attr($preheader) . '" placeholder="' . esc_attr__('Short summary that appears next to the subject line.', 'nonprofit-manager') . '"></p>';
-    echo '<p class="description npmp-newsletter-tags">' . esc_html__('To greet each reader by name, type [first_name] in the subject, preheader, body or template. [first_name default="Member"] fills in a word for contacts with no name. You can also use the [last_name] and [name] tags.', 'nonprofit-manager') . npmp_email_recipient_tag_help_suffix() . '</p>';
+    echo '<p class="description npmp-newsletter-tags">' . esc_html__('To greet each reader by name, type [first_name] in the subject, preheader, body or template. [first_name default="Member"] fills in a word for contacts with no name. You can also use the [last_name] and [name] tags.', 'nonprofit-manager') . wp_kses_post(npmp_email_recipient_tag_help_suffix()) . '</p>';
 
     echo '<fieldset class="npmp-newsletter-audience">';
     echo '<legend><strong>' . esc_html__('Audience', 'nonprofit-manager') . '</strong></legend>';
@@ -885,8 +885,11 @@ function npmp_newsletter_list_words() {
     $words = apply_filters(
         'wp_sprintf_l', // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core's own filter, so a site's change shows in both labels.
         array(
+            /* translators: 1: first list item, 2: second list item. */
             'between'          => sprintf(__('%1$s, %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- Core's own string, as wp_sprintf_l() reads it.
+            /* translators: 1: next-to-last list item, 2: last list item. */
             'between_last_two' => sprintf(__('%1$s, and %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain
+            /* translators: 1: first list item, 2: second list item. */
             'between_only_two' => sprintf(__('%1$s and %2$s'), '', ''), // phpcs:ignore WordPress.WP.I18n.MissingArgDomain
         )
     );

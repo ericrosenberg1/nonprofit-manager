@@ -1292,8 +1292,8 @@ function npmp_import_render_page() {
 						<span class="description">
 							<?php
 							printf(
-								/* translators: %s is a link to the Mailchimp API keys page. */
 								wp_kses(
+									/* translators: %s is a link to the Mailchimp API keys page. */
 									__( 'Get a key at <a href="%s" target="_blank" rel="noopener">your Mailchimp account &rarr; Extras &rarr; API keys</a>. Click <strong>Create A Key</strong>, name it "Nonprofit Manager", and copy the value. The key ends with the data center, e.g. <code>-us21</code>.', 'nonprofit-manager' ),
 									array(
 										'a'      => array(
@@ -1904,14 +1904,14 @@ function npmp_import_render_scripts( $field_labels ) {
 			if (!col && (!extra.supported || $.isEmptyObject(extra.targets))) { return ''; }
 			html += '<optgroup label="<?php echo esc_js( __( 'Custom fields', 'nonprofit-manager' ) ); ?>">';
 			if (col) {
-				label = '<?php echo esc_js( __( 'New custom field: %1$s (%2$s)', 'nonprofit-manager' ) ); ?>'
+				label = '<?php echo esc_js( /* translators: 1: custom field name, 2: field type. */ __( 'New custom field: %1$s (%2$s)', 'nonprofit-manager' ) ); ?>'
 					.replace('%1$s', col.label).replace('%2$s', extra.types[col.type] || col.type);
 				if (!extra.supported) { label += ' <?php echo esc_js( __( '(needs Pro)', 'nonprofit-manager' ) ); ?>'; }
 				html += '<option value="cf_new"' + (extra.supported ? '' : ' disabled') + '>' + escHtml(label) + '</option>';
 			}
 			if (extra.supported) {
 				$.each(extra.targets, function(id, t) {
-					label = '<?php echo esc_js( __( 'Your custom field: %s', 'nonprofit-manager' ) ); ?>'.replace('%s', t.label);
+					label = '<?php echo esc_js( /* translators: %s: custom field name. */ __( 'Your custom field: %s', 'nonprofit-manager' ) ); ?>'.replace('%s', t.label);
 					html += '<option value="cf:' + escHtml(String(id)) + '">' + escHtml(label) + '</option>';
 				});
 			}
@@ -1940,7 +1940,7 @@ function npmp_import_render_scripts( $field_labels ) {
 				note.html('<p></p>').find('p').text('<?php echo esc_js( __( 'Some columns have no matching contact field. To keep one, pick “New custom field” and we make a field with the name and type shown, or pick one of your own custom fields. We leave behind any column on Skip, and we skip and count any value that doesn\'t fit its field.', 'nonprofit-manager' ) ); ?>');
 			} else {
 				note.html('<p><span class="npmp-extra-text"></span> ' + extra.badge + '</p>');
-				note.find('.npmp-extra-text').text('<?php echo esc_js( __( 'These columns need Pro custom fields, so they stay behind: %s.', 'nonprofit-manager' ) ); ?>'.replace('%s', names.join(', ')));
+				note.find('.npmp-extra-text').text('<?php echo esc_js( /* translators: %s: column names. */ __( 'These columns need Pro custom fields, so they stay behind: %s.', 'nonprofit-manager' ) ); ?>'.replace('%s', names.join(', ')));
 			}
 			note.show();
 		}
@@ -2121,7 +2121,7 @@ function npmp_import_render_scripts( $field_labels ) {
 				var imported = (s.imported || 0) + (s.updated || 0);
 				var total    = s.source_total || imported;
 				var cap      = s.cap_max_rows || <?php echo (int) NPMP_IMPORT_FREE_MAX_ROWS; ?>;
-				var template = '<?php echo esc_js( __( 'We imported the first %1$s of %2$s records. With the free version, you can import up to %3$s records at a time and %3$s new contacts in total. Upgrade to Pro to import the rest.', 'nonprofit-manager' ) ); ?>';
+				var template = '<?php echo esc_js( /* translators: 1: records imported, 2: records in the file, 3: the free limit. */ __( 'We imported the first %1$s of %2$s records. With the free version, you can import up to %3$s records at a time and %3$s new contacts in total. Upgrade to Pro to import the rest.', 'nonprofit-manager' ) ); ?>';
 				$('#npmp-import-cap-text').text(
 					template
 						.replace('%1$s', npmpNum(imported))

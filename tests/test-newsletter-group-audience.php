@@ -88,6 +88,9 @@ function current_user_can( $cap, ...$args ) {
 function esc_url( $url ) {
 	return $url;
 }
+function wp_kses_post( $text ) {
+	return $text;
+}
 function npmp_newsletter_preview_url( $id ) {
 	return 'preview-' . (int) $id;
 }

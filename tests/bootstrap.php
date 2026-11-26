@@ -54,6 +54,20 @@ if ( ! function_exists( 'esc_html__' ) ) {
 		return $text;
 	}
 }
+if ( ! function_exists( 'wp_strip_all_tags' ) ) {
+	// WordPress core's body, so a test sees what a live site does.
+	function wp_strip_all_tags( $text, $remove_breaks = false ) {
+		if ( is_null( $text ) ) {
+			return '';
+		}
+		$text = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', (string) $text );
+		$text = strip_tags( $text );
+		if ( $remove_breaks ) {
+			$text = preg_replace( '/[\r\n\t ]+/', ' ', $text );
+		}
+		return trim( $text );
+	}
+}
 if ( ! function_exists( 'esc_html' ) ) {
 	function esc_html( $text ) {
 		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );

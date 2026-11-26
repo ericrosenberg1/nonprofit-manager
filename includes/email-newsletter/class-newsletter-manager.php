@@ -1,6 +1,8 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
+require_once dirname( __DIR__ ) . '/npmp-mb-compat.php';
+
 class NPMP_Newsletter_Manager {
 
 	// Emails sent per cron run. The queue processor runs on an every-minute
@@ -799,12 +801,11 @@ class NPMP_Newsletter_Manager {
 		// charset, which mangles multi-byte UTF-8 characters. The old fix
 		// was mb_convert_encoding( $content, 'HTML-ENTITIES', 'UTF-8' ), but
 		// PHP 8.2 deprecated passing 'HTML-ENTITIES' to mb_convert_encoding().
-		// mb_encode_numericentity() with this convmap (every code point from
-		// U+0080 up) produces the same effect (every non-ASCII character
-		// becomes a numeric HTML entity) without the deprecation.
-		$convmap               = array( 0x80, 0x10FFFF, 0, 0x1FFFFF );
+		// npmp_encode_numeric_entities() turns every non-ASCII character into
+		// a numeric HTML entity without the deprecation, and also on a host
+		// without mbstring.
 		$libxml_previous_state = libxml_use_internal_errors( true );
-		$dom->loadHTML( mb_encode_numericentity( $content, $convmap, 'UTF-8' ) );
+		$dom->loadHTML( npmp_encode_numeric_entities( $content ) );
 		libxml_clear_errors();
 		libxml_use_internal_errors( $libxml_previous_state );
 
