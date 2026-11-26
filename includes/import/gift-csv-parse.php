@@ -299,6 +299,24 @@ function npmp_gift_csv_utf8( $value ) {
 		$value = mb_convert_encoding( $value, 'UTF-8', 'Windows-1252' );
 	} elseif ( function_exists( 'iconv' ) ) {
 		$value = (string) iconv( 'Windows-1252', 'UTF-8//IGNORE', $value );
+	} else {
+		// Neither extension is loaded. Windows-1252 matches Latin-1 from
+		// 0xA0 up, and 0x80 to 0x9F take these code points (the five
+		// unassigned bytes stay as the matching control character, the way
+		// mbstring maps them).
+		static $cp1252 = array( 0x20AC, 0x81, 0x201A, 0x192, 0x201E, 0x2026, 0x2020, 0x2021, 0x2C6, 0x2030, 0x160, 0x2039, 0x152, 0x8D, 0x17D, 0x8F, 0x90, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x2DC, 0x2122, 0x161, 0x203A, 0x153, 0x9D, 0x17E, 0x178 );
+		$value = preg_replace_callback(
+			'/[\x80-\xFF]/',
+			static function ( $m ) use ( $cp1252 ) {
+				$byte = ord( $m[0] );
+				$code = $byte < 0xA0 ? $cp1252[ $byte - 0x80 ] : $byte;
+				if ( $code < 0x800 ) {
+					return chr( 0xC0 | ( $code >> 6 ) ) . chr( 0x80 | ( $code & 0x3F ) );
+				}
+				return chr( 0xE0 | ( $code >> 12 ) ) . chr( 0x80 | ( ( $code >> 6 ) & 0x3F ) ) . chr( 0x80 | ( $code & 0x3F ) );
+			},
+			$value
+		);
 	}
 	return trim( (string) $value );
 }
