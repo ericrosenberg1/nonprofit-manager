@@ -146,7 +146,7 @@ function npmp_render_donations_dashboard() {
 			$amount   = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_AMOUNT, true );
 			$email    = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_EMAIL, true );
 			$gateway  = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_GATEWAY, true );
-			$donor_name = npmp_donation_donor_name( $donation->post_title, $email );
+			$donor_name = npmp_donation_donor_name( $donation->post_title, $email, $donation->ID );
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
@@ -179,7 +179,7 @@ function npmp_render_donations_dashboard() {
 			$email     = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_EMAIL, true );
 			$frequency = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_FREQUENCY, true );
 			$gateway   = get_post_meta( $donation->ID, NPMP_Donation_Manager::META_GATEWAY, true );
-			$donor_name = npmp_donation_donor_name( $donation->post_title, $email );
+			$donor_name = npmp_donation_donor_name( $donation->post_title, $email, $donation->ID );
 
 			echo '<tr>';
 			echo '<td>' . esc_html( $donor_name ) . '</td>';
@@ -230,10 +230,16 @@ function npmp_donations_empty_next_step() {
  * "Jane (Jim) Doe", stays whole. It used to be cut at the first "(".
  *
  * @param string $title Donation post title.
- * @param string $email Donor email saved with the donation.
+ * @param string $email       Donor email saved with the donation.
+ * @param int    $donation_id Donation post ID, to spot a gift erased on request.
  * @return string
  */
-function npmp_donation_donor_name( $title, $email ) {
+function npmp_donation_donor_name( $title, $email, $donation_id = 0 ) {
+	// A gift erased on request stores no name. We print the label in the
+	// reader's language.
+	if ( $donation_id && '' !== (string) get_post_meta( (int) $donation_id, '_npmp_privacy_erased', true ) ) {
+		return __( 'Erased on request', 'nonprofit-manager' );
+	}
 	$title  = (string) $title;
 	$suffix = ' (' . (string) $email . ')';
 	if ( '' !== (string) $email && strlen( $title ) > strlen( $suffix ) && substr( $title, -strlen( $suffix ) ) === $suffix ) {

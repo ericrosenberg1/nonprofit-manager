@@ -561,17 +561,29 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   the tag carries none, so two sites can still both adopt it there. Rig `tests/rig/stripe-webhook.php` with
   `NPMP_RIG_OTHER_WP` and `NPMP_RIG_OTHER_URL` sends each event to two served sites.
 - **WordPress's personal data tools** (`includes/npmp-privacy.php`, loaded on every request, since the release after
-  2026.11.26). We add exporters `nonprofit-manager-contact` and `nonprofit-manager-gifts` and eraser `nonprofit-manager`
+  2026.11.28). We add exporters `nonprofit-manager-contact` and `nonprofit-manager-gifts` and eraser `nonprofit-manager`
   to Tools, Export and Erase Personal Data, plus suggested privacy policy text and a card on General Settings. We match
   email with `LOWER()` across every post status. An erase deletes the contact, its queue and digest rows, and its opens
   and clicks, keeps each gift with date, amount, currency, and frequency but no name or email (`_npmp_privacy_erased`),
   and NULLs `npmp_payment_log.raw_response`. A published unsubscribed contact stays as email, status, and
   `_npmp_free_import` only (filter `npmp_privacy_keep_unsubscribed`, default true). Gifts go 100 a page
-  (`NPMP_PRIVACY_PAGE_SIZE`), so core calls the eraser until `done`. We never call Stripe or PayPal, cancel anything,
-  or touch WordPress users. Pro holds a person with a billing plan through `npmp_privacy_erase_holds`: we then keep
-  the contact and gifts and still delete queue and tracking rows. Any new table or meta that names a person needs a
-  line in the exporter and the eraser. Unit `tests/test-privacy.php` (fake store), rig `tests/rig/privacy.php`
-  (`wp eval-file`, core's AJAX handlers, Pro on and off).
+  (`NPMP_PRIVACY_PAGE_SIZE`), so core calls the eraser until `done`. Queue and tracking deletes run on page 1 only
+  (a full scan with no email index, about 24 ms at 100,000 queue rows on MySQL 8). We never call Stripe or PayPal,
+  cancel anything, or touch WordPress users. Free owns every hold and reads Pro's tables itself, so holds work with Pro
+  on, off, old, or never installed: a plan row in `npmp_privacy_billing_statuses()` (active, failed, lapsed, not
+  one-time) holds with one message per status. Paused doesn't hold ("Stop after this period" bills nothing until
+  Resume). Lapsed can mean Stripe still retries or Stripe already deleted the sub, so it holds, and Pro's Cancel works
+  on a lapsed row. With no Pro eraser on core's list (Pro off or older than the release after 2026.11.28) and any Pro
+  data left (`pro_leftovers()`: custom fields, groups, automation log or cron, Mailer rows other than a pending delete,
+  plans with a payment method), we hold and tell the admin to activate or update Pro. A gift title is stored empty
+  after an erase: read names through `npmp_donation_donor_name( $title, $email, $id )`, which prints "Erased on
+  request". The stub keeps `post_modified` (we store no unsubscribe date) and `_npmp_privacy_erased`. Notes export
+  through filter `npmp_privacy_export_notes` (default true). The old `npmp_members`, `npmp_contacts`, and
+  `npmp_donations` rows export as "Older records". The gift CSV import key (`_npmp_import_key`, `csv:r…`) is an unsalted
+  hash of email, date, amount, and currency, and an erase keeps the key. Any new table or meta that names a person
+  needs a line in the exporter and the eraser. Unit `tests/test-privacy.php` (fake store), rig `tests/rig/privacy.php`
+  (`wp eval-file`, core's AJAX handlers, Pro on and off, plus older Pro, newer Pro beside an older free, and no Pro
+  tables).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 

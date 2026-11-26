@@ -21,9 +21,14 @@
  *   - Keeps a published contact whose status is unsubscribed with only its
  *     email and status (filter npmp_privacy_keep_unsubscribed, default
  *     true), so a later import or signup never mails the address again.
- *   - Keeps the contact, its gifts, and its old table rows when the filter
- *     npmp_privacy_erase_holds names a reason (Pro: an active dues or
- *     recurring plan), and says so. Queue and tracking rows still go.
+ *   - Keeps the contact, its gifts, and its old table rows, and says why,
+ *     when Pro's plan table holds a row that can still charge (active,
+ *     failed, or lapsed), when Pro data is left and Pro's eraser isn't on
+ *     the list (Pro off or older), or when the filter npmp_privacy_erase_holds
+ *     names a reason. We read Pro's tables directly, with no Pro code. Queue
+ *     and tracking rows still go, on the first page only.
+ *   - Stores no name on an erased gift. The Donations screen prints
+ *     "Erased on request" from _npmp_privacy_erased, in the reader's language.
  *   - Never calls a payment gateway and never touches a WordPress user.
  *
  * Every database read and write goes through NPMP_Privacy_Store, so the
@@ -48,11 +53,12 @@ class NPMP_Privacy_Store {
 	/**
 	 * Contact meta a kept unsubscribed contact keeps. _npmp_free_import is a
 	 * yes or no mark that keeps the free import total right while the
-	 * contact exists, and names nobody.
+	 * contact exists, and names nobody. _npmp_privacy_erased records when we
+	 * cut the record down.
 	 *
 	 * @var string[]
 	 */
-	const KEEP_META = array( 'npmp_email', 'npmp_status', '_npmp_free_import' );
+	const KEEP_META = array( 'npmp_email', 'npmp_status', '_npmp_free_import', '_npmp_privacy_erased' );
 
 	/**
 	 * Tables that exist, asked once a request.
@@ -179,6 +185,15 @@ class NPMP_Privacy_Store {
 		$stored = (string) get_post_meta( $post->ID, 'npmp_email', true );
 		$title  = '' !== $stored ? $stored : $email;
 		if ( $title !== $post->post_title || '' !== $post->post_content || '' !== $post->post_excerpt ) {
+			// We keep the record's added and last-changed dates: we store no
+			// unsubscribe date of its own, so the last change before the erase
+			// is the nearest record of the person's choice.
+			$keep_dates = static function ( $data ) use ( $post ) {
+				$data['post_modified']     = $post->post_modified;
+				$data['post_modified_gmt'] = $post->post_modified_gmt;
+				return $data;
+			};
+			add_filter( 'wp_insert_post_data', $keep_dates, 99 );
 			wp_update_post(
 				array(
 					'ID'           => $post->ID,
@@ -187,7 +202,11 @@ class NPMP_Privacy_Store {
 					'post_excerpt' => '',
 				)
 			);
+			remove_filter( 'wp_insert_post_data', $keep_dates, 99 );
 			$changed = true;
+		}
+		if ( $changed && '' === (string) get_post_meta( $post->ID, '_npmp_privacy_erased', true ) ) {
+			update_post_meta( $post->ID, '_npmp_privacy_erased', gmdate( 'Y-m-d H:i:s' ) );
 		}
 		// Pro's groups. Free registers no taxonomy on contacts.
 		$taxonomies = get_object_taxonomies( 'npmp_contact' );
@@ -280,14 +299,18 @@ class NPMP_Privacy_Store {
 		global $wpdb;
 		$id = (int) $id;
 		delete_post_meta( $id, '_npmp_donation_email' );
+		// We store no name. WordPress refuses a post with no title and no
+		// content unless we say an empty one is fine, for this write only.
+		add_filter( 'wp_insert_post_empty_content', '__return_false', 99 );
 		wp_update_post(
 			array(
 				'ID'           => $id,
-				'post_title'   => __( 'Erased on request', 'nonprofit-manager' ),
+				'post_title'   => '',
 				'post_content' => '',
 				'post_excerpt' => '',
 			)
 		);
+		remove_filter( 'wp_insert_post_empty_content', '__return_false', 99 );
 		update_post_meta( $id, '_npmp_privacy_erased', gmdate( 'Y-m-d H:i:s' ) );
 		if ( $this->has_table( 'npmp_payment_log' ) ) {
 			// The gateway's full answer can hold the payer's name, email, and
@@ -301,21 +324,116 @@ class NPMP_Privacy_Store {
 	}
 
 	/**
-	 * Newsletter and digest queue rows for this address, any status.
+	 * Pro's plan rows for these contacts, read straight from Pro's table, so
+	 * the answer holds with Pro off, on an older Pro, or on a newer one.
+	 *
+	 * @param int[] $ids Contact IDs.
+	 * @return array<int,array{id:int,status:string,frequency:string,payment_method:string}>
+	 */
+	public function plans( array $ids ) {
+		global $wpdb;
+		$ids = array_values( array_filter( array_map( 'intval', $ids ) ) );
+		if ( ! $ids || ! $this->has_table( 'npmp_recurring_donations' ) ) {
+			return array();
+		}
+		$in = implode( ',', $ids );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are integers.
+		$rows = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id IN ({$in}) ORDER BY id", ARRAY_A );
+		$out  = array();
+		foreach ( (array) $rows as $row ) {
+			$out[] = array(
+				'id'             => (int) $row['id'],
+				'status'         => (string) ( $row['status'] ?? '' ),
+				'frequency'      => (string) ( $row['frequency'] ?? '' ),
+				'payment_method' => (string) ( $row['payment_method'] ?? '' ),
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * How many of Pro's rows name this person: custom field values, group
+	 * memberships, automation log rows, queued automation emails, Mailer
+	 * queue rows, and plans that still carry a payment method. Only Pro's
+	 * eraser clears these.
 	 *
 	 * @param string $email Email address.
+	 * @param int[]  $ids   Contact IDs.
 	 * @return int
 	 */
-	public function count_queue( $email ) {
+	public function pro_leftovers( $email, array $ids ) {
 		global $wpdb;
+		$lower = strtolower( $email );
+		$ids   = array_values( array_filter( array_map( 'intval', $ids ) ) );
+		$in    = $ids ? implode( ',', $ids ) : '0';
 		$count = 0;
-		foreach ( array( 'npmp_newsletter_queue', 'npmp_digest_queue' ) as $name ) {
-			if ( $this->has_table( $name ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$count += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}{$name} WHERE LOWER( email ) = %s", strtolower( $email ) ) );
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are integers, table names fixed.
+		if ( $ids && $this->has_table( 'npmp_custom_fields' ) ) {
+			$count += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_custom_fields WHERE entity_type = 'member' AND entity_id IN ({$in})" );
+		}
+		if ( $ids ) {
+			$count += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->term_relationships} r INNER JOIN {$wpdb->term_taxonomy} t ON t.term_taxonomy_id = r.term_taxonomy_id WHERE t.taxonomy = 'npmp_group' AND r.object_id IN ({$in})" );
+		}
+		if ( $this->has_table( 'npmp_automation_log' ) ) {
+			$count += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_automation_log WHERE LOWER( recipient_email ) = %s", $lower ) );
+		}
+		if ( $this->has_table( 'npmp_mailer_queue' ) ) {
+			$like = '%' . $wpdb->esc_like( $lower ) . '%';
+			foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT payload FROM {$wpdb->prefix}npmp_mailer_queue WHERE LOWER( payload ) LIKE %s", $like ) ) as $payload ) {
+				$data = json_decode( (string) $payload, true );
+				// A pending delete is Pro's request to the Mailer, not data to erase.
+				if ( is_array( $data ) && empty( $data['deleted'] ) && strtolower( (string) ( $data['email'] ?? '' ) ) === $lower ) {
+					++$count;
+				}
+			}
+		}
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		foreach ( $this->plans( $ids ) as $plan ) {
+			if ( '' !== $plan['payment_method'] ) {
+				++$count;
+			}
+		}
+		foreach ( (array) _get_cron_array() as $hooks ) {
+			foreach ( (array) ( $hooks['npmp_send_automation_email'] ?? array() ) as $event ) {
+				if ( strtolower( (string) ( $event['args'][1] ?? '' ) ) === $lower ) {
+					++$count;
+				}
 			}
 		}
 		return $count;
+	}
+
+	/**
+	 * Primary keys of rows that match, read without locking anything, so the
+	 * delete that follows locks only these rows. The email column has no
+	 * index, so a LOWER() match reads the whole table once. We do that once
+	 * per request, never once per page.
+	 *
+	 * @param string $table Prefix-less table name.
+	 * @param string $where SQL condition, already prepared.
+	 * @return int[]
+	 */
+	private function ids_where( $table, $where ) {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, prepared condition.
+		return array_map( 'intval', (array) $wpdb->get_col( "SELECT id FROM {$wpdb->prefix}{$table} WHERE {$where}" ) );
+	}
+
+	/**
+	 * Delete rows by primary key, 500 at a time.
+	 *
+	 * @param string $table Prefix-less table name.
+	 * @param int[]  $ids   Row IDs.
+	 * @return int Rows deleted.
+	 */
+	private function delete_ids( $table, array $ids ) {
+		global $wpdb;
+		$deleted = 0;
+		foreach ( array_chunk( array_map( 'intval', $ids ), 500 ) as $chunk ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, integer IDs.
+			$deleted += (int) $wpdb->query( "DELETE FROM {$wpdb->prefix}{$table} WHERE id IN (" . implode( ',', $chunk ) . ')' );
+		}
+		return $deleted;
 	}
 
 	/**
@@ -334,19 +452,25 @@ class NPMP_Privacy_Store {
 	}
 
 	/**
-	 * Delete this address's newsletter and digest queue rows, any status.
+	 * Delete this person's newsletter and digest queue rows, any status:
+	 * rows with the address in any letter case, and newsletter rows that
+	 * name one of the contacts.
 	 *
 	 * @param string $email Email address.
+	 * @param int[]  $ids   Contact IDs.
 	 * @return int Rows deleted.
 	 */
-	public function delete_queue( $email ) {
+	public function delete_queue( $email, array $ids = array() ) {
 		global $wpdb;
+		$match   = $wpdb->prepare( 'LOWER( email ) = %s', strtolower( $email ) );
+		$ids     = array_values( array_filter( array_map( 'intval', $ids ) ) );
 		$deleted = 0;
-		foreach ( array( 'npmp_newsletter_queue', 'npmp_digest_queue' ) as $name ) {
-			if ( $this->has_table( $name ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				$deleted += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}{$name} WHERE LOWER( email ) = %s", strtolower( $email ) ) );
-			}
+		if ( $this->has_table( 'npmp_newsletter_queue' ) ) {
+			$where    = $ids ? '( ' . $match . ' OR user_id IN (' . implode( ',', $ids ) . ') )' : $match;
+			$deleted += $this->delete_ids( 'npmp_newsletter_queue', $this->ids_where( 'npmp_newsletter_queue', $where ) );
+		}
+		if ( $this->has_table( 'npmp_digest_queue' ) ) {
+			$deleted += $this->delete_ids( 'npmp_digest_queue', $this->ids_where( 'npmp_digest_queue', $match ) );
 		}
 		return $deleted;
 	}
@@ -392,12 +516,38 @@ class NPMP_Privacy_Store {
 		$in      = implode( ',', $ids );
 		$deleted = 0;
 		foreach ( array( 'opens', 'clicks' ) as $kind ) {
-			if ( $this->has_table( 'npmp_newsletter_' . $kind ) ) {
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are integers.
-				$deleted += (int) $wpdb->query( "DELETE FROM {$wpdb->prefix}npmp_newsletter_{$kind} WHERE user_id IN ({$in})" );
+			$table = 'npmp_newsletter_' . $kind;
+			if ( $this->has_table( $table ) ) {
+				// Opens lead their unique key with user_id. Clicks have no index on
+				// it, so we read once and delete by primary key.
+				$deleted += $this->delete_ids( $table, $this->ids_where( $table, "user_id IN ({$in})" ) );
 			}
 		}
 		return $deleted;
+	}
+
+	/**
+	 * Rows in the tables from before contacts and gifts became posts, for the
+	 * export. We leave out each row's own ID and the old signup token.
+	 *
+	 * @param string $email Email address.
+	 * @return array<string,array<int,array<string,string>>> Rows by table name.
+	 */
+	public function legacy_rows( $email ) {
+		global $wpdb;
+		$out = array();
+		foreach ( array( 'npmp_members', 'npmp_contacts', 'npmp_donations' ) as $name ) {
+			if ( ! $this->has_table( $name ) ) {
+				continue;
+			}
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name.
+			$rows = (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}{$name} WHERE LOWER( email ) = %s ORDER BY id", strtolower( $email ) ), ARRAY_A );
+			foreach ( $rows as $row ) {
+				unset( $row['id'], $row['token'] );
+				$out[ $name ][] = array_map( 'strval', array_map( static function ( $v ) { return null === $v ? '' : $v; }, $row ) );
+			}
+		}
+		return $out;
 	}
 
 	/**
@@ -587,7 +737,18 @@ function npmp_privacy_export_contact( $email, $page = 1 ) {
 		$data = npmp_privacy_pair( $data, __( 'State or region', 'nonprofit-manager' ), $get( 'npmp_state' ) );
 		$data = npmp_privacy_pair( $data, __( 'Postal code', 'nonprofit-manager' ), $get( 'npmp_postal_code' ) );
 		$data = npmp_privacy_pair( $data, __( 'Country', 'nonprofit-manager' ), $get( 'npmp_country' ) );
-		$data = npmp_privacy_pair( $data, __( 'Notes', 'nonprofit-manager' ), wp_strip_all_tags( (string) $get( 'npmp_notes' ) ) );
+		/**
+		 * Filter whether the export includes a contact's Notes. Your team
+		 * writes Notes, and a note can name other people, so a site can
+		 * leave them out and send what the person may see by hand.
+		 *
+		 * @param bool   $include    Default true.
+		 * @param int    $contact_id Contact post ID.
+		 * @param string $email      Address in the request.
+		 */
+		if ( apply_filters( 'npmp_privacy_export_notes', true, (int) $contact['id'], $email ) ) {
+			$data = npmp_privacy_pair( $data, __( 'Notes', 'nonprofit-manager' ), wp_strip_all_tags( (string) $get( 'npmp_notes' ) ) );
+		}
 		$data = npmp_privacy_pair( $data, __( 'Source', 'nonprofit-manager' ), $get( 'npmp_source' ) );
 		$data = npmp_privacy_pair( $data, __( 'Added', 'nonprofit-manager' ), $record['date'] );
 		$data = npmp_privacy_pair( $data, __( 'Last updated', 'nonprofit-manager' ), $record['modified'] );
@@ -600,11 +761,12 @@ function npmp_privacy_export_contact( $email, $page = 1 ) {
 			$total  = '' === (string) $amount ? '' : trim( $amount . ' ' . $get( 'npmp_donation_currency' ) );
 		}
 		$data = npmp_privacy_pair( $data, __( 'Total given', 'nonprofit-manager' ), $total );
+		$data = npmp_privacy_pair( $data, __( 'Erased on request', 'nonprofit-manager' ), $get( '_npmp_privacy_erased' ) );
 
 		$items[] = array(
 			'group_id'          => 'npmp-contact',
 			'group_label'       => __( 'Contact record', 'nonprofit-manager' ),
-			'group_description' => __( 'What this site keeps about you in Nonprofit Manager.', 'nonprofit-manager' ),
+			'group_description' => __( 'What we keep about you in Nonprofit Manager.', 'nonprofit-manager' ),
 			'item_id'           => 'npmp-contact-' . (int) $contact['id'],
 			'data'              => $data,
 		);
@@ -622,6 +784,29 @@ function npmp_privacy_export_contact( $email, $page = 1 ) {
 			'item_id'           => 'npmp-subscription-' . (int) $contact['id'],
 			'data'              => $sub,
 		);
+	}
+
+	// Rows in the tables from before contacts and gifts became posts. The
+	// eraser deletes or blanks these too, so the person sees them first.
+	$legacy_labels = array(
+		'npmp_members'   => __( 'Older contact record', 'nonprofit-manager' ),
+		'npmp_contacts'  => __( 'Older email signup', 'nonprofit-manager' ),
+		'npmp_donations' => __( 'Older gift record', 'nonprofit-manager' ),
+	);
+	foreach ( $store->legacy_rows( $email ) as $table => $rows ) {
+		foreach ( array_values( $rows ) as $n => $row ) {
+			$data = array();
+			foreach ( $row as $column => $value ) {
+				$data = npmp_privacy_pair( $data, ucfirst( str_replace( '_', ' ', (string) $column ) ), $value );
+			}
+			$items[] = array(
+				'group_id'          => 'npmp-legacy',
+				'group_label'       => __( 'Older records', 'nonprofit-manager' ),
+				'group_description' => __( 'Records from an earlier version of Nonprofit Manager.', 'nonprofit-manager' ),
+				'item_id'           => 'npmp-legacy-' . $table . '-' . ( $n + 1 ),
+				'data'              => npmp_privacy_pair( $data, __( 'Kind', 'nonprofit-manager' ), $legacy_labels[ $table ] ?? $table ),
+			);
+		}
 	}
 
 	$sent     = $store->count_sent( $email );
@@ -706,6 +891,87 @@ function npmp_privacy_keeps_unsubscribed( array $contact, $email ) {
 }
 
 /**
+ * Plan statuses that can still produce a charge. Pro writes five statuses
+ * to npmp_recurring_donations: active and failed (Stripe retries the card)
+ * can charge. lapsed can too: Pro marks a dues row lapsed when failures
+ * reach its limit while Stripe may still retry, and also after Stripe
+ * deletes the subscription, and the row can't tell the two apart. paused
+ * means "Stop after this period" (cancel_at_period_end at Stripe), and
+ * cancelled is closed: neither charges unless someone acts. Pro's
+ * npmp_pro_privacy_plan_bills() uses the same list.
+ *
+ * @return string[]
+ */
+function npmp_privacy_billing_statuses() {
+	return array( 'active', 'failed', 'lapsed' );
+}
+
+/**
+ * Whether a plan row can still charge the person.
+ *
+ * @param array $plan Row with status and frequency.
+ * @return bool
+ */
+function npmp_privacy_plan_can_charge( array $plan ) {
+	return 'one_time' !== (string) ( $plan['frequency'] ?? '' ) && in_array( (string) ( $plan['status'] ?? '' ), npmp_privacy_billing_statuses(), true );
+}
+
+/**
+ * Whether Pro's eraser is on the list core runs for this request. Pro
+ * registers it at priority 9, so core runs it before ours.
+ *
+ * @return bool
+ */
+function npmp_privacy_pro_eraser_present() {
+	$erasers = (array) apply_filters( 'wp_privacy_personal_data_erasers', array() );
+	return isset( $erasers['nonprofit-manager-pro'] );
+}
+
+/**
+ * Our own reasons to keep the contact and gifts, read from Pro's tables
+ * without Pro's code, so they hold with Pro off, old, or current.
+ *
+ * @param string $email Address.
+ * @param int[]  $ids   Contact IDs.
+ * @return string[]
+ */
+function npmp_privacy_hold_reasons( $email, array $ids ) {
+	$store    = npmp_privacy_store();
+	$pro_on   = defined( 'NPMP_PRO_VERSION' );
+	$gifts    = npmp_privacy_label( 'donations_lc', __( 'donations', 'nonprofit-manager' ) );
+	$statuses = array();
+	foreach ( $store->plans( $ids ) as $plan ) {
+		if ( npmp_privacy_plan_can_charge( $plan ) ) {
+			$statuses[ $plan['status'] ] = true;
+		}
+	}
+	$reasons = array();
+	foreach ( array_keys( $statuses ) as $status ) {
+		if ( 'failed' === $status ) {
+			/* translators: %s: lowercase plural word for donations, such as donations or contributions. */
+			$what = __( 'This person has a recurring plan with a failed payment that Stripe may still retry, so you keep their contact record and %s for billing.', 'nonprofit-manager' );
+		} elseif ( 'lapsed' === $status ) {
+			/* translators: %s: lowercase plural word for donations, such as donations or contributions. */
+			$what = __( 'This person has a lapsed plan that Stripe may still retry, so you keep their contact record and %s for billing.', 'nonprofit-manager' );
+		} else {
+			/* translators: %s: lowercase plural word for donations, such as donations or contributions. */
+			$what = __( 'This person has an active recurring plan, so you keep their contact record and %s for billing.', 'nonprofit-manager' );
+		}
+		$reasons[] = sprintf( $what, $gifts ) . ' ' . ( $pro_on
+			? __( 'Cancel the plan on the Recurring Donations or Membership Dues screen, then run this request a second time.', 'nonprofit-manager' )
+			: __( 'Activate Nonprofit Manager Pro, cancel the plan on the Recurring Donations or Membership Dues screen, then run this request a second time.', 'nonprofit-manager' ) );
+	}
+	if ( ! $reasons && ! npmp_privacy_pro_eraser_present() && $store->pro_leftovers( $email, $ids ) > 0 ) {
+		$reasons[] = sprintf(
+			/* translators: %s: lowercase plural word for donations, such as donations or contributions. */
+			__( 'This person has data from Nonprofit Manager Pro, such as plans, custom fields, or groups, so you keep their contact record and %s for now. Activate or update Nonprofit Manager Pro, then run this request a second time.', 'nonprofit-manager' ),
+			$gifts
+		);
+	}
+	return $reasons;
+}
+
+/**
  * Eraser: see the top of this file for the rules. Each request strips up to
  * NPMP_PRIVACY_PAGE_SIZE gifts and answers done=false while gifts remain.
  * The contacts go in the request that finds no gifts left. A second run
@@ -735,25 +1001,32 @@ function npmp_privacy_erase( $email, $page = 1 ) {
 	$contacts = $store->contacts( $email );
 	$ids      = array_map( 'intval', wp_list_pluck( $contacts, 'id' ) );
 
+	$holds = npmp_privacy_hold_reasons( $email, $ids );
+
 	/**
 	 * Filter the reasons an erase request must keep this person's contact
-	 * record and gifts. Pro names an active dues or recurring plan here,
-	 * since the plan's billing reads them. Each reason is a sentence the
-	 * admin reads on Erase Personal Data.
+	 * record and gifts. We add our own first: a Pro plan that can still
+	 * charge, or Pro data that only Pro's eraser clears while that eraser
+	 * isn't here. Each reason is a sentence the admin reads on Erase
+	 * Personal Data.
 	 *
-	 * @param string[] $holds       Reasons, none by default.
+	 * @param string[] $holds       Reasons.
 	 * @param string   $email       Address in the request.
 	 * @param int[]    $contact_ids Contacts with the address.
 	 */
-	$holds = array_values( array_filter( array_map( 'strval', (array) apply_filters( 'npmp_privacy_erase_holds', array(), $email, $ids ) ), 'strlen' ) );
+	$holds = array_values( array_unique( array_filter( array_map( 'strval', (array) apply_filters( 'npmp_privacy_erase_holds', $holds, $email, $ids ) ), 'strlen' ) ) );
 
 	// Queued and sent newsletter rows, digest rows, opens, and clicks name
 	// the person and nothing bills from them, so they go even with a hold.
-	if ( $store->delete_queue( $email ) > 0 ) {
-		$removed = true;
-	}
-	if ( $store->delete_tracking( $ids ) > 0 ) {
-		$removed = true;
+	// Each needs a read of a table with no index on the address, so we do
+	// it on the first page only.
+	if ( 1 === $page ) {
+		if ( $store->delete_queue( $email, $ids ) > 0 ) {
+			$removed = true;
+		}
+		if ( $store->delete_tracking( $ids ) > 0 ) {
+			$removed = true;
+		}
 	}
 
 	if ( $holds ) {
@@ -827,11 +1100,12 @@ function npmp_privacy_policy_text() {
 	$p = static function ( $text, $class = '' ) {
 		return '<p' . ( $class ? ' class="' . esc_attr( $class ) . '"' : '' ) . '>' . esc_html( $text ) . '</p>';
 	};
-	return $p( __( 'Nonprofit Manager suggests the text below. Change this text to match what your group collects and how long you keep each record.', 'nonprofit-manager' ), 'privacy-policy-tutorial' )
+	return $p( __( 'Nonprofit Manager suggests the text below. Change this text to match what your group collects, which services you use, and how long you keep each record.', 'nonprofit-manager' ), 'privacy-policy-tutorial' )
 		. '<strong class="privacy-policy-tutorial">' . esc_html__( 'Suggested text:', 'nonprofit-manager' ) . ' </strong>'
-		. $p( __( 'When you sign up for our emails, join, or give, we keep your name, your email address, and the details you give us, such as your postal address, phone number, and membership level. For each gift we keep the date, amount, currency, and frequency for our accounting records.', 'nonprofit-manager' ) )
-		. $p( __( 'When you give online, you pay through Stripe, PayPal, or Venmo, and that company receives your payment and the details you enter. If our forms use spam protection, Cloudflare Turnstile or Google reCAPTCHA checks each form you send.', 'nonprofit-manager' ) )
-		. $p( __( 'You can ask for a copy of the personal data we keep about you, or ask us to erase that data. When we erase your data, we delete your contact record and keep your gift records without your name or email address. If you unsubscribed, we keep only your email address and that choice, so we never email you again.', 'nonprofit-manager' ) );
+		. $p( __( 'When you sign up for our emails, join, or give, we keep your name, your email address, and the details you give us, such as your postal address, phone number, and membership level. We may also add contacts from a list we bring over from another service we used.', 'nonprofit-manager' ) )
+		. $p( __( 'When you give online, you pay through Stripe, PayPal, or Venmo, and that company receives your payment and the details you enter. For each gift we keep the date, amount, currency, frequency, and the payment company\'s transaction ID for our accounting records. If our forms use spam protection, Cloudflare Turnstile or Google reCAPTCHA checks each form you send.', 'nonprofit-manager' ) )
+		. $p( __( 'We send our emails through the email service we set up, such as our own mail server, Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or Nonprofit Mailer, and that service receives your email address with each message. If we use Nonprofit Mailer, we also keep a copy of our contact list in Nonprofit Mailer. If we turn on newsletter tracking, we record when you open a newsletter and which links you click.', 'nonprofit-manager' ) )
+		. $p( __( 'You can ask for a copy of the personal data we keep about you, or ask us to erase that data. When we erase your data, we delete your contact record or cut the record down, and we take your name and email address off your gift records. We keep each gift\'s date, amount, currency, frequency, and transaction ID, and the amount, frequency, and dates of any ended recurring plan, for our accounting records. Each payment company and email service keeps its own records under its own policy. While we can still charge you through a recurring plan, we keep your record until you or we cancel the plan. If you unsubscribed, we keep your email address and that choice, so we can keep honoring your choice.', 'nonprofit-manager' ) );
 }
 
 /**

@@ -21,14 +21,22 @@ function add_filter( $tag, $cb, $priority = 10, $args = 1 ) {
 function add_action( $tag, $cb, $priority = 10, $args = 1 ) {
 	$GLOBALS['t_filters'][ $tag ][] = array( $cb, $priority );
 }
-$GLOBALS['t_holds']      = array();
-$GLOBALS['t_keep_unsub'] = true;
+$GLOBALS['t_holds']       = array();
+$GLOBALS['t_keep_unsub']  = true;
+$GLOBALS['t_notes']       = true;
+$GLOBALS['t_pro_eraser']  = false;
 function apply_filters( $tag, $value, ...$args ) {
 	if ( 'npmp_privacy_erase_holds' === $tag ) {
 		return array_merge( (array) $value, $GLOBALS['t_holds'] );
 	}
 	if ( 'npmp_privacy_keep_unsubscribed' === $tag ) {
 		return $GLOBALS['t_keep_unsub'];
+	}
+	if ( 'npmp_privacy_export_notes' === $tag ) {
+		return $GLOBALS['t_notes'];
+	}
+	if ( 'wp_privacy_personal_data_erasers' === $tag && $GLOBALS['t_pro_eraser'] ) {
+		$value['nonprofit-manager-pro'] = array( 'callback' => 'npmp_pro_privacy_erase' );
 	}
 	return $value;
 }
@@ -54,6 +62,36 @@ class T_Store {
 	public $queue    = array(); // [email, status]
 	public $tracking = array(); // [contact_id, kind]
 	public $legacy   = array( 'members' => array(), 'donations' => array() );
+	public $plans    = array(); // [member_id, status, frequency]
+	public $leftover = 0;       // Pro rows only Pro's eraser clears
+
+	public function plans( array $ids ) {
+		return array_values(
+			array_filter(
+				$this->plans,
+				static function ( $p ) use ( $ids ) {
+					return in_array( $p['member_id'], $ids, true );
+				}
+			)
+		);
+	}
+	public function pro_leftovers( $email, array $ids ) {
+		return $ids ? $this->leftover : 0;
+	}
+	public function legacy_rows( $email ) {
+		$out = array();
+		foreach ( $this->legacy['members'] as $m ) {
+			if ( strtolower( $m ) === strtolower( $email ) ) {
+				$out['npmp_members'][] = array( 'email' => $m, 'first_name' => 'Old' );
+			}
+		}
+		foreach ( $this->legacy['donations'] as $d ) {
+			if ( '' !== $d && strtolower( $d ) === strtolower( $email ) ) {
+				$out['npmp_donations'][] = array( 'email' => $d, 'amount' => '9.00' );
+			}
+		}
+		return $out;
+	}
 
 	public function contacts( $email ) {
 		$out = array();
@@ -274,6 +312,8 @@ function t_seed() {
 	npmp_privacy_store( $s );
 	$GLOBALS['t_holds']      = array();
 	$GLOBALS['t_keep_unsub'] = true;
+	$GLOBALS['t_notes']      = true;
+	$GLOBALS['t_pro_eraser'] = false;
 	return $s;
 }
 
@@ -347,6 +387,15 @@ check( 'newsletters sent counted', '1', $flat['npmp-subscription:Newsletters sen
 check( 'opens counted', '1', $flat['npmp-subscription:Newsletter opens recorded'] ?? '' );
 $notes = npmp_privacy_export_contact( 'gone@example.org', 1 );
 check( 'notes exported without tags', true, false !== strpos( json_encode( $notes ), 'Asked to stop' ) && false === strpos( json_encode( $notes ), '<b>' ) );
+$GLOBALS['t_notes'] = false;
+$notes              = npmp_privacy_export_contact( 'gone@example.org', 1 );
+check( 'notes filter set to false leaves Notes out', false, false !== strpos( json_encode( $notes ), 'Asked to stop' ) );
+$GLOBALS['t_notes'] = true;
+$legacy             = npmp_privacy_export_contact( 'plain@example.org', 1 );
+$legacy_items       = array_values( array_filter( $legacy['data'], static function ( $i ) { return 'npmp-legacy' === $i['group_id']; } ) );
+check( 'older members table row exported', 1, count( $legacy_items ) );
+check( 'older row names its kind', true, false !== strpos( json_encode( $legacy_items ), 'Older contact record' ) );
+check( 'older row carries its columns', true, false !== strpos( json_encode( $legacy_items ), '"First name","value":"Old"' ) );
 $none = npmp_privacy_export_contact( 'nobody@example.org', 1 );
 check( 'unknown email exports nothing', array(), $none['data'] );
 check( 'unknown email done', true, $none['done'] );
@@ -439,6 +488,69 @@ check( 'gifts untouched', $before_gifts, json_encode( $s->gifts ) );
 check( 'old donations row untouched', 'donor@example.org', $s->legacy['donations'][0] );
 check( 'queue rows still deleted', 3, count( $s->queue ) );
 check( 'queue deletion reported as removed', true, $r['removed'] );
+
+echo "\nErase: plan statuses\n";
+$cases = array(
+	'active'    => 'an active recurring plan',
+	'failed'    => 'a failed payment that Stripe may still retry',
+	'lapsed'    => 'a lapsed plan that Stripe may still retry',
+	'paused'    => '',
+	'cancelled' => '',
+);
+foreach ( $cases as $status => $words ) {
+	$s          = t_seed();
+	$s->plans[] = array( 'member_id' => 20, 'status' => $status, 'frequency' => 'monthly' );
+	$r          = t_erase_all( 'donor@example.org' );
+	if ( $words ) {
+		check( "$status plan holds: contact kept whole", 'Dee Donor', $s->contacts[20]['title'] ?? '' );
+		check( "$status plan holds: gifts untouched", 'donor@example.org', $s->gifts[101]['email'] );
+		check( "$status plan: message words the status", true, false !== strpos( implode( ' ', $r['messages'] ), $words ) );
+		check( "$status plan: message says to activate Pro (Pro off)", true, false !== strpos( implode( ' ', $r['messages'] ), 'Activate Nonprofit Manager Pro, cancel the plan' ) );
+	} else {
+		check( "$status plan does not hold: contact deleted", false, isset( $s->contacts[20] ) );
+		check( "$status plan does not hold: gifts stripped", '', $s->gifts[101]['email'] );
+	}
+}
+$s          = t_seed();
+$s->plans[] = array( 'member_id' => 20, 'status' => 'active', 'frequency' => 'one_time' );
+t_erase_all( 'donor@example.org' );
+check( 'a one-time row never holds', false, isset( $s->contacts[20] ) );
+$s          = t_seed();
+$s->plans[] = array( 'member_id' => 20, 'status' => 'active', 'frequency' => 'monthly' );
+$s->plans[] = array( 'member_id' => 20, 'status' => 'lapsed', 'frequency' => 'yearly' );
+$r          = t_erase_all( 'donor@example.org' );
+check( 'two statuses give two messages', 2, count( $r['messages'] ) );
+
+echo "\nErase: Pro data and Pro's eraser\n";
+$s           = t_seed();
+$s->leftover = 3;
+$before      = json_encode( array( $s->contacts, $s->gifts ) );
+$r           = t_erase_all( 'donor@example.org' );
+check( 'Pro data with no Pro eraser holds', $before, json_encode( array( $s->contacts, $s->gifts ) ) );
+check( 'message says to activate or update Pro', true, false !== strpos( implode( ' ', $r['messages'] ), 'Activate or update Nonprofit Manager Pro' ) );
+$s                       = t_seed();
+$s->leftover             = 3;
+$GLOBALS['t_pro_eraser'] = true;
+t_erase_all( 'donor@example.org' );
+check( 'Pro data with Pro\'s eraser on the list: contact deleted', false, isset( $s->contacts[20] ) );
+$s = t_seed();
+t_erase_all( 'donor@example.org' );
+check( 'no Pro data, no Pro eraser: contact deleted', false, isset( $s->contacts[20] ) );
+
+echo "\nErase: queue and tracking once a request\n";
+$s = new class() extends T_Store {
+	public $queue_calls = 0;
+	public function delete_queue( $email, array $ids = array() ) {
+		$this->queue_calls++;
+		return parent::delete_queue( $email );
+	}
+};
+foreach ( get_object_vars( t_seed() ) as $k => $v ) {
+	$s->$k = $v;
+}
+npmp_privacy_store( $s );
+t_erase_all( 'donor@example.org' );
+check( 'three gift pages, one queue pass', 1, $s->queue_calls );
 
 echo "\nErase: unknown email\n";
 $s      = t_seed();

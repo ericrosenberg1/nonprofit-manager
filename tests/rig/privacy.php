@@ -3,9 +3,14 @@
  * Real-WordPress check of the personal data tools (includes/npmp-privacy.php,
  * and Pro's includes/pro-privacy.php when Pro is active).
  *
- * Seeds people, gifts, queued and sent newsletter rows, opens, and (with Pro)
- * plans, custom fields, groups, the automation log, and a queued automation
- * email. Then it runs WordPress's own request flow end to end:
+ * Seeds people, 250 gifts, queued and sent newsletter rows, opens, similar
+ * addresses, plan rows in each status, and (with Pro) custom fields, groups,
+ * group opt-outs, the automation log, a queued automation email, and a
+ * configured Nonprofit Mailer queue. With Pro off it also runs as a site that
+ * kept Pro's tables (Pro data, no Pro eraser) and as a site that never had
+ * Pro (Pro's tables renamed away). With Pro on it also runs as an older Pro
+ * (Pro's eraser unhooked) and as a newer Pro beside an older free (free's
+ * eraser unhooked). Then it runs WordPress's own request flow end to end:
  * wp_create_user_request(), the confirmation core records when the person
  * clicks the link (_wp_privacy_account_request_confirmed()), and core's own
  * AJAX handlers for every exporter and eraser page, the way Tools, Export
@@ -310,8 +315,100 @@ foreach ( get_posts(
 ) as $old ) {
 	wp_delete_post( $old, true );
 }
-$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email LIKE %s", '%' . $rig_domain ) );
-$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}npmp_digest_queue WHERE email LIKE %s", '%' . $rig_domain ) );
+$rig_like = '%' . $wpdb->esc_like( $rig_domain ) . '%';
+$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email LIKE %s", $rig_like ) );
+$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}npmp_digest_queue WHERE email LIKE %s", $rig_like ) );
+foreach ( array( 'npmp_automation_log' => 'recipient_email', 'npmp_mailer_queue' => 'payload', 'npmp_members' => 'email', 'npmp_donations' => 'email' ) as $rig_table => $rig_col ) {
+	if ( $wpdb->prefix . $rig_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . $rig_table ) ) ) {
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}{$rig_table} WHERE {$rig_col} LIKE %s", $rig_like ) );
+	}
+}
+foreach ( (array) _get_cron_array() as $rig_ts => $rig_hooks ) {
+	foreach ( (array) ( $rig_hooks['npmp_send_automation_email'] ?? array() ) as $rig_event ) {
+		if ( false !== strpos( (string) ( $rig_event['args'][1] ?? '' ), $rig_domain ) ) {
+			wp_unschedule_event( $rig_ts, 'npmp_send_automation_email', $rig_event['args'] );
+		}
+	}
+}
+delete_option( 'npmp_mailer_api_key' );
+delete_option( 'npmp_mailer_api_url' );
+
+/**
+ * Whether a table exists.
+ *
+ * @param string $name Table name without the prefix.
+ * @return bool
+ */
+function rig_privacy_has_table( $name ) {
+	global $wpdb;
+	return $wpdb->prefix . $name === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->prefix . $name ) );
+}
+
+/**
+ * Add a contact with one gift and one queued newsletter row.
+ *
+ * @param string $email Address.
+ * @param string $name  Name.
+ * @return array{0:int,1:int} Contact ID and gift ID.
+ */
+function rig_privacy_person( $email, $name ) {
+	global $wpdb;
+	$id   = (int) NPMP_Member_Manager::get_instance()->add_member(
+		array(
+			'name'   => $name,
+			'email'  => $email,
+			'status' => 'subscribed',
+		)
+	);
+	$gift = (int) NPMP_Donation_Manager::get_instance()->log_donation(
+		array(
+			'email'          => $email,
+			'name'           => $name,
+			'amount'         => 3,
+			'gateway'        => 'stripe',
+			'currency'       => 'GBP',
+			'transaction_id' => 'rig_privacy_p_' . uniqid(),
+		)
+	);
+	$wpdb->insert(
+		$wpdb->prefix . 'npmp_newsletter_queue',
+		array(
+			'newsletter_id' => 1,
+			'user_id'       => 0,
+			'email'         => $email,
+			'status'        => 'pending',
+			'queued_at'     => current_time( 'mysql' ),
+		)
+	);
+	return array( $id, $gift );
+}
+
+/**
+ * Add a plan row straight into Pro's table, the way Pro writes one.
+ *
+ * @param int    $member_id Contact ID.
+ * @param string $status    Plan status.
+ * @param string $method    Payment method.
+ * @return void
+ */
+function rig_privacy_plan( $member_id, $status, $method = 'pm_rig_card' ) {
+	global $wpdb;
+	$wpdb->insert(
+		$wpdb->prefix . 'npmp_recurring_donations',
+		array(
+			'member_id'      => $member_id,
+			'external_id'    => 'sub_rig_' . $status . '_' . uniqid(),
+			'amount'         => 12,
+			'frequency'      => 'monthly',
+			'status'         => $status,
+			'payment_method' => $method,
+			'source'         => 'dues',
+			'currency'       => 'GBP',
+		)
+	);
+}
+$rig_pro_tables = rig_privacy_has_table( 'npmp_recurring_donations' ) && rig_privacy_has_table( 'npmp_custom_fields' );
+printf( "Pro tables %s\n", $rig_pro_tables ? 'present' : 'absent' );
 
 $mm      = NPMP_Member_Manager::get_instance();
 $donor   = (int) $mm->add_member(
@@ -359,10 +456,10 @@ if ( defined( 'NPMP_IMPORT_FREE_META' ) ) {
 }
 rig_privacy_check( 'seeded three contacts', true, $donor > 0 && $unsub > 0 && $other > 0 );
 
-// 105 gifts: more than one page of NPMP_PRIVACY_PAGE_SIZE (100). Mixed case on purpose.
+// 250 gifts: three pages of NPMP_PRIVACY_PAGE_SIZE (100). Mixed case on purpose.
 $dm    = NPMP_Donation_Manager::get_instance();
 $gifts = array();
-for ( $i = 1; $i <= 105; $i++ ) {
+for ( $i = 1; $i <= 250; $i++ ) {
 	$gifts[] = (int) $dm->log_donation(
 		array(
 			'email'          => 0 === $i % 2 ? 'Rig.Donor' . $rig_domain : 'rig.donor' . $rig_domain,
@@ -395,7 +492,7 @@ $held_gift  = $rig_pro ? (int) $dm->log_donation(
 		'transaction_id' => 'rig_privacy_held_' . uniqid(),
 	)
 ) : 0;
-rig_privacy_check( '105 gifts recorded for the donor', 105, count( array_filter( $gifts ) ) );
+rig_privacy_check( '250 gifts recorded for the donor', 250, count( array_filter( $gifts ) ) );
 $dm->log_payment_verification(
 	array(
 		'donation_id'      => $gifts[0],
@@ -425,7 +522,7 @@ $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->prefix}npmp_newsletter
 
 if ( $rig_pro ) {
 	$plans = $wpdb->prefix . 'npmp_recurring_donations';
-	$wpdb->insert( $plans, array( 'member_id' => $donor, 'external_id' => 'sub_rig_cancelled_' . uniqid(), 'amount' => 5, 'frequency' => 'monthly', 'status' => 'cancelled', 'source' => 'donation', 'currency' => 'GBP' ) );
+	$wpdb->insert( $plans, array( 'member_id' => $donor, 'external_id' => 'sub_rig_cancelled_' . uniqid(), 'amount' => 5, 'frequency' => 'monthly', 'status' => 'cancelled', 'payment_method' => 'pm_rig_donor', 'source' => 'donation', 'currency' => 'GBP' ) );
 	$wpdb->insert( $plans, array( 'member_id' => $held, 'external_id' => 'sub_rig_active_' . uniqid(), 'amount' => 40, 'frequency' => 'yearly', 'status' => 'active', 'source' => 'dues', 'membership_level' => 'Gold', 'currency' => 'GBP' ) );
 	$cf = NPMP_Custom_Fields_Manager::get_instance();
 	$cf->save_field_definition(
@@ -448,11 +545,24 @@ if ( $rig_pro ) {
 	wp_set_object_terms( $donor, array( (int) $term['term_id'] ), 'npmp_group' );
 	wp_set_object_terms( $held, array( (int) $term['term_id'] ), 'npmp_group' );
 	wp_set_object_terms( $unsub, array( (int) $term['term_id'] ), 'npmp_group' );
+	update_post_meta( $donor, 'npmp_group_optouts', array( (int) $term['term_id'] => 1767225600 ) );
 	$wpdb->insert( $wpdb->prefix . 'npmp_automation_log', array( 'automation_id' => 'rig-welcome', 'recipient_email' => 'Rig.Donor' . $rig_domain, 'status' => 'sent' ) );
 	$wpdb->insert( $wpdb->prefix . 'npmp_automation_log', array( 'automation_id' => 'rig-welcome', 'recipient_email' => 'held' . $rig_domain, 'status' => 'sent' ) );
 	wp_schedule_single_event( time() + 3600, 'npmp_send_automation_email', array( 'rig-welcome', 'rig.donor' . $rig_domain, 'Rig Donor', 0 ) );
 	wp_schedule_single_event( time() + 3600, 'npmp_send_automation_email', array( 'rig-welcome', 'other' . $rig_domain, 'Otto Other', 0 ) );
 }
+
+// A row the one-time migration left in the old members and donations tables.
+$wpdb->insert( $wpdb->prefix . 'npmp_members', array( 'name' => 'Rig Donor', 'email' => 'Rig.Donor' . $rig_domain, 'city' => 'Leeds' ) );
+$wpdb->insert( $wpdb->prefix . 'npmp_donations', array( 'name' => 'Rig Donor', 'email' => 'rig.donor' . $rig_domain, 'amount' => 4, 'frequency' => 'one_time', 'gateway' => 'stripe' ) );
+$legacy_gift = (int) $wpdb->insert_id;
+
+// Similar addresses: the erase of a@ must leave each of these alone.
+$similar = array();
+foreach ( array( 'a', 'aa', 'a+news' ) as $local ) {
+	$similar[ $local . $rig_domain ] = rig_privacy_person( $local . $rig_domain, 'Sim ' . $local );
+}
+$similar[ 'a' . $rig_domain . '.uk' ] = rig_privacy_person( 'a' . $rig_domain . '.uk', 'Sim uk' );
 
 // ---------------------------------------------------------------------------
 // Export.
@@ -460,11 +570,13 @@ if ( $rig_pro ) {
 echo "\nExport through core's request flow\n";
 $export = rig_privacy_export( 'Rig.Donor' . $rig_domain );
 rig_privacy_check( 'every exporter answered success', true, $export['ok'] );
-rig_privacy_check( 'gift exporter ran 2 pages for 105 gifts', 2, $export['pages']['nonprofit-manager-gifts'] ?? 0 );
+rig_privacy_check( 'gift exporter ran 3 pages for 250 gifts', 3, $export['pages']['nonprofit-manager-gifts'] ?? 0 );
 $contact_items = rig_privacy_group( $export['json'], 'npmp-contact' );
 $gift_items    = rig_privacy_group( $export['json'], 'npmp-gifts' );
 rig_privacy_check( 'export file holds one contact record', 1, count( $contact_items ) );
-rig_privacy_check( 'export file holds 105 gifts', 105, count( $gift_items ) );
+rig_privacy_check( 'export file holds 250 gifts', 250, count( $gift_items ) );
+rig_privacy_check( 'export file names no other gift', false, false !== strpos( wp_json_encode( $gift_items ), 'npmp-gift-' . $other_gift . '"' ) );
+rig_privacy_check( 'older members table row exported', true, false !== strpos( wp_json_encode( rig_privacy_group( $export['json'], 'npmp-legacy' ) ), 'Older contact record' ) );
 $contact_json = wp_json_encode( $contact_items );
 rig_privacy_check( 'contact record names the city', true, false !== strpos( $contact_json, 'Leeds' ) );
 rig_privacy_check( 'contact record names the person', true, false !== strpos( $contact_json, 'Rig Donor' ) );
@@ -474,6 +586,8 @@ if ( $rig_pro ) {
 	rig_privacy_check( 'Pro: plan exported', 1, count( rig_privacy_group( $export['json'], 'npmp-pro-plans' ) ) );
 	rig_privacy_check( 'Pro: custom field exported', true, false !== strpos( wp_json_encode( rig_privacy_group( $export['json'], 'npmp-pro-fields' ) ), 'Peanuts' ) );
 	rig_privacy_check( 'Pro: group exported', true, false !== strpos( wp_json_encode( rig_privacy_group( $export['json'], 'npmp-pro-groups' ) ), 'Rig Choir' ) );
+	rig_privacy_check( 'Pro: group opt-out exported with its date', true, false !== strpos( wp_json_encode( rig_privacy_group( $export['json'], 'npmp-pro-groups' ) ), 'Rig Choir (2026-01-01)' ) );
+	rig_privacy_check( 'Pro: no payment method in the export', false, false !== strpos( wp_json_encode( $export['json'] ), 'pm_rig_donor' ) );
 	rig_privacy_check( 'Pro: automation log exported', 1, count( rig_privacy_group( $export['json'], 'npmp-pro-automations' ) ) );
 	rig_privacy_check( 'Pro: no Stripe subscription ID in the export', false, false !== strpos( wp_json_encode( $export['json'] ), 'sub_rig_' ) );
 }
@@ -482,13 +596,20 @@ if ( $rig_pro ) {
 // Erase the donor.
 // ---------------------------------------------------------------------------
 echo "\nErase the donor through core's request flow\n";
+if ( $rig_pro ) {
+	NPMP_Mailer_Connector::install_table();
+	update_option( 'npmp_mailer_api_url', 'https://mailer.invalid' );
+	update_option( 'npmp_mailer_api_key', 'npm_rig_' . wp_generate_password( 12, false ) );
+	NPMP_Mailer_Connector::enqueue_contact( $donor, 'rig.donor' . $rig_domain );
+	NPMP_Mailer_Connector::enqueue_event( 'rig-donation-1', 'donation_received', 'rig.donor' . $rig_domain, array( 'amount' => 1 ) );
+}
 $token_before = (string) get_option( 'npmp_dashboard_donations_token', '' );
 $used_before  = function_exists( 'npmp_import_free_used' ) ? npmp_import_free_used( true ) : 0;
 $erase        = rig_privacy_erase( 'RIG.donor' . $rig_domain );
 rig_privacy_check( 'every eraser answered success', true, $erase['ok'] );
 rig_privacy_check( 'core marked the request completed', 'request-completed', $erase['status'] );
 rig_privacy_check( 'removed and retained reported', array( true, true ), array( $erase['removed'], $erase['retained'] ) );
-rig_privacy_check( 'free eraser ran 2 pages for 105 gifts', $rig_pro ? 3 : 2, $erase['pages'] );
+rig_privacy_check( 'our erasers ran 3 pages for 250 gifts (plus 1 for Pro)', $rig_pro ? 4 : 3, $erase['pages'] );
 rig_privacy_check( 'gift message shown', true, false !== strpos( implode( ' ', $erase['messages'] ), 'accounting records' ) );
 if ( $rig_pro ) {
 	rig_privacy_check( 'Pro eraser runs before free', true, array_search( 'nonprofit-manager-pro', $erase['order'], true ) < array_search( 'nonprofit-manager', $erase['order'], true ) );
@@ -509,8 +630,12 @@ foreach ( $gifts as $gift_id ) {
 		$sum += (float) get_post_meta( $gift_id, '_npmp_donation_amount', true );
 	}
 }
-rig_privacy_check( 'all 105 gifts kept without name or email', 105, $kept );
-rig_privacy_check( 'gift amounts add up as before (1 to 105)', 5565.0, $sum );
+rig_privacy_check( 'all 250 gifts kept without name or email', 250, $kept );
+rig_privacy_check( 'gift amounts add up as before (1 to 250)', 31375.0, $sum );
+rig_privacy_check( 'gift title stored empty', '', get_post( $gifts[0] )->post_title );
+rig_privacy_check( 'Donations screen reads Erased on request', 'Erased on request', npmp_donation_donor_name( get_post( $gifts[0] )->post_title, '', $gifts[0] ) );
+rig_privacy_check( 'older members row deleted', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_members WHERE LOWER( email ) = %s", 'rig.donor' . $rig_domain ) ) );
+rig_privacy_check( 'older donations row blanked, amount kept', array( '', '', '4.00' ), array_values( (array) $wpdb->get_row( $wpdb->prepare( "SELECT name, email, amount FROM {$wpdb->prefix}npmp_donations WHERE id = %d", $legacy_gift ), ARRAY_A ) ) );
 rig_privacy_check( 'gift currency kept', 'GBP', get_post_meta( $gifts[0], '_npmp_donation_currency', true ) );
 rig_privacy_check( 'gift transaction ID kept for dedupe', true, 0 === strpos( (string) get_post_meta( $gifts[0], '_npmp_donation_txn_id', true ), 'rig_privacy_1_' ) );
 rig_privacy_check( 'payer details gone from the payment log', null, $wpdb->get_var( $wpdb->prepare( "SELECT raw_response FROM {$wpdb->prefix}npmp_payment_log WHERE donation_id = %d", $gifts[0] ) ) );
@@ -535,6 +660,16 @@ if ( $rig_pro ) {
 	rig_privacy_check( 'Pro: other reader\'s automation email kept', true, (bool) wp_next_scheduled( 'npmp_send_automation_email', array( 'rig-welcome', 'other' . $rig_domain, 'Otto Other', 0 ) ) );
 	rig_privacy_check( 'Pro: cancelled plan row kept', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d AND status = 'cancelled'", $donor ) ) );
 	rig_privacy_check( 'Pro: plan message shown', true, false !== strpos( implode( ' ', $erase['messages'] ), 'ended dues and recurring plans' ) );
+	rig_privacy_check( 'Pro: ended plan payment method blanked', '', (string) $wpdb->get_var( $wpdb->prepare( "SELECT payment_method FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $donor ) ) );
+	$printed = wp_list_pluck( npmp_pro_print_donations_rows( array(), 5000 ), 'name' );
+	rig_privacy_check( 'Pro: printout reads Erased on request for all 250 gifts', 250, count( array_keys( $printed, 'Erased on request', true ) ) );
+	rig_privacy_check( 'Pro: printout never names the donor', false, in_array( 'Rig Donor', $printed, true ) );
+	$mailer = $wpdb->get_col( $wpdb->prepare( "SELECT payload FROM {$wpdb->prefix}npmp_mailer_queue WHERE LOWER( payload ) LIKE %s", '%' . $wpdb->esc_like( 'rig.donor' . $rig_domain ) . '%' ) );
+	rig_privacy_check( 'Mailer: one queued row for the donor', 1, count( $mailer ) );
+	$mailer_row = json_decode( (string) ( $mailer[0] ?? '' ), true );
+	rig_privacy_check( 'Mailer: that row is the delete', true, ! empty( $mailer_row['deleted'] ) );
+	rig_privacy_check( 'Mailer: the delete carries only the ID, address, and flag', array( 'deleted', 'email', 'post_id' ), ( static function ( $k ) { sort( $k ); return $k; } )( array_keys( (array) $mailer_row ) ) );
+	rig_privacy_check( 'Mailer: message says to erase in Nonprofit Mailer', true, false !== strpos( implode( ' ', $erase['messages'] ), 'erase this person in Nonprofit Mailer' ) );
 }
 
 echo "\nA second erase of the donor changes nothing\n";
@@ -542,26 +677,34 @@ $before = rig_privacy_fingerprint();
 $again  = rig_privacy_erase( 'rig.donor' . $rig_domain );
 rig_privacy_check( 'second run answered success', true, $again['ok'] );
 rig_privacy_check( 'second run removes nothing', false, $again['removed'] );
+if ( $rig_pro ) {
+	rig_privacy_check( 'second run keeps the pending Mailer delete', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_mailer_queue WHERE LOWER( payload ) LIKE %s", '%' . $wpdb->esc_like( 'rig.donor' . $rig_domain ) . '%' ) ) );
+}
 rig_privacy_check( 'database unchanged by the second run', $before, rig_privacy_fingerprint() );
 
 // ---------------------------------------------------------------------------
 // Erase the unsubscribed contact.
 // ---------------------------------------------------------------------------
 echo "\nErase the unsubscribed contact\n";
-$erase = rig_privacy_erase( 'gone' . $rig_domain );
+$unsub_modified = get_post( $unsub )->post_modified_gmt;
+$erase          = rig_privacy_erase( 'gone' . $rig_domain );
 clean_post_cache( $unsub );
 rig_privacy_check( 'answered success', true, $erase['ok'] );
 rig_privacy_check( 'contact kept', 'publish', get_post_status( $unsub ) );
 $meta_keys = array_keys( get_post_meta( $unsub ) );
 sort( $meta_keys );
-$expect = defined( 'NPMP_IMPORT_FREE_META' ) ? array( '_npmp_free_import', 'npmp_email', 'npmp_status' ) : array( 'npmp_email', 'npmp_status' );
-rig_privacy_check( 'only email, status, and the import mark left', $expect, $meta_keys );
+$expect = defined( 'NPMP_IMPORT_FREE_META' ) ? array( '_npmp_free_import', '_npmp_privacy_erased', 'npmp_email', 'npmp_status' ) : array( '_npmp_privacy_erased', 'npmp_email', 'npmp_status' );
+rig_privacy_check( 'only email, status, the import mark, and the erase date left', $expect, $meta_keys );
+rig_privacy_check( 'last-changed date kept (nearest record of the unsubscribe)', $unsub_modified, get_post( $unsub )->post_modified_gmt );
 rig_privacy_check( 'name replaced by the address', 'gone' . $rig_domain, get_the_title( $unsub ) );
 rig_privacy_check( 'still unsubscribed through the manager', 'unsubscribed', $mm->get_member_by_email( 'gone' . $rig_domain )->status ?? '' );
 rig_privacy_check( 'retained message shown', true, false !== strpos( implode( ' ', $erase['messages'] ), 'Unsubscribed status' ) );
 rig_privacy_check( 'sent newsletter row to the address gone', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email = %s", 'gone' . $rig_domain ) ) );
 if ( $rig_pro ) {
 	rig_privacy_check( 'Pro: groups removed from the kept contact', array(), wp_get_object_terms( $unsub, 'npmp_group', array( 'fields' => 'ids' ) ) );
+	$mailer     = $wpdb->get_col( $wpdb->prepare( "SELECT payload FROM {$wpdb->prefix}npmp_mailer_queue WHERE LOWER( payload ) LIKE %s", '%' . $wpdb->esc_like( 'gone' . $rig_domain ) . '%' ) );
+	$mailer_row = json_decode( (string) ( $mailer[0] ?? '' ), true );
+	rig_privacy_check( 'Mailer: one row for the kept address, not a delete', array( 1, false ), array( count( $mailer ), ! empty( $mailer_row['deleted'] ) ) );
 }
 $add = $mm->add_member( array( 'email' => 'GONE' . $rig_domain, 'name' => 'Una Again' ) );
 rig_privacy_check( 'a later signup finds the kept address', true, is_wp_error( $add ) );
@@ -578,7 +721,8 @@ if ( $rig_pro ) {
 	clean_post_cache( $held );
 	rig_privacy_check( 'answered success', true, $erase['ok'] );
 	rig_privacy_check( 'retained', true, $erase['retained'] );
-	rig_privacy_check( 'hold message shown once', 1, count( array_filter( $erase['messages'], static function ( $m ) { return false !== strpos( $m, 'Cancel the plan first' ); } ) ) );
+	rig_privacy_check( 'hold message shown once', 1, count( array_filter( $erase['messages'], static function ( $m ) { return false !== strpos( $m, 'Cancel the plan on the Recurring Donations' ); } ) ) );
+	rig_privacy_check( 'hold message words the active status', true, false !== strpos( implode( ' ', $erase['messages'] ), 'an active recurring plan' ) );
 	rig_privacy_check( 'contact kept whole', 'Gold', get_post_meta( $held, 'npmp_membership_level', true ) );
 	rig_privacy_check( 'gift kept with email', 'held' . $rig_domain, get_post_meta( $held_gift, '_npmp_donation_email', true ) );
 	rig_privacy_check( 'active plan untouched', 'active', $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $held ) ) );
@@ -594,6 +738,150 @@ if ( $rig_pro ) {
 }
 
 // ---------------------------------------------------------------------------
+// Similar addresses.
+// ---------------------------------------------------------------------------
+echo "\nErase a@ beside aa@, a+news@, and a@ at a longer domain\n";
+$erase = rig_privacy_erase( 'a' . $rig_domain );
+rig_privacy_check( 'answered success', true, $erase['ok'] );
+clean_post_cache( $similar[ 'a' . $rig_domain ][0] );
+rig_privacy_check( 'a@ contact deleted', null, get_post( $similar[ 'a' . $rig_domain ][0] ) );
+rig_privacy_check( 'a@ gift stripped', '', get_post_meta( $similar[ 'a' . $rig_domain ][1], '_npmp_donation_email', true ) );
+foreach ( $similar as $address => $pair ) {
+	if ( 'a' . $rig_domain === $address ) {
+		continue;
+	}
+	clean_post_cache( $pair[0] );
+	rig_privacy_check( "$address contact kept", 'publish', get_post_status( $pair[0] ) );
+	rig_privacy_check( "$address gift kept with its email", $address, get_post_meta( $pair[1], '_npmp_donation_email', true ) );
+	rig_privacy_check( "$address queue row kept", 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email = %s", $address ) ) );
+}
+
+// ---------------------------------------------------------------------------
+// Plan statuses, read from Pro's table with Pro on or off.
+// ---------------------------------------------------------------------------
+if ( $rig_pro_tables ) {
+	echo "\nA lapsed plan holds, a paused plan doesn't\n";
+	list( $lapsed, $lapsed_gift ) = rig_privacy_person( 'lapsed' . $rig_domain, 'Lee Lapsed' );
+	list( $paused, $paused_gift ) = rig_privacy_person( 'paused' . $rig_domain, 'Pat Paused' );
+	rig_privacy_plan( $lapsed, 'lapsed' );
+	rig_privacy_plan( $paused, 'paused' );
+	$erase = rig_privacy_erase( 'lapsed' . $rig_domain );
+	clean_post_cache( $lapsed );
+	rig_privacy_check( 'lapsed: contact kept', 'Lee Lapsed', get_the_title( $lapsed ) );
+	rig_privacy_check( 'lapsed: gift kept with email', 'lapsed' . $rig_domain, get_post_meta( $lapsed_gift, '_npmp_donation_email', true ) );
+	rig_privacy_check( 'lapsed: message words the status', true, false !== strpos( implode( ' ', $erase['messages'] ), 'a lapsed plan that Stripe may still retry' ) );
+	rig_privacy_check( 'lapsed: message names the way out', true, false !== strpos( implode( ' ', $erase['messages'] ), $rig_pro ? 'Cancel the plan on the Recurring Donations' : 'Activate Nonprofit Manager Pro, cancel the plan' ) );
+	rig_privacy_check( 'lapsed: payment method kept', 'pm_rig_card', $wpdb->get_var( $wpdb->prepare( "SELECT payment_method FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $lapsed ) ) );
+	$erase = rig_privacy_erase( 'paused' . $rig_domain );
+	clean_post_cache( $paused );
+	if ( $rig_pro ) {
+		rig_privacy_check( 'paused: contact deleted', null, get_post( $paused ) );
+		rig_privacy_check( 'paused: payment method blanked', '', (string) $wpdb->get_var( $wpdb->prepare( "SELECT payment_method FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $paused ) ) );
+	} else {
+		// Pro off: the paused row bills nothing, but its payment method is
+		// Pro data that only Pro's eraser blanks.
+		rig_privacy_check( 'paused, Pro off: held for Pro data, not for billing', true, false !== strpos( implode( ' ', $erase['messages'] ), 'Activate or update Nonprofit Manager Pro' ) );
+		rig_privacy_check( 'paused, Pro off: contact kept', 'publish', get_post_status( $paused ) );
+	}
+	rig_privacy_check( 'paused: plan row kept', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $paused ) ) );
+}
+
+// ---------------------------------------------------------------------------
+// Pro off, with Pro's data still in the database.
+// ---------------------------------------------------------------------------
+if ( ! $rig_pro && $rig_pro_tables ) {
+	echo "\nPro off: a contact with a Pro custom field\n";
+	list( $prodata, $prodata_gift ) = rig_privacy_person( 'prodata' . $rig_domain, 'Pru Data' );
+	$wpdb->insert( $wpdb->prefix . 'npmp_custom_fields', array( 'entity_type' => 'member', 'entity_id' => $prodata, 'field_key' => 'rig_field', 'field_value' => 'rig-value' ) );
+	$erase = rig_privacy_erase( 'prodata' . $rig_domain );
+	clean_post_cache( $prodata );
+	rig_privacy_check( 'retained', true, $erase['retained'] );
+	rig_privacy_check( 'contact kept whole', 'Pru Data', get_the_title( $prodata ) );
+	rig_privacy_check( 'gift kept with email', 'prodata' . $rig_domain, get_post_meta( $prodata_gift, '_npmp_donation_email', true ) );
+	rig_privacy_check( 'custom field kept', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_custom_fields WHERE entity_id = %d", $prodata ) ) );
+	rig_privacy_check( 'message says to activate or update Pro', true, false !== strpos( implode( ' ', $erase['messages'] ), 'Activate or update Nonprofit Manager Pro' ) );
+	rig_privacy_check( 'queue row still gone (bills nothing)', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email = %s", 'prodata' . $rig_domain ) ) );
+	$wpdb->delete( $wpdb->prefix . 'npmp_custom_fields', array( 'entity_id' => $prodata ) );
+	if ( rig_privacy_has_table( 'npmp_mailer_queue' ) ) {
+		// Pro queued the Mailer's delete before someone turned Pro off. That
+		// row is Pro's request to the Mailer, so it holds nobody.
+		$wpdb->insert( $wpdb->prefix . 'npmp_mailer_queue', array( 'item_key' => 'contact:rig' . $prodata, 'kind' => 'contact', 'payload' => wp_json_encode( array( 'post_id' => $prodata, 'email' => 'prodata' . $rig_domain, 'deleted' => true ) ), 'attempts' => 0 ) );
+	}
+	$erase = rig_privacy_erase( 'prodata' . $rig_domain );
+	clean_post_cache( $prodata );
+	rig_privacy_check( 'with the field gone: contact deleted', null, get_post( $prodata ) );
+}
+
+// ---------------------------------------------------------------------------
+// A site that never had Pro: Pro's tables renamed away for this one request.
+// ---------------------------------------------------------------------------
+if ( ! $rig_pro ) {
+	echo "\nNo Pro ever: no Pro tables\n";
+	list( $nopro, $nopro_gift ) = rig_privacy_person( 'nopro' . $rig_domain, 'Nora None' );
+	$renamed = array();
+	foreach ( array( 'npmp_recurring_donations', 'npmp_custom_fields', 'npmp_automation_log', 'npmp_mailer_queue' ) as $name ) {
+		if ( rig_privacy_has_table( $name ) ) {
+			$wpdb->query( "RENAME TABLE {$wpdb->prefix}{$name} TO {$wpdb->prefix}rigoff_{$name}" );
+			$renamed[] = $name;
+		}
+	}
+	npmp_privacy_store( new NPMP_Privacy_Store() );
+	try {
+		$erase = rig_privacy_erase( 'nopro' . $rig_domain );
+	} finally {
+		foreach ( $renamed as $name ) {
+			$wpdb->query( "RENAME TABLE {$wpdb->prefix}rigoff_{$name} TO {$wpdb->prefix}{$name}" );
+		}
+		npmp_privacy_store( new NPMP_Privacy_Store() );
+	}
+	clean_post_cache( $nopro );
+	rig_privacy_check( 'answered success', true, $erase['ok'] );
+	rig_privacy_check( 'no Pro tables seen', false, rig_privacy_has_table( 'rigoff_npmp_custom_fields' ) );
+	rig_privacy_check( 'contact deleted', null, get_post( $nopro ) );
+	rig_privacy_check( 'gift stripped', '', get_post_meta( $nopro_gift, '_npmp_donation_email', true ) );
+	rig_privacy_check( 'no hold message', false, false !== strpos( implode( ' ', $erase['messages'] ), 'Pro' ) );
+}
+
+// ---------------------------------------------------------------------------
+// An older Pro: Pro on, Pro's eraser not on core's list.
+// ---------------------------------------------------------------------------
+if ( $rig_pro ) {
+	echo "\nOlder Pro: Pro on without its eraser\n";
+	list( $oldpro, $oldpro_gift ) = rig_privacy_person( 'oldpro' . $rig_domain, 'Olga Old' );
+	$cf->save_field_value( 'member', $oldpro, $field_id, 'Gluten' );
+	remove_filter( 'wp_privacy_personal_data_erasers', 'npmp_pro_privacy_register_erasers', 9 );
+	$erase = rig_privacy_erase( 'oldpro' . $rig_domain );
+	add_filter( 'wp_privacy_personal_data_erasers', 'npmp_pro_privacy_register_erasers', 9 );
+	clean_post_cache( $oldpro );
+	rig_privacy_check( 'only free\'s eraser ran', false, in_array( 'nonprofit-manager-pro', $erase['order'], true ) );
+	rig_privacy_check( 'contact kept whole', 'Olga Old', get_the_title( $oldpro ) );
+	rig_privacy_check( 'gift kept with email', 'oldpro' . $rig_domain, get_post_meta( $oldpro_gift, '_npmp_donation_email', true ) );
+	rig_privacy_check( 'message says to activate or update Pro', true, false !== strpos( implode( ' ', $erase['messages'] ), 'Activate or update Nonprofit Manager Pro' ) );
+	$erase = rig_privacy_erase( 'oldpro' . $rig_domain );
+	clean_post_cache( $oldpro );
+	rig_privacy_check( 'after the update: contact deleted', null, get_post( $oldpro ) );
+	rig_privacy_check( 'after the update: custom field gone', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_custom_fields WHERE entity_type = 'member' AND entity_id = %d", $oldpro ) ) );
+
+	echo "\nNewer Pro beside an older free: free's eraser not on core's list\n";
+	list( $newpro, $newpro_gift ) = rig_privacy_person( 'newpro' . $rig_domain, 'Ned New' );
+	$cf->save_field_value( 'member', $newpro, $field_id, 'Dairy' );
+	$wpdb->insert( $wpdb->prefix . 'npmp_automation_log', array( 'automation_id' => 'rig-welcome', 'recipient_email' => 'newpro' . $rig_domain, 'status' => 'sent' ) );
+	$before = rig_privacy_fingerprint();
+	remove_filter( 'wp_privacy_personal_data_erasers', 'npmp_privacy_register_erasers' );
+	$erase = rig_privacy_erase( 'newpro' . $rig_domain );
+	add_filter( 'wp_privacy_personal_data_erasers', 'npmp_privacy_register_erasers' );
+	clean_post_cache( $newpro );
+	rig_privacy_check( 'only Pro\'s eraser ran', array( false, true ), array( in_array( 'nonprofit-manager', $erase['order'], true ), in_array( 'nonprofit-manager-pro', $erase['order'], true ) ) );
+	rig_privacy_check( 'Pro erased nothing, automation log included', $before, rig_privacy_fingerprint() );
+	rig_privacy_check( 'retained', array( false, true ), array( $erase['removed'], $erase['retained'] ) );
+	rig_privacy_check( 'message says to update Nonprofit Manager', true, false !== strpos( implode( ' ', $erase['messages'] ), 'Update Nonprofit Manager' ) );
+	$erase = rig_privacy_erase( 'newpro' . $rig_domain );
+	clean_post_cache( $newpro );
+	rig_privacy_check( 'after the update: contact deleted', null, get_post( $newpro ) );
+	rig_privacy_check( 'after the update: automation log gone', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_automation_log WHERE recipient_email = %s", 'newpro' . $rig_domain ) ) );
+}
+
+// ---------------------------------------------------------------------------
 // An address nobody has.
 // ---------------------------------------------------------------------------
 echo "\nErase an unknown address\n";
@@ -602,6 +890,12 @@ $erase  = rig_privacy_erase( 'nobody' . $rig_domain );
 rig_privacy_check( 'answered success', true, $erase['ok'] );
 rig_privacy_check( 'nothing removed or retained', array( false, false, array() ), array( $erase['removed'], $erase['retained'], $erase['messages'] ) );
 rig_privacy_check( 'database unchanged', $before, rig_privacy_fingerprint() );
+
+if ( $rig_pro ) {
+	delete_option( 'npmp_mailer_api_key' );
+	delete_option( 'npmp_mailer_api_url' );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}npmp_mailer_queue WHERE payload LIKE %s", $rig_like ) );
+}
 
 // Never touches WordPress users.
 rig_privacy_check( 'the admin user still exists', true, (bool) get_userdata( $admins[0]->ID ) );
