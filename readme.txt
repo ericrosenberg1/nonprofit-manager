@@ -2,8 +2,8 @@
 Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
-Tested up to: 7.1
-Stable tag: 2026.11.27
+Tested up to: 7.2
+Stable tag: 2026.11.28
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -181,6 +181,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.28 =
+* Fixed the email footer preferences link missing after you add a preferences page.
+* Tested up to WordPress 7.2.
 
 = 2026.11.27 =
 * Added a Stripe webhook to record every gift.
@@ -697,6 +701,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.28 =
+Update to keep the preferences link in your emails after you add a preferences page.
 
 = 2026.11.27 =
 Update to record Stripe gifts from donors who close the tab and to retry failed newsletter sends.
