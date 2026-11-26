@@ -104,6 +104,7 @@ function npmp_turnstile_verify( $response_field = 'cf-turnstile-response' ) {
 			'remoteip' => function_exists( 'npmp_client_ip' ) ? npmp_client_ip() : '',
 		),
 	);
+	// phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Cloudflare Turnstile's own siteverify endpoint, named in the readme's External Services section.
 	$response = wp_remote_post( 'https://challenges.cloudflare.com/turnstile/v0/siteverify', $args );
 
 	if ( is_wp_error( $response ) ) {
@@ -127,6 +128,7 @@ function npmp_turnstile_test_keys() {
 	}
 
 	$request = wp_remote_post(
+		// phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Cloudflare Turnstile's own siteverify endpoint, named in the readme's External Services section.
 		'https://challenges.cloudflare.com/turnstile/v0/siteverify',
 		array(
 			'timeout' => 10,

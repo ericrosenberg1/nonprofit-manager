@@ -89,6 +89,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   donations must match both (weekly counts 52/12 per month).
 - wptexturize mangles `<` inside inline scripts on block themes and turns every later `&&` into
   `&#038;&#038;`. Keep `<` out of the donation forms' inline JS (`tests/test-inline-scripts.php`).
+- **Plugin Check.** The wp.org team scans every update with Plugin Check, so we run the scan before a release. Build the SQLite rig above,
+  install `plugin-check` (2.2.0 or later), unpack `git archive HEAD` into `wp-content/plugins/nonprofit-manager`, and run
+  `wp plugin check nonprofit-manager --format=json` (about a minute, with a `FILE:` line and a JSON array per file).
+  We ship with 0 ERRORs. We keep these ignores on purpose, each with its reason on the line: `strip_tags()` where
+  `wp_strip_all_tags()` would drop script and style text a person typed (UM level name, past-newsletter subject, From name)
+  or where no WordPress is loaded (ICS and meeting-ID fallbacks), `fread()` of 3 bytes for the CSV byte-order mark, and
+  `OffloadedContent` on Cloudflare Turnstile's siteverify URL, the Cloudflare dashboard link, and the Amazon SES SMTP host.
+  We bundle the PayPal button image (`assets/images/paypal-mark.png`) and never hotlink the PayPal CDN. We never use `%i` for table
+  names, because we support WordPress 6.0 and `%i` needs 6.2. `readme.txt` keeps the long title on purpose, so
+  `mismatched_plugin_name` stays. We keep each Upgrade Notice entry at 300 characters or fewer.
 - `get_all_donations()` is unbounded and has no caller, but it's public API, so it stays. The
   Donations screen table is unpaginated by product choice.
 - Both Smart Buttons forms build their PayPal order from `npmp_paypal_purchase_unit()`. Pro's

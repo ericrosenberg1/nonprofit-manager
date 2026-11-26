@@ -276,6 +276,7 @@ function npmp_um_has_ticked_role( array $user_roles, array $ticked ) {
  * @return string
  */
 function npmp_um_clean_level( $raw ) {
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- wp_strip_all_tags() also drops the text inside script and style tags, which changes the level name a person typed.
 	$raw = is_scalar( $raw ) ? trim( preg_replace( '/\s+/u', ' ', strip_tags( (string) $raw ) ) ) : '';
 	return function_exists( 'mb_substr' ) ? mb_substr( $raw, 0, 100 ) : substr( $raw, 0, 100 );
 }
@@ -1592,10 +1593,9 @@ function npmp_um_render_left_behind() {
 	if ( $profile ) {
 		echo '<li>' . esc_html(
 			sprintf(
-				/* translators: %s: field names. */
 				npmp_um_profile_fields_supported()
-					? __( 'We copy your custom profile fields into your custom fields: %s.', 'nonprofit-manager' )
-					: __( 'Your custom profile fields, which have no place on a contact: %s. They stay in your users\' profiles.', 'nonprofit-manager' ),
+					? /* translators: %s: field names. */ __( 'We copy your custom profile fields into your custom fields: %s.', 'nonprofit-manager' )
+					: /* translators: %s: field names. */ __( 'Your custom profile fields, which have no place on a contact: %s. They stay in your users\' profiles.', 'nonprofit-manager' ),
 				implode( ', ', array_slice( array_values( $profile ), 0, 20 ) )
 			)
 		) . '</li>';

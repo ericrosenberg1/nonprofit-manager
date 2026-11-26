@@ -173,7 +173,7 @@ function npmp_newsletter_archive_text( $content ) {
 	$content = preg_replace( '#<(h[1-6]|figure|iframe|script|style|form|noscript)\b[^>]*>.*?</\1>#is', ' ', $content );
 	$content = preg_replace( '/\[\/?[a-z_][a-z0-9_-]*[^\]]*\]/i', '', $content );
 	$content = preg_replace( '#</(p|li|div|blockquote|td|th|tr)>|<br\s*/?>#i', ' ', $content );
-	$content = strip_tags( $content );
+	$content = wp_strip_all_tags( $content );
 	$content = html_entity_decode( $content, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 
 	return trim( (string) preg_replace( '/\s+/u', ' ', $content ) );

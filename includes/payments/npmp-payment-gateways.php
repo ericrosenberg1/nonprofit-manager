@@ -494,7 +494,7 @@ function npmp_render_paypal_link_form() {
 
 			<p style="margin-top:20px;">
 				<button type="submit" class="button button-primary" style="width:100%; padding: 10px; font-size: 16px;">
-					<img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal" style="height: 20px; vertical-align: middle; margin-right: 8px;">
+					<img src="<?php echo esc_url( plugins_url( 'assets/images/paypal-mark.png', dirname( __DIR__, 2 ) . '/nonprofit-manager.php' ) ); ?>" alt="PayPal" style="height: 20px; vertical-align: middle; margin-right: 8px;">
 					<?php echo esc_html( $opts['btn_lbl'] ); ?>
 				</button>
 			</p>
