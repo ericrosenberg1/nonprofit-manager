@@ -46,6 +46,7 @@ if ( ! defined( 'NPMP_NEWSLETTER_MEETING_PRIVATE_META' ) ) {
  */
 function npmp_event_meeting_clean( $value ) {
 	$value = is_scalar( $value ) ? (string) $value : '';
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Fallback for a run without WordPress loaded (the unit tests), where wp_strip_all_tags() doesn't exist.
 	$value = function_exists( 'sanitize_text_field' ) ? sanitize_text_field( $value ) : trim( preg_replace( '/[\r\n\t ]+/', ' ', strip_tags( $value ) ) );
 	return function_exists( 'mb_substr' ) ? mb_substr( $value, 0, 100 ) : substr( $value, 0, 100 );
 }

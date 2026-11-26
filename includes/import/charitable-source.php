@@ -136,7 +136,9 @@ function npmp_charitable_donor_batch( $after, $limit ) {
 	if ( $gifts ) {
 		$gift_ids = implode( ',', array_map( 'intval', wp_list_pluck( $gifts, 'ID' ) ) );
 		$keys     = array( 'test_mode', 'currency', 'donation_gateway', '_gateway_transaction_id', 'donation_refund' );
-		foreach ( (array) $wpdb->get_results( "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ({$gift_ids}) AND meta_key IN ('" . implode( "','", $keys ) . "')", ARRAY_A ) as $m ) {
+		$key_marks = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholder run built by array_fill(), one %s per value.
+		foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ({$gift_ids}) AND meta_key IN ({$key_marks})", $keys ), ARRAY_A ) as $m ) {
 			$meta[ (int) $m['post_id'] ][ $m['meta_key'] ] = 'donation_refund' === $m['meta_key'] ? maybe_unserialize( $m['meta_value'] ) : $m['meta_value'];
 		}
 	}

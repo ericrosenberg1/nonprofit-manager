@@ -860,10 +860,15 @@ function npmp_gift_csv_render_review( array $job, array $state ) {
 
 	/* translators: %s: number of rows, in each line below. */
 	$lines = array(
+		/* translators: %s: number of rows. */
 		'refunded'     => __( 'Refunded or disputed: %s', 'nonprofit-manager' ),
+		/* translators: %s: number of rows. */
 		'not_received' => __( 'Failed, canceled, or never finished: %s', 'nonprofit-manager' ),
+		/* translators: %s: number of rows. */
 		'email'        => __( 'No email, or an email we can\'t read: %s', 'nonprofit-manager' ),
+		/* translators: %s: number of rows. */
 		'amount'       => __( 'No amount, a zero, or a negative amount: %s', 'nonprofit-manager' ),
+		/* translators: %s: number of rows. */
 		'date'         => __( 'A date we can\'t read: %s', 'nonprofit-manager' ),
 	);
 	$any = array_sum( $skipped ) + (int) $s['duplicates'];

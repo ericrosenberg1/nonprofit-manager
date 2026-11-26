@@ -240,6 +240,7 @@ function npmp_render_general_settings_page() {
 								printf(
 									/* translators: %s: URL to Cloudflare Turnstile */
 									wp_kses_post( __( 'Get your free Turnstile keys from <a href="%s" target="_blank" rel="noopener">Cloudflare Turnstile</a>.', 'nonprofit-manager' ) ),
+									// phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- A link to the owner's Cloudflare dashboard, nothing loads from it.
 									'https://dash.cloudflare.com/?to=/:account/turnstile'
 								);
 								?>

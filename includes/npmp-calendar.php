@@ -1893,8 +1893,7 @@ function npmp_render_event_settings_page() {
 
 	$pages = get_pages();
 	foreach ( $pages as $page ) {
-		$selected = ( absint( $current_calendar_id ) === $page->ID ) ? ' selected="selected"' : '';
-		echo '<option value="' . esc_attr( $page->ID ) . '"' . $selected . '>' . esc_html( $page->post_title ) . '</option>';
+		echo '<option value="' . esc_attr( $page->ID ) . '"' . ( absint( $current_calendar_id ) === $page->ID ? ' selected="selected"' : '' ) . '>' . esc_html( $page->post_title ) . '</option>';
 	}
 	echo '</select>';
 

@@ -32,6 +32,7 @@ if ( ! function_exists( 'npmp_ics_escape_text' ) ) {
 	 * @return string
 	 */
 	function npmp_ics_escape_text( $text ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Fallback for a run without WordPress loaded, where wp_strip_all_tags() doesn't exist.
 		$text = function_exists( 'wp_strip_all_tags' ) ? wp_strip_all_tags( (string) $text ) : trim( strip_tags( (string) $text ) );
 		// Backslashes first. Escaping them after the newlines turned every
 		// line break into a literal "\\n" in calendar apps.

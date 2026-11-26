@@ -108,6 +108,10 @@ If you turn on a captcha, form submissions are verified with Cloudflare Turnstil
 
 Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Importing from Brevo (api.brevo.com) reads your lists, contacts, and attributes with the API key you paste, sent in a request header and used only during that import. Importing from a Google Sheet (docs.google.com) fetches the published CSV at the link you paste, and Google sees your server's address and that link. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms and https://www.constantcontact.com/legal/privacy-notice Brevo: https://www.brevo.com/legal/termsofuse/ and https://www.brevo.com/legal/privacypolicy/ Google Sheets: https://policies.google.com/terms and https://policies.google.com/privacy
 
+**Email delivery**
+
+If you choose Amazon SES (amazonaws.com) or your own SMTP server in the email settings, we send newsletters and notices through that server with the login you enter. The server receives each message and its recipient. Amazon: https://aws.amazon.com/service-terms/ and https://aws.amazon.com/privacy/
+
 **Social sharing**
 
 Auto-sharing posts sends the title, link, and excerpt you configure to the networks you connect, using your own account credentials.
@@ -795,7 +799,7 @@ Small display fix in a member's donation history. Worth taking if you also run N
 Adds an admin warning when PayPal donations are being accepted without a PayPal API secret saved, since donations cannot be verified against PayPal in that state.
 
 = 2026.08.3 =
-Recommended update. Fixes a broken X/Twitter share, shifted calendar event times, an ignored default-membership-level setting, a one-cent undercharge on some donation amounts, and an annual recurring total that read low. Also closes a gap that let a logged-out visitor log a fake donation. Raises the minimum PHP version to 8.1, so sites on PHP 8.0 or older will not be offered this update until they upgrade.
+Recommended. Fixes a broken X/Twitter share, shifted event times, an ignored default membership level, a one-cent undercharge on some gifts, and a low annual recurring total. Closes a gap that let a logged-out visitor log a fake gift. Needs PHP 8.1. PHP 8.0 sites see no offer until they upgrade.
 
 = 2026.08.2 =
 Maintenance release keeping the free plugin in lockstep with Pro 2026.08.2. No functional changes to the free plugin.

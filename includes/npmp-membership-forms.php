@@ -158,6 +158,7 @@ function npmp_get_membership_setup_status() {
 		$rows[] = array(
 			'status'  => 'ok',
 			'label'   => __( 'Signup page', 'nonprofit-manager' ),
+			/* translators: %s: page title. */
 			'message' => sprintf( __( 'Signup form appears on “%s”.', 'nonprofit-manager' ), get_the_title( $signup_id ) ),
 		);
 	}
