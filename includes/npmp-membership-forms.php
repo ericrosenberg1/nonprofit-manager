@@ -327,6 +327,7 @@ function npmp_render_membership_forms_page() {
 		// turn it off.
 		$settings['double_optin'] = empty( $_POST['double_optin'] ) ? 0 : 1;
 		update_option( $option_key, $settings );
+		npmp_forget_preferences_page_miss();
 		$settings = npmp_get_membership_form_settings( true );
 		$message = __( 'Settings saved.', 'nonprofit-manager' );
 

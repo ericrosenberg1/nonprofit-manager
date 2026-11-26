@@ -270,3 +270,33 @@ function npmp_maybe_repair_form_pages() {
 	}
 }
 add_action( 'init', 'npmp_maybe_repair_form_pages', 30 );
+
+/**
+ * Forget that the preferences lookup found no page.
+ *
+ * The lookup remembers a miss for an hour (npmp_get_preferences_page_id()), so a
+ * page created, published, renamed, or restored after a miss stayed unseen and
+ * "Manage your email preferences" dropped out of the email footer. Runs when
+ * any page changes state and when Membership Settings save.
+ *
+ * @return void
+ */
+function npmp_forget_preferences_page_miss() {
+	delete_transient( 'npmp_prefs_page_lookup' );
+}
+
+/**
+ * Clear the miss when a page is saved, trashed, restored, or deleted.
+ *
+ * @param int $post_id Post ID.
+ * @return void
+ */
+function npmp_forget_preferences_page_miss_for_post( $post_id ) {
+	if ( 'page' === get_post_type( $post_id ) ) {
+		npmp_forget_preferences_page_miss();
+	}
+}
+add_action( 'save_post_page', 'npmp_forget_preferences_page_miss' );
+add_action( 'wp_trash_post', 'npmp_forget_preferences_page_miss_for_post' );
+add_action( 'untrashed_post', 'npmp_forget_preferences_page_miss_for_post' );
+add_action( 'before_delete_post', 'npmp_forget_preferences_page_miss_for_post' );

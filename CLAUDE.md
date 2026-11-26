@@ -480,6 +480,9 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   holding the real form when no page is named for giving. A one-time repair (`npmp_maybe_repair_form_pages()`, option
   `npmp_form_pages_repaired`) moves a saved unsubscribe or preferences page only when it isn't clear, it mentions the form
   (the old search's only way in), and a clear page exists. Otherwise we create and change nothing, and setup status warns.
+  The preferences lookup remembers a miss for an hour (`npmp_prefs_page_lookup`). We clear it with
+  `npmp_forget_preferences_page_miss()` on every page save, trash, restore, and delete and on Membership Settings save
+  (`tests/test-preferences-page-miss.php`), so a page made after a miss shows up at once. Any new cached miss needs the same clearing.
   We send newsletters as HTML only, with no plain-text part, and the footer URL's `&#038;` decodes to `&` (checked with
   macOS textutil and PHP's `html_entity_decode()`). Pete's `&#038;` likely came from elsewhere, unconfirmed. Unit `tests/test-form-pages.php`, rig `tests/rig/form-pages.php`.
 - **Event tags become hashtags** (taxonomy `npmp_event_tag`, flat, no public archive, since the release after 2026.11.20).
