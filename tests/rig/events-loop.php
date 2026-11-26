@@ -67,7 +67,8 @@ $ok( 'no image markup by default', false === strpos( $html, 'npmp-event-media' )
 $ok( 'manual excerpt used for B', false !== strpos( $html, 'A written summary for B.' ) );
 $ok( 'auto excerpt skips the headings', false !== strpos( $html, 'Opening remarks from the vice chair' ) && false !== strpos( $html, 'Police report' ) && false === strpos( $html, 'Wednesday, September' ) );
 // ROS-4428: the two list items stay on their own lines instead of running together.
-$ok( 'auto excerpt keeps the line break between list items', false !== strpos( $html, "Opening remarks from the vice chair<br />\nPolice report" ) );
+// WordPress 7.2 re-serializes wp_kses_post() output, so a void tag comes back as <br> where 7.1 gave <br />. Accept both.
+$ok( 'auto excerpt keeps the line break between list items', 1 === preg_match( '#Opening remarks from the vice chair<br ?/?>\nPolice report#', $html ) );
 $ok( 'excerpt text sits in its own <p>', (bool) preg_match( '#<div class="npmp-event-excerpt"><p>#', $html ) );
 
 echo "Upcoming list stays soonest first\n";
