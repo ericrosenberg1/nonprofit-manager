@@ -26,6 +26,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once dirname( __DIR__ ) . '/npmp-mb-compat.php';
+
 /** Events read or migrated per request. */
 if ( ! defined( 'NPMP_TEC_BATCH' ) ) {
 	define( 'NPMP_TEC_BATCH', 100 );
@@ -254,7 +256,7 @@ function npmp_tec_normalize_path( $url, $home_path = '' ) {
 		}
 	}
 
-	$path = function_exists( 'mb_strtolower' ) ? mb_strtolower( $path, 'UTF-8' ) : strtolower( $path );
+	$path = npmp_mb_lower( $path );
 
 	if ( '' !== $query ) {
 		parse_str( $query, $args );
