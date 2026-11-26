@@ -120,6 +120,16 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   with a compare-and-swap (`npmp_mail_queue_batch_continues()`). On 2026.11.26, with an SMTP sink at 1 second a message and
   330 readers, a run outlived the 300-second lock and a second run mailed 29 readers twice. Unit
   `tests/test-newsletter-queue-retry.php`, rig `tests/rig/newsletter-queue-cron.php` (MySQL and SQLite, `tests/rig/smtp-sink.py`).
+- **A drain reads its batch once, so each send reads its row and contact again.** The newsletter and digest drains read
+  their rows and `lookup_emails()` before the first send and then send for up to 240 seconds. A contact erased, a reader
+  who unsubscribed, or a row another request deleted or settled in that time still got mail, and a signed open or click link
+  in an erased contact's old email wrote an `npmp_newsletter_opens` or `_clicks` row for a contact that no longer exists
+  (we reproduced both on MySQL 8.0.35 with a sink at 1 second a message, 2026-11-26). `npmp_queue_recheck_send()` now runs one
+  query joined by primary key right before each send: skip a row that is gone or no longer pending, delete the row of a
+  contact who is gone or no longer subscribed (the digest also needs its `_npmp_weekly_digest` flag), and never read it
+  through the object cache. The retry, lock, 3-failure, and 240-second rules are unchanged. `track_open()` and `track_click()`
+  return false for a contact that is not a published `npmp_contact`. Unit `tests/test-newsletter-drain-recheck.php`, rig
+  `tests/rig/newsletter-queue-cron.php`.
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when
   `from_all_mail` is on ("Send all site email from this address", default off). Custom SMTP and

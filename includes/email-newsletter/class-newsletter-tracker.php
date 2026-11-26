@@ -69,6 +69,19 @@ class NPMP_Newsletter_Tracker {
 	}
 
 	/**
+	 * Whether a contact still exists, so tracking never writes a row for an
+	 * erased one. A trashed contact counts as gone, the way
+	 * NPMP_Member_Manager::get_member_by_id() reads it.
+	 *
+	 * @param int $contact_id Contact post ID.
+	 * @return bool
+	 */
+	private static function contact_exists( $contact_id ) {
+		$contact_id = absint( $contact_id );
+		return $contact_id > 0 && 'npmp_contact' === get_post_type( $contact_id ) && 'publish' === get_post_status( $contact_id );
+	}
+
+	/**
 	 * Record an open event.
 	 *
 	 * Stored in the dedicated wp_npmp_newsletter_opens table rather than as a
@@ -83,6 +96,11 @@ class NPMP_Newsletter_Tracker {
 	 * @return bool
 	 */
 	public function track_open( $newsletter_id, $user_id ) {
+		// An erased contact's old emails still carry a signed pixel. Write nothing for one.
+		if ( ! self::contact_exists( $user_id ) ) {
+			return false;
+		}
+
 		$cache_key = 'open_' . $newsletter_id . '_' . $user_id;
 		if ( wp_cache_get( $cache_key, 'npmp_newsletters' ) ) {
 			return true;
@@ -116,6 +134,11 @@ class NPMP_Newsletter_Tracker {
 	 * @return bool
 	 */
 	public function track_click( $newsletter_id, $user_id, $url ) {
+		// The same for a signed link in an erased contact's old email.
+		if ( ! self::contact_exists( $user_id ) ) {
+			return false;
+		}
+
 		global $wpdb;
 		$table = $wpdb->prefix . 'npmp_newsletter_clicks';
 

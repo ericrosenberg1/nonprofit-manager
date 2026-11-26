@@ -357,6 +357,56 @@ function npmp_mail_queue_batch_continues( $name, $started, $budget ) {
 }
 
 /**
+ * Read one queue row and its contact fresh, right before a send.
+ *
+ * A drain reads its batch and the contacts once, then sends for up to 240
+ * seconds. In that time an admin can erase a contact (the queue row goes with
+ * a privacy erase), a reader can unsubscribe, or another request can settle
+ * the row. This is one query on the queue table's primary key, joined to the
+ * contact's post and its status meta by primary key, so the drain can skip a
+ * reader who left after the batch was read. It reads past the object cache on
+ * purpose: a cache this process filled minutes ago is the stale copy.
+ *
+ * @param string $table      Queue table, with prefix.
+ * @param int    $queue_id   Queue row ID.
+ * @param int    $contact_id Contact post ID, or 0 when the row has none.
+ * @param string $flag_key   A contact meta key to read too, or '' for none.
+ * @return array{row:?string,contact:?array{exists:bool,status:string,flag:string}}
+ *               row is the queue row's status, or null when it is gone.
+ *               contact is null when there was no contact ID to check.
+ */
+function npmp_queue_recheck_send( $table, $queue_id, $contact_id, $flag_key = '' ) {
+	global $wpdb;
+	$found = $wpdb->get_row( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- A fresh read is the point.
+		$wpdb->prepare(
+			"SELECT q.status AS queue_status, p.post_status AS contact_post, s.meta_value AS contact_status, f.meta_value AS contact_flag FROM {$table} q LEFT JOIN {$wpdb->posts} p ON p.ID = %d AND p.post_type = 'npmp_contact' LEFT JOIN {$wpdb->postmeta} s ON s.post_id = p.ID AND s.meta_key = 'npmp_status' LEFT JOIN {$wpdb->postmeta} f ON f.post_id = p.ID AND f.meta_key = %s WHERE q.id = %d LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table names, every value is a placeholder.
+			(int) $contact_id,
+			(string) $flag_key,
+			(int) $queue_id
+		)
+	);
+	if ( ! $found ) {
+		return array(
+			'row'     => null,
+			'contact' => null,
+		);
+	}
+	$contact = null;
+	if ( (int) $contact_id > 0 ) {
+		$contact = array(
+			'exists' => 'publish' === (string) $found->contact_post,
+			// A contact with no status meta counts as subscribed, as lookup_emails() reads it.
+			'status' => '' === (string) $found->contact_status ? 'subscribed' : (string) $found->contact_status,
+			'flag'   => (string) $found->contact_flag,
+		);
+	}
+	return array(
+		'row'     => (string) $found->queue_status,
+		'contact' => $contact,
+	);
+}
+
+/**
  * Release a lock taken with npmp_mail_queue_lock().
  *
  * Deletes the lock only while it still holds this run's stamp, so a run that

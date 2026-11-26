@@ -177,6 +177,8 @@ class T_Query {
 class T_Wpdb {
 	public $prefix  = 'wp_';
 	public $options = 'wp_options';
+	public $posts    = 'wp_posts';
+	public $postmeta = 'wp_postmeta';
 	public $opts    = array();   // option_name => option_value, the live rows.
 	public $rows    = array();   // queue id => row.
 	public $columns = array( 'id', 'newsletter_id', 'user_id', 'email', 'status', 'queued_at', 'sent_at' );
@@ -265,6 +267,17 @@ class T_Wpdb {
 			return $out;
 		}
 		throw new Exception( 'Unexpected get_results: ' . $sql );
+	}
+
+	/** The drain's fresh read of one row right before its send (no contact here). */
+	public function get_row( $q ) {
+		$sql  = $q instanceof T_Query ? $q->sql : (string) $q;
+		$args = $q instanceof T_Query ? $q->args : array();
+		if ( false !== strpos( $sql, 'FROM wp_npmp_newsletter_queue q LEFT JOIN' ) ) {
+			$r = $this->rows[ (int) $args[2] ] ?? null;
+			return $r ? (object) array( 'queue_status' => $r->status, 'contact_post' => null, 'contact_status' => null, 'contact_flag' => null ) : null;
+		}
+		throw new Exception( 'Unexpected get_row: ' . $sql );
 	}
 
 	public function update( $table, $data, $where, $formats = null, $where_formats = null ) {

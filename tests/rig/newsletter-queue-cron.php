@@ -18,7 +18,9 @@
  * and the status_queued index once, from the drain or an admin screen and
  * never a visitor's page, even with two requests at it, and keeps every row
  * as it was. A slow batch stops before its run lock goes stale and
- * keeps the lock fresh, so a second run can't mail the same readers.
+ * keeps the lock fresh, so a second run can't mail the same readers. A reader
+ * erased or unsubscribed, or a row deleted, after the drain read its batch
+ * gets no mail, and the trackers write no row for an erased contact.
  *
  * Run inside a throwaway WordPress with members, newsletters and the calendar
  * on (CLAUDE.md, "Testing beyond unit tests"), with tests/rig/smtp-sink.py
@@ -460,6 +462,63 @@ if ( false === stripos( (string) $wpdb->db_server_info(), 'sqlite' ) && ! define
 	$plan = $wpdb->get_row( $wpdb->prepare( "EXPLAIN SELECT id, newsletter_id, user_id, email, attempts FROM {$queue} WHERE status = 'pending' AND ( retry_at IS NULL OR retry_at <= %s ) ORDER BY queued_at ASC, id ASC LIMIT %d", gmdate( 'Y-m-d H:i:s' ), 10 ) );
 	$ok( sprintf( 'with %d sent rows the plan uses %s and reads %d rows, no filesort', (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$queue}" ), $plan->key ?? 'nothing', (int) ( $plan->rows ?? 0 ) ), 'status_queued' === ( $plan->key ?? '' ) && false === stripos( (string) ( $plan->Extra ?? '' ), 'filesort' ) ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- MySQL's name.
 }
+
+echo "A reader who leaves after the drain read its batch gets no mail\n";
+// A second request changes the data while the first message is out, the way a
+// privacy erase or an unsubscribe link does during a 240-second run.
+$wpdb->query( "DROP TABLE IF EXISTS {$queue}" );
+npmp_create_newsletter_queue_table();
+delete_option( 'npmp_queue_lock_newsletter' );
+wp_cache_flush();
+$leave_emails = array();
+for ( $leave_n = 1; $leave_n <= 8; $leave_n++ ) {
+	$leave_emails[] = sprintf( 'leave%d@example.org', $leave_n );
+}
+$leave_nl = $send_to( $leave_emails, 'Rig Leave Letter' );
+$members  = NPMP_Member_Manager::get_instance();
+$erased   = $members->get_member_by_email( 'leave3@example.org' );
+$quit     = $members->get_member_by_email( 'leave5@example.org' );
+$erased_id = (int) $erased->id;
+$changed   = false;
+add_action(
+	'phpmailer_init',
+	$change_mid_batch = static function () use ( &$changed, $wpdb, $queue, $members, $erased_id, $quit ) {
+		if ( $changed ) {
+			return;
+		}
+		$changed = true;
+		wp_delete_post( $erased_id, true );
+		$wpdb->delete( $queue, array( 'email' => 'leave4@example.org' ) ); // A privacy erase deleted this row.
+		$members->update_member( $quit->id, array( 'status' => 'unsubscribed' ) );
+	},
+	1
+);
+$sink_before = $sink_sends();
+$drain();
+remove_action( 'phpmailer_init', $change_mid_batch, 1 );
+$ok( 'the batch mailed the 5 readers who stayed', 5 === $sink_sends() - $sink_before );
+$ok( 'the erased contact got nothing', 0 === $sink_sends( 'leave3@example.org' ) );
+$ok( 'the reader whose row was deleted got nothing', 0 === $sink_sends( 'leave4@example.org' ) );
+$ok( 'the reader who unsubscribed got nothing', 0 === $sink_sends( 'leave5@example.org' ) );
+$ok( 'nobody got two copies', 1 === $sink_sends( 'leave1@example.org' ) && 1 === $sink_sends( 'leave8@example.org' ) );
+$ok( 'the erased and unsubscribed readers have no queue row left', 0 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$queue} WHERE email IN ('leave3@example.org','leave5@example.org')" ) );
+$ok( 'the newsletter reads sent', 'sent' === get_post_meta( $leave_nl, '_npmp_newsletter_status', true ) );
+
+echo "Open and click tracking write nothing for a contact that does not exist\n";
+$opens  = $wpdb->prefix . 'npmp_newsletter_opens';
+$clicks = $wpdb->prefix . 'npmp_newsletter_clicks';
+$wpdb->query( "DELETE FROM {$opens}" );
+$wpdb->query( "DELETE FROM {$clicks}" );
+$tracker = NPMP_Newsletter_Tracker::get_instance();
+$live    = $members->get_member_by_email( 'leave1@example.org' );
+$tracker->track_open( $leave_nl, (int) $live->id );
+$tracker->track_click( $leave_nl, (int) $live->id, 'https://example.com/x' );
+$ok( 'a real contact\'s open and click are recorded', 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$opens}" ) && 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clicks}" ) );
+$tracker->track_open( $leave_nl, $erased_id );
+$tracker->track_click( $leave_nl, $erased_id, 'https://example.com/x' );
+$ok( 'the erased contact\'s open and click add no row', 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$opens}" ) && 1 === (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clicks}" ) );
+$wpdb->query( "DELETE FROM {$opens}" );
+$wpdb->query( "DELETE FROM {$clicks}" );
 
 update_option( 'npmp_email_settings', $saved_mail );
 if ( false === $saved_mail ) {

@@ -779,6 +779,19 @@ function npmp_digest_still_wanted( $contacts, $email ) {
 }
 
 /**
+ * The same test from values read fresh a moment ago (npmp_queue_recheck_send()),
+ * for the digest drain's check right before each send.
+ *
+ * @param array $contact A 'contact' entry from npmp_queue_recheck_send().
+ * @return bool
+ */
+function npmp_digest_fresh_contact_wanted( $contact ) {
+	return ! empty( $contact['exists'] )
+		&& ! in_array( $contact['status'] ?? '', array( 'unsubscribed', 'pending' ), true )
+		&& '1' === (string) ( $contact['flag'] ?? '' );
+}
+
+/**
  * Drain a throttled batch of the weekly digest queue. Runs on a per-minute
  * cron tick (scheduled by npmp_process_weekly_digest() above) instead of
  * mailing every subscriber inline inside one wp-cron run, so a large list
@@ -857,6 +870,18 @@ function npmp_drain_digest_batch() {
 		$email = sanitize_email( $row->email );
 
 		if ( null !== $contacts && ! npmp_digest_still_wanted( $contacts, $email ) ) {
+			$wpdb->delete( $table, array( 'id' => $row->id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
+			continue;
+		}
+
+		// This batch can run 240 seconds. Read the row and its contact again,
+		// so a reader erased or unsubscribed since the batch was read gets nothing.
+		$contact_id = null !== $contacts && isset( $contacts[ strtolower( $email ) ]['id'] ) ? (int) $contacts[ strtolower( $email ) ]['id'] : 0;
+		$fresh      = npmp_queue_recheck_send( $table, (int) $row->id, $contact_id, '_npmp_weekly_digest' );
+		if ( null === $fresh['row'] || 'pending' !== $fresh['row'] ) {
+			continue;
+		}
+		if ( null !== $fresh['contact'] && ! npmp_digest_fresh_contact_wanted( $fresh['contact'] ) ) {
 			$wpdb->delete( $table, array( 'id' => $row->id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, no caching layer needed for a write.
 			continue;
 		}

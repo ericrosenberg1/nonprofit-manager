@@ -448,6 +448,28 @@ class NPMP_Newsletter_Manager {
 				}
 				continue;
 			} else {
+				// The batch and the contacts were read before the first send, and
+				// this run can last 240 seconds. Read this row and its contact
+				// once more, so a reader erased or unsubscribed since then, or a
+				// row another request settled, gets nothing.
+				$contact_id = $user_id;
+				$key        = strtolower( $email );
+				if ( null !== $contacts && isset( $contacts[ $key ]['id'] ) ) {
+					$contact_id = (int) $contacts[ $key ]['id'];
+				}
+				$fresh = npmp_queue_recheck_send( $table, $queue_id, $contact_id );
+				if ( null === $fresh['row'] || 'pending' !== $fresh['row'] ) {
+					// Gone, or sent or failed by another request: leave it alone.
+					continue;
+				}
+				if ( null !== $fresh['contact'] && ( ! $fresh['contact']['exists'] || ! self::still_subscribed( array( $key => array( 'status' => $fresh['contact']['status'] ) ), $email ) ) ) {
+					$wpdb->delete( $table, array( 'id' => $queue_id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
+					if ( ! isset( $touched[ $newsletter_id ] ) ) {
+						$touched[ $newsletter_id ] = false;
+					}
+					continue;
+				}
+
 				$content = self::personalize_content( $bodies[ $newsletter_id ], $newsletter_id, false, $user_id, $email );
 				$subject = self::personalize_subject( get_the_title( $newsletter_id ), $user_id, $email );
 				$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
