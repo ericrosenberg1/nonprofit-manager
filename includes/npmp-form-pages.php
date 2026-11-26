@@ -16,6 +16,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/npmp-mb-compat.php';
+
 /**
  * Our form pages: the shortcode, the block, and the words a page's slug or
  * title must hold to count as that page.
@@ -115,7 +117,7 @@ function npmp_form_page_named( $title, $slug, $kind ) {
 	if ( ! $def ) {
 		return false;
 	}
-	$title = function_exists( 'mb_strtolower' ) ? mb_strtolower( (string) $title, 'UTF-8' ) : strtolower( (string) $title );
+	$title = npmp_mb_lower( $title );
 	$slug  = strtolower( rawurldecode( (string) $slug ) );
 	foreach ( $def['words'] as $word ) {
 		if ( false !== strpos( $slug, $word ) || false !== strpos( $title, $word ) ) {
