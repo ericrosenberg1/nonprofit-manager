@@ -1222,7 +1222,7 @@ function npmp_privacy_cancel_steps( $reach ) {
 		'old'        => __( 'This version of Nonprofit Manager Pro may not reach Stripe from its Cancel button.', 'nonprofit-manager' ),
 		'off'        => __( 'Nonprofit Manager Pro is off, so you have no Cancel button here.', 'nonprofit-manager' ),
 	);
-	return esc_html( ( $why[ $reach ] ?? $why['off'] ) . ' ' . __( 'Cancel the plan in your Stripe dashboard, mark the plan cancelled under', 'nonprofit-manager' ) )
+	return esc_html( ( $why[ $reach ] ?? $why['off'] ) . ' ' . __( 'Cancel the plan in your Stripe dashboard, mark the plan canceled under', 'nonprofit-manager' ) )
 		. ' <a href="' . esc_url( npmp_privacy_card_url() ) . '">' . esc_html__( 'Personal data requests', 'nonprofit-manager' ) . '</a>'
 		. esc_html__( ', then run this request a second time.', 'nonprofit-manager' );
 }
@@ -1451,7 +1451,7 @@ function npmp_privacy_policy_text() {
 		. $p( __( 'When you sign up for our emails, join, or give, we keep your name, your email address, and the details you give us, such as your postal address, phone number, and membership level. We may also add contacts from a list we bring over from another service we used.', 'nonprofit-manager' ) )
 		. $p( __( 'When you give online, you pay through Stripe, PayPal, or Venmo, and that company receives your payment and the details you enter. For each gift we keep the date, amount, currency, frequency, and the payment company\'s transaction ID for our accounting records. If our forms use spam protection, Cloudflare Turnstile or Google reCAPTCHA checks each form you send.', 'nonprofit-manager' ) )
 		. $p( __( 'We send our emails through the email service we set up, such as our own mail server, Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or Nonprofit Mailer, and that service receives your email address with each message. If we use Nonprofit Mailer, we also keep a copy of our contact list in Nonprofit Mailer. Unless we turn it off, we record when you open a newsletter. If we turn on link tracking, we also record which links in a newsletter you click.', 'nonprofit-manager' ) )
-		. $p( __( 'You can ask for a copy of the personal data we keep about you, or ask us to erase that data. When we erase your data, we delete your contact record or cut the record down, and we take your name and email address off your gift records. We keep each gift\'s date, amount, currency, frequency, and transaction ID, and the amount, frequency, and dates of any cancelled recurring plan, for our accounting records. Each payment company and email service keeps its own records under its own policy. While we can still charge you through a recurring plan, including a paused plan we could resume, we keep your record until you or we cancel the plan. If you unsubscribed, we keep your email address and that choice, so we can keep honoring your choice.', 'nonprofit-manager' ) );
+		. $p( __( 'You can ask for a copy of the personal data we keep about you, or ask us to erase that data. When we erase your data, we delete your contact record or cut the record down, and we take your name and email address off your gift records. We keep each gift\'s date, amount, currency, frequency, and transaction ID, and the amount, frequency, and dates of any canceled recurring plan, for our accounting records. Each payment company and email service keeps its own records under its own policy. While we can still charge you through a recurring plan, including a paused plan we could resume, we keep your record until you or we cancel the plan. If you unsubscribed, we keep your email address and that choice, so we can keep honoring your choice.', 'nonprofit-manager' ) );
 }
 
 /**
@@ -1551,10 +1551,10 @@ function npmp_privacy_held_plans_section() {
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 	if ( $marked ) {
 		/* translators: %d: plan number. */
-		echo '<div class="notice notice-success inline"><p>' . esc_html( sprintf( __( 'You marked plan #%d cancelled. Run the erase request a second time.', 'nonprofit-manager' ), $marked ) ) . '</p></div>';
+		echo '<div class="notice notice-success inline"><p>' . esc_html( sprintf( __( 'You marked plan #%d canceled. Run the erase request a second time.', 'nonprofit-manager' ), $marked ) ) . '</p></div>';
 	}
 	$errors = array(
-		'confirm' => __( 'Tick the box to confirm you cancelled the plan in Stripe first.', 'nonprofit-manager' ),
+		'confirm' => __( 'Tick the box to confirm you canceled the plan in Stripe first.', 'nonprofit-manager' ),
 		'held'    => __( 'You changed nothing. We found no open erase request for that plan, or someone already closed the plan.', 'nonprofit-manager' ),
 	);
 	if ( isset( $errors[ $error ] ) ) {
@@ -1573,7 +1573,7 @@ function npmp_privacy_held_plans_section() {
 		echo '<th>' . esc_html__( 'Status', 'nonprofit-manager' ) . '</th>';
 		echo '<th>' . esc_html__( 'Frequency', 'nonprofit-manager' ) . '</th>';
 		echo '<th></th></tr></thead><tbody>';
-		$question = __( 'Did you cancel this plan in your Stripe dashboard? We cancel nothing at Stripe. We only mark the plan cancelled here.', 'nonprofit-manager' );
+		$question = __( 'Did you cancel this plan in your Stripe dashboard? We cancel nothing at Stripe. We only mark the plan canceled here.', 'nonprofit-manager' );
 		foreach ( $held as $row ) {
 			$plan = $row['plan'];
 			$id   = (int) $plan['id'];
@@ -1585,8 +1585,8 @@ function npmp_privacy_held_plans_section() {
 			echo '<input type="hidden" name="action" value="npmp_privacy_mark_plan_cancelled">';
 			echo '<input type="hidden" name="plan_id" value="' . esc_attr( (string) $id ) . '">';
 			wp_nonce_field( 'npmp_privacy_mark_plan_' . $id );
-			echo '<label><input type="checkbox" name="npmp_cancelled_in_stripe" value="1" required> ' . esc_html__( 'I cancelled this plan in my Stripe dashboard.', 'nonprofit-manager' ) . '</label> ';
-			echo '<button type="submit" class="button">' . esc_html__( 'I cancelled this plan in Stripe', 'nonprofit-manager' ) . '</button>';
+			echo '<label><input type="checkbox" name="npmp_cancelled_in_stripe" value="1" required> ' . esc_html__( 'I canceled this plan in my Stripe dashboard.', 'nonprofit-manager' ) . '</label> ';
+			echo '<button type="submit" class="button">' . esc_html__( 'I canceled this plan in Stripe', 'nonprofit-manager' ) . '</button>';
 			echo '</form></td></tr>';
 		}
 		echo '</tbody></table>';
@@ -1594,7 +1594,7 @@ function npmp_privacy_held_plans_section() {
 
 	$log = array_slice( array_reverse( (array) get_option( 'npmp_privacy_plan_overrides', array() ) ), 0, 20 );
 	if ( $log ) {
-		echo '<h3>' . esc_html__( 'Plans marked cancelled here', 'nonprofit-manager' ) . '</h3><ul>';
+		echo '<h3>' . esc_html__( 'Plans marked canceled here', 'nonprofit-manager' ) . '</h3><ul>';
 		foreach ( $log as $entry ) {
 			$user = get_userdata( (int) ( $entry['user_id'] ?? 0 ) );
 			echo '<li>' . esc_html(

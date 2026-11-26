@@ -766,7 +766,7 @@ if ( $rig_pro ) {
 	rig_privacy_check( 'Pro: donor queued automation email gone', false, (bool) wp_next_scheduled( 'npmp_send_automation_email', array( 'rig-welcome', 'rig.donor' . $rig_domain, 'Rig Donor', 0 ) ) );
 	rig_privacy_check( 'Pro: other reader\'s automation email kept', true, (bool) wp_next_scheduled( 'npmp_send_automation_email', array( 'rig-welcome', 'other' . $rig_domain, 'Otto Other', 0 ) ) );
 	rig_privacy_check( 'Pro: cancelled plan row kept', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d AND status = 'cancelled'", $donor ) ) );
-	rig_privacy_check( 'Pro: plan message shown', true, false !== strpos( implode( ' ', $erase['messages'] ), 'cancelled and one-time dues and recurring plans' ) );
+	rig_privacy_check( 'Pro: plan message shown', true, false !== strpos( implode( ' ', $erase['messages'] ), 'canceled and one-time dues and recurring plans' ) );
 	rig_privacy_check( 'Pro: ended plan payment method blanked', '', (string) $wpdb->get_var( $wpdb->prepare( "SELECT payment_method FROM {$wpdb->prefix}npmp_recurring_donations WHERE member_id = %d", $donor ) ) );
 	$printed = wp_list_pluck( npmp_pro_print_donations_rows( array(), 5000 ), 'name' );
 	rig_privacy_check( 'Pro: printout reads Erased on request for all 250 gifts', 250, count( array_keys( $printed, 'Erased on request', true ) ) );
@@ -1165,10 +1165,10 @@ if ( $rig_pro_eraser && class_exists( 'NPMP_Recurring_Manager' ) ) {
 }
 
 // ---------------------------------------------------------------------------
-// "I cancelled this plan in Stripe" on General Settings.
+// "I canceled this plan in Stripe" on General Settings.
 // ---------------------------------------------------------------------------
 if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
-	echo "\nI cancelled this plan in Stripe\n";
+	echo "\nI canceled this plan in Stripe\n";
 	list( $mark, $mark_gift )     = rig_privacy_person( 'mark' . $rig_domain, 'Mia Mark' );
 	list( $nomark, $nomark_gift ) = rig_privacy_person( 'nomark' . $rig_domain, 'Nia Nomark' );
 	$wpdb->insert( $wpdb->prefix . 'npmp_recurring_donations', array( 'member_id' => $mark, 'external_id' => 'sub_rig_mark_' . uniqid(), 'amount' => 11, 'frequency' => 'monthly', 'status' => 'lapsed', 'payment_method' => 'pm_rig_mark', 'source' => 'dues', 'currency' => 'GBP' ) );

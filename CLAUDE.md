@@ -578,7 +578,7 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   gets slug `erased-<id>` (WordPress made the slug, and a published post's GUID, from the name, and for a gift the
   email), a GUID of `?p=<id>`, empty excerpt, filtered content, and ping lists, no `_wp_old_slug`, and no revisions,
   autosaves, or comments. Gifts go 100 a page (`NPMP_PRIVACY_PAGE_SIZE`) through an ID-only query, so core calls the
-  eraser until `done`: one page took 112 to 232 ms on the MySQL 8 rig with Pro off, on, and unlicensed. Queue and
+  eraser until `done`: one page took 110 to 292 ms on the MySQL 8 rig with Pro off, on, and unlicensed. Queue and
   tracking deletes run on page 1 only: a non-locking SELECT of the matching IDs (a plain InnoDB read takes no row
   locks), then DELETE by primary key in chunks of 500, so the delete locks only those rows. That SELECT is a full scan
   with no email index, 23.8 ms at 100,004 queue rows on MySQL 8.0.35. We never call Stripe or PayPal, cancel anything,
