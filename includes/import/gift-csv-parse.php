@@ -958,7 +958,7 @@ function npmp_gift_csv_read_head( $path, $preview = 5 ) {
 		return null;
 	}
 	$start = 0;
-	if ( "\xEF\xBB\xBF" === fread( $handle, 3 ) ) {
+	if ( "\xEF\xBB\xBF" === fread( $handle, 3 ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Reads 3 bytes of a private upload stream to find a byte-order mark, and WP_Filesystem would load the whole file.
 		$start = 3;
 	}
 	fseek( $handle, $start );

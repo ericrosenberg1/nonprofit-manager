@@ -196,12 +196,16 @@ function npmp_givewp_donor_batch( $after, $limit ) {
 	list( $meta_table, $meta_id ) = npmp_givewp_meta_table();
 	$in_ids      = implode( ',', $ids );
 	$in_statuses = "'" . implode( "','", npmp_givewp_received_statuses() ) . "'";
+	$id_marks    = implode( ',', array_fill( 0, count( $ids ), '%s' ) );
 	$posts       = $wpdb->get_results(
-		"SELECT p.ID, p.post_date, p.post_date_gmt, CAST(dm.meta_value AS UNSIGNED) AS donor_id
+		$wpdb->prepare(
+			"SELECT p.ID, p.post_date, p.post_date_gmt, CAST(dm.meta_value AS UNSIGNED) AS donor_id
 		 FROM {$wpdb->posts} p
 		 INNER JOIN {$meta_table} dm ON dm.{$meta_id} = p.ID AND dm.meta_key = '_give_payment_donor_id'
-		 WHERE p.post_type = 'give_payment' AND p.post_status IN ({$in_statuses}) AND dm.meta_value IN ('" . implode( "','", $ids ) . "')
-		 ORDER BY p.ID ASC",
+		 WHERE p.post_type = 'give_payment' AND p.post_status IN ({$in_statuses}) AND dm.meta_value IN ({$id_marks})
+		 ORDER BY p.ID ASC", // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholder run built by array_fill(), one %s per value.
+			array_map( 'strval', $ids )
+		),
 		ARRAY_A
 	);
 
@@ -210,7 +214,9 @@ function npmp_givewp_donor_batch( $after, $limit ) {
 	if ( $posts ) {
 		$gift_ids = implode( ',', array_map( 'intval', wp_list_pluck( $posts, 'ID' ) ) );
 		$keys     = array( '_give_payment_total', '_give_payment_currency', '_give_payment_gateway', '_give_payment_mode', '_give_payment_transaction_id', 'subscription_id', '_give_subscription_payment', '_give_donor_billing_first_name', '_give_donor_billing_last_name' );
-		$meta_rows = $wpdb->get_results( "SELECT {$meta_id} AS id, meta_key, meta_value FROM {$meta_table} WHERE {$meta_id} IN ({$gift_ids}) AND meta_key IN ('" . implode( "','", $keys ) . "')", ARRAY_A );
+		$key_marks = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholder run built by array_fill(), one %s per value.
+		$meta_rows = $wpdb->get_results( $wpdb->prepare( "SELECT {$meta_id} AS id, meta_key, meta_value FROM {$meta_table} WHERE {$meta_id} IN ({$gift_ids}) AND meta_key IN ({$key_marks})", $keys ), ARRAY_A );
 		foreach ( (array) $meta_rows as $m ) {
 			$meta[ (int) $m['id'] ][ $m['meta_key'] ] = $m['meta_value'];
 		}
@@ -248,7 +254,9 @@ function npmp_givewp_donor_batch( $after, $limit ) {
 			'_give_donor_address_billing_zip_0'     => 'postal_code',
 			'_give_donor_address_billing_country_0' => 'country',
 		);
-		$arows = $wpdb->get_results( "SELECT donor_id, meta_key, meta_value FROM {$dmeta} WHERE donor_id IN ({$in_ids}) AND meta_key IN ('" . implode( "','", array_keys( $map ) ) . "')", ARRAY_A );
+		$map_marks = implode( ',', array_fill( 0, count( $map ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholder run built by array_fill(), one %s per value.
+		$arows     = $wpdb->get_results( $wpdb->prepare( "SELECT donor_id, meta_key, meta_value FROM {$dmeta} WHERE donor_id IN ({$in_ids}) AND meta_key IN ({$map_marks})", array_keys( $map ) ), ARRAY_A );
 		foreach ( (array) $arows as $a ) {
 			$address[ (int) $a['donor_id'] ][ $map[ $a['meta_key'] ] ] = sanitize_text_field( (string) $a['meta_value'] );
 		}

@@ -627,7 +627,7 @@ function npmp_past_nl_sanitize( $html, array $ctx = array() ) {
 	}
 	if ( ! class_exists( 'DOMDocument' ) ) {
 		// No DOM extension: plain text is the only safe thing left.
-		$stats['html'] = '<p>' . nl2br( npmp_past_nl_esc( trim( (string) preg_replace( '/\s+/u', ' ', strip_tags( (string) preg_replace( '#<(script|style|head)\b.*?</\1>#is', '', $body ) ) ) ) ) ) . '</p>';
+		$stats['html'] = '<p>' . nl2br( npmp_past_nl_esc( trim( (string) preg_replace( '/\s+/u', ' ', wp_strip_all_tags( (string) preg_replace( '#<(script|style|head)\b.*?</\1>#is', '', $body ) ) ) ) ) ) . '</p>';
 		return $stats;
 	}
 
@@ -1293,6 +1293,7 @@ function npmp_past_nl_plain_subject( $subject ) {
 		},
 		(string) $subject
 	);
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- wp_strip_all_tags() also drops the text inside script and style tags, which changes the subject line.
 	$subject = html_entity_decode( strip_tags( $subject ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 	$subject = trim( (string) preg_replace( '/\s+/u', ' ', $subject ) );
 	// "Hi , here's March" after a name with no default goes.

@@ -230,6 +230,7 @@ function npmp_mail_header_from_name( $headers ) {
 	$lines = is_array( $headers ) ? $headers : preg_split( '/\r\n|\r|\n/', (string) $headers );
 	foreach ( (array) $lines as $line ) {
 		if ( preg_match( '/^\s*From:\s*(.*?)\s*<[^>]+>\s*$/i', (string) $line, $m ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- wp_strip_all_tags() also drops the text inside script and style tags, which changes the From name.
 			$name = trim( preg_replace( '/[\r\n]+/', ' ', strip_tags( $m[1] ) ), " \t\"'" );
 			return $name;
 		}
@@ -557,6 +558,7 @@ function npmp_email_get_transport_smtp( $settings ) {
  */
 function npmp_email_get_aws_smtp_host( $region ) {
 	$region = sanitize_key( $region );
+	// phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Amazon SES SMTP host the site mails through, no content loads from it.
 	return sprintf( 'email-smtp.%s.amazonaws.com', $region );
 }
 

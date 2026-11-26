@@ -157,7 +157,7 @@ function npmp_render_donations_dashboard() {
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="5">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No one-time %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . $empty_next . '</td></tr>';
+		echo '<tr><td colspan="5">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No one-time %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . wp_kses( $empty_next, array( 'a' => array( 'href' => array() ) ) ) . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
@@ -191,7 +191,7 @@ function npmp_render_donations_dashboard() {
 			echo '</tr>';
 		}
 	} else {
-		echo '<tr><td colspan="6">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No recurring %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . $empty_next . '</td></tr>';
+		echo '<tr><td colspan="6">' . esc_html( sprintf( /* translators: %s: lowercase plural word for donations, such as donations or contributions. */ __( 'No recurring %s found for this period.', 'nonprofit-manager' ), npmp_label( 'donations_lc' ) ) ) . wp_kses( $empty_next, array( 'a' => array( 'href' => array() ) ) ) . '</td></tr>';
 	}
 	echo '</tbody></table>';
 
