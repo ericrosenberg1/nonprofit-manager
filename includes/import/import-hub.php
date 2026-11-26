@@ -67,6 +67,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once dirname( __DIR__ ) . '/npmp-mb-compat.php';
+
 /** Seconds one request spends deleting old data before it hands back. */
 if ( ! defined( 'NPMP_IMPORT_HUB_SECONDS' ) ) {
 	define( 'NPMP_IMPORT_HUB_SECONDS', 20 );
@@ -439,9 +441,7 @@ function npmp_import_hub_confirm_matches( $typed, $word ) {
 	if ( '' === $word || '' === $typed ) {
 		return false;
 	}
-	return function_exists( 'mb_strtolower' )
-		? mb_strtolower( $typed, 'UTF-8' ) === mb_strtolower( $word, 'UTF-8' )
-		: strtolower( $typed ) === strtolower( $word );
+	return npmp_mb_lower( $typed ) === npmp_mb_lower( $word );
 }
 
 /**
