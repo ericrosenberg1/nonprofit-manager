@@ -713,7 +713,7 @@ function npmp_import_ajax_step() {
 		$source  = isset( $_POST['source'] ) ? sanitize_key( $_POST['source'] ) : '';
 		$allowed = array( 'mailchimp', 'csv', 'xlsx', 'google_sheet', 'constant_contact', 'brevo' );
 		if ( ! in_array( $source, $allowed, true ) ) {
-			wp_send_json_error( __( 'This import source does not support chunked import.', 'nonprofit-manager' ) );
+			wp_send_json_error( __( 'Nonprofit Manager can\'t import from this source in chunks.', 'nonprofit-manager' ) );
 		}
 
 		// See the cast comment on the same pattern in npmp_import_ajax_execute() above.
@@ -1343,7 +1343,7 @@ function npmp_import_render_page() {
 					<p>
 						<label for="npmp-brevo-api-key"><strong><?php esc_html_e( 'Brevo API key', 'nonprofit-manager' ); ?></strong></label><br>
 						<span class="description">
-							<?php esc_html_e( 'In Brevo, open your name in the top corner, then SMTP & API, then API keys, and make a key for this import. We send the key only to Brevo, and only for this import. While the import runs, your site keeps the key locked, so your database alone never holds it. Delete the key in Brevo once you finish.', 'nonprofit-manager' ); ?>
+							<?php esc_html_e( 'In Brevo, open your name in the top corner, then SMTP & API, then API keys, and make a key for this import. We send the key only to Brevo, and only for this import. During the import, we seal the key with a secret only your browser holds, so nobody with only your database can read the key. Delete the key in Brevo once you finish.', 'nonprofit-manager' ); ?>
 						</span>
 					</p>
 					<input type="password" id="npmp-brevo-api-key" class="regular-text" placeholder="xkeysib-..." autocomplete="off" spellcheck="false" style="width:100%;max-width:400px;">

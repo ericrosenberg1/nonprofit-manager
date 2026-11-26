@@ -12,3 +12,6 @@ node_modules/
 
 # Nested site repo: separate project, never part of the plugin
 /nonprofit-manager-site
+
+# Growth notes live in their own repo (~/Code/nonprofit-manager-growth)
+/nonprofit-manager-growth

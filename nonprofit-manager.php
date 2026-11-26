@@ -3,7 +3,7 @@
  * Plugin Name: Nonprofit Manager
  * Plugin URI: https://nonprofitmanager.app/
  * Description: Manage memberships, donations, newsletters and events from one plugin.
- * Version: 2026.11.25
+ * Version: 2026.11.27
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Rosenberg Digital LLC
@@ -42,6 +42,9 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-pro-notice.php';
 // for sites without Pro. Its hooks step aside when Pro is active.
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-pro-feature-pages.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/payments/npmp-gateway-rules.php';
+// Stripe webhook (one-time gifts, and Pro's events with Pro active). Outside
+// the Donations module so Pro's dues events still arrive with Donations off.
+require_once plugin_dir_path( __FILE__ ) . 'includes/payments/npmp-stripe-webhook.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-setup-wizard.php';
 // Guided product tour + the org-identity data model it walks through. Loaded
 // before the admin/general settings pages so they can render the org section.

@@ -49,9 +49,19 @@ class NPMP_Donation_Manager {
 	 *                             the site currency. Gateway handlers pass the
 	 *                             currency the gateway reports, never the setting.
 	 * }
-	 * @return int|false Insert ID on success, false on failure.
+	 * @param bool  $created Output. True only when this call wrote the row.
+	 *                       A caller that thanks the donor checks it, since
+	 *                       a request that took the lock just after another
+	 *                       one wrote the row gets that row's ID back with
+	 *                       $created false.
+	 * @return int|false Insert ID on success (the existing ID when this
+	 *                   transaction is already on file), false on failure.
+	 *                   Also false when another request recorded this same
+	 *                   transaction while this one waited for it, so the
+	 *                   caller thanks the donor once.
 	 */
-	public function log_donation( $data ) {
+	public function log_donation( $data, &$created = null ) {
+		$created   = false;
 		$email     = sanitize_email( $data['email'] ?? '' );
 		$name      = sanitize_text_field( $data['name'] ?? '' );
 		$amount    = floatval( $data['amount'] ?? 0 );
@@ -68,16 +78,6 @@ class NPMP_Donation_Manager {
 
 		if ( ! $email || $amount <= 0 ) {
 			return false;
-		}
-
-		// A gateway transaction id makes the write idempotent: a replayed
-		// AJAX call or a refreshed success page can't record the same
-		// payment twice.
-		if ( $txn_id ) {
-			$existing = $this->find_by_transaction_id( $txn_id );
-			if ( $existing ) {
-				return $existing;
-			}
 		}
 
 		if ( false === $created_at ) {
@@ -100,22 +100,49 @@ class NPMP_Donation_Manager {
 			$meta_input['_npmp_legacy_donation_id'] = $legacy_id;
 		}
 
-		$post_id = wp_insert_post(
-			array(
-				'post_type'   => self::POST_TYPE,
-				'post_status' => 'publish',
-				/* translators: 1: Donor name, 2: Donor email address. */
-				'post_title'  => $name ? sprintf( __( '%1$s (%2$s)', 'nonprofit-manager' ), $name, $email ) : $email,
-				'post_date'   => $post_date,
-				'post_date_gmt' => $post_date_gmt,
-				'meta_input'  => $meta_input,
-			),
-			true
-		);
-
-		if ( is_wp_error( $post_id ) ) {
+		// A gateway transaction id makes the write idempotent: a replayed
+		// AJAX call or a refreshed success page can't record the same
+		// payment twice. The read and the write happen under one lock per
+		// id. Without the lock, two requests that landed in the same
+		// millisecond both read "no donation yet" and both wrote a row.
+		$waited = false;
+		$lock   = $txn_id ? $this->lock_transaction( $txn_id, $waited ) : '';
+		if ( false === $lock ) {
 			return false;
 		}
+
+		try {
+			if ( $txn_id ) {
+				$existing = $this->find_by_transaction_id( $txn_id );
+				if ( $existing ) {
+					// A row that appeared while this request waited belongs
+					// to the request it waited for, which thanks the donor.
+					return $waited ? false : $existing;
+				}
+			}
+
+			$post_id = wp_insert_post(
+				array(
+					'post_type'   => self::POST_TYPE,
+					'post_status' => 'publish',
+					/* translators: 1: Donor name, 2: Donor email address. */
+					'post_title'  => $name ? sprintf( __( '%1$s (%2$s)', 'nonprofit-manager' ), $name, $email ) : $email,
+					'post_date'   => $post_date,
+					'post_date_gmt' => $post_date_gmt,
+					'meta_input'  => $meta_input,
+				),
+				true
+			);
+		} finally {
+			if ( $lock && function_exists( 'npmp_mail_queue_unlock' ) ) {
+				npmp_mail_queue_unlock( $lock );
+			}
+		}
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return false;
+		}
+		$created = true;
 
 		// The dashboards read the list of currencies in use from a cache. A
 		// currency it hasn't seen yet means the list changed.
@@ -173,7 +200,48 @@ class NPMP_Donation_Manager {
 	}
 
 	/**
-	 * Find a donation by its gateway transaction id.
+	 * Take the one-writer lock for a gateway transaction id.
+	 *
+	 * When another request holds it, wait up to two seconds for that request
+	 * to write its row. If the row shows up, this request lost the race and
+	 * must write nothing. If no row shows up, the holder died or the lock
+	 * can't be read, and the gateway already has the donor's money, so this
+	 * request writes without the lock: a rare second row beats a lost gift.
+	 *
+	 * @param string $txn_id Gateway transaction id.
+	 * @param bool   $waited Output. True when another request held the lock
+	 *                       at any point during this call.
+	 * @return string|false Lock name to release after the write, '' to write
+	 *                      without a lock, false when another request
+	 *                      recorded the transaction.
+	 */
+	private function lock_transaction( $txn_id, &$waited = false ) {
+		$waited = false;
+		if ( ! function_exists( 'npmp_mail_queue_lock' ) ) {
+			return '';
+		}
+
+		$lock = 'donation_txn_' . md5( $txn_id );
+		for ( $try = 0; $try < 20; $try++ ) {
+			if ( npmp_mail_queue_lock( $lock, 60 ) ) {
+				return $lock;
+			}
+			$waited = true;
+			usleep( 100000 );
+			if ( $this->find_by_transaction_id( $txn_id ) ) {
+				return false;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Find a donation by its gateway transaction id, in any status.
+	 *
+	 * Trashed and draft donations count. Looking at published ones only let
+	 * a late Stripe resend or a revisited success URL record a gift again
+	 * after the owner trashed it, and thank the donor a second time.
 	 *
 	 * @param string $txn_id Gateway transaction/session/order id.
 	 * @return int Donation post ID, or 0 when none exists.
@@ -187,10 +255,15 @@ class NPMP_Donation_Manager {
 		$found = get_posts(
 			array(
 				'post_type'      => self::POST_TYPE,
-				'post_status'    => 'publish',
+				// 'any' leaves out trash, so name it as well.
+				'post_status'    => array( 'any', 'trash' ),
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
 				'no_found_rows'  => true,
+				// Always ask the database. WordPress keeps a query's result for
+				// the rest of the request, so a second look in the same request
+				// missed a donation another request wrote in between.
+				'cache_results'  => false,
 				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exact-match lookup on a dedupe key.
 				'meta_query'     => array(
 					array(

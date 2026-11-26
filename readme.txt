@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 2026.11.25
+Stable tag: 2026.11.27
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -54,7 +54,7 @@ Everything without an asterisk is free. Features marked with an asterisk (*) com
 * List past newsletters on any page with the Newsletters block or `[npmp_newsletters]`. You pick which ones go public
 * Past newsletters for one group on that group's page, with `[npmp_newsletters group="computing"]`*
 * As many scheduled emails as you want for the whole organization, each group, and each event*
-* Email automation workflows: welcome emails, donation receipts, and expiry reminders*
+* Email automation workflows: welcome emails and donation receipts*
 * Send through Amazon SES, SendGrid, Mailgun, Postmark, Brevo, or any SMTP server*
 
 **Events**
@@ -106,7 +106,7 @@ If you turn on a captcha, form submissions are verified with Cloudflare Turnstil
 
 **List imports**
 
-Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms and https://www.constantcontact.com/legal/privacy-notice
+Importing from Mailchimp or Constant Contact reads your list using the API key you supply. Importing from Brevo (api.brevo.com) reads your lists, contacts, and attributes with the API key you paste, sent in a request header and used only during that import. Importing from a Google Sheet (docs.google.com) fetches the published CSV at the link you paste, and Google sees your server's address and that link. Mailchimp: https://mailchimp.com/legal/terms/ and https://www.intuit.com/privacy/statement/ Constant Contact: https://www.constantcontact.com/legal/terms and https://www.constantcontact.com/legal/privacy-notice Brevo: https://www.brevo.com/legal/termsofuse/ and https://www.brevo.com/legal/privacypolicy/ Google Sheets: https://policies.google.com/terms and https://policies.google.com/privacy
 
 **Social sharing**
 
@@ -182,147 +182,169 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 
 == Changelog ==
 
+= 2026.11.27 =
+* Added a Stripe webhook to record every gift.
+* Allowed a signing secret for each Stripe endpoint.
+* Fixed gifts crossing between sites sharing Stripe.
+* Added three retries for failed newsletter sends.
+* Fixed slow newsletter batches sending readers two copies.
+* Sped up the newsletter queue with an index.
+* Capped contact form messages per visitor and site.
+* Refused PayPal gift claims with no order ID.
+* Gave iCal events with no end one hour.
+* Wrote all-day iCal events as dates.
+* Cached Dashboard donation totals until a gift changes.
+* Removed the expiry reminder claim from the listing.
+
+= 2026.11.26 =
+* Fixed a gift recording twice on simultaneous payment requests.
+* Added a dismissible setup notice about Pro recurring gifts and dues billing.
+* Added a Free vs Pro section and recurring gifts question to the listing.
+
 = 2026.11.25 =
-* Fixed sending on a site that switched Newsletters on after installing the plugin. We queued every newsletter there and sent none.
-* Changed Scheduled Emails to read "Sending to 2 members" until we empty the queue.
-* Added a Site Health warning for an email queue we stop emptying.
+* Fixed newsletters not sending after you enable Newsletters.
+* Changed Scheduled Emails to read "Sending to 2 members" during sends.
+* Added a Site Health warning for a stalled email queue.
 
 = 2026.11.24 =
-* Fixed Switch Plugins: you see an old plugin as switched once you delete its files, when we can't delete its data safely.
-* Fixed the wording of step 4, and of step 1 for The Events Calendar, on Switch Plugins.
-* Added your current sender setting beside each checkbox on the Newsletter Plugin and FluentCRM import screens.
+* Fixed Switch Plugins marking an old plugin switched after file deletion.
+* Fixed step 4 and Events Calendar step 1 wording on Switch Plugins.
+* Added your sender setting beside each Newsletter Plugin and FluentCRM checkbox.
 
 = 2026.11.23 =
 * Changed embedded ONLYOFFICE documents to a link in emails.
-* Changed TablePress tables in emails to show their first page of rows, with the row count.
+* Changed TablePress emails to show the first page of rows.
 * Added the [preferences_url] footer tag (or [subscribe_url]) for each reader's preferences page.
 
 = 2026.11.22 =
-* Added a Help link beside each screen title and a Nonprofit Manager tab in the Help panel, with the help center article for that screen.
-* Removed the PayPal frequency boxes from Payment Settings, since every PayPal gift is one-time. Turn on recurring gifts in the Stripe section.
+* Added a Help link beside each screen title and a Help panel tab.
+* Removed PayPal frequency boxes from Payment Settings.
 
 = 2026.11.21 =
-* Added tags to events, and we add them as hashtags when you share an event.
+* Added tags to events, shared as hashtags.
 * Added featured images to newsletters, on the web version and in newsletter lists.
-* Fixed unsubscribe and preferences links going to a page that only mentioned our shortcode.
+* Fixed unsubscribe and preferences links going to a page without the form.
 
 = 2026.11.20 =
-* Added the meeting link, meeting ID, and passcode to the iCal feed, unless you keep an event's link for emails only.
-* Added a calendar file (.ics) with the meeting details to event emails sent through WordPress, SMTP, or Amazon SES.
-* Changed embedded videos and slides in newsletter emails to links, with a thumbnail for YouTube. Your web version keeps the player.
-* Fixed long iCal feed lines, which we now fold at 75 octets.
+* Added meeting link, meeting ID, and passcode to the iCal feed.
+* Added an .ics calendar file with meeting details to event emails.
+* Changed embedded videos and slides in newsletter emails to links.
+* Fixed long iCal feed lines by folding at 75 octets.
 
 = 2026.11.19 =
 * Fixed Givebutter imports bringing in a lost dispute as a gift.
-* Fixed Givebutter offline gifts with a blank Email. We use Contact Email and the contact's name.
-* Fixed Donorbox imports leaving Frequency blank. We fill it from Donation Type.
+* Fixed Givebutter offline gifts with a blank Email.
+* Fixed Donorbox imports leaving Frequency blank.
 
 = 2026.11.18 =
 * Fixed Mailchimp imports listing only your first 100 audiences.
 
 = 2026.11.17 =
-* Added Meeting ID and Passcode fields beside an event's link, and [meeting_id] and [passcode] email tags.
-* Added "Show the meeting link only in emails" to events, so you can keep the link, meeting ID, and passcode off your site.
+* Added Meeting ID and Passcode fields, with [meeting_id] and [passcode] email tags.
+* Added "Show the meeting link only in emails" to events.
 * Added the meeting ID and passcode to the built-in Tomorrow email.
 
 = 2026.11.16 =
-* Fixed newsletters you send again, so readers who already got one don't get a second copy.
-* Fixed sends to readers who unsubscribe or turn off the digest after a send starts. They no longer get that send.
+* Fixed newsletters you send again reaching readers twice.
+* Fixed sends to readers who unsubscribe or turn off the digest mid-send.
 * Fixed imported events sending a "New event" email for each one.
-* Fixed Email Settings saving SMTP passwords and API keys with %, <, or double spaces. They now save as typed.
+* Fixed Email Settings corrupting SMTP passwords and API keys with %, <, or spaces.
 * Fixed duplicated newsletters losing their template.
-* Fixed the calendar list with past events on, so you see upcoming events first under the right title.
-* Fixed Excel join dates, blank CSV rows, past gifts with no date, and Constant Contact lists past the first page in imports.
+* Fixed the calendar list order and title when you show past events.
+* Fixed Excel dates, blank CSV rows, undated gifts, and Constant Contact lists in imports.
 * Fixed donor names with parentheses on the Donations screen.
 * Fixed the "Copied" label and the Events settings screen on translated sites.
-* Changed the empty events message to "No upcoming events." or "No past events." where that fits.
-* Changed signup and resubscribe confirmation links to expire after 7 days, with a link to sign up again.
+* Changed the empty events message to "No upcoming events." or "No past events."
+* Changed signup and resubscribe confirmation links to expire after 7 days.
 * Changed Facebook sharing to Graph API v26.0.
-* Security: hardened past newsletter, FluentCRM, MailPoet, and XLSX imports, sealed Mailchimp and Constant Contact keys during imports, removed the email attribute from [npmp_can_spam], capped unsubscribe confirmations per address, and tightened reCAPTCHA checks.
+* Security: hardened past newsletter, FluentCRM, MailPoet, and XLSX imports.
+* Security: sealed Mailchimp and Constant Contact keys during imports.
+* Security: removed the email attribute from [npmp_can_spam].
+* Security: capped unsubscribe confirmations per address and tightened reCAPTCHA checks.
 * Copy: plural forms, US spelling, and clearer admin notices.
 
 = 2026.11.15 =
-* Fixed `[npmp_events past="true"]`, so you see only past events. For past and upcoming together, use `past="all"`.
-* Added a Categories link to the Events menu, so you can rename or delete old event categories.
+* Fixed `[npmp_events past="true"]` showing upcoming events. Use `past="all"` for both.
+* Added a Categories link to the Events menu.
 * Added a Groups column to the Events Overview with Nonprofit Manager Pro.
 
 = 2026.11.14 =
-* Fixed the Preview button in the Newsletter Archive and the newsletter editor, so you can read any newsletter, imported ones included.
-* Fixed the signup form so nobody can put an Inactive contact back on your list unless that person confirms by email.
-* Fixed "Send a test to me" in the event editor, so you get the template you picked, saved or not.
-* Fixed newsletters whose template you deleted, so you get the default template, as you do in event emails.
-* Fixed the group names in the newsletter editor's audience label, so you see "Art and History" before and after you save.
+* Fixed the Preview button in the Newsletter Archive and editor.
+* Fixed the signup form re-subscribing Inactive contacts without email confirmation.
+* Fixed "Send a test to me" using the wrong template.
+* Fixed newsletters with a deleted template using the default template.
+* Fixed group names in the newsletter editor's audience label.
 * Added a limit of three signup confirmation emails an hour for each address.
-* Added a Donate button to newsletters and event emails in place of the donation form, since mail apps don't support forms.
-* Added name and email prefill on donation forms for signed-in users and for readers who come from a newsletter.
-* Added a Payment link option, so you can send donors to any payment page with the amount, name, email, currency, and note filled in.
+* Added a Donate button to newsletters and event emails.
+* Added name and email prefill on donation forms.
+* Added a Payment link option with amount, name, email, currency, and note prefilled.
 * Added the donor's name and email to the PayPal donation link.
 
 = 2026.11.13 =
-* Fixed the second test email and second pop-up you got each time you sent a test newsletter.
-* Fixed the newsletter editor and Newsletter Archive, where you saw "All subscribed members" and All Members ticked again after you picked a group.
-* Fixed Duplicate on a group newsletter, where you got a copy with no group.
-* Fixed where you find Event Details in the event editor: in the sidebar, even if you moved the box in an older version.
-* Fixed the signup form for current subscribers, so they can join a new group once they confirm by email.
-* Fixed the groups you lost when someone who had unsubscribed signed up again with the form.
-* Fixed the signup form so nobody can change another person's groups or email choices by typing their address.
-* Fixed the signup form message, so you see the same one for every address.
-* Added an Email Template picker to the event editor, like the one in the newsletter editor.
-* Added a search box and sortable Title, Last Sent, Recipients, and Public columns to the Newsletter Archive.
+* Fixed the second test email and pop-up on newsletter tests.
+* Fixed "All subscribed members" ticking again after you pick a group.
+* Fixed Duplicate on a group newsletter dropping the group.
+* Fixed Event Details position in the event editor sidebar.
+* Fixed the signup form letting current subscribers join a new group after confirming.
+* Fixed groups lost when an unsubscribed person signs up again.
+* Fixed the signup form letting anyone change another person's groups or email choices.
+* Fixed the signup form showing different messages for different addresses.
+* Added an Email Template picker to the event editor.
+* Added a search box and sortable columns to the Newsletter Archive.
 * Added Newsletter to the + New menu in the admin bar.
 
 = 2026.11.12 =
-* Fixed contacts who unsubscribed coming back as subscribed when you ticked "Update existing contacts" for an import.
-* Added an importer for FluentCRM: contacts, statuses, signup dates, lists as groups, tags, custom fields, and sender settings.
-* Added a Brevo import: contacts from a list or your whole account, blocklisted addresses as Unsubscribed, lists as groups, attributes as custom fields, and join dates.
-* Added custom fields to imports with Pro: extra CSV and Excel columns, Mailchimp merge fields, Constant Contact custom fields, and MailPoet custom fields.
-* Added an importer for past gifts from a file: donors and their paid gifts from a Zeffy, Givebutter, or Donorbox CSV, or a spreadsheet.
-* Added an importer for past newsletters from MailPoet and The Newsletter Plugin: each sent newsletter with its subject, send date, and content, off your public archive until you tick its box.
-* Added "Show in the public archive" and "Hide from the public archive" to Newsletter Archive's bulk actions.
-* Added MailPoet tags to the import, in each contact's Tags field next to the tags they already have.
+* Fixed "Update existing contacts" resubscribing unsubscribed contacts.
+* Added a FluentCRM importer for contacts, statuses, lists, tags, and custom fields.
+* Added a Brevo import for contacts, lists, blocklisted addresses, attributes, and join dates.
+* Added Pro custom field imports for CSV, Excel, Mailchimp, Constant Contact, and MailPoet.
+* Added a past gifts importer for Zeffy, Givebutter, and Donorbox files.
+* Added a past newsletters importer for MailPoet and The Newsletter Plugin.
+* Added public archive show and hide bulk actions to the Newsletter Archive.
+* Added MailPoet tags to the import's Tags field.
 * Added a link back to Switch Plugins on every import screen.
-* Added a card with a button for the Pro note in the setup wizard.
-* Fixed slow imports from MailPoet, The Newsletter Plugin, GiveWP, Charitable, Paid Memberships Pro, and CSV files on sites with thousands of contacts.
-* Fixed free imports from MailPoet and The Newsletter Plugin: subscribed people now get your free places first.
+* Added a Pro note card with a button to the setup wizard.
+* Fixed slow imports on sites with thousands of contacts.
+* Fixed free MailPoet and Newsletter Plugin imports filling free places with subscribers first.
 * Fixed the Switch Plugins step you saw while an import was still running.
 * Fixed the empty groups you got from MailPoet lists with no subscribed members.
-* Fixed the parent categories you lost from The Events Calendar when only their child categories had events.
-* Fixed the threshold you saw in the review request in place of your own contact or event count.
-* Fixed numbers of four digits or more without commas on the import and Switch Plugins screens.
+* Fixed lost parent categories from The Events Calendar.
+* Fixed the review request showing the wrong threshold.
+* Fixed missing commas in numbers on import and Switch Plugins screens.
 * Fixed newsletters you deleted staying in the send queue.
 * Fixed the blank recurring donations total on the dashboard of SQLite sites.
-* Fixed the HTML code you saw in place of quotation marks in the import message about the Email column.
+* Fixed HTML code showing in the import message about the Email column.
 
 = 2026.11.11 =
-* Fixed welcome emails going to contacts brought in by the MailPoet, Newsletter, Paid Memberships Pro, and donation importers.
-* Added an importer for Ultimate Member: members by role, account status, membership levels from roles, join dates, phone, and country.
-* Added an importer for Event Organiser: events, every date, venues, categories, images, and old links.
-* Added an importer for My Calendar: events, every date, locations, categories, images, and old links.
-* Added an importer for WP Event Manager: events, venues, online links, categories, banners, old links, and the list length.
-* Added the free contact limit, and how many places you have left, to the top of Switch Plugins.
+* Fixed welcome emails going to imported contacts.
+* Added an Ultimate Member importer for members, levels, join dates, phone, and country.
+* Added an Event Organiser importer for events, dates, venues, categories, images, and links.
+* Added a My Calendar importer for events, dates, locations, categories, images, and links.
+* Added a WP Event Manager importer for events, venues, links, categories, and banners.
+* Added the free contact limit and places left to Switch Plugins.
 * Added the GiveWP and Paid Memberships Pro delete-data warning to the turn-off step.
-* Fixed The Events Calendar import so you get cancelled and postponed events as drafts.
-* Fixed the GiveWP and Charitable gift import so Active and Pending contacts keep their status.
-* Fixed the MailPoet import so a Donor who subscribed in MailPoet gets your newsletter.
-* Fixed duplicate contacts when you reloaded a running import or ran one in two tabs.
-* Fixed time-outs on Switch Plugins for sites with tens of thousands of MailPoet, Newsletter, or Paid Memberships Pro subscribers.
-* Fixed the empty import you got from "Start the import" on a plugin you never turned on.
-* Fixed the MailPoet screen's wording of the free limit as a total for your site.
+* Fixed The Events Calendar import of cancelled and postponed events.
+* Fixed GiveWP and Charitable imports changing Active and Pending status.
+* Fixed MailPoet imports skipping Donors who subscribed.
+* Fixed duplicate contacts on reloaded or parallel imports.
+* Fixed Switch Plugins time-outs on sites with tens of thousands of subscribers.
+* Fixed empty imports from plugins you never turned on.
+* Fixed the MailPoet screen's free limit wording.
 
 = 2026.11.10 =
-* Fixed paragraph breaks in event text on event lists, the Events block, and the events archive.
-* Added a note for administrators on the signup form about attributes only Pro supports.
+* Fixed paragraph breaks in event text on lists, blocks, and archives.
+* Added a signup form note for administrators about Pro-only attributes.
 
 = 2026.11.9 =
-* Added your newsletter footer and unsubscribe link to post and event notifications and the weekly digest.
-* Added a Form color setting under Membership Settings for the button color on every front-end form.
+* Added your newsletter footer and unsubscribe link to notifications and the digest.
+* Added a Form color setting under Membership Settings.
 * Added what the person signed up for to the please-confirm email.
-* Added the Newsletters block and [npmp_newsletters] shortcode to list past newsletters you make public.
-* Added the [event_description] tag for event emails, with the full description, headings, lists, links, and images.
-* Added the planned emails and their send times to a new event's email box, before the first save.
+* Added the Newsletters block and [npmp_newsletters] shortcode for past newsletters.
+* Added the [event_description] tag with full description, headings, lists, links, and images.
+* Added planned emails and send times to a new event's email box.
 * Fixed line breaks between paragraphs in [event_excerpt].
-* Fixed the first name, last name, and full name tags in the body and subject of test emails.
-* Fixed the status in the event email box after a save in the block editor.
+* Fixed first name, last name, and full name tags in test emails.
+* Fixed the event email box status after saving in the block editor.
 
 = 2026.11.8 =
 * Moved Event Details into the editor sidebar, beside the publish settings.
@@ -330,25 +352,25 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Fixed Share Now in the block editor.
 * Changed Quick Add Event on the Dashboard to save a draft.
 * Added a Clicks column to Newsletter Reports.
-* Used the organization address in the newsletter footer when no mailing address is set.
-* Cleaned up headings, labels, and wording on every admin screen, and kept the tour out of the editor.
+* Changed the newsletter footer to use the organization address.
+* Cleaned up headings, labels, and wording on every admin screen.
 * Updated the blocks to the current block editor version.
 
 = 2026.11.7 =
-* Added an importer for Paid Memberships Pro: members, membership levels, join dates, and billing addresses, on the Switch Plugins screen.
-* Added a warning on the Switch Plugins screen when a setting in Charitable or GiveWP would delete their donation data.
+* Added a Paid Memberships Pro importer for members, levels, join dates, and addresses.
+* Added a Switch Plugins warning for Charitable or GiveWP data deletion settings.
 
 = 2026.11.6 =
-* Raised the free import limit from 50 to 100 contacts, counted as a total for the site.
+* Raised the free import limit from 50 to 100 contacts.
 * Added calendar settings to The Events Calendar importer.
-* Added a Switch Plugins screen to import, check, turn off, delete, and clear out an old plugin one step at a time, starting with The Events Calendar.
+* Added the Switch Plugins screen, starting with The Events Calendar.
 * Added an importer for MailPoet: contacts, lists, sender settings, and signup dates.
 * Added MailPoet to the Switch Plugins screen.
-* Added importers for GiveWP and Charitable: donors and past gifts, on the Switch Plugins screen.
-* Added a one-click update to the version notice that puts free and Pro on the same version.
-* Added importers for Events Manager and Sugar Calendar: events, venues, categories, and redirects from old event links, on the Switch Plugins screen.
-* Fixed redirects from old event links right after you turn a plugin off on the Switch Plugins screen.
-* Added an importer for The Newsletter Plugin: contacts, lists, sender settings, and signup dates, on the Switch Plugins screen.
+* Added GiveWP and Charitable importers for donors and past gifts.
+* Added a one-click update to the version notice.
+* Added Events Manager and Sugar Calendar importers with event link redirects.
+* Fixed old event link redirects after you turn a plugin off.
+* Added a Newsletter Plugin importer for contacts, lists, sender settings, and signup dates.
 
 = 2026.11.5 =
 * Added PNG or JPG copies of WebP, AVIF, and HEIC images in emails.
@@ -373,10 +395,10 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 
 = 2026.11.2 =
 * Added scheduled emails: one email per event, and Send later for any newsletter.
-* Added a Print or save as PDF button to calendars and event lists, with a setting to hide the button.
-* Added an importer for sites switching from The Events Calendar, with review, redirects, and a deactivate button.
+* Added a Print or save as PDF button to calendars and event lists.
+* Added an importer for switching from The Events Calendar.
 * Calendar weekday headers fit on phones, and category colors show on events.
-* The Member List search finds people by name, email, or tag, and the list fits on phones.
+* Changed Member List search to find names, emails, or tags, and fit phones.
 * Fixed newsletters and digests that two overlapping runs could send twice.
 * Fixed click tracking on email, phone, and same-page links.
 * Fixed an event saved near its send time skipping its scheduled email.
@@ -386,7 +408,7 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Clearer wording across settings, the setup wizard, and the tour.
 
 = 2026.11.1 =
-* Events lists can show as a list, grid, cards, or mosaic, with featured images and excerpts.
+* Added list, grid, cards, and mosaic event layouts with images and excerpts.
 * Past events sort newest first.
 * The Events block follows the editor's color, type, spacing, and border settings.
 * Same-day events show the date once.
@@ -675,6 +697,18 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.27 =
+Update to record Stripe gifts from donors who close the tab and to retry failed newsletter sends.
+
+= 2026.11.26 =
+Update so a gift never records twice when two requests for the same payment arrive together.
+
+= 2026.11.25 =
+Update to send the newsletters your site queued and never sent.
+
+= 2026.11.16 =
+Update for security hardening of imports, saved SMTP and API keys, unsubscribe confirmations, and reCAPTCHA checks.
 
 = 2026.11.15 =
 Update so `[npmp_events past="true"]` lists only past events.

@@ -72,6 +72,7 @@ function npmp_event_ics_data( $event, $details ) {
 		'stamp'      => $stamp,
 		'start'      => npmp_event_ics_time( (string) ( $details['start'] ?? '' ) ),
 		'end'        => npmp_event_ics_time( (string) ( $details['end'] ?? '' ) ),
+		'all_day'    => npmp_ics_all_day_span( (string) ( $details['start'] ?? '' ), (string) ( $details['end'] ?? '' ) ),
 		'summary'    => get_the_title( $event ),
 		'location'   => (string) ( $details['location'] ?? '' ),
 		'url'        => (string) ( $details['url'] ?? '' ),

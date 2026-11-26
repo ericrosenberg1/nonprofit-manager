@@ -7,6 +7,16 @@ class NPMP_Newsletter_Manager {
 	// schedule, so default throughput is 10/minute (600/hour), not 10/second
 	// as the old constant name claimed.
 	const EMAILS_PER_RUN = 10;
+
+	// A batch stops starting sends after this many seconds, so it ends well
+	// inside the run lock's 300 seconds (npmp_mail_queue_batch_continues()).
+	const BATCH_SECONDS = 240;
+
+	// A batch stops after this many failed sends in a row. When the mail
+	// server is down, every row tried would use up a try, so we leave the
+	// rest of the queue waiting until the server answers again.
+	const FAILURES_IN_A_ROW = 3;
+
 	const QUEUE_POST_TYPE       = 'npmp_nl_queue';
 	const EVENT_POST_TYPE       = 'npmp_nl_event';
 	const QUEUE_STATUS_META     = '_npmp_queue_status';
@@ -251,6 +261,12 @@ class NPMP_Newsletter_Manager {
 			return;
 		}
 		try {
+			// The schema upgrade runs here and on admin screens, never on a
+			// visitor's page load. Inside the lock, so a second cron runner
+			// that starts meanwhile leaves the table alone.
+			if ( function_exists( 'npmp_maybe_create_newsletter_queue_table' ) ) {
+				npmp_maybe_create_newsletter_queue_table();
+			}
 			self::drain_queue_batch();
 		} finally {
 			npmp_mail_queue_unlock( 'newsletter' );
@@ -258,14 +274,70 @@ class NPMP_Newsletter_Manager {
 	}
 
 	/**
+	 * Seconds to wait before each new try of a send that failed, in order.
+	 * The count is the number of retries, so a row gets one try plus one per
+	 * entry before we mark it failed. The default waits 5, 15, and 45
+	 * minutes, which carries a send through about an hour of mail server
+	 * trouble.
+	 *
+	 * @return int[]
+	 */
+	public static function retry_delays() {
+		/**
+		 * Filter the waits between tries of a newsletter send that failed.
+		 * Return an empty array to mark a failed send failed at once.
+		 *
+		 * @param int[] $delays Seconds before each retry, in order.
+		 */
+		$delays = apply_filters( 'npmp_newsletter_retry_delays', array( 5 * 60, 15 * 60, 45 * 60 ) );
+		return is_array( $delays ) ? array_slice( array_map( 'absint', array_values( $delays ) ), 0, 10 ) : array();
+	}
+
+	/**
+	 * What a queue row becomes after a send that failed.
+	 *
+	 * @param int   $attempts Sends tried for the row before this one.
+	 * @param int[] $delays   From retry_delays().
+	 * @return array{status:string,attempts:int,delay:int} status 'pending'
+	 *         with the seconds to wait, or 'failed' after the last try.
+	 */
+	public static function after_failed_send( $attempts, $delays ) {
+		$attempts = max( 0, (int) $attempts ) + 1;
+		$delays   = array_values( (array) $delays );
+		if ( $attempts > count( $delays ) ) {
+			return array(
+				'status'   => 'failed',
+				'attempts' => $attempts,
+				'delay'    => 0,
+			);
+		}
+		return array(
+			'status'   => 'pending',
+			'attempts' => $attempts,
+			'delay'    => max( 0, (int) $delays[ $attempts - 1 ] ),
+		);
+	}
+
+	/**
 	 * Send one batch of pending queue rows. Call process_queue(), which holds
 	 * the run lock around this.
+	 *
+	 * We put a send that fails back in the queue with its next try in
+	 * retry_delays(), and mark the row failed only after the last try.
+	 * Through 2026.11.26 we marked it failed at once, so one minute of mail
+	 * server trouble cost that run's whole batch, and we called the newsletter
+	 * sent once nothing else waited.
 	 *
 	 * @return void
 	 */
 	private static function drain_queue_batch() {
 		global $wpdb;
-		$table = $wpdb->prefix . 'npmp_newsletter_queue';
+		$table   = $wpdb->prefix . 'npmp_newsletter_queue';
+		$started = microtime( true );
+
+		// Until the table has attempts and retry_at, a failed send is final,
+		// the way it was through 2026.11.26.
+		$retries = function_exists( 'npmp_newsletter_queue_has_retries' ) && npmp_newsletter_queue_has_retries();
 
 		$limit = intval( get_option( 'npmp_newsletter_rate_limit', self::EMAILS_PER_RUN ) );
 		if ( $limit <= 0 ) {
@@ -275,12 +347,23 @@ class NPMP_Newsletter_Manager {
 		// id is a deterministic tiebreaker: a whole newsletter's rows share the
 		// same queued_at (one queue_newsletter() call), so ordering by
 		// queued_at alone would drain them in an undefined order across ticks.
-		$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, drained on a per-minute cron.
-			$wpdb->prepare(
-				"SELECT id, newsletter_id, user_id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
-				$limit
-			)
-		);
+		// The status_queued index serves both queries.
+		if ( $retries ) {
+			$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, drained on a per-minute cron.
+				$wpdb->prepare(
+					"SELECT id, newsletter_id, user_id, email, attempts FROM {$table} WHERE status = 'pending' AND ( retry_at IS NULL OR retry_at <= %s ) ORDER BY queued_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, the time and the LIMIT are placeholders.
+					gmdate( 'Y-m-d H:i:s' ),
+					$limit
+				)
+			);
+		} else {
+			$batch = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table, drained on a per-minute cron.
+				$wpdb->prepare(
+					"SELECT id, newsletter_id, user_id, email FROM {$table} WHERE status = 'pending' ORDER BY queued_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, only the LIMIT value is a placeholder.
+					$limit
+				)
+			);
+		}
 
 		if ( empty( $batch ) ) {
 			return;
@@ -292,12 +375,28 @@ class NPMP_Newsletter_Manager {
 		$bodies  = array();
 		$gone    = array();
 
+		/**
+		 * Filter how many seconds one queue batch may work before it stops
+		 * starting sends. Keep it under 300, the run lock's life.
+		 *
+		 * @param int    $seconds Seconds of work.
+		 * @param string $queue   'newsletter' or 'digest'.
+		 */
+		$budget          = (float) apply_filters( 'npmp_mail_queue_batch_seconds', self::BATCH_SECONDS, 'newsletter' );
+		$delays          = $retries ? self::retry_delays() : array();
+		$failed_in_a_row = 0;
+
 		// Someone can unsubscribe, or an admin can delete or change a contact,
 		// after the newsletter was queued. Look the batch up once and mail
 		// only contacts who are still subscribed.
 		$contacts = class_exists( 'NPMP_Member_Manager' ) ? NPMP_Member_Manager::get_instance()->lookup_emails( wp_list_pluck( $batch, 'email' ) ) : null;
 
 		foreach ( $batch as $row ) {
+			// Rows we don't reach keep waiting, untouched, for the next run.
+			if ( $failed_in_a_row >= self::FAILURES_IN_A_ROW || ! npmp_mail_queue_batch_continues( 'newsletter', $started, $budget ) ) {
+				break;
+			}
+
 			$queue_id      = (int) $row->id;
 			$newsletter_id = (int) $row->newsletter_id;
 			$user_id       = (int) $row->user_id;
@@ -354,14 +453,36 @@ class NPMP_Newsletter_Manager {
 				$sent    = self::send_email( $email, $subject, $content, $newsletter_id );
 			}
 
+			$tries = isset( $row->attempts ) ? (int) $row->attempts : 0;
+			if ( $sent ) {
+				$failed_in_a_row = 0;
+				$data            = array(
+					'status'  => 'sent',
+					'sent_at' => current_time( 'mysql' ),
+				);
+				if ( $retries ) {
+					$data['attempts'] = min( 255, $tries + 1 );
+				}
+			} else {
+				++$failed_in_a_row;
+				$next = self::after_failed_send( $tries, $delays );
+				$data = array( 'status' => $next['status'] );
+				if ( 'failed' === $next['status'] ) {
+					$data['sent_at'] = current_time( 'mysql' );
+				}
+				if ( $retries ) {
+					$data['attempts'] = min( 255, $next['attempts'] );
+					if ( 'pending' === $next['status'] ) {
+						$data['retry_at'] = gmdate( 'Y-m-d H:i:s', time() + $next['delay'] );
+					}
+				}
+			}
+
 			$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Dedicated queue table.
 				$table,
-				array(
-					'status'  => $sent ? 'sent' : 'failed',
-					'sent_at' => current_time( 'mysql' ),
-				),
+				$data,
 				array( 'id' => $queue_id ),
-				array( '%s', '%s' ),
+				array_map( static fn( $column ) => 'attempts' === $column ? '%d' : '%s', array_keys( $data ) ),
 				array( '%d' )
 			);
 
@@ -374,7 +495,8 @@ class NPMP_Newsletter_Manager {
 		}
 
 		// Mark each newsletter drained this run as fully sent once nothing is
-		// left pending for it. Checked once per newsletter after the batch, not
+		// left pending for it. A row waiting for a retry is still pending, so
+		// its newsletter reads queued until the last try. Checked once per newsletter after the batch, not
 		// once per email as the old code did. Marking on drain (rather than
 		// only inside a successful send, as before) also stops a newsletter
 		// whose final recipient fails from being stuck in the "queued" state.

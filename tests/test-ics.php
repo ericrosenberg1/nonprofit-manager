@@ -104,7 +104,38 @@ check( 'an ID with no link still reaches DESCRIPTION', true, false !== strpos( $
 $bad = npmp_ics_vevent( array_merge( $event, array( 'url' => "javascript:x\r\nX-EVIL:1" ) ) );
 check( 'a bad link is dropped everywhere', true, false === strpos( $bad, 'javascript' ) && false === strpos( $bad, 'X-EVIL' ) );
 check( 'no start, no event', '', npmp_ics_vevent( array_merge( $event, array( 'start' => 0 ) ) ) );
-check( 'no end means the start', true, false !== strpos( npmp_ics_vevent( array_merge( $event, array( 'end' => 0 ) ) ), "DTEND:20260101T120000Z\r\n" ) );
+
+echo "No end time (sweep 2026-11-21, F12)\n";
+// DTEND used to equal DTSTART, and calendar apps showed a zero-minute entry.
+$no_end = npmp_ics_vevent( array_merge( $event, array( 'end' => 0 ) ) );
+check( 'no end runs one hour', true, false !== strpos( $no_end, "DTSTART:20260101T120000Z\r\nDTEND:20260101T130000Z\r\n" ) );
+check( 'an end equal to the start runs one hour', true, false !== strpos( npmp_ics_vevent( array_merge( $event, array( 'end' => 1767268800 ) ) ), "DTEND:20260101T130000Z\r\n" ) );
+check( 'an end before the start runs one hour', true, false !== strpos( npmp_ics_vevent( array_merge( $event, array( 'end' => 1767265200 ) ) ), "DTEND:20260101T130000Z\r\n" ) );
+check( 'a real end stays', true, false !== strpos( npmp_ics_vevent( array_merge( $event, array( 'end' => 1767279600 ) ) ), "DTEND:20260101T150000Z\r\n" ) );
+check( 'a timed event has no DATE values', false, strpos( $no_end, 'VALUE=DATE' ) );
+
+echo "All-day events\n";
+check( 'a 00:00 start with no end is one day', array( '2026-12-05', '2026-12-05' ), npmp_ics_all_day_span( '2026-12-05 00:00:00', '' ) );
+check( 'a date with no time is one day', array( '2026-12-05', '2026-12-05' ), npmp_ics_all_day_span( '2026-12-05', '' ) );
+check( 'the editor\'s empty times (00:00 to 23:59) span the days', array( '2026-12-05', '2026-12-07' ), npmp_ics_all_day_span( '2026-12-05 00:00:00', '2026-12-07 23:59:00' ) );
+check( 'an importer\'s 23:59:59 end counts', array( '2026-12-05', '2026-12-05' ), npmp_ics_all_day_span( '2026-12-05 00:00:00', '2026-12-05 23:59:59' ) );
+check( 'an end day before the start keeps one day', array( '2026-12-05', '2026-12-05' ), npmp_ics_all_day_span( '2026-12-05 00:00:00', '2026-12-04 23:59:00' ) );
+check( 'a start with a time is timed', null, npmp_ics_all_day_span( '2026-12-05 18:30:00', '' ) );
+check( 'a 00:00 start with a real end time is timed', null, npmp_ics_all_day_span( '2026-12-05 00:00:00', '2026-12-05 02:00:00' ) );
+check( 'no start is timed', null, npmp_ics_all_day_span( '', '' ) );
+check( 'npmp_ics_date moves across a month end', '20270101', npmp_ics_date( '2026-12-31', 1 ) );
+check( 'npmp_ics_date across February in a leap year', '20280301', npmp_ics_date( '2028-02-29', 1 ) );
+check( 'npmp_ics_date refuses a day that does not exist', '', npmp_ics_date( '2026-02-30' ) );
+
+$one_day = npmp_ics_vevent( array_merge( $event, array( 'end' => 0, 'all_day' => array( '2026-12-05', '2026-12-05' ) ) ) );
+check( 'one day: DATE start', true, false !== strpos( $one_day, "DTSTART;VALUE=DATE:20261205\r\n" ) );
+check( 'one day: DTEND is the next day (RFC 5545 3.6.1)', true, false !== strpos( $one_day, "DTEND;VALUE=DATE:20261206\r\n" ) );
+check( 'one day: no UTC times', false, strpos( $one_day, 'DTSTART:' ) );
+$three = npmp_ics_vevent( array_merge( $event, array( 'all_day' => array( '2026-12-30', '2027-01-01' ) ) ) );
+check( 'three days across New Year', true, false !== strpos( $three, "DTSTART;VALUE=DATE:20261230\r\nDTEND;VALUE=DATE:20270102\r\n" ) );
+$junk = npmp_ics_vevent( array_merge( $event, array( 'end' => 0, 'all_day' => array( '2026-02-30', '2026-02-30' ) ) ) );
+check( 'a bad day falls back to times', true, false !== strpos( $junk, "DTSTART:20260101T120000Z\r\nDTEND:20260101T130000Z\r\n" ) );
+check( 'an all-day event keeps its other lines', true, false !== strpos( t_unfold( $one_day ), "LOCATION:Hall A\\, https://zoom.example/j/8675309?pwd=abc\r\n" ) );
 $labels = npmp_ics_vevent( array_merge( $event, array( 'labels' => array( 'join' => 'Rejoindre' ) ) ) );
 check( 'labels translate', true, false !== strpos( t_unfold( $labels ), 'DESCRIPTION:Rejoindre: https' ) );
 
