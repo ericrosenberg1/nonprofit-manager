@@ -82,6 +82,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 
 ## Code landmines
 
+- A host can run PHP without mbstring. WordPress polyfills only `mb_substr()` and `mb_strlen()`
+  (6.0 and up) and `mb_chr()` and `mb_ord()` (absent in 6.8.2, present in 7.1), so any other `mb_*`,
+  `iconv*`, or `grapheme_*` call needs a guard. Use the helpers in `includes/npmp-mb-compat.php`
+  (`npmp_mb_upper()`, `npmp_mb_lower()`, `npmp_encode_numeric_entities()`).
+  `tests/test-mbstring-fallbacks.php` runs them with the functions disabled.
 - `$wpdb->prepare()` reads every `%` as a placeholder. A literal percent inside SQL, like
   `DATE_FORMAT('%Y-%m-%d')`, must be `%%` or the arguments shift and the query silently returns
   nothing. `tests/test-prepare-placeholders.php` scans both plugins.

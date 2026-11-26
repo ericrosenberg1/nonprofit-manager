@@ -12,6 +12,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once dirname( __DIR__ ) . '/npmp-mb-compat.php';
+
 /**
  * One tag as a hashtag: spaces and punctuation out, and each word of a
  * several-word tag capitalized ("community garden" is #CommunityGarden). A
@@ -32,7 +34,7 @@ function npmp_social_hashtag( $tag ) {
 	if ( count( $words ) > 1 ) {
 		$words = array_map(
 			static function ( $word ) {
-				return mb_strtoupper( mb_substr( $word, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $word, 1, null, 'UTF-8' );
+				return npmp_mb_upper( mb_substr( $word, 0, 1, 'UTF-8' ) ) . mb_substr( $word, 1, null, 'UTF-8' );
 			},
 			$words
 		);
@@ -58,7 +60,7 @@ function npmp_social_hashtags( $tags ) {
 			continue;
 		}
 		$hashtag = npmp_social_hashtag( (string) $tag );
-		$key     = mb_strtolower( $hashtag, 'UTF-8' );
+		$key     = npmp_mb_lower( $hashtag );
 		if ( '' === $hashtag || isset( $seen[ $key ] ) ) {
 			continue;
 		}
