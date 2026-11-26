@@ -73,12 +73,24 @@ class NPMP_Newsletter_Tracker {
 	 * erased one. A trashed contact counts as gone, the way
 	 * NPMP_Member_Manager::get_member_by_id() reads it.
 	 *
+	 * The privacy eraser keeps an unsubscribed contact as a published stub
+	 * with only its email and status, and marks it with _npmp_privacy_erased.
+	 * We count that stub as gone too, until the person subscribes again: the
+	 * resubscribe flow reuses the stub and keeps the mark, so a stub that
+	 * reads subscribed belongs to someone who came back.
+	 *
 	 * @param int $contact_id Contact post ID.
 	 * @return bool
 	 */
 	private static function contact_exists( $contact_id ) {
 		$contact_id = absint( $contact_id );
-		return $contact_id > 0 && 'npmp_contact' === get_post_type( $contact_id ) && 'publish' === get_post_status( $contact_id );
+		if ( $contact_id <= 0 || 'npmp_contact' !== get_post_type( $contact_id ) || 'publish' !== get_post_status( $contact_id ) ) {
+			return false;
+		}
+		if ( '' !== (string) get_post_meta( $contact_id, '_npmp_privacy_erased', true ) ) {
+			return 'subscribed' === (string) get_post_meta( $contact_id, 'npmp_status', true );
+		}
+		return true;
 	}
 
 	/**

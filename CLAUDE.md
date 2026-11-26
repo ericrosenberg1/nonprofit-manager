@@ -143,7 +143,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   query joined by primary key right before each send: skip a row that is gone or no longer pending, delete the row of a
   contact who is gone or no longer subscribed (the digest also needs its `_npmp_weekly_digest` flag), and never read it
   through the object cache. The retry, lock, 3-failure, and 240-second rules are unchanged. `track_open()` and `track_click()`
-  return false for a contact that is not a published `npmp_contact`. Unit `tests/test-newsletter-drain-recheck.php`, rig
+  return false for a contact that is not a published `npmp_contact`, and for the privacy eraser's stub (meta
+  `_npmp_privacy_erased`, PR #105) until its status reads subscribed again, since a confirmed resubscribe reuses the
+  stub and keeps the mark. The drains already refuse a stub, because the eraser keeps only unsubscribed contacts.
+  The recheck costs 0.066 ms a row at the median and 0.107 ms at p95 on MySQL 8.0.35 (5,000 rows), about 3 to 6
+  seconds over 50,000 readers. Unit `tests/test-newsletter-drain-recheck.php`, rig
   `tests/rig/newsletter-queue-cron.php`.
 - **The From rewrite is scoped, the SMTP connection is not.** `npmp_email_from_applies()` decides:
   mail sent through `npmp_send_mail()` gets the configured From, any other `wp_mail()` only when

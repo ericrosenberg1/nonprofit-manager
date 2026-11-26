@@ -118,6 +118,9 @@ function get_post_meta( $id, $key, $single = false ) {
 	if ( '_npmp_weekly_digest' === $key && isset( $GLOBALS['t_contacts'][ $id ] ) ) {
 		return $GLOBALS['t_contacts'][ $id ]['flag'] ?? '';
 	}
+	if ( 'npmp_status' === $key && isset( $GLOBALS['t_contacts'][ $id ] ) ) {
+		return $GLOBALS['t_contacts'][ $id ]['status'] ?? '';
+	}
 	return $GLOBALS['t_meta'][ $id ][ $key ] ?? '';
 }
 function delete_option( $name ) {
@@ -645,6 +648,46 @@ check( 'nor a user ID of 0', false, $tracker->track_click( 7, 0, 'https://exampl
 $GLOBALS['t_contacts'][ 106 ] = array( 'email' => 'r6@example.org', 'post_status' => 'trash', 'status' => 'subscribed', 'flag' => '1' );
 check( 'nor a trashed contact', false, $tracker->track_open( 7, 106 ) );
 check( 'no row landed for any of them', 2, count( $GLOBALS['t_inserts'] ) );
+
+echo "Tracking writes nothing for a contact the privacy eraser cut to a stub\n";
+fresh();
+// The eraser keeps an unsubscribed contact published with its email, its
+// status, and _npmp_privacy_erased (PR #105). Old pixels and links still carry
+// the contact's ID.
+$GLOBALS['t_contacts'][ 107 ]               = array( 'email' => 'r7@example.org', 'post_status' => 'publish', 'status' => 'unsubscribed', 'flag' => '' );
+$GLOBALS['t_meta'][107]['_npmp_privacy_erased'] = '2026-11-26 10:00:00';
+$tracker                                    = NPMP_Newsletter_Tracker::get_instance();
+check( 'an open for an erased stub is not recorded', false, $tracker->track_open( 7, 107 ) );
+check( 'nor a click', false, $tracker->track_click( 7, 107, 'https://example.com/x' ) );
+check( 'no row landed for the stub', 0, count( $GLOBALS['t_inserts'] ) );
+$GLOBALS['t_contacts'][107]['status'] = 'subscribed'; // The person confirmed a resubscribe, which reuses the stub.
+check( 'an open counts again once the person subscribes again', true, $tracker->track_open( 7, 107 ) );
+$GLOBALS['t_contacts'][ 108 ] = array( 'email' => 'r8@example.org', 'post_status' => 'publish', 'status' => 'unsubscribed', 'flag' => '' );
+check( 'an unsubscribed contact nobody erased still records an open', true, $tracker->track_open( 7, 108 ) );
+
+echo "The drains refuse an erased stub through its unsubscribed status\n";
+fresh();
+reader( 1 );
+reader( 2 );
+$GLOBALS['t_on_mail'] = static function ( $to ) {
+	if ( 'r1@example.org' === $to ) {
+		$GLOBALS['t_contacts'][102]['status'] = 'unsubscribed';
+		$GLOBALS['t_meta'][102]['_npmp_privacy_erased'] = '2026-11-26 10:00:00';
+	}
+};
+NPMP_Newsletter_Manager::process_queue();
+check( 'the newsletter drain sends the stub nothing', false, mailed( 2 ) );
+fresh();
+reader( 1, 'digest' );
+reader( 2, 'digest' );
+$GLOBALS['t_on_mail'] = static function ( $to ) {
+	if ( 'r1@example.org' === $to ) {
+		$GLOBALS['t_contacts'][102]['status'] = 'unsubscribed';
+		$GLOBALS['t_meta'][102]['_npmp_privacy_erased'] = '2026-11-26 10:00:00';
+	}
+};
+npmp_drain_digest_batch();
+check( 'the digest drain sends the stub nothing', false, mailed( 2 ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
