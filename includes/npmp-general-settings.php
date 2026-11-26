@@ -309,6 +309,8 @@ function npmp_render_general_settings_page() {
 			</form>
 		</div>
 
+		<?php npmp_privacy_settings_card(); ?>
+
 		<!-- Support / Attribution Section -->
 		<div class="npmp-settings-card">
 			<h2><?php esc_html_e( 'Support Nonprofit Manager', 'nonprofit-manager' ); ?></h2>

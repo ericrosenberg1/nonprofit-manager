@@ -547,6 +547,18 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   Pro's invoice backfill (`npmp_stripe_subscription_is_ours()`) refuses another site's tag. A subscription from before
   the tag carries none, so two sites can still both adopt it there. Rig `tests/rig/stripe-webhook.php` with
   `NPMP_RIG_OTHER_WP` and `NPMP_RIG_OTHER_URL` sends each event to two served sites.
+- **WordPress's personal data tools** (`includes/npmp-privacy.php`, loaded on every request, since the release after
+  2026.11.26). We add exporters `nonprofit-manager-contact` and `nonprofit-manager-gifts` and eraser `nonprofit-manager`
+  to Tools, Export and Erase Personal Data, plus suggested privacy policy text and a card on General Settings. We match
+  email with `LOWER()` across every post status. An erase deletes the contact, its queue and digest rows, and its opens
+  and clicks, keeps each gift with date, amount, currency, and frequency but no name or email (`_npmp_privacy_erased`),
+  and NULLs `npmp_payment_log.raw_response`. A published unsubscribed contact stays as email, status, and
+  `_npmp_free_import` only (filter `npmp_privacy_keep_unsubscribed`, default true). Gifts go 100 a page
+  (`NPMP_PRIVACY_PAGE_SIZE`), so core calls the eraser until `done`. We never call Stripe or PayPal, cancel anything,
+  or touch WordPress users. Pro holds a person with a billing plan through `npmp_privacy_erase_holds`: we then keep
+  the contact and gifts and still delete queue and tracking rows. Any new table or meta that names a person needs a
+  line in the exporter and the eraser. Unit `tests/test-privacy.php` (fake store), rig `tests/rig/privacy.php`
+  (`wp eval-file`, core's AJAX handlers, Pro on and off).
 - The X share uses OAuth 1.0a with HMAC-SHA1 (`includes/social-sharing/networks/x-twitter.php`).
   Never exercised against the live X API.
 
