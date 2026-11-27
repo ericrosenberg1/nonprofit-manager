@@ -3,7 +3,7 @@ Contributors: eric1985
 Tags: nonprofit, donations, membership, fundraising, newsletter
 Requires at least: 6.0
 Tested up to: 7.2
-Stable tag: 2026.11.29
+Stable tag: 2026.11.30
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -185,6 +185,12 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 8. Payment settings with currency and gateways
 
 == Changelog ==
+
+= 2026.11.30 =
+* Added your contacts and gifts to WordPress's export and erase tools.
+* Added suggested privacy policy text.
+* Added a way to mark a plan you canceled in Stripe.
+* Fixed queued emails reaching readers who unsubscribed mid-send.
 
 = 2026.11.29 =
 * Fixed errors on hosts without the mbstring PHP extension in event hashtags, newsletter link tracking, and gift CSV imports.
@@ -711,6 +717,9 @@ Ask in the WordPress.org support forums and we'll help. Pro includes email suppo
 * Setup wizard
 
 == Upgrade Notice ==
+
+= 2026.11.30 =
+Update to answer data export and erase requests from WordPress's own Tools screens.
 
 = 2026.11.29 =
 Update to keep newsletters sending on hosts without the mbstring PHP extension.
