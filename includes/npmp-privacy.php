@@ -25,13 +25,15 @@
  *     when Pro's plan table holds a row that can still charge (active,
  *     failed, lapsed, or paused), when Pro data is left after Pro's eraser
  *     ran or with no Pro eraser on the list (Pro off or older), or when the
- *     filter npmp_privacy_erase_holds names a reason. We read Pro's tables
+ *     filter npmp_privacy_erase_holds names a reason. A filter can add a
+ *     reason but never drop a plan hold. We read Pro's tables
  *     directly, with no Pro code. Pro's eraser asks the same holds through
  *     npmp_privacy_erase_holds_for(). Queue and tracking rows still go, on
  *     the first page only.
  *   - An admin who cancelled a held plan in the Stripe dashboard marks the
  *     row cancelled on General Settings, Personal data requests
- *     (npmp_privacy_mark_plan_cancelled()). We cancel nothing at Stripe.
+ *     (npmp_privacy_mark_plan_cancelled()), only while the row still has
+ *     the status the card showed. We cancel nothing at Stripe.
  *   - Stores no name on an erased gift. The Donations screen prints
  *     "Erased on request" from _npmp_privacy_erased, in the reader's language.
  *   - Never calls a payment gateway and never touches a WordPress user.
@@ -56,6 +58,13 @@ if ( ! defined( 'NPMP_PRIVACY_PAGE_SIZE' ) ) {
  * Database access for the privacy tools, on WordPress.
  */
 class NPMP_Privacy_Store {
+
+	/**
+	 * Open erase requests read a page at a time in open_erase_emails().
+	 *
+	 * @var int
+	 */
+	const OPEN_REQUESTS_PAGE = 500;
 
 	/**
 	 * Contact meta a kept unsubscribed contact keeps. _npmp_free_import is a
@@ -91,9 +100,12 @@ class NPMP_Privacy_Store {
 	}
 
 	/**
-	 * A prepared match of a column against the address in any letter case.
-	 * MySQL's LOWER() folds accented letters on both sides, which PHP's
-	 * strtolower() never did.
+	 * A prepared match of a column against the address in any letter case,
+	 * with every other letter exact. MySQL's LOWER() lowercases accented
+	 * capitals on both sides (JOSÉ finds josé). We compare the lowercase
+	 * bytes with HEX(), because a plain = goes through the column's
+	 * collation, and utf8mb4_unicode_520_ci reads é and e as one letter, so
+	 * josé@ would match jose@, a different mailbox.
 	 *
 	 * @param string $column Column, as written in the SQL.
 	 * @param string $email  Address.
@@ -101,7 +113,8 @@ class NPMP_Privacy_Store {
 	 */
 	private static function match_email( $column, $email ) {
 		global $wpdb;
-		return $wpdb->prepare( "LOWER( {$column} ) = LOWER( %s )", trim( (string) $email ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed column name.
+		$email = trim( (string) $email );
+		return $wpdb->prepare( "HEX( LOWER( {$column} ) ) = HEX( LOWER( %s ) )", $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed column name from our own code.
 	}
 
 	/**
@@ -139,7 +152,7 @@ class NPMP_Privacy_Store {
 	public function contacts( $email ) {
 		global $wpdb;
 		$match = self::match_email( 'e.meta_value', $email );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match is prepared.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match comes from match_email(), which runs $wpdb->prepare().
 		$rows = $wpdb->get_results(
 			"SELECT p.ID AS id, p.post_status AS post_status, COALESCE( s.meta_value, '' ) AS status
 			 FROM {$wpdb->postmeta} e
@@ -149,6 +162,7 @@ class NPMP_Privacy_Store {
 			 ORDER BY p.ID ASC",
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$out = array();
 		$ids = array();
 		foreach ( (array) $rows as $row ) {
@@ -380,7 +394,7 @@ class NPMP_Privacy_Store {
 	public function gifts( $email, $limit, $offset ) {
 		global $wpdb;
 		$match = self::match_email( 'e.meta_value', $email );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match is prepared.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match comes from match_email(), which runs $wpdb->prepare().
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT p.ID AS id, p.post_date AS date,
@@ -401,6 +415,7 @@ class NPMP_Privacy_Store {
 			),
 			ARRAY_A
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$out = array();
 		foreach ( (array) $rows as $row ) {
 			$row['id'] = (int) $row['id'];
@@ -420,7 +435,7 @@ class NPMP_Privacy_Store {
 		global $wpdb;
 		$match = self::match_email( 'e.meta_value', $email );
 		// IDs only: the eraser needs no amount, currency, or gateway.
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match is prepared.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match comes from match_email(), which runs $wpdb->prepare().
 		$ids = $wpdb->get_col(
 			$wpdb->prepare(
 				"SELECT DISTINCT p.ID FROM {$wpdb->postmeta} e
@@ -432,6 +447,7 @@ class NPMP_Privacy_Store {
 				(int) $limit
 			)
 		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return array_map( 'intval', (array) $ids );
 	}
 
@@ -523,7 +539,9 @@ class NPMP_Privacy_Store {
 			$count += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->term_relationships} r INNER JOIN {$wpdb->term_taxonomy} t ON t.term_taxonomy_id = r.term_taxonomy_id WHERE t.taxonomy = 'npmp_group' AND r.object_id IN ({$in})" );
 		}
 		if ( $this->has_table( 'npmp_automation_log' ) ) {
-			$count += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_automation_log WHERE " . self::match_email( 'recipient_email', $email ) );
+			// match_email() runs $wpdb->prepare(), so $match is already prepared.
+			$match  = self::match_email( 'recipient_email', $email );
+			$count += (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_automation_log WHERE {$match}" );
 		}
 		if ( $this->has_table( 'npmp_mailer_queue' ) ) {
 			// The payload is JSON, which may write an accented letter as \u00e9,
@@ -597,9 +615,9 @@ class NPMP_Privacy_Store {
 	private function delete_ids( $table, array $ids ) {
 		global $wpdb;
 		$deleted = 0;
-		foreach ( array_chunk( array_map( 'intval', $ids ), 500 ) as $chunk ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name, integer IDs.
-			$deleted += (int) $wpdb->query( "DELETE FROM {$wpdb->prefix}{$table} WHERE id IN (" . implode( ',', $chunk ) . ')' );
+		foreach ( array_chunk( self::int_ids( $ids ), 500 ) as $chunk ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed table name from our own code, one %d per ID.
+			$deleted += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}{$table} WHERE id IN (" . implode( ',', array_fill( 0, count( $chunk ), '%d' ) ) . ')', $chunk ) );
 		}
 		return $deleted;
 	}
@@ -615,9 +633,9 @@ class NPMP_Privacy_Store {
 		if ( ! $this->has_table( 'npmp_newsletter_queue' ) ) {
 			return 0;
 		}
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- match_email() is prepared.
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE status = 'sent' AND " . self::match_email( 'email', $email ) );
+		$match = self::match_email( 'email', $email );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $match comes from match_email(), which runs $wpdb->prepare().
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE status = 'sent' AND {$match}" );
 	}
 
 	/**
@@ -796,28 +814,36 @@ class NPMP_Privacy_Store {
 
 	/**
 	 * Addresses with an erase request that isn't finished, newest first.
+	 * We read every open request, 500 IDs a page, so a site with a long
+	 * backlog still reaches its oldest request.
 	 *
 	 * @return string[]
 	 */
 	public function open_erase_emails() {
-		$ids = get_posts(
-			array(
-				'post_type'      => 'user_request',
-				'name'           => 'remove_personal_data',
-				'post_status'    => array( 'request-pending', 'request-confirmed' ),
-				'posts_per_page' => 100,
-				'fields'         => 'ids',
-				'orderby'        => 'ID',
-				'order'          => 'DESC',
-			)
-		);
-		$out = array();
-		foreach ( (array) $ids as $id ) {
-			$email = trim( (string) get_post_field( 'post_title', (int) $id ) );
-			if ( '' !== $email ) {
-				$out[ npmp_mb_lower( $email ) ] = $email;
+		$out  = array();
+		$page = 1;
+		do {
+			$ids = (array) get_posts(
+				array(
+					'post_type'      => 'user_request',
+					'name'           => 'remove_personal_data',
+					'post_status'    => array( 'request-pending', 'request-confirmed' ),
+					'posts_per_page' => self::OPEN_REQUESTS_PAGE,
+					'paged'          => $page,
+					'fields'         => 'ids',
+					'orderby'        => 'ID',
+					'order'          => 'DESC',
+					'no_found_rows'  => true,
+				)
+			);
+			foreach ( $ids as $id ) {
+				$email = trim( (string) get_post_field( 'post_title', (int) $id ) );
+				if ( '' !== $email && ! isset( $out[ npmp_mb_lower( $email ) ] ) ) {
+					$out[ npmp_mb_lower( $email ) ] = $email;
+				}
 			}
-		}
+			++$page;
+		} while ( count( $ids ) === self::OPEN_REQUESTS_PAGE );
 		return array_values( $out );
 	}
 }
@@ -1304,17 +1330,21 @@ function npmp_privacy_erase_holds_for( $email, $context = 'free', $ids = null ) 
 	/**
 	 * Filter the reasons an erase request must keep this person's contact
 	 * record, gifts, and Pro data. We add our own first: a Pro plan that can
-	 * still charge. When the list comes back empty, our eraser then holds
-	 * for any Pro data only Pro's eraser clears. Each reason is a sentence
-	 * the admin reads on Erase Personal Data, shown as text.
+	 * still charge. A filter can add reasons, but we keep our plan holds
+	 * whatever it returns, so neither eraser erases a person Stripe can
+	 * still bill, and both erasers get the same answer. When nothing holds,
+	 * our eraser then holds for any Pro data only Pro's eraser clears. Each
+	 * reason is a sentence the admin reads on Erase Personal Data, shown as
+	 * text.
 	 *
 	 * @param string[] $holds       Reasons.
 	 * @param string   $email       Address in the request.
 	 * @param int[]    $contact_ids Contacts with the address.
 	 * @param string   $context     free or pro: which eraser asks.
 	 */
-	$holds = (array) apply_filters( 'npmp_privacy_erase_holds', $own, $email, $ids, $context );
+	$holds = array_merge( $own, (array) apply_filters( 'npmp_privacy_erase_holds', $own, $email, $ids, $context ) );
 	if ( 'pro' !== $context && ! array_filter( array_map( 'trim', array_map( 'strval', $holds ) ), 'strlen' ) ) {
+		// No plan holds here, so this adds only the leftovers check.
 		$own   = npmp_privacy_hold_reasons( $email, $ids, $context );
 		$holds = $own;
 	}
@@ -1556,6 +1586,7 @@ function npmp_privacy_held_plans_section() {
 	$errors = array(
 		'confirm' => __( 'Tick the box to confirm you canceled the plan in Stripe first.', 'nonprofit-manager' ),
 		'held'    => __( 'You changed nothing. We found no open erase request for that plan, or someone already closed the plan.', 'nonprofit-manager' ),
+		'changed' => __( 'You changed nothing. The plan\'s status changed after you opened this page, maybe from a Stripe payment. Check the plan in Stripe, then try again.', 'nonprofit-manager' ),
 	);
 	if ( isset( $errors[ $error ] ) ) {
 		echo '<div class="notice notice-error inline"><p>' . esc_html( $errors[ $error ] ) . '</p></div>';
@@ -1584,6 +1615,7 @@ function npmp_privacy_held_plans_section() {
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" onsubmit="return window.confirm(' . esc_attr( wp_json_encode( $question ) ) . ');">';
 			echo '<input type="hidden" name="action" value="npmp_privacy_mark_plan_cancelled">';
 			echo '<input type="hidden" name="plan_id" value="' . esc_attr( (string) $id ) . '">';
+			echo '<input type="hidden" name="plan_status" value="' . esc_attr( (string) $plan['status'] ) . '">';
 			wp_nonce_field( 'npmp_privacy_mark_plan_' . $id );
 			echo '<label><input type="checkbox" name="npmp_cancelled_in_stripe" value="1" required> ' . esc_html__( 'I canceled this plan in my Stripe dashboard.', 'nonprofit-manager' ) . '</label> ';
 			echo '<button type="submit" class="button">' . esc_html__( 'I canceled this plan in Stripe', 'nonprofit-manager' ) . '</button>';
@@ -1613,6 +1645,27 @@ function npmp_privacy_held_plans_section() {
 }
 
 /**
+ * Why we refuse to mark a plan canceled, or '' to go ahead. We go ahead only
+ * for a plan that can still charge, held by an open erase request, whose
+ * status still reads what the admin saw on the card.
+ *
+ * @param array|null $plan   Plan row from the store, or null.
+ * @param string     $seen   Status the card showed, posted with the form.
+ * @param bool       $holder Whether the plan's contact has an open erase request.
+ * @return string '', held, or changed.
+ */
+function npmp_privacy_mark_refusal( $plan, $seen, $holder ) {
+	// A closed or one-time plan, a replay, or a person with no open request.
+	if ( ! is_array( $plan ) || ! $holder || ! npmp_privacy_plan_can_charge( $plan ) ) {
+		return 'held';
+	}
+	if ( '' === (string) $seen || (string) $seen !== (string) $plan['status'] ) {
+		return 'changed';
+	}
+	return '';
+}
+
+/**
  * admin-post.php?action=npmp_privacy_mark_plan_cancelled: mark one held plan
  * row cancelled after the admin cancelled it in Stripe's dashboard. We call
  * no gateway. We log the plan, the user, the time, and the old status in
@@ -1621,7 +1674,7 @@ function npmp_privacy_held_plans_section() {
  * @return void
  */
 function npmp_privacy_mark_plan_cancelled() {
-	if ( 'POST' !== strtoupper( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Compared only.
+	if ( 'POST' !== strtoupper( sanitize_text_field( wp_unslash( (string) ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) ) ) {
 		wp_die( esc_html__( 'Send this form from General Settings.', 'nonprofit-manager' ), '', array( 'response' => 405 ) );
 	}
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -1631,11 +1684,14 @@ function npmp_privacy_mark_plan_cancelled() {
 	check_admin_referer( 'npmp_privacy_mark_plan_' . $id );
 
 	$back = admin_url( 'admin.php?page=npmp_general_settings' );
-	if ( empty( $_POST['npmp_cancelled_in_stripe'] ) || '1' !== (string) $_POST['npmp_cancelled_in_stripe'] ) {
+	if ( '1' !== ( isset( $_POST['npmp_cancelled_in_stripe'] ) ? sanitize_key( wp_unslash( $_POST['npmp_cancelled_in_stripe'] ) ) : '' ) ) {
 		wp_safe_redirect( add_query_arg( 'npmp_privacy_error', 'confirm', $back ) . '#npmp-privacy-requests' );
 		exit;
 	}
 
+	// The status the card showed. We mark the row only while it still reads
+	// that, so a plan Stripe recovered after the admin loaded the page stays open.
+	$seen   = isset( $_POST['plan_status'] ) ? sanitize_key( wp_unslash( $_POST['plan_status'] ) ) : '';
 	$store  = npmp_privacy_store();
 	$plan   = $id ? $store->plan( $id ) : null;
 	$holder = false;
@@ -1648,8 +1704,13 @@ function npmp_privacy_mark_plan_cancelled() {
 			}
 		}
 	}
-	if ( ! $holder || ! $store->mark_plan_cancelled( $id, $plan['status'] ) ) {
-		wp_safe_redirect( add_query_arg( 'npmp_privacy_error', 'held', $back ) . '#npmp-privacy-requests' );
+	$refusal = npmp_privacy_mark_refusal( $plan, $seen, $holder );
+	if ( '' === $refusal && ! $store->mark_plan_cancelled( $id, $seen ) ) {
+		// The row changed between our read and our write.
+		$refusal = 'changed';
+	}
+	if ( '' !== $refusal ) {
+		wp_safe_redirect( add_query_arg( 'npmp_privacy_error', $refusal, $back ) . '#npmp-privacy-requests' );
 		exit;
 	}
 

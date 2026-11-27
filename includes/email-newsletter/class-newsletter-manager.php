@@ -454,10 +454,14 @@ class NPMP_Newsletter_Manager {
 				// this run can last 240 seconds. Read this row and its contact
 				// once more, so a reader erased or unsubscribed since then, or a
 				// row another request settled, gets nothing.
-				$contact_id = $user_id;
+				// With the members module off, the recipients are WordPress
+				// users and user_id holds a user ID, never a contact's, so we
+				// recheck the row alone. Reading that ID as a contact dropped
+				// every reader's row unsent.
+				$contact_id = 0;
 				$key        = strtolower( $email );
-				if ( null !== $contacts && isset( $contacts[ $key ]['id'] ) ) {
-					$contact_id = (int) $contacts[ $key ]['id'];
+				if ( null !== $contacts ) {
+					$contact_id = isset( $contacts[ $key ]['id'] ) ? (int) $contacts[ $key ]['id'] : $user_id;
 				}
 				$fresh = npmp_queue_recheck_send( $table, $queue_id, $contact_id );
 				if ( null === $fresh['row'] || 'pending' !== $fresh['row'] ) {

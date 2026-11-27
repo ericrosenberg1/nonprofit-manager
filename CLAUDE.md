@@ -97,7 +97,11 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **Plugin Check.** The wp.org team scans every update with Plugin Check, so we run the scan before a release. Build the SQLite rig above,
   install `plugin-check` (2.2.0 or later), unpack `git archive HEAD` into `wp-content/plugins/nonprofit-manager`, and run
   `wp plugin check nonprofit-manager --format=json` (about a minute, with a `FILE:` line and a JSON array per file).
-  We ship with 0 ERRORs. We keep these ignores on purpose, each with its reason on the line: `strip_tags()` where
+  We ship with 0 ERRORs. Run the scan on a PR branch before you merge it, never only on the release build: on 2026-11-27
+  we merged the privacy tools, tagged 2026.11.30, and then found 7 `NotPrepared` ERRORs, so 2026.11.30 never shipped.
+  `phpcs:ignore` covers only the next line, so a multi-line query that interpolates a prepared fragment needs
+  `phpcs:disable` and `phpcs:enable` around it, and a fragment concatenated inline (`"..." . self::f()`) is an ERROR no
+  ignore of `InterpolatedNotPrepared` covers. Put the fragment in a variable first. We keep these ignores on purpose, each with its reason on the line: `strip_tags()` where
   `wp_strip_all_tags()` would drop script and style text a person typed (UM level name, past-newsletter subject, From name)
   or where no WordPress is loaded (ICS and meeting-ID fallbacks), `fread()` of 3 bytes for the CSV byte-order mark, and
   `OffloadedContent` on Cloudflare Turnstile's siteverify URL, the Cloudflare dashboard link, and the Amazon SES SMTP host.
@@ -146,6 +150,9 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   return false for a contact that is not a published `npmp_contact`, and for the privacy eraser's stub (meta
   `_npmp_privacy_erased`, PR #105) until its status reads subscribed again, since a confirmed resubscribe reuses the
   stub and keeps the mark. The drains already refuse a stub, because the eraser keeps only unsubscribed contacts.
+  With the members module off, a newsletter goes to WordPress users and the row's `user_id` holds a user ID, so the
+  newsletter drain rechecks the row alone (contact ID 0). Reading that ID as a contact deleted every row unsent
+  (found in review 3, rig `tests/rig/newsletter-members-off.php`).
   The recheck costs 0.066 ms a row at the median and 0.107 ms at p95 on MySQL 8.0.35 (5,000 rows), about 3 to 6
   seconds over 50,000 readers. Unit `tests/test-newsletter-drain-recheck.php`, rig
   `tests/rig/newsletter-queue-cron.php`.
@@ -582,8 +589,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
 - **WordPress's personal data tools** (`includes/npmp-privacy.php`, loaded on every request, since the release after
   2026.11.29). We add exporters `nonprofit-manager-contact` and `nonprofit-manager-gifts` and eraser `nonprofit-manager`
   to Tools, Export and Erase Personal Data, plus suggested privacy policy text and a card on General Settings. We match
-  email with `LOWER( column ) = LOWER( %s )` on the trimmed address across every post status, so MySQL folds accented
-  capitals on both sides (PHP's `strtolower()` never did), and PHP compares use `npmp_mb_lower()`. Core's own request
+  email with `HEX( LOWER( column ) ) = HEX( LOWER( %s ) )` on the trimmed address across every post status
+  (`NPMP_Privacy_Store::match_email()`, and Pro's three queries the same way). MySQL lowercases accented capitals on
+  both sides (JOSÉ finds josé), and HEX() compares the bytes, since a plain `=` goes through the column's collation and
+  `utf8mb4_unicode_520_ci` reads josé@ as jose@, a different mailbox (review 3, L3). PHP compares use `npmp_mb_lower()`. Core's own request
   flow runs `sanitize_email()`, which drops accented letters, so an accented address reaches us only through a direct
   call. An erase deletes the contact, its queue and digest rows, and its opens
   and clicks, keeps each gift with date, amount, currency, and frequency but no name or email (`_npmp_privacy_erased`),
@@ -598,7 +607,8 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   with no email index, 23.8 ms at 100,004 queue rows on MySQL 8.0.35. We never call Stripe or PayPal, cancel anything,
   or touch WordPress users. Free owns every hold and reads Pro's tables itself, so holds work with Pro on, off,
   unlicensed, old, or never installed. `npmp_privacy_erase_holds_for( $email, $context )` is the one answer: plan
-  holds, then filter `npmp_privacy_erase_holds`, then (free's eraser only, and only when nothing else holds) Pro data
+  holds, then filter `npmp_privacy_erase_holds`, which can add reasons but never drop a plan hold (with a filter that
+  returned nothing, Pro's eraser blanked an active plan's card while free kept the contact, review 3, L2), then (free's eraser only, and only when nothing else holds) Pro data
   left behind (`pro_leftovers()`: custom fields, groups, automation log or cron, Mailer rows other than a pending
   delete, plans with a payment method), checked every time, Pro's eraser or not. Pro's eraser asks with `'pro'` and
   erases only its automation log on any reason. We escape every reason a filter adds, since core prints messages as
@@ -607,7 +617,10 @@ table. Anything with infra behind it: verify against the real endpoint and SHA-2
   the way out from `npmp_privacy_cancel_reach()` (Pro's `npmp_pro_privacy_cancel_state()`: ready, unlicensed, no_keys,
   or old, else off) and, when Pro's Cancel can't reach Stripe, links the card, where `admin_post_npmp_privacy_mark_plan_cancelled`
   marks one held plan row of a person with an open erase request cancelled (POST, `manage_options`, nonce
-  `npmp_privacy_mark_plan_<id>`, a required tick, a JS confirm, and only while the row has the status the admin saw).
+  `npmp_privacy_mark_plan_<id>`, a required tick, a JS confirm, and only while the row has the status the admin saw: the form posts `plan_status`,
+  `npmp_privacy_mark_refusal()` answers `changed` on a mismatch, and the UPDATE matches that status). The card and the
+  action read every open erase request, 500 IDs a page (`open_erase_emails()`), never only the newest 100.
+  Pro's eraser blanks the payment method only on plans `npmp_privacy_plan_can_charge()` calls closed.
   We cancel nothing at Stripe there and log plan, user, time, and old status in `npmp_privacy_plan_overrides`, never
   the address. A gift title is stored empty after an erase: read names through `npmp_donation_donor_name( $title,
   $email, $id )`, which prints "Erased on request". The stub keeps `post_modified` and `_npmp_privacy_erased`. We store
