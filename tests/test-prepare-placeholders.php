@@ -49,9 +49,18 @@ function scan_for_bare_percents( $file ) {
 			continue;
 		}
 
+		// A LIKE value built as '%' . $wpdb->esc_like( $x ) . '%' is a bound
+		// argument, not SQL, and the wildcards there are meant literally. Drop
+		// those concatenated '%' literals before scanning so the canonical
+		// WordPress idiom does not read as a bare percent (ROS-4871).
+		$sql = $line;
+		if ( false !== strpos( $line, 'esc_like(' ) ) {
+			$sql = preg_replace( '/([\'"])%\1\s*\.|\.\s*([\'"])%\2/', '', $line );
+		}
+
 		// A prepare() call ends when we stop seeing SQL. Keep it simple: scan
 		// the statement until a line closing the call.
-		if ( preg_match_all( '/%(.)/', $line, $m, PREG_SET_ORDER ) ) {
+		if ( preg_match_all( '/%(.)/', $sql, $m, PREG_SET_ORDER ) ) {
 			foreach ( $m as $match ) {
 				$next = $match[1];
 				if ( '%' === $next ) {
@@ -120,6 +129,26 @@ file_put_contents(
 $clean = scan_for_bare_percents( $tmp2 );
 unlink( $tmp2 );
 check( 'passes the correctly escaped version', 0, count( $clean ) );
+
+// The esc_like() LIKE idiom puts its wildcards in the argument, not the SQL.
+$tmp3 = sys_get_temp_dir() . '/npmp-prepare-like.php';
+file_put_contents(
+	$tmp3,
+	"<?php\n\$wpdb->prepare(\n\t\"SELECT id FROM t WHERE p LIKE %s\",\n\t'%' . \$wpdb->esc_like( \$v ) . '%'\n);\n"
+);
+$like = scan_for_bare_percents( $tmp3 );
+unlink( $tmp3 );
+check( 'passes a LIKE value built with esc_like()', 0, count( $like ) );
+
+// The esc_like() carve-out must not hide a bare format string on the same line.
+$tmp4 = sys_get_temp_dir() . '/npmp-prepare-like-bad.php';
+file_put_contents(
+	$tmp4,
+	"<?php\n\$wpdb->prepare( \"SELECT DATE_FORMAT(d, '%Y') FROM t WHERE p LIKE %s\", '%' . \$wpdb->esc_like( \$v ) . '%' );\n"
+);
+$like_bad = scan_for_bare_percents( $tmp4 );
+unlink( $tmp4 );
+check( 'still flags a bare %Y on an esc_like() line', 1, count( $like_bad ) );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
