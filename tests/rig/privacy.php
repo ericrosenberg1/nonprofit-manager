@@ -1034,6 +1034,21 @@ foreach ( array( 'JOSÉ' => 'josé', 'zoë' => 'ZOË' ) as $rig_stored_local => 
 	}
 }
 
+echo "\nAn accented address is a different mailbox (josé is not jose)\n";
+$rig_acc_cid = (int) wp_insert_post( array( 'post_type' => 'npmp_contact', 'post_status' => 'publish', 'post_title' => 'Acc jose-exact' ) );
+update_post_meta( $rig_acc_cid, 'npmp_email', 'josé-exact' . $rig_domain );
+update_post_meta( $rig_acc_cid, 'npmp_status', 'subscribed' );
+$wpdb->insert( $wpdb->prefix . 'npmp_newsletter_queue', array( 'newsletter_id' => 1, 'user_id' => 0, 'email' => 'josé-exact' . $rig_domain, 'status' => 'pending', 'queued_at' => current_time( 'mysql' ) ) );
+rig_privacy_check( 'the store finds no contact for jose-exact@', array(), npmp_privacy_store()->contacts( 'jose-exact' . $rig_domain ) );
+$erase = rig_privacy_erase_direct( 'jose-exact' . $rig_domain );
+clean_post_cache( $rig_acc_cid );
+rig_privacy_check( 'erasing jose-exact@ keeps josé-exact@\'s contact', 'Acc jose-exact', get_the_title( $rig_acc_cid ) );
+rig_privacy_check( 'and keeps josé-exact@\'s queue row', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email = %s", 'josé-exact' . $rig_domain ) ) );
+$erase = rig_privacy_erase_direct( 'JOSÉ-EXACT' . $rig_domain );
+clean_post_cache( $rig_acc_cid );
+rig_privacy_check( 'JOSÉ-EXACT@ still finds josé-exact@', null, get_post( $rig_acc_cid ) );
+rig_privacy_check( 'and its queue row goes', 0, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_newsletter_queue WHERE email = %s", 'josé-exact' . $rig_domain ) ) );
+
 /**
  * Put a contact in a Pro group with SQL, which works with the taxonomy
  * registered or not.
@@ -1177,11 +1192,20 @@ if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
 	$nomark_plan = (int) $wpdb->insert_id;
 	delete_option( 'npmp_privacy_plan_overrides' );
 	rig_privacy_request( 'mark' . $rig_domain, 'remove_personal_data' );
+	// 600 newer open requests, so the card has to page past the newest 500
+	// (before 2026.11.31 it read the newest 100).
+	$rig_filler = array();
+	for ( $i = 0; $i < 600; $i++ ) {
+		$rig_filler[] = (int) wp_insert_post( array( 'post_type' => 'user_request', 'post_name' => 'remove_personal_data', 'post_status' => 'request-pending', 'post_title' => 'filler' . $i . $rig_domain ) );
+	}
+	rig_privacy_check( '600 newer open requests seeded', 600, count( array_filter( $rig_filler ) ) );
+	rig_privacy_check( 'the store reads all 601 open requests', true, 601 <= count( npmp_privacy_store()->open_erase_emails() ) );
 	ob_start();
 	npmp_privacy_settings_card();
 	$card = (string) ob_get_clean();
 	rig_privacy_check( 'card lists the held plan with an open request', true, false !== strpos( $card, 'name="plan_id" value="' . $mark_plan . '"' ) );
 	rig_privacy_check( 'card leaves out a plan with no request', false, false !== strpos( $card, 'name="plan_id" value="' . $nomark_plan . '"' ) );
+	rig_privacy_check( 'card posts the status the admin saw', true, false !== strpos( $card, 'name="plan_status" value="lapsed"' ) );
 	rig_privacy_check( 'card says marking cancels nothing at Stripe', true, false !== strpos( $card, 'Marking a plan here cancels nothing at Stripe.' ) );
 	rig_privacy_check( 'card posts to admin-post.php with a nonce', true, false !== strpos( $card, 'admin-post.php' ) && false !== strpos( $card, '_wpnonce' ) );
 
@@ -1189,12 +1213,17 @@ if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
 		throw new RuntimeException( 'redirect:' . $location );
 	};
 	add_filter( 'wp_redirect', $rig_redirect, PHP_INT_MAX );
-	$rig_mark = static function ( $plan, $nonce_plan, $confirm, $method = 'POST' ) {
+	$rig_mark = static function ( $plan, $nonce_plan, $confirm, $method = 'POST', $seen = null ) use ( $wpdb ) {
+		if ( null === $seen ) {
+			// What the card would show now.
+			$seen = (string) $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}npmp_recurring_donations WHERE id = %d", $plan ) );
+		}
 		$_SERVER['REQUEST_METHOD'] = $method;
 		$_POST                     = array(
-			'action'   => 'npmp_privacy_mark_plan_cancelled',
-			'plan_id'  => (string) $plan,
-			'_wpnonce' => wp_create_nonce( 'npmp_privacy_mark_plan_' . $nonce_plan ),
+			'action'      => 'npmp_privacy_mark_plan_cancelled',
+			'plan_id'     => (string) $plan,
+			'plan_status' => $seen,
+			'_wpnonce'    => wp_create_nonce( 'npmp_privacy_mark_plan_' . $nonce_plan ),
 		);
 		if ( $confirm ) {
 			$_POST['npmp_cancelled_in_stripe'] = '1';
@@ -1221,6 +1250,13 @@ if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
 	rig_privacy_check( 'refusals changed nothing', 'lapsed/pm_rig_mark', $rig_status( $mark_plan ) );
 	rig_privacy_check( 'a plan with no erase request: refused', true, false !== strpos( $rig_mark( $nomark_plan, $nomark_plan, true ), 'npmp_privacy_error=held' ) );
 	rig_privacy_check( 'that plan unchanged', 'active/pm_rig_nomark', $rig_status( $nomark_plan ) );
+	// Stripe recovers the plan after the admin loaded the card as Lapsed.
+	$wpdb->update( $wpdb->prefix . 'npmp_recurring_donations', array( 'status' => 'active' ), array( 'id' => $mark_plan ) );
+	rig_privacy_check( 'the row went active after the card showed Lapsed: refused', true, false !== strpos( $rig_mark( $mark_plan, $mark_plan, true, 'POST', 'lapsed' ), 'npmp_privacy_error=changed' ) );
+	rig_privacy_check( 'the active row stays open with its payment method', 'active/pm_rig_mark', $rig_status( $mark_plan ) );
+	rig_privacy_check( 'no status posted (an older form): refused', true, false !== strpos( $rig_mark( $mark_plan, $mark_plan, true, 'POST', '' ), 'npmp_privacy_error=changed' ) );
+	rig_privacy_check( 'no audit entry for a refusal', array(), (array) get_option( 'npmp_privacy_plan_overrides', array() ) );
+	$wpdb->update( $wpdb->prefix . 'npmp_recurring_donations', array( 'status' => 'lapsed' ), array( 'id' => $mark_plan ) );
 	rig_privacy_check( 'confirmed: sent back with the plan marked', true, false !== strpos( $rig_mark( $mark_plan, $mark_plan, true ), 'npmp_privacy_marked=' . $mark_plan ) );
 	rig_privacy_check( 'the row reads cancelled with no payment method', 'cancelled/', $rig_status( $mark_plan ) );
 	$rig_log = (array) get_option( 'npmp_privacy_plan_overrides', array() );
@@ -1242,6 +1278,45 @@ if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
 	$card = (string) ob_get_clean();
 	rig_privacy_check( 'card lists who marked the plan', true, false !== strpos( $card, 'Plan #' . $mark_plan . ', Lapsed before, marked by' ) );
 	delete_option( 'npmp_privacy_plan_overrides' );
+	foreach ( $rig_filler as $rig_filler_id ) {
+		wp_delete_post( $rig_filler_id, true );
+	}
+}
+
+// ---------------------------------------------------------------------------
+// A filter that clears every hold, with an active plan (both erasers agree).
+// ---------------------------------------------------------------------------
+if ( rig_privacy_has_table( 'npmp_recurring_donations' ) ) {
+	echo "\nA filter that clears every hold keeps an active plan's hold\n";
+	list( $clear, $clear_gift ) = rig_privacy_person( 'clear' . $rig_domain, 'Cleo Clear' );
+	$wpdb->insert( $wpdb->prefix . 'npmp_recurring_donations', array( 'member_id' => $clear, 'external_id' => 'sub_rig_clear_' . uniqid(), 'amount' => 9, 'frequency' => 'monthly', 'status' => 'active', 'payment_method' => 'pm_rig_clear', 'source' => 'donation', 'currency' => 'GBP' ) );
+	$clear_plan = (int) $wpdb->insert_id;
+	if ( rig_privacy_has_table( 'npmp_custom_fields' ) ) {
+		$wpdb->insert( $wpdb->prefix . 'npmp_custom_fields', array( 'entity_type' => 'member', 'entity_id' => $clear, 'field_key' => 'rig_field', 'field_value' => 'rig-clear' ) );
+	}
+	add_filter( 'npmp_privacy_erase_holds', '__return_empty_array' );
+	rig_privacy_check( 'free and Pro get the same holds', npmp_privacy_erase_holds_for( 'clear' . $rig_domain, 'free' ), npmp_privacy_erase_holds_for( 'clear' . $rig_domain, 'pro' ) );
+	rig_privacy_check( 'one plan hold each', 1, count( npmp_privacy_erase_holds_for( 'clear' . $rig_domain, 'pro' ) ) );
+	$erase = rig_privacy_erase( 'clear' . $rig_domain );
+	clean_post_cache( $clear );
+	rig_privacy_check( 'contact kept whole', 'Cleo Clear', get_the_title( $clear ) );
+	rig_privacy_check( 'active plan keeps its payment method', 'active/pm_rig_clear', (string) $wpdb->get_var( $wpdb->prepare( "SELECT CONCAT( status, '/', payment_method ) FROM {$wpdb->prefix}npmp_recurring_donations WHERE id = %d", $clear_plan ) ) );
+	if ( rig_privacy_has_table( 'npmp_custom_fields' ) ) {
+		rig_privacy_check( 'custom field kept', 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}npmp_custom_fields WHERE entity_id = %d", $clear ) ) );
+	}
+	rig_privacy_check( 'no message says we kept only canceled plans', false, false !== strpos( implode( ' ', $erase['messages'] ), 'canceled and one-time' ) );
+	remove_filter( 'npmp_privacy_erase_holds', '__return_empty_array' );
+	$wpdb->update( $wpdb->prefix . 'npmp_recurring_donations', array( 'status' => 'cancelled' ), array( 'id' => $clear_plan ) );
+	if ( ! $rig_pro_eraser ) {
+		// Pro off: only Pro's eraser clears these, so they would hold.
+		$wpdb->update( $wpdb->prefix . 'npmp_recurring_donations', array( 'payment_method' => '' ), array( 'id' => $clear_plan ) );
+		if ( rig_privacy_has_table( 'npmp_custom_fields' ) ) {
+			$wpdb->delete( $wpdb->prefix . 'npmp_custom_fields', array( 'entity_id' => $clear ) );
+		}
+	}
+	$erase = rig_privacy_erase( 'clear' . $rig_domain );
+	clean_post_cache( $clear );
+	rig_privacy_check( 'plan closed: the erase finishes', null, get_post( $clear ) );
 }
 
 // ---------------------------------------------------------------------------

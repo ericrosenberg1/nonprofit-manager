@@ -27,6 +27,9 @@ $GLOBALS['t_notes']       = true;
 $GLOBALS['t_pro_eraser']  = false;
 function apply_filters( $tag, $value, ...$args ) {
 	if ( 'npmp_privacy_erase_holds' === $tag ) {
+		if ( ! empty( $GLOBALS['t_holds_clear'] ) ) {
+			return array();
+		}
 		return array_merge( (array) $value, $GLOBALS['t_holds'] );
 	}
 	if ( 'npmp_privacy_keep_unsubscribed' === $tag ) {
@@ -641,6 +644,72 @@ foreach ( $words as $state => $text ) {
 	check( "$state: the words fit", true, false !== strpos( $all, $text ) );
 	check( "$state: " . ( 'ready' === $state ? 'no card link' : 'card link' ), 'ready' !== $state, false !== strpos( $all, '#npmp-privacy-requests' ) );
 }
+
+echo "\nHolds: a filter that clears every hold keeps the plan hold (L2)\n";
+$GLOBALS['t_holds_clear'] = true;
+$s                        = t_seed();
+$s->plans[]               = array( 'member_id' => 20, 'status' => 'active', 'frequency' => 'monthly' );
+$rig_free_holds           = npmp_privacy_erase_holds_for( 'donor@example.org', 'free' );
+$rig_pro_holds            = npmp_privacy_erase_holds_for( 'donor@example.org', 'pro' );
+check( 'Pro\'s eraser still sees the plan hold', 1, count( $rig_pro_holds ) );
+check( 'free\'s eraser sees the same hold', $rig_pro_holds, $rig_free_holds );
+$before = json_encode( array( $s->contacts, $s->gifts ) );
+t_erase_all( 'donor@example.org' );
+check( 'the contact and gifts stay', $before, json_encode( array( $s->contacts, $s->gifts ) ) );
+$s = t_seed();
+t_erase_all( 'donor@example.org' );
+check( 'with no plan, the cleared filter lets the erase run', false, isset( $s->contacts[20] ) );
+$s              = t_seed();
+$s->leftover    = 2;
+$GLOBALS['t_pro_eraser'] = true;
+$before         = json_encode( array( $s->contacts, $s->gifts ) );
+t_erase_all( 'donor@example.org' );
+check( 'with no plan, Pro rows left still hold free\'s eraser', $before, json_encode( array( $s->contacts, $s->gifts ) ) );
+$GLOBALS['t_pro_eraser']  = false;
+$GLOBALS['t_holds_clear'] = false;
+
+echo "\nMarking a plan canceled: the status the admin saw (L1)\n";
+$plan = array( 'id' => 7, 'member_id' => 20, 'status' => 'lapsed', 'frequency' => 'monthly', 'payment_method' => 'pm_x' );
+check( 'same status, open request: go ahead', '', npmp_privacy_mark_refusal( $plan, 'lapsed', true ) );
+check( 'the row went active after the admin saw lapsed: refused', 'changed', npmp_privacy_mark_refusal( array_merge( $plan, array( 'status' => 'active' ) ), 'lapsed', true ) );
+check( 'no status posted (an old form): refused', 'changed', npmp_privacy_mark_refusal( $plan, '', true ) );
+check( 'no open request: held', 'held', npmp_privacy_mark_refusal( $plan, 'lapsed', false ) );
+check( 'closed since: held', 'held', npmp_privacy_mark_refusal( array_merge( $plan, array( 'status' => 'cancelled' ) ), 'lapsed', true ) );
+check( 'one-time row: held', 'held', npmp_privacy_mark_refusal( array_merge( $plan, array( 'frequency' => 'one_time' ) ), 'lapsed', true ) );
+check( 'missing row: held', 'held', npmp_privacy_mark_refusal( null, 'lapsed', true ) );
+
+echo "\nOpen erase requests: every page, not the newest 100 (L4)\n";
+$GLOBALS['t_requests'] = array();
+for ( $i = 1; $i <= 1203; $i++ ) {
+	$GLOBALS['t_requests'][ $i ] = 'person' . $i . '@example.org';
+}
+$GLOBALS['t_requests'][1204] = 'PERSON1@example.org';
+$GLOBALS['t_get_posts']      = array();
+function get_posts( $args ) {
+	$GLOBALS['t_get_posts'][] = $args;
+	$ids                      = array_keys( $GLOBALS['t_requests'] );
+	rsort( $ids );
+	return array_slice( $ids, ( $args['paged'] - 1 ) * $args['posts_per_page'], $args['posts_per_page'] );
+}
+function get_post_field( $field, $id ) {
+	return $GLOBALS['t_requests'][ $id ] ?? '';
+}
+$open = ( new NPMP_Privacy_Store() )->open_erase_emails();
+check( 'all 1,203 addresses, one per person', 1203, count( $open ) );
+check( 'the oldest request is on the list', true, in_array( 'person1@example.org', array_map( 'strtolower', $open ), true ) );
+check( 'newest first', 'PERSON1@example.org', $open[0] );
+check( 'three pages of 500', array( 1, 2, 3 ), array_column( $GLOBALS['t_get_posts'], 'paged' ) );
+check( 'open statuses only', array( 'request-pending', 'request-confirmed' ), $GLOBALS['t_get_posts'][0]['post_status'] );
+
+echo "\nEmail match: exact letters, any case (L3)\n";
+$GLOBALS['wpdb'] = new class() {
+	public function prepare( $sql, ...$args ) {
+		return vsprintf( str_replace( '%s', "'%s'", $sql ), $args );
+	}
+};
+$match = ( new ReflectionMethod( 'NPMP_Privacy_Store', 'match_email' ) )->invoke( null, 'e.meta_value', ' José@Example.org ' );
+check( 'compares lowercase bytes, never the collation', "HEX( LOWER( e.meta_value ) ) = HEX( LOWER( 'José@Example.org' ) )", $match );
+unset( $GLOBALS['wpdb'] );
 
 echo "\nPolicy text\n";
 $text = npmp_privacy_policy_text();
