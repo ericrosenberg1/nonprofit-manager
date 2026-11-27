@@ -67,6 +67,8 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/email/helpers.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/email/smtp.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-dashboard-widgets.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-sentry.php';
+// Tools, Export Personal Data and Erase Personal Data, whatever modules are on.
+require_once plugin_dir_path( __FILE__ ) . 'includes/npmp-privacy.php';
 
 /* -------------------------------------------------------------------------
  * Feature flags
